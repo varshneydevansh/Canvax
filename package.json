@@ -1,0 +1,11 @@
+{
+  "name": "canvax",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "canvax": "node scripts/canvax.mjs",
+    "start": "node scripts/canvax.mjs",
+    "check": "node --check scripts/canvax.mjs && node --check web/app.js"
+  }
+}

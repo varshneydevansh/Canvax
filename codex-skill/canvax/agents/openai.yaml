@@ -1,0 +1,4 @@
+interface:
+  display_name: "Canvax"
+  short_description: "Attach this thread to the live Canvax board and use its latest sketch export"
+  default_prompt: "Attach this thread to Canvax, open or reuse the live board, and use the latest sketch export as the working visual source."

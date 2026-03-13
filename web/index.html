@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Canvax</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="panel timeline-panel">
+        <div class="panel-header">
+          <p class="eyebrow">Codex sketch partner</p>
+          <h1>Canvax</h1>
+          <p class="lede">
+            Draw anything, pause for a beat, and let Canvax keep a live visual
+            handoff that Codex can read without making you translate the idea into
+            text first.
+          </p>
+        </div>
+
+        <div class="form-block compact-block">
+          <label>
+            Project
+            <input id="board-project" type="text" placeholder="e.g. Animated portfolio homepage" />
+          </label>
+          <label>
+            Current ask
+            <textarea
+              id="board-goal"
+              rows="2"
+              placeholder="What should Codex do with this canvas right now?"
+            ></textarea>
+          </label>
+          <label>
+            Surface / medium
+            <input id="board-audience" type="text" placeholder="web app, mobile UI, Qt, image prompt, anything" />
+          </label>
+          <label>
+            Mood
+            <input
+              id="board-mood"
+              type="text"
+              placeholder="Editorial, playful, cinematic, brutalist..."
+            />
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="add-frame" class="accent-button">Add frame</button>
+          <button id="duplicate-frame" class="ghost-button">Duplicate</button>
+          <button id="delete-frame" class="ghost-button">Delete</button>
+        </div>
+
+        <div class="frame-list-heading">
+          <span>Frames</span>
+          <span id="frame-count">1 frame</span>
+        </div>
+        <div id="frame-list" class="frame-list"></div>
+
+        <div class="panel-footer">
+          <div class="button-row stacked">
+            <button id="save-workspace" class="accent-button">Save now</button>
+            <button id="copy-prompt" class="ghost-button">Copy build prompt</button>
+            <button id="install-skill" class="ghost-button">Install global `/canvax` skill</button>
+          </div>
+          <p id="workspace-status" class="helper-text">
+            Canvax keeps a live export in this workspace under `exports/`.
+          </p>
+        </div>
+      </aside>
+
+      <main class="studio">
+        <header class="panel toolbar">
+          <div class="toolbar-main">
+            <div class="toolbar-group" data-view-scope="frame">
+              <span class="toolbar-label">Tools</span>
+              <div id="tool-buttons" class="chip-row"></div>
+            </div>
+
+            <div class="toolbar-group" data-view-scope="frame">
+              <span class="toolbar-label">Ink</span>
+              <div id="color-buttons" class="swatch-row"></div>
+              <label class="custom-color-control" aria-label="Custom color" title="Pick any custom color">
+                <input id="custom-color-picker" type="color" value="#ff5d3a" />
+              </label>
+              <input id="color-hex" class="color-hex-input" type="text" value="#ff5d3a" maxlength="7" spellcheck="false" aria-label="Hex color" title="Type a hex color like #FF5D3A" />
+            </div>
+
+            <div class="toolbar-group" data-view-scope="frame">
+              <label class="range-label">
+                Brush
+                <input id="size-range" type="range" min="4" max="32" value="14" />
+                <span id="size-preview-chip" class="size-preview-chip" aria-hidden="true">
+                  <span id="size-preview-dot" class="size-preview-dot"></span>
+                </span>
+                <span id="size-value">14 px</span>
+              </label>
+            </div>
+
+            <div class="toolbar-group toggles" data-view-scope="frame">
+              <label class="toggle" title="Show layout grid guides over the canvas">
+                <input id="grid-toggle" type="checkbox" checked />
+                Grid
+              </label>
+              <label class="toggle" title="Automatically save a fresh live snapshot after two seconds idle">
+                <input id="autosnap-toggle" type="checkbox" checked />
+                Autosnap
+              </label>
+            </div>
+
+            <div class="toolbar-group toolbar-status">
+              <span id="status-pill" class="status-pill">Autosnap writes the live canvas after 2s idle</span>
+              <button id="help-button" class="ghost-button" title="Open a quick guide to Canvax">Help</button>
+              <button id="capture-button" class="accent-button" data-view-scope="frame" title="Save the current frame immediately">Freeze frame</button>
+            </div>
+          </div>
+          <p id="tool-hint" class="tool-hint helper-text"></p>
+        </header>
+
+        <section class="panel stage-panel">
+          <div class="stage-header">
+            <div>
+              <p class="eyebrow">Current frame</p>
+              <h2 id="stage-title">Frame 1</h2>
+              <p id="stage-subtitle" class="helper-text">
+                Desktop canvas • draw with trackpad, mouse, or stylus
+              </p>
+            </div>
+
+            <div class="stage-actions">
+              <div id="view-mode-buttons" class="segmented-control" role="tablist" aria-label="Canvas mode">
+                <button class="segment active" data-view-mode="frame" aria-pressed="true">Frame view</button>
+                <button class="segment" data-view-mode="flow" aria-pressed="false">Flow view</button>
+              </div>
+              <div class="zoom-controls" data-view-scope="frame" aria-label="Canvas zoom">
+                <button id="zoom-out" class="ghost-button" type="button" title="Zoom out">-</button>
+                <span id="zoom-value" class="zoom-value">100%</span>
+                <button id="zoom-in" class="ghost-button" type="button" title="Zoom in">+</button>
+                <button id="zoom-reset" class="ghost-button" type="button" title="Reset zoom to 100%">Reset</button>
+              </div>
+              <div class="button-row right-align" data-view-scope="frame">
+              <button id="group-selection" class="ghost-button" title="Group the current selection so it moves together">Group</button>
+              <button id="ungroup-selection" class="ghost-button" title="Remove grouping from the current selection">Ungroup</button>
+              <button id="duplicate-selection" class="ghost-button" title="Duplicate the current selection">Duplicate sel</button>
+              <button id="send-backward" class="ghost-button" title="Send the current selection behind other elements">Send back</button>
+              <button id="bring-forward" class="ghost-button" title="Bring the current selection in front of other elements">Bring front</button>
+              <label class="upload-button" title="Place a screenshot or reference image under the sketch">
+                <input id="background-upload" type="file" accept="image/*" />
+                Reference underlay
+              </label>
+              <button id="undo-button" class="ghost-button" title="Undo the last canvas change">Undo</button>
+              <button id="redo-button" class="ghost-button" title="Redo the last undone change">Redo</button>
+              <button id="clear-canvas" class="ghost-button" title="Clear the current frame canvas">Clear</button>
+            </div>
+            </div>
+          </div>
+
+          <div class="stage-body">
+            <div id="frame-workspace" class="workspace-panel">
+              <div id="device-shell" class="device-shell">
+                <div id="brush-preview" class="brush-preview" hidden>
+                  <span id="brush-preview-text">14 px</span>
+                </div>
+                <div id="label-editor" class="label-editor" hidden>
+                  <textarea id="label-editor-input" rows="2" spellcheck="false"></textarea>
+                  <p class="label-editor-hint">Enter to place, Shift+Enter for newline, Esc to cancel.</p>
+                </div>
+                <canvas id="board-canvas"></canvas>
+              </div>
+              <div class="canvas-note">
+                <p>Use labels for anything: component names, states, motion, art direction, interaction rules, or raw design notes. Click empty space for a free note, or click over a shape to pin the label to it.</p>
+                <p>Use Select to grab, move, resize, or delete shapes after drawing. Paste or drop a screenshot to sketch on top of it. Every idle gap of two seconds updates the live export Codex can read.</p>
+              </div>
+            </div>
+
+            <div id="flow-workspace" class="workspace-panel" hidden>
+              <div class="flow-toolbar">
+                <p id="flow-status" class="helper-text">
+                  Drag cards to arrange screens. Pull from the dot on a frame to connect screens like a lightweight prototype map.
+                </p>
+                <div class="button-row right-align tight">
+                  <button id="set-entry-frame" class="ghost-button">Set current as entry</button>
+                  <button id="auto-layout-flow" class="ghost-button">Auto layout</button>
+                </div>
+              </div>
+              <div id="flow-shell" class="flow-shell">
+                <div id="flow-surface" class="flow-surface">
+                  <svg id="flow-svg" class="flow-svg" aria-hidden="true"></svg>
+                  <div id="flow-board" class="flow-board"></div>
+                </div>
+              </div>
+              <div class="canvas-note">
+                <p>Use Flow view to lay out screens and connect them with explicit navigation or transition labels.</p>
+                <p>Codex will read both the frame sketches and the connection graph, so the handoff can describe sequence, branching, and interaction states.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="panel inspector-panel">
+        <div class="panel-header">
+          <p class="eyebrow">Frame notes</p>
+          <h2>Handoff builder</h2>
+          <p class="lede small">
+            The sketch carries the shape. These notes tell Codex how to interpret it, whether that means UI, image prompting, product design, or spec writing.
+          </p>
+        </div>
+
+        <div class="form-block">
+          <label>
+            Frame label
+            <input id="frame-title" type="text" placeholder="Frame 1" />
+          </label>
+          <label>
+            Canvas size / viewport
+            <select id="viewport-select"></select>
+          </label>
+          <label>
+            Intent
+            <textarea
+              id="frame-objective"
+              rows="2"
+              placeholder="What does this frame mean or communicate?"
+            ></textarea>
+          </label>
+          <label>
+            Notes / structure
+            <textarea
+              id="frame-layout"
+              rows="3"
+              placeholder="Call out placement, hierarchy, grouping, or any visual structure."
+            ></textarea>
+          </label>
+          <label>
+            Behavior / flow
+            <textarea
+              id="frame-motion"
+              rows="3"
+              placeholder="Explain motion, transitions, state changes, or what should happen next."
+            ></textarea>
+          </label>
+          <label>
+            Asset / generation notes
+            <textarea
+              id="frame-assets"
+              rows="3"
+              placeholder="Describe image ideas, illustration style, prompt cues, or anything asset-related."
+            ></textarea>
+          </label>
+          <label>
+            Variant / platform notes
+            <textarea
+              id="frame-mobile"
+              rows="3"
+              placeholder="How should this adapt across mobile, Qt, desktop, image variants, or other surfaces?"
+            ></textarea>
+          </label>
+        </div>
+
+        <div class="capture-section">
+          <div class="section-header">
+            <h3>Captures</h3>
+            <div class="button-row tight">
+              <span id="capture-count" class="helper-text">0 saved</span>
+              <button id="clear-captures" class="ghost-button" type="button" title="Delete all saved captures for this frame">Clear captures</button>
+            </div>
+          </div>
+          <div id="capture-list" class="capture-list"></div>
+        </div>
+
+        <div class="analysis-section">
+          <div class="section-header">
+            <h3>Live handoff</h3>
+          </div>
+          <p id="analysis-status" class="helper-text">
+            Canvax keeps a live export for Codex. Use the canvas, pause for autosnap, then ask Codex to read the latest Canvax export.
+          </p>
+          <textarea id="spec-output" class="output-area" readonly></textarea>
+        </div>
+
+        <div class="analysis-section">
+          <div class="section-header">
+            <h3>Prototype flow</h3>
+            <span id="flow-count" class="helper-text">0 links</span>
+          </div>
+          <label>
+            Selected link
+            <select id="connection-select"></select>
+          </label>
+          <label>
+            Trigger / label
+            <input id="connection-label" type="text" placeholder="tap CTA, swipe left, scroll into view, next..." />
+          </label>
+          <label>
+            Link notes
+            <textarea
+              id="connection-notes"
+              rows="2"
+              placeholder="Anything special about this transition or branch?"
+            ></textarea>
+          </label>
+          <div class="button-row">
+            <button id="delete-connection" class="ghost-button">Delete selected link</button>
+          </div>
+          <div id="flow-list" class="flow-list"></div>
+        </div>
+      </aside>
+    </div>
+
+    <div id="help-overlay" class="help-overlay" hidden>
+      <div class="help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow">Canvax guide</p>
+            <h2 id="help-title">How This Works</h2>
+          </div>
+          <button id="help-close" class="ghost-button" type="button" title="Close help">Close</button>
+        </div>
+        <div class="help-intro">
+          <p class="help-summary">Use Frame view to sketch and annotate a screen. Use Flow view to arrange frames and define how the experience moves between them.</p>
+          <div class="help-shortcuts" aria-label="Quick shortcuts">
+            <span class="shortcut-chip"><kbd>Shift</kbd><span>multi-select</span></span>
+            <span class="shortcut-chip"><kbd>Cmd/Ctrl</kbd><kbd>D</kbd><span>duplicate</span></span>
+            <span class="shortcut-chip"><kbd>Cmd/Ctrl</kbd><kbd>]</kbd><span>bring front</span></span>
+            <span class="shortcut-chip"><kbd>Cmd/Ctrl</kbd><kbd>[</kbd><span>send back</span></span>
+            <span class="shortcut-chip"><kbd>Space</kbd><span>pan canvas</span></span>
+          </div>
+        </div>
+        <div class="help-grid">
+          <section class="help-card">
+            <h3>Canvas basics</h3>
+            <ul class="help-list">
+              <li><strong>Pen</strong> and <strong>Marker</strong> are freehand tools.</li>
+              <li><strong>Line</strong>, <strong>Rect</strong>, <strong>Oval</strong>, and <strong>Arrow</strong> create structured shapes.</li>
+              <li><strong>Freeze frame</strong> saves now. <strong>Autosnap</strong> updates the live handoff after two seconds idle.</li>
+            </ul>
+          </section>
+          <section class="help-card">
+            <h3>Selection and grouping</h3>
+            <ul class="help-list">
+              <li>Use <strong>Select</strong> to click an element, drag to move it, or drag corner handles to resize it.</li>
+              <li>Hold <strong>Shift</strong> and click to build a multi-selection.</li>
+              <li><strong>Group</strong> makes that relationship persistent so clicking one grouped item selects the full set.</li>
+              <li><strong>Duplicate sel</strong> creates an offset copy. <strong>Send back</strong> and <strong>Bring front</strong> change layer order.</li>
+            </ul>
+          </section>
+          <section class="help-card">
+            <h3>Labels</h3>
+            <ul class="help-list">
+              <li>Click empty canvas to place a free note.</li>
+              <li>Click over a shape to attach the label to that element so it follows move and resize.</li>
+              <li>Type inline on the canvas. <strong>Enter</strong> places it, <strong>Shift+Enter</strong> adds a new line, and <strong>Esc</strong> cancels.</li>
+            </ul>
+          </section>
+          <section class="help-card">
+            <h3>Flow and captures</h3>
+            <ul class="help-list">
+              <li><strong>Flow view</strong> arranges frames and connects them with arrows and transition labels.</li>
+              <li><strong>Reference underlay</strong> places a screenshot below your sketch.</li>
+              <li><strong>Captures</strong> are saved frame snapshots. Remove one capture at a time or clear them all from the Captures section.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
