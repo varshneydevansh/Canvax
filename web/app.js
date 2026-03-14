@@ -1,12 +1,18 @@
 const STORAGE_KEY = "canvax-studio-v1";
 const STORAGE_VERSION = 2;
+const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
+const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
 const MAX_CAPTURES = 6;
 const AUTO_CAPTURE_DELAY = 2000;
+const LIVE_PREVIEW_DEBOUNCE = 160;
+const MANIFEST_POLL_INTERVAL = 2500;
 const FLOW_CARD_WIDTH = 256;
 const FLOW_CARD_HEIGHT = 180;
 const FLOW_SURFACE_PADDING = 120;
 const SELECTION_HANDLE_SIZE = 14;
-const shouldRunSelfTest = new URLSearchParams(window.location.search).get("selftest") === "1";
+const PREVIEW_WINDOW_NAME = "canvax-preview-window";
+const shouldRunSelfTest =
+  new URLSearchParams(window.location.search).get("selftest") === "1";
 const viewModes = [
   { id: "frame", label: "Frame view" },
   { id: "flow", label: "Flow view" },
@@ -34,14 +40,16 @@ const toolDefinitions = [
 ];
 
 const toolMeta = {
-  select: "Select, move, resize, or delete existing elements. Shift-click builds a multi-selection for grouping.",
+  select:
+    "Select, move, resize, or delete existing elements. Shift-click builds a multi-selection for grouping.",
   pen: "Freehand line for precise sketch strokes.",
   marker: "Soft translucent sketch stroke for rough blocking.",
   line: "Straight segment for dividers, guides, and edges.",
   rect: "Rectangle or box for cards, frames, and blocks.",
   ellipse: "Oval or circle for avatars, chips, and round callouts.",
   arrow: "Directional arrow for flows, gestures, and emphasis.",
-  label: "Click to type on the canvas. Clicking over a shape pins the label to that element.",
+  label:
+    "Click to type on the canvas. Clicking over a shape pins the label to that element.",
   erase: "Erase parts of freehand sketches with the current brush size.",
 };
 
@@ -74,6 +82,8 @@ const dom = {
   gridToggle: document.querySelector("#grid-toggle"),
   autosnapToggle: document.querySelector("#autosnap-toggle"),
   statusPill: document.querySelector("#status-pill"),
+  openPreview: document.querySelector("#open-preview"),
+  materializeFrame: document.querySelector("#materialize-frame"),
   captureButton: document.querySelector("#capture-button"),
   stageTitle: document.querySelector("#stage-title"),
   stageSubtitle: document.querySelector("#stage-subtitle"),
@@ -100,6 +110,7 @@ const dom = {
   groupSelection: document.querySelector("#group-selection"),
   ungroupSelection: document.querySelector("#ungroup-selection"),
   duplicateSelection: document.querySelector("#duplicate-selection"),
+  deleteSelection: document.querySelector("#delete-selection"),
   sendBackward: document.querySelector("#send-backward"),
   bringForward: document.querySelector("#bring-forward"),
   helpButton: document.querySelector("#help-button"),
@@ -116,11 +127,27 @@ const dom = {
   frameMotion: document.querySelector("#frame-motion"),
   frameAssets: document.querySelector("#frame-assets"),
   frameMobile: document.querySelector("#frame-mobile"),
+  voiceStatus: document.querySelector("#voice-status"),
+  voiceSegmentCount: document.querySelector("#voice-segment-count"),
+  voiceScopeButtons: document.querySelector("#voice-scope-buttons"),
+  voiceStart: document.querySelector("#voice-start"),
+  voiceStop: document.querySelector("#voice-stop"),
+  voiceClearScope: document.querySelector("#voice-clear-scope"),
+  voiceInterim: document.querySelector("#voice-interim"),
+  voiceManualInput: document.querySelector("#voice-manual-input"),
+  voiceAddManual: document.querySelector("#voice-add-manual"),
+  voiceList: document.querySelector("#voice-list"),
   captureCount: document.querySelector("#capture-count"),
   clearCaptures: document.querySelector("#clear-captures"),
   captureList: document.querySelector("#capture-list"),
   specOutput: document.querySelector("#spec-output"),
   analyzeStatus: document.querySelector("#analysis-status"),
+  codexOpenTarget: document.querySelector("#codex-open-target"),
+  codexOutputSummary: document.querySelector("#codex-output-summary"),
+  artifactInboxCount: document.querySelector("#artifact-inbox-count"),
+  artifactInbox: document.querySelector("#artifact-inbox"),
+  changedFileCount: document.querySelector("#changed-file-count"),
+  changedFileList: document.querySelector("#changed-file-list"),
   saveWorkspace: document.querySelector("#save-workspace"),
   copyPrompt: document.querySelector("#copy-prompt"),
   installSkill: document.querySelector("#install-skill"),
@@ -139,6 +166,11 @@ const imageCache = new Map();
 const histories = new Map();
 const measurementCanvas = document.createElement("canvas");
 const measurementContext = measurementCanvas.getContext("2d");
+const livePreviewChannel =
+  typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel(LIVE_PREVIEW_CHANNEL_NAME)
+    : null;
+let voiceRecognition = null;
 const state = hydrateState();
 
 init();
@@ -147,7 +179,9 @@ function init() {
   populateViewportSelect();
   bindEvents();
   fetchServerStatus();
+  refreshPreviewStateFromServer();
   renderAll();
+  scheduleLivePreviewSync();
   exposeDebugHelpers();
   if (shouldRunSelfTest) {
     window.setTimeout(() => {
@@ -157,10 +191,18 @@ function init() {
 }
 
 function bindEvents() {
-  dom.boardProject.addEventListener("input", () => updateBoard("project", dom.boardProject.value));
-  dom.boardGoal.addEventListener("input", () => updateBoard("goal", dom.boardGoal.value));
-  dom.boardAudience.addEventListener("input", () => updateBoard("audience", dom.boardAudience.value));
-  dom.boardMood.addEventListener("input", () => updateBoard("designMood", dom.boardMood.value));
+  dom.boardProject.addEventListener("input", () =>
+    updateBoard("project", dom.boardProject.value),
+  );
+  dom.boardGoal.addEventListener("input", () =>
+    updateBoard("goal", dom.boardGoal.value),
+  );
+  dom.boardAudience.addEventListener("input", () =>
+    updateBoard("audience", dom.boardAudience.value),
+  );
+  dom.boardMood.addEventListener("input", () =>
+    updateBoard("designMood", dom.boardMood.value),
+  );
 
   dom.addFrame.addEventListener("click", () => addFrame());
   dom.duplicateFrame.addEventListener("click", () => duplicateFrame());
@@ -172,11 +214,16 @@ function bindEvents() {
   dom.groupSelection.addEventListener("click", groupSelectedElements);
   dom.ungroupSelection.addEventListener("click", ungroupSelectedElements);
   dom.duplicateSelection.addEventListener("click", duplicateSelectedElements);
+  dom.deleteSelection.addEventListener("click", deleteSelectedElement);
   dom.sendBackward.addEventListener("click", sendSelectionBackward);
   dom.bringForward.addEventListener("click", bringSelectionForward);
   dom.zoomOut.addEventListener("click", () => updateZoom(-0.1));
   dom.zoomIn.addEventListener("click", () => updateZoom(0.1));
   dom.zoomReset.addEventListener("click", () => setZoom(1));
+  dom.openPreview.addEventListener("click", openPreviewWindow);
+  dom.materializeFrame.addEventListener("click", () => {
+    void materializeCurrentFrame();
+  });
   dom.helpButton.addEventListener("click", openHelpOverlay);
   dom.helpClose.addEventListener("click", closeHelpOverlay);
   dom.helpOverlay.addEventListener("click", (event) => {
@@ -296,13 +343,50 @@ function bindEvents() {
   dom.redoButton.addEventListener("click", redoFrame);
   dom.clearCanvas.addEventListener("click", clearCurrentFrame);
 
-  dom.frameTitle.addEventListener("input", () => updateFrameField("title", dom.frameTitle.value));
-  dom.viewportSelect.addEventListener("change", () => updateFrameField("viewport", dom.viewportSelect.value, { capture: true }));
-  dom.frameObjective.addEventListener("input", () => updateFrameField("objective", dom.frameObjective.value));
-  dom.frameLayout.addEventListener("input", () => updateFrameField("layout", dom.frameLayout.value));
-  dom.frameMotion.addEventListener("input", () => updateFrameField("motion", dom.frameMotion.value));
-  dom.frameAssets.addEventListener("input", () => updateFrameField("assets", dom.frameAssets.value));
-  dom.frameMobile.addEventListener("input", () => updateFrameField("mobile", dom.frameMobile.value));
+  dom.frameTitle.addEventListener("input", () =>
+    updateFrameField("title", dom.frameTitle.value),
+  );
+  dom.viewportSelect.addEventListener("change", () =>
+    updateFrameField("viewport", dom.viewportSelect.value, { capture: true }),
+  );
+  dom.frameObjective.addEventListener("input", () =>
+    updateFrameField("objective", dom.frameObjective.value),
+  );
+  dom.frameLayout.addEventListener("input", () =>
+    updateFrameField("layout", dom.frameLayout.value),
+  );
+  dom.frameMotion.addEventListener("input", () =>
+    updateFrameField("motion", dom.frameMotion.value),
+  );
+  dom.frameAssets.addEventListener("input", () =>
+    updateFrameField("assets", dom.frameAssets.value),
+  );
+  dom.frameMobile.addEventListener("input", () =>
+    updateFrameField("mobile", dom.frameMobile.value),
+  );
+  dom.voiceScopeButtons.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-voice-scope]");
+    if (!button) {
+      return;
+    }
+    setVoiceScope(button.dataset.voiceScope);
+  });
+  dom.voiceStart.addEventListener("click", () => {
+    void startVoiceDictation();
+  });
+  dom.voiceStop.addEventListener("click", stopVoiceDictation);
+  dom.voiceClearScope.addEventListener("click", clearVoiceScope);
+  dom.voiceAddManual.addEventListener("click", addManualVoiceNote);
+  dom.voiceManualInput.addEventListener("input", () => {
+    state.voice.manualDraft = dom.voiceManualInput.value;
+    renderVoicePanel();
+  });
+  dom.voiceManualInput.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      addManualVoiceNote();
+    }
+  });
   dom.setEntryFrame.addEventListener("click", setCurrentFrameAsEntry);
   dom.autoLayoutFlow.addEventListener("click", autoLayoutFlow);
   dom.connectionSelect.addEventListener("change", () => {
@@ -311,7 +395,9 @@ function bindEvents() {
     renderFlowBoard();
   });
   dom.flowList.addEventListener("click", (event) => {
-    const removeButton = event.target.closest("[data-flow-remove-connection-id]");
+    const removeButton = event.target.closest(
+      "[data-flow-remove-connection-id]",
+    );
     if (removeButton) {
       state.selectedConnectionId = removeButton.dataset.flowRemoveConnectionId;
       deleteSelectedConnection();
@@ -326,8 +412,12 @@ function bindEvents() {
     renderFlowInspector();
     renderFlowBoard();
   });
-  dom.connectionLabel.addEventListener("input", () => updateSelectedConnection("label", dom.connectionLabel.value));
-  dom.connectionNotes.addEventListener("input", () => updateSelectedConnection("notes", dom.connectionNotes.value));
+  dom.connectionLabel.addEventListener("input", () =>
+    updateSelectedConnection("label", dom.connectionLabel.value),
+  );
+  dom.connectionNotes.addEventListener("input", () =>
+    updateSelectedConnection("notes", dom.connectionNotes.value),
+  );
   dom.deleteConnection.addEventListener("click", deleteSelectedConnection);
   dom.clearCaptures.addEventListener("click", clearCaptures);
   dom.captureList.addEventListener("click", (event) => {
@@ -383,8 +473,8 @@ function bindEvents() {
       return;
     }
 
-    const imageItem = Array.from(event.clipboardData?.items || []).find((item) =>
-      item.type.startsWith("image/"),
+    const imageItem = Array.from(event.clipboardData?.items || []).find(
+      (item) => item.type.startsWith("image/"),
     );
     if (!imageItem) {
       return;
@@ -430,16 +520,23 @@ function hydrateState() {
     }
     const parsed = JSON.parse(raw);
     const migrated = migratePersistedSnapshot(parsed, empty);
-    const frames = Array.isArray(migrated.frames) && migrated.frames.length
-      ? migrated.frames.map((frame, index) => normalizeFrame(frame, index))
-      : empty.frames;
+    const frames =
+      Array.isArray(migrated.frames) && migrated.frames.length
+        ? migrated.frames.map((frame, index) => normalizeFrame(frame, index))
+        : empty.frames;
     const frameIds = new Set(frames.map((frame) => frame.id));
     const connections = Array.isArray(migrated.connections)
       ? migrated.connections
           .map((connection) => normalizeConnection(connection))
-          .filter((connection) => frameIds.has(connection.fromFrameId) && frameIds.has(connection.toFrameId))
+          .filter(
+            (connection) =>
+              frameIds.has(connection.fromFrameId) &&
+              frameIds.has(connection.toFrameId),
+          )
       : [];
-    const entryFrameId = frameIds.has(migrated.entryFrameId) ? migrated.entryFrameId : frames[0].id;
+    const entryFrameId = frameIds.has(migrated.entryFrameId)
+      ? migrated.entryFrameId
+      : frames[0].id;
 
     return {
       ...empty,
@@ -451,23 +548,36 @@ function hydrateState() {
       activeFrameId: frames.some((frame) => frame.id === migrated.activeFrameId)
         ? migrated.activeFrameId
         : frames[0].id,
-      tool: toolDefinitions.some((tool) => tool.id === migrated.tool) ? migrated.tool : empty.tool,
+      tool: toolDefinitions.some((tool) => tool.id === migrated.tool)
+        ? migrated.tool
+        : empty.tool,
       color: normalizeColor(migrated.color, empty.color),
       size: Number.isFinite(migrated.size) ? migrated.size : empty.size,
       grid: migrated.grid ?? empty.grid,
       autoSnap: migrated.autoSnap ?? empty.autoSnap,
-      zoom: Number.isFinite(migrated.zoom) ? Math.max(0.5, Math.min(3, migrated.zoom)) : empty.zoom,
-      viewMode: viewModes.some((mode) => mode.id === migrated.viewMode) ? migrated.viewMode : empty.viewMode,
+      zoom: Number.isFinite(migrated.zoom)
+        ? Math.max(0.5, Math.min(3, migrated.zoom))
+        : empty.zoom,
+      viewMode: viewModes.some((mode) => mode.id === migrated.viewMode)
+        ? migrated.viewMode
+        : empty.viewMode,
       connections,
       entryFrameId,
       selectedConnectionId: null,
       pendingConnectionFromFrameId: null,
-      saveNotice: typeof migrated.saveNotice === "string" ? migrated.saveNotice : "",
-      statusText: typeof migrated.statusText === "string" ? migrated.statusText : empty.statusText,
+      saveNotice:
+        typeof migrated.saveNotice === "string" ? migrated.saveNotice : "",
+      statusText:
+        typeof migrated.statusText === "string"
+          ? migrated.statusText
+          : empty.statusText,
+      voice: normalizeVoiceState(migrated.voice, empty.voice),
       serverStatus: {
         exportRoot: null,
+        previewManifest: null,
       },
       captureTimer: null,
+      previewStateTimer: null,
       draftElement: null,
       isDrawing: false,
       flowDrag: null,
@@ -525,34 +635,46 @@ function isLegacyBlankStoryboard(snapshot) {
   }
 
   const looksLikeLegacyBoard =
-    String(board.project || "").trim().toLowerCase() === "canvax storyboard" ||
+    String(board.project || "")
+      .trim()
+      .toLowerCase() === "canvax storyboard" ||
     /turn rough sketches/i.test(String(board.goal || "")) ||
     /people collaborating/i.test(String(board.audience || "")) ||
     /intentional,\s*expressive,\s*fast/i.test(String(board.designMood || ""));
 
-  const looksLikeLegacyFrame = String(firstFrame.title || "").trim().toLowerCase() === "hero section";
+  const looksLikeLegacyFrame =
+    String(firstFrame.title || "")
+      .trim()
+      .toLowerCase() === "hero section";
   const hasCanvasContent = frames.some((frame) => frameHasCanvasContent(frame));
-  const hasMeaningfulNotes = frames.some((frame) => frameHasMeaningfulNotes(frame));
+  const hasMeaningfulNotes = frames.some((frame) =>
+    frameHasMeaningfulNotes(frame),
+  );
 
-  return looksLikeLegacyBoard && looksLikeLegacyFrame && !hasCanvasContent && !hasMeaningfulNotes;
+  return (
+    looksLikeLegacyBoard &&
+    looksLikeLegacyFrame &&
+    !hasCanvasContent &&
+    !hasMeaningfulNotes
+  );
 }
 
 function frameHasCanvasContent(frame) {
   return Boolean(
     frame?.backgroundImage ||
-      frame?.thumbnail ||
-      (Array.isArray(frame?.elements) && frame.elements.length) ||
-      (Array.isArray(frame?.captures) && frame.captures.length),
+    frame?.thumbnail ||
+    (Array.isArray(frame?.elements) && frame.elements.length) ||
+    (Array.isArray(frame?.captures) && frame.captures.length),
   );
 }
 
 function frameHasMeaningfulNotes(frame) {
   return Boolean(
     String(frame?.objective || "").trim() ||
-      String(frame?.layout || "").trim() ||
-      String(frame?.motion || "").trim() ||
-      String(frame?.assets || "").trim() ||
-      String(frame?.mobile || "").trim(),
+    String(frame?.layout || "").trim() ||
+    String(frame?.motion || "").trim() ||
+    String(frame?.assets || "").trim() ||
+    String(frame?.mobile || "").trim(),
   );
 }
 
@@ -562,7 +684,8 @@ function createInitialState() {
     board: {
       project: "Canvax live canvas",
       goal: "Read the canvas and help me refine, generate, or implement what it shows.",
-      audience: "web UI, mobile UI, Qt, image direction, or any other visual surface",
+      audience:
+        "web UI, mobile UI, Qt, image direction, or any other visual surface",
       designMood: "Fast, visual, iterative.",
     },
     frames: [firstFrame],
@@ -583,10 +706,13 @@ function createInitialState() {
     elementTransform: null,
     saveNotice: "",
     statusText: "Autosnap writes the live canvas after 2s idle",
+    voice: createInitialVoiceState(),
     serverStatus: {
       exportRoot: null,
+      previewManifest: null,
     },
     captureTimer: null,
+    previewStateTimer: null,
     draftElement: null,
     isDrawing: false,
     flowDrag: null,
@@ -604,6 +730,67 @@ function createInitialState() {
   };
 }
 
+function createInitialVoiceState() {
+  return {
+    scope: "frame",
+    status: "idle",
+    provider: "",
+    interimText: "",
+    error: "",
+    manualDraft: "",
+    segments: [],
+  };
+}
+
+function normalizeVoiceState(value, fallback = createInitialVoiceState()) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    ...fallback,
+    scope: source.scope === "session" ? "session" : fallback.scope,
+    status: "idle",
+    provider: "",
+    interimText: "",
+    error: "",
+    manualDraft:
+      typeof source.manualDraft === "string"
+        ? source.manualDraft
+        : fallback.manualDraft,
+    segments: Array.isArray(source.segments)
+      ? source.segments
+          .map((segment, index) => normalizeVoiceSegment(segment, index))
+          .filter(Boolean)
+      : fallback.segments,
+  };
+}
+
+function normalizeVoiceSegment(segment, index = 0) {
+  if (!segment || typeof segment !== "object") {
+    return null;
+  }
+  const text = typeof segment.text === "string" ? segment.text.trim() : "";
+  if (!text) {
+    return null;
+  }
+  return {
+    id:
+      typeof segment.id === "string" && segment.id.trim()
+        ? segment.id.trim()
+        : `voice-${index + 1}`,
+    text,
+    at:
+      typeof segment.at === "string" && segment.at.trim()
+        ? segment.at.trim()
+        : new Date().toISOString(),
+    scope: segment.scope === "session" ? "session" : "frame",
+    provider:
+      typeof segment.provider === "string" ? segment.provider.trim() : "",
+    frameId: typeof segment.frameId === "string" ? segment.frameId.trim() : "",
+    frameTitle:
+      typeof segment.frameTitle === "string" ? segment.frameTitle.trim() : "",
+  };
+}
+
 function normalizeFrame(frame, index) {
   return {
     id: frame.id || uid("frame"),
@@ -618,7 +805,9 @@ function normalizeFrame(frame, index) {
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
     elements: Array.isArray(frame.elements) ? frame.elements : [],
     thumbnail: frame.thumbnail || "",
-    captures: Array.isArray(frame.captures) ? frame.captures.slice(0, MAX_CAPTURES) : [],
+    captures: Array.isArray(frame.captures)
+      ? frame.captures.slice(0, MAX_CAPTURES)
+      : [],
     createdAt: frame.createdAt || new Date().toISOString(),
     updatedAt: frame.updatedAt || new Date().toISOString(),
   };
@@ -653,15 +842,25 @@ function createFrame(overrides = {}) {
 }
 
 function currentFrame() {
-  return state.frames.find((frame) => frame.id === state.activeFrameId) || state.frames[0];
+  return (
+    state.frames.find((frame) => frame.id === state.activeFrameId) ||
+    state.frames[0]
+  );
 }
 
 function currentConnection() {
-  return state.connections.find((connection) => connection.id === state.selectedConnectionId) || null;
+  return (
+    state.connections.find(
+      (connection) => connection.id === state.selectedConnectionId,
+    ) || null
+  );
 }
 
 function currentSelectedElement(frame = currentFrame()) {
-  return frame.elements.find((element) => element.id === state.selectedElementId) || null;
+  return (
+    frame.elements.find((element) => element.id === state.selectedElementId) ||
+    null
+  );
 }
 
 function currentSelectedElements(frame = currentFrame()) {
@@ -676,9 +875,10 @@ function currentSelectedElements(frame = currentFrame()) {
 function setSelectedElements(ids, primaryId = ids.at(-1) || null) {
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   state.selectedElementIds = uniqueIds;
-  state.selectedElementId = primaryId && uniqueIds.includes(primaryId)
-    ? primaryId
-    : uniqueIds.at(-1) || null;
+  state.selectedElementId =
+    primaryId && uniqueIds.includes(primaryId)
+      ? primaryId
+      : uniqueIds.at(-1) || null;
 }
 
 function clearElementSelection() {
@@ -706,11 +906,7 @@ function selectionGroupIds(frame = currentFrame()) {
 }
 
 function normalizeFlowPosition(position, index) {
-  if (
-    position &&
-    Number.isFinite(position.x) &&
-    Number.isFinite(position.y)
-  ) {
+  if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
     return {
       x: Math.max(32, position.x),
       y: Math.max(32, position.y),
@@ -758,6 +954,7 @@ function renderAll() {
   renderColors();
   renderFrameList();
   renderFrameForm();
+  renderVoicePanel();
   renderFlowBoard();
   renderFlowInspector();
   renderStatus();
@@ -765,6 +962,7 @@ function renderAll() {
   renderBrushPreview();
   renderCaptures();
   renderSpec();
+  renderCodexOutput();
   renderUndoRedo();
   renderServerStatus();
 }
@@ -786,9 +984,10 @@ function renderTools() {
 }
 
 function renderToolHint() {
-  dom.toolHint.textContent = state.viewMode === "flow"
-    ? "Flow view is for arranging frames, linking navigation, and defining transitions between screens."
-    : (toolMeta[state.tool] || "");
+  dom.toolHint.textContent =
+    state.viewMode === "flow"
+      ? "Flow view is for arranging frames, linking navigation, and defining transitions between screens."
+      : toolMeta[state.tool] || "";
 }
 
 function renderZoom() {
@@ -814,8 +1013,10 @@ function renderSelectionActions() {
   const groupIds = selectionGroupIds(frame);
   const canEditSelection = state.viewMode === "frame";
   dom.groupSelection.disabled = !canEditSelection || selected.length < 2;
-  dom.ungroupSelection.disabled = !canEditSelection || selected.length === 0 || groupIds.length === 0;
+  dom.ungroupSelection.disabled =
+    !canEditSelection || selected.length === 0 || groupIds.length === 0;
   dom.duplicateSelection.disabled = !canEditSelection || selected.length === 0;
+  dom.deleteSelection.disabled = !canEditSelection || selected.length === 0;
   dom.sendBackward.disabled = !canEditSelection || selected.length === 0;
   dom.bringForward.disabled = !canEditSelection || selected.length === 0;
 }
@@ -843,7 +1044,8 @@ function renderViewMode() {
     node.hidden = node.getAttribute("data-view-scope") !== state.viewMode;
   });
   if (!showFrame) {
-    dom.statusPill.textContent = "Flow view focuses on frame relationships, ordering, and transitions.";
+    dom.statusPill.textContent =
+      "Flow view focuses on frame relationships, ordering, and transitions.";
   }
 }
 
@@ -867,7 +1069,9 @@ function renderFrameList() {
   dom.frameList.innerHTML = state.frames
     .map((frame, index) => {
       const viewport = viewportPresets[frame.viewport];
-      const subtitle = [viewport.label, timeLabel(frame.updatedAt)].filter(Boolean).join(" • ");
+      const subtitle = [viewport.label, timeLabel(frame.updatedAt)]
+        .filter(Boolean)
+        .join(" • ");
       return `
         <button class="frame-card ${frame.id === state.activeFrameId ? "active" : ""}" data-frame-id="${frame.id}">
           <div class="frame-thumb">
@@ -903,11 +1107,315 @@ function renderFrameForm() {
   }
 }
 
+function renderVoicePanel() {
+  const frame = currentFrame();
+  const segments = state.voice.segments;
+  const relevantSegments = voiceSegmentsForCurrentScope();
+  const supportsVoice = supportsBrowserVoiceRecognition();
+  const activeScopeLabel = voiceScopeLabel(state.voice.scope, frame);
+
+  dom.voiceSegmentCount.textContent = `${segments.length} ${segments.length === 1 ? "segment" : "segments"}`;
+  dom.voiceScopeButtons
+    .querySelectorAll("[data-voice-scope]")
+    .forEach((button) => {
+      const active = button.dataset.voiceScope === state.voice.scope;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  dom.voiceManualInput.value = state.voice.manualDraft;
+  dom.voiceStart.disabled = state.voice.status === "listening";
+  dom.voiceStop.disabled = state.voice.status !== "listening";
+  dom.voiceClearScope.disabled = relevantSegments.length === 0;
+  dom.voiceAddManual.disabled = !state.voice.manualDraft.trim();
+
+  if (state.voice.status === "listening") {
+    dom.voiceStatus.textContent = `Listening for ${activeScopeLabel}. Keep drawing while Canvax captures spoken intent.`;
+  } else if (state.voice.error) {
+    dom.voiceStatus.textContent = state.voice.error;
+  } else if (!supportsVoice) {
+    dom.voiceStatus.textContent =
+      "Browser speech recognition is not available here. Use Manual voice note with macOS dictation or pasted spoken notes.";
+  } else {
+    dom.voiceStatus.textContent = `Dictation is idle. Start it for ${activeScopeLabel}, or use Manual voice note below.`;
+  }
+
+  if (state.voice.interimText) {
+    dom.voiceInterim.className = "voice-live";
+    dom.voiceInterim.innerHTML = `
+      <strong>Live transcript</strong>
+      <p>${escapeHtml(state.voice.interimText)}</p>
+    `;
+  } else {
+    dom.voiceInterim.className = "voice-live empty-state";
+    dom.voiceInterim.textContent = "No live transcript yet.";
+  }
+
+  if (!segments.length) {
+    dom.voiceList.className = "voice-list empty-state";
+    dom.voiceList.textContent = "No saved voice notes yet.";
+    return;
+  }
+
+  dom.voiceList.className = "voice-list";
+  dom.voiceList.innerHTML = relevantSegments.length
+    ? relevantSegments
+        .map((segment) => {
+          const scope = segment.scope === "session" ? "Board" : "Frame";
+          const frameLabel =
+            segment.scope === "frame"
+              ? segment.frameTitle || frameTitleById(segment.frameId)
+              : segment.frameTitle || "Board context";
+          return `
+            <article class="voice-segment">
+              <div class="voice-segment-row">
+                <strong>${escapeHtml(scope)}</strong>
+                <span class="voice-segment-meta">${escapeHtml(timeLabel(segment.at))}</span>
+              </div>
+              <p class="voice-segment-copy">${escapeHtml(segment.text)}</p>
+              <p class="voice-segment-meta">${escapeHtml(frameLabel)}</p>
+            </article>
+          `;
+        })
+        .join("")
+    : `<p class="helper-text">No voice notes match the current ${state.voice.scope === "frame" ? "frame" : "board"} scope yet.</p>`;
+}
+
 function renderStatus(message = state.statusText) {
   state.statusText = message;
-  dom.statusPill.textContent = state.viewMode === "flow"
-    ? "Flow view focuses on frame relationships, ordering, and transitions."
-    : state.statusText;
+  dom.statusPill.textContent =
+    state.viewMode === "flow"
+      ? "Flow view focuses on frame relationships, ordering, and transitions."
+      : state.statusText;
+}
+
+function supportsBrowserVoiceRecognition() {
+  return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function voiceScopeLabel(scope = state.voice.scope, frame = currentFrame()) {
+  if (scope === "session") {
+    return "the whole board";
+  }
+  return frame?.title ? `the frame “${frame.title}”` : "the current frame";
+}
+
+function voiceSegmentsForCurrentScope() {
+  const frame = currentFrame();
+  return state.voice.segments
+    .filter((segment) => {
+      if (state.voice.scope === "session") {
+        return segment.scope === "session";
+      }
+      return segment.frameId === frame.id;
+    })
+    .slice()
+    .sort((left, right) => Date.parse(right.at) - Date.parse(left.at))
+    .slice(0, 10);
+}
+
+function setVoiceScope(scope) {
+  state.voice.scope = scope === "session" ? "session" : "frame";
+  persistState();
+  renderVoicePanel();
+  renderSpec();
+  renderStatus(
+    `Voice notes now target ${voiceScopeLabel(state.voice.scope, currentFrame())}`,
+  );
+}
+
+function startVoiceDictation() {
+  if (state.voice.status === "listening") {
+    return;
+  }
+
+  const Recognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) {
+    state.voice.status = "unsupported";
+    state.voice.error =
+      "Browser speech recognition is unavailable here. Use Manual voice note with macOS dictation or pasted spoken notes.";
+    renderVoicePanel();
+    renderStatus("Browser dictation unavailable");
+    return;
+  }
+
+  try {
+    stopVoiceRecognitionInstance();
+    voiceRecognition = new Recognition();
+    voiceRecognition.continuous = true;
+    voiceRecognition.interimResults = true;
+    voiceRecognition.lang = navigator.language || "en-US";
+
+    voiceRecognition.onstart = () => {
+      state.voice.status = "listening";
+      state.voice.provider = "browser-speech";
+      state.voice.interimText = "";
+      state.voice.error = "";
+      renderVoicePanel();
+      renderStatus(`Dictating for ${voiceScopeLabel(state.voice.scope)}`);
+    };
+
+    voiceRecognition.onresult = (event) => {
+      const interimParts = [];
+      for (
+        let index = event.resultIndex;
+        index < event.results.length;
+        index += 1
+      ) {
+        const result = event.results[index];
+        const transcript = result?.[0]?.transcript?.trim() || "";
+        if (!transcript) {
+          continue;
+        }
+        if (result.isFinal) {
+          addVoiceSegment(transcript, { provider: "browser-speech" });
+        } else {
+          interimParts.push(transcript);
+        }
+      }
+      state.voice.interimText = interimParts.join(" ").trim();
+      renderVoicePanel();
+    };
+
+    voiceRecognition.onerror = (event) => {
+      state.voice.status =
+        event.error === "not-allowed" || event.error === "service-not-allowed"
+          ? "blocked"
+          : "error";
+      state.voice.error = humanizeVoiceError(event.error);
+      state.voice.interimText = "";
+      renderVoicePanel();
+      renderStatus("Dictation unavailable");
+    };
+
+    voiceRecognition.onend = () => {
+      voiceRecognition = null;
+      if (state.voice.status === "listening") {
+        state.voice.status = "idle";
+      }
+      state.voice.interimText = "";
+      renderVoicePanel();
+    };
+
+    voiceRecognition.start();
+  } catch (error) {
+    state.voice.status = "error";
+    state.voice.error =
+      error instanceof Error
+        ? error.message
+        : "Dictation could not start in this browser.";
+    renderVoicePanel();
+    renderStatus("Dictation failed to start");
+  }
+}
+
+function stopVoiceRecognitionInstance() {
+  if (!voiceRecognition) {
+    return;
+  }
+  try {
+    voiceRecognition.onstart = null;
+    voiceRecognition.onresult = null;
+    voiceRecognition.onerror = null;
+    voiceRecognition.onend = null;
+    voiceRecognition.stop();
+  } catch {
+    // Ignore repeated stop attempts.
+  } finally {
+    voiceRecognition = null;
+  }
+}
+
+function stopVoiceDictation() {
+  if (state.voice.status !== "listening") {
+    return;
+  }
+  state.voice.status = "idle";
+  state.voice.interimText = "";
+  stopVoiceRecognitionInstance();
+  renderVoicePanel();
+  renderStatus("Dictation stopped");
+}
+
+function humanizeVoiceError(code) {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return "Microphone access was blocked. Allow mic access for this browser or use Manual voice note.";
+    case "audio-capture":
+      return "No microphone input was available. Check the selected input device or use Manual voice note.";
+    case "network":
+      return "Browser speech recognition hit a network problem. Try again or use Manual voice note.";
+    case "no-speech":
+      return "No speech was detected. Try again and keep speaking, or use Manual voice note.";
+    default:
+      return "Dictation stopped unexpectedly. Use Manual voice note if browser speech is unreliable here.";
+  }
+}
+
+function addManualVoiceNote() {
+  const text = dom.voiceManualInput.value.trim();
+  if (!text) {
+    return;
+  }
+  addVoiceSegment(text, { provider: "manual-note" });
+  state.voice.manualDraft = "";
+  dom.voiceManualInput.value = "";
+  renderVoicePanel();
+}
+
+function clearVoiceScope() {
+  const frame = currentFrame();
+  const before = state.voice.segments.length;
+  state.voice.segments = state.voice.segments.filter((segment) => {
+    if (state.voice.scope === "session") {
+      return segment.scope !== "session";
+    }
+    return segment.frameId !== frame.id;
+  });
+  if (state.voice.segments.length === before) {
+    return;
+  }
+  persistState();
+  renderVoicePanel();
+  renderSpec();
+  void saveExportToWorkspace({ silent: true });
+  renderStatus(
+    state.voice.scope === "session"
+      ? "Board voice notes cleared"
+      : `${frame.title} voice notes cleared`,
+  );
+}
+
+function addVoiceSegment(text, { provider = "manual-note" } = {}) {
+  const content = String(text || "").trim();
+  if (!content) {
+    return;
+  }
+  const frame = currentFrame();
+  state.voice.segments.unshift(
+    normalizeVoiceSegment({
+      id: uid("voice"),
+      text: content,
+      at: new Date().toISOString(),
+      scope: state.voice.scope,
+      provider,
+      frameId: frame?.id || "",
+      frameTitle: frame?.title || "",
+    }),
+  );
+  state.voice.segments = state.voice.segments.slice(0, 120);
+  state.voice.interimText = "";
+  state.voice.error = "";
+  persistState();
+  renderVoicePanel();
+  renderSpec();
+  void saveExportToWorkspace({ silent: true });
+  renderStatus(
+    state.voice.scope === "session"
+      ? "Board voice note captured"
+      : `${frame.title} voice note captured`,
+  );
 }
 
 function renderCaptures() {
@@ -936,7 +1444,120 @@ function renderSpec() {
   dom.specOutput.value = buildPromptMarkdown();
 }
 
+function renderCodexOutput() {
+  const manifest = state.serverStatus.previewManifest || null;
+  const target = resolveManifestTargetEntry(manifest, state.activeFrameId);
+  const artifacts = collectManifestArtifacts(manifest);
+  const changes = collectManifestChanges(manifest);
+  const notes =
+    typeof manifest?.notes === "string" ? manifest.notes.trim() : "";
+  const targetHref = target?.resolvedUrl || target?.url || "";
+  const freshness = describeManifestFreshness(target, currentFrame());
+
+  dom.codexOpenTarget.hidden = !targetHref;
+  dom.codexOpenTarget.href = targetHref || "#";
+
+  if (!target) {
+    dom.codexOutputSummary.className = "codex-output-summary empty-state";
+    dom.codexOutputSummary.textContent =
+      "No Codex output is attached to this board yet.";
+  } else {
+    const routeLabel = target.previewPath || targetHref || "Connected target";
+    dom.codexOutputSummary.className = "codex-output-summary";
+    dom.codexOutputSummary.innerHTML = `
+      <div class="artifact-item-row">
+        <strong>${escapeHtml(target.label || "Connected implementation")}</strong>
+        <span class="artifact-kind">${escapeHtml(target.type || "preview")}</span>
+      </div>
+      <p class="artifact-meta">${escapeHtml(target.source || "manifest")} • ${escapeHtml(routeLabel)}</p>
+      ${target.description ? `<p class="artifact-copy">${escapeHtml(target.description)}</p>` : ""}
+      ${freshness ? `<p class="artifact-copy">${escapeHtml(freshness)}</p>` : ""}
+      ${notes ? `<p class="artifact-copy">${escapeHtml(notes)}</p>` : ""}
+    `;
+  }
+
+  renderArtifactInbox({
+    element: dom.artifactInbox,
+    countElement: dom.artifactInboxCount,
+    items: artifacts,
+    emptyMessage: "No generated artifacts yet.",
+    fallbackKind: "artifact",
+  });
+  renderArtifactInbox({
+    element: dom.changedFileList,
+    countElement: dom.changedFileCount,
+    items: changes,
+    emptyMessage: "No changed files attached yet.",
+    fallbackKind: "updated",
+  });
+}
+
+function renderArtifactInbox({
+  element,
+  countElement,
+  items,
+  emptyMessage,
+  fallbackKind,
+}) {
+  countElement.textContent = `${items.length} ${items.length === 1 ? "file" : "files"}`;
+  if (!items.length) {
+    element.className = "artifact-inbox empty-state";
+    element.textContent = emptyMessage;
+    return;
+  }
+
+  element.className = "artifact-inbox";
+  element.innerHTML = items
+    .map((item) => {
+      const href = item.resolvedUrl || item.url || "";
+      const kind = item.kind || fallbackKind;
+      const secondary = [
+        item.path,
+        item.summary || item.description,
+        item.status,
+      ]
+        .filter(Boolean)
+        .join(" • ");
+      return `
+        <article class="artifact-item">
+          <div class="artifact-item-row">
+            <strong>${escapeHtml(item.label || item.path || "Untitled")}</strong>
+            <span class="artifact-kind subtle">${escapeHtml(kind)}</span>
+          </div>
+          ${secondary ? `<p class="artifact-meta">${escapeHtml(secondary)}</p>` : ""}
+          ${href ? `<a class="ghost-link-button artifact-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">Open</a>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function renderServerStatus() {
+  const manifest = state.serverStatus.previewManifest || null;
+  const target = resolveManifestTargetEntry(manifest, state.activeFrameId);
+  const artifacts = collectManifestArtifacts(manifest);
+  const changes = collectManifestChanges(manifest);
+  const freshness = describeManifestFreshness(target, currentFrame());
+
+  if (!manifest) {
+    dom.analyzeStatus.textContent =
+      "Canvax keeps a live export for Codex. Use the canvas, pause for autosnap, then ask Codex to read the latest Canvax export.";
+    return;
+  }
+
+  if (target && (artifacts.length || changes.length)) {
+    dom.analyzeStatus.textContent = freshness
+      ? `${freshness} ${artifacts.length} artifact${artifacts.length === 1 ? "" : "s"} and ${changes.length} changed file${changes.length === 1 ? "" : "s"} are linked to this board.`
+      : `Codex output is attached: ${artifacts.length} artifact${artifacts.length === 1 ? "" : "s"} and ${changes.length} changed file${changes.length === 1 ? "" : "s"} are linked to this board.`;
+    return;
+  }
+
+  if (target) {
+    dom.analyzeStatus.textContent =
+      "A connected implementation target is attached to this board. Open it directly or use Preview to compare it against the sketch.";
+    return;
+  }
+
   dom.analyzeStatus.textContent =
     "Canvax keeps a live export for Codex. Use the canvas, pause for autosnap, then ask Codex to read the latest Canvax export.";
 }
@@ -1013,7 +1634,8 @@ function renderFlowInspector() {
     dom.connectionSelect.innerHTML = [
       `<option value="">Select a link</option>`,
       ...state.connections.map((connection) => {
-        const selected = connection.id === state.selectedConnectionId ? "selected" : "";
+        const selected =
+          connection.id === state.selectedConnectionId ? "selected" : "";
         return `<option value="${connection.id}" ${selected}>${escapeHtml(frameTitleById(connection.fromFrameId))} → ${escapeHtml(frameTitleById(connection.toFrameId))}</option>`;
       }),
     ].join("");
@@ -1029,7 +1651,8 @@ function renderFlowInspector() {
   dom.flowList.innerHTML = state.connections.length
     ? state.connections
         .map((connection) => {
-          const active = connection.id === state.selectedConnectionId ? "active" : "";
+          const active =
+            connection.id === state.selectedConnectionId ? "active" : "";
           return `
             <div class="flow-list-item ${active}">
               <button class="flow-list-main" data-flow-connection-id="${connection.id}">
@@ -1070,7 +1693,10 @@ function renderBrushSizeChip() {
 }
 
 function renderBrushPreview() {
-  const canShowPreview = state.viewMode === "frame" && state.brushPreview.visible && toolUsesBrushPreview(state.tool);
+  const canShowPreview =
+    state.viewMode === "frame" &&
+    state.brushPreview.visible &&
+    toolUsesBrushPreview(state.tool);
   dom.brushPreview.hidden = !canShowPreview;
   dom.canvas.classList.toggle("preview-cursor", canShowPreview);
 
@@ -1090,16 +1716,26 @@ function renderBrushPreview() {
     return;
   }
 
-  dom.brushPreview.style.borderColor = state.color === "#ffffff" ? "rgba(24, 17, 14, 0.42)" : state.color;
-  dom.brushPreview.style.background = hexToRgba(state.color, state.tool === "marker" ? 0.28 : 0.22);
+  dom.brushPreview.style.borderColor =
+    state.color === "#ffffff" ? "rgba(24, 17, 14, 0.42)" : state.color;
+  dom.brushPreview.style.background = hexToRgba(
+    state.color,
+    state.tool === "marker" ? 0.28 : 0.22,
+  );
 }
 
 function computeFlowSurfaceSize() {
   const bounds = state.frames.reduce(
     (accumulator, frame) => {
       return {
-        width: Math.max(accumulator.width, frame.flowPosition.x + FLOW_CARD_WIDTH + FLOW_SURFACE_PADDING),
-        height: Math.max(accumulator.height, frame.flowPosition.y + FLOW_CARD_HEIGHT + FLOW_SURFACE_PADDING),
+        width: Math.max(
+          accumulator.width,
+          frame.flowPosition.x + FLOW_CARD_WIDTH + FLOW_SURFACE_PADDING,
+        ),
+        height: Math.max(
+          accumulator.height,
+          frame.flowPosition.y + FLOW_CARD_HEIGHT + FLOW_SURFACE_PADDING,
+        ),
       };
     },
     {
@@ -1127,7 +1763,8 @@ function buildFlowSvgMarkup(width, height) {
       const labelWidth = Math.max(64, label.length * 8 + 18);
       const labelX = midpoint.x - labelWidth / 2;
       const labelY = midpoint.y - 14;
-      const active = connection.id === state.selectedConnectionId ? "selected" : "";
+      const active =
+        connection.id === state.selectedConnectionId ? "selected" : "";
 
       return `
         <g data-flow-connection-id="${connection.id}">
@@ -1174,7 +1811,8 @@ function frameTitleById(frameId) {
 
 function countFrameConnections(frameId) {
   return state.connections.filter(
-    (connection) => connection.fromFrameId === frameId || connection.toFrameId === frameId,
+    (connection) =>
+      connection.fromFrameId === frameId || connection.toFrameId === frameId,
   ).length;
 }
 
@@ -1190,16 +1828,24 @@ function connectionAnchors(source, target) {
   const sourceCenterY = source.flowPosition.y + FLOW_CARD_HEIGHT / 2;
   const targetCenterX = target.flowPosition.x + FLOW_CARD_WIDTH / 2;
   const targetCenterY = target.flowPosition.y + FLOW_CARD_HEIGHT / 2;
-  const horizontal = Math.abs(targetCenterX - sourceCenterX) >= Math.abs(targetCenterY - sourceCenterY);
+  const horizontal =
+    Math.abs(targetCenterX - sourceCenterX) >=
+    Math.abs(targetCenterY - sourceCenterY);
 
   if (horizontal) {
     return {
       start: {
-        x: targetCenterX >= sourceCenterX ? source.flowPosition.x + FLOW_CARD_WIDTH : source.flowPosition.x,
+        x:
+          targetCenterX >= sourceCenterX
+            ? source.flowPosition.x + FLOW_CARD_WIDTH
+            : source.flowPosition.x,
         y: sourceCenterY,
       },
       end: {
-        x: targetCenterX >= sourceCenterX ? target.flowPosition.x : target.flowPosition.x + FLOW_CARD_WIDTH,
+        x:
+          targetCenterX >= sourceCenterX
+            ? target.flowPosition.x
+            : target.flowPosition.x + FLOW_CARD_WIDTH,
         y: targetCenterY,
       },
     };
@@ -1208,18 +1854,30 @@ function connectionAnchors(source, target) {
   return {
     start: {
       x: sourceCenterX,
-      y: targetCenterY >= sourceCenterY ? source.flowPosition.y + FLOW_CARD_HEIGHT : source.flowPosition.y,
+      y:
+        targetCenterY >= sourceCenterY
+          ? source.flowPosition.y + FLOW_CARD_HEIGHT
+          : source.flowPosition.y,
     },
     end: {
       x: targetCenterX,
-      y: targetCenterY >= sourceCenterY ? target.flowPosition.y : target.flowPosition.y + FLOW_CARD_HEIGHT,
+      y:
+        targetCenterY >= sourceCenterY
+          ? target.flowPosition.y
+          : target.flowPosition.y + FLOW_CARD_HEIGHT,
     },
   };
 }
 
 function buildFlowPath(start, end) {
   const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
-  const handle = Math.max(72, Math.min(220, (Math.abs(end.x - start.x) + Math.abs(end.y - start.y)) * 0.35));
+  const handle = Math.max(
+    72,
+    Math.min(
+      220,
+      (Math.abs(end.x - start.x) + Math.abs(end.y - start.y)) * 0.35,
+    ),
+  );
 
   if (horizontal) {
     const direction = end.x >= start.x ? 1 : -1;
@@ -1243,12 +1901,13 @@ function toolUsesBrushPreview(tool) {
 
 function hexToRgba(hex, alpha) {
   const input = hex.replace("#", "");
-  const normalized = input.length === 3
-    ? input
-        .split("")
-        .map((character) => `${character}${character}`)
-        .join("")
-    : input;
+  const normalized =
+    input.length === 3
+      ? input
+          .split("")
+          .map((character) => `${character}${character}`)
+          .join("")
+      : input;
   const red = Number.parseInt(normalized.slice(0, 2), 16);
   const green = Number.parseInt(normalized.slice(2, 4), 16);
   const blue = Number.parseInt(normalized.slice(4, 6), 16);
@@ -1264,7 +1923,10 @@ function renderUndoRedo() {
 function syncCanvasSize() {
   const frame = currentFrame();
   const viewport = viewportPresets[frame.viewport];
-  if (dom.canvas.width !== viewport.width || dom.canvas.height !== viewport.height) {
+  if (
+    dom.canvas.width !== viewport.width ||
+    dom.canvas.height !== viewport.height
+  ) {
     dom.canvas.width = viewport.width;
     dom.canvas.height = viewport.height;
   }
@@ -1274,15 +1936,28 @@ function renderCanvas() {
   syncCanvasSize();
   const frame = currentFrame();
   dom.canvas.classList.toggle("select-mode", state.tool === "select");
-  dom.canvas.classList.toggle("select-hover", state.tool === "select" && Boolean(state.hoverElementId));
-  dom.canvas.classList.toggle("select-dragging", state.tool === "select" && Boolean(state.elementTransform));
+  dom.canvas.classList.toggle(
+    "select-hover",
+    state.tool === "select" && Boolean(state.hoverElementId),
+  );
+  dom.canvas.classList.toggle(
+    "select-dragging",
+    state.tool === "select" && Boolean(state.elementTransform),
+  );
   dom.deviceShell.classList.toggle("space-pan", state.spacePressed);
   dom.deviceShell.classList.toggle("is-panning", Boolean(state.shellPan));
   const viewport = viewportPresets[frame.viewport];
   dom.canvas.style.width = `${Math.round(viewport.width * state.zoom)}px`;
   dom.canvas.style.height = `${Math.round(viewport.height * state.zoom)}px`;
   const ctx = dom.canvas.getContext("2d");
-  drawScene(ctx, frame, dom.canvas.width, dom.canvas.height, 1, state.draftElement);
+  drawScene(
+    ctx,
+    frame,
+    dom.canvas.width,
+    dom.canvas.height,
+    1,
+    state.draftElement,
+  );
 }
 
 function drawScene(ctx, frame, width, height, scale = 1, draftElement = null) {
@@ -1307,7 +1982,9 @@ function drawScene(ctx, frame, width, height, scale = 1, draftElement = null) {
     drawGrid(ctx, frame.viewport, width, height);
   }
 
-  frame.elements.forEach((element) => drawElement(ctx, element, scale, false, frame));
+  frame.elements.forEach((element) =>
+    drawElement(ctx, element, scale, false, frame),
+  );
 
   if (draftElement) {
     drawElement(ctx, draftElement, scale, true, frame);
@@ -1318,10 +1995,20 @@ function drawScene(ctx, frame, width, height, scale = 1, draftElement = null) {
   }
 
   const selectedElements = currentSelectedElements(frame);
-  if (selectedElements.length && state.viewMode === "frame" && (state.tool === "select" || state.elementTransform)) {
-    selectedElements.forEach((element) => drawSelectionOverlay(ctx, element, scale, selectedElements.length === 1));
+  if (
+    selectedElements.length &&
+    state.viewMode === "frame" &&
+    (state.tool === "select" || state.elementTransform)
+  ) {
+    selectedElements.forEach((element) =>
+      drawSelectionOverlay(ctx, element, scale, selectedElements.length === 1),
+    );
     if (selectedElements.length > 1) {
-      const combinedBounds = unionBounds(selectedElements.map((element) => getElementBounds(element, frame)).filter(Boolean));
+      const combinedBounds = unionBounds(
+        selectedElements
+          .map((element) => getElementBounds(element, frame))
+          .filter(Boolean),
+      );
       if (combinedBounds) {
         drawSelectionGroupOverlay(ctx, combinedBounds, scale);
       }
@@ -1366,7 +2053,13 @@ function drawGrid(ctx, viewportId, width, height) {
   ctx.restore();
 }
 
-function drawElement(ctx, element, scale = 1, isDraft = false, frame = currentFrame()) {
+function drawElement(
+  ctx,
+  element,
+  scale = 1,
+  isDraft = false,
+  frame = currentFrame(),
+) {
   ctx.save();
   ctx.globalCompositeOperation = element.composite || "source-over";
   ctx.globalAlpha = element.alpha ?? 1;
@@ -1401,7 +2094,15 @@ function drawElement(ctx, element, scale = 1, isDraft = false, frame = currentFr
     const radiusX = (Math.abs(element.end.x - element.start.x) / 2) * scale;
     const radiusY = (Math.abs(element.end.y - element.start.y) / 2) * scale;
     ctx.beginPath();
-    ctx.ellipse(centerX, centerY, Math.max(1, radiusX), Math.max(1, radiusY), 0, 0, Math.PI * 2);
+    ctx.ellipse(
+      centerX,
+      centerY,
+      Math.max(1, radiusX),
+      Math.max(1, radiusY),
+      0,
+      0,
+      Math.PI * 2,
+    );
     ctx.stroke();
   }
 
@@ -1451,15 +2152,30 @@ function drawSelectionOverlay(ctx, element, scale = 1, showHandles = true) {
   ctx.fillStyle = "rgba(12, 141, 123, 0.14)";
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 8]);
-  ctx.strokeRect(bounds.left * scale, bounds.top * scale, bounds.width * scale, bounds.height * scale);
+  ctx.strokeRect(
+    bounds.left * scale,
+    bounds.top * scale,
+    bounds.width * scale,
+    bounds.height * scale,
+  );
   ctx.setLineDash([]);
-  ctx.fillRect(bounds.left * scale, bounds.top * scale, bounds.width * scale, bounds.height * scale);
+  ctx.fillRect(
+    bounds.left * scale,
+    bounds.top * scale,
+    bounds.width * scale,
+    bounds.height * scale,
+  );
 
   if (showHandles) {
     ctx.fillStyle = "#fff8f5";
     handles.forEach((handle) => {
       ctx.beginPath();
-      ctx.rect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
+      ctx.rect(
+        handle.x - handleSize / 2,
+        handle.y - handleSize / 2,
+        handleSize,
+        handleSize,
+      );
       ctx.fill();
       ctx.stroke();
     });
@@ -1473,12 +2189,22 @@ function drawSelectionGroupOverlay(ctx, bounds, scale = 1) {
   ctx.strokeStyle = "rgba(255, 93, 58, 0.88)";
   ctx.lineWidth = 2;
   ctx.setLineDash([14, 10]);
-  ctx.strokeRect(bounds.left * scale, bounds.top * scale, bounds.width * scale, bounds.height * scale);
+  ctx.strokeRect(
+    bounds.left * scale,
+    bounds.top * scale,
+    bounds.width * scale,
+    bounds.height * scale,
+  );
   ctx.setLineDash([]);
   ctx.fillStyle = "#fff8f5";
   selectionHandles(bounds, scale).forEach((handle) => {
     ctx.beginPath();
-    ctx.rect(handle.x - handleSize / 2, handle.y - handleSize / 2, handleSize, handleSize);
+    ctx.rect(
+      handle.x - handleSize / 2,
+      handle.y - handleSize / 2,
+      handleSize,
+      handleSize,
+    );
     ctx.fill();
     ctx.stroke();
   });
@@ -1497,9 +2223,19 @@ function drawLassoOverlay(ctx, transform, scale = 1) {
   ctx.fillStyle = "rgba(35, 100, 170, 0.12)";
   ctx.lineWidth = 2;
   ctx.setLineDash([10, 8]);
-  ctx.strokeRect(bounds.left * scale, bounds.top * scale, bounds.width * scale, bounds.height * scale);
+  ctx.strokeRect(
+    bounds.left * scale,
+    bounds.top * scale,
+    bounds.width * scale,
+    bounds.height * scale,
+  );
   ctx.setLineDash([]);
-  ctx.fillRect(bounds.left * scale, bounds.top * scale, bounds.width * scale, bounds.height * scale);
+  ctx.fillRect(
+    bounds.left * scale,
+    bounds.top * scale,
+    bounds.width * scale,
+    bounds.height * scale,
+  );
   ctx.restore();
 }
 
@@ -1510,10 +2246,16 @@ function drawPath(ctx, element, scale) {
   ctx.beginPath();
   ctx.moveTo(element.points[0].x * scale, element.points[0].y * scale);
   for (let index = 1; index < element.points.length; index += 1) {
-    ctx.lineTo(element.points[index].x * scale, element.points[index].y * scale);
+    ctx.lineTo(
+      element.points[index].x * scale,
+      element.points[index].y * scale,
+    );
   }
   if (element.points.length === 1) {
-    ctx.lineTo(element.points[0].x * scale + 0.1, element.points[0].y * scale + 0.1);
+    ctx.lineTo(
+      element.points[0].x * scale + 0.1,
+      element.points[0].y * scale + 0.1,
+    );
   }
   ctx.stroke();
 }
@@ -1531,8 +2273,14 @@ function drawArrow(ctx, element, scale) {
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(toX, toY);
-  ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
-  ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
+  ctx.lineTo(
+    toX - headLength * Math.cos(angle - Math.PI / 6),
+    toY - headLength * Math.sin(angle - Math.PI / 6),
+  );
+  ctx.lineTo(
+    toX - headLength * Math.cos(angle + Math.PI / 6),
+    toY - headLength * Math.sin(angle + Math.PI / 6),
+  );
   ctx.closePath();
   ctx.fill();
 }
@@ -1588,7 +2336,12 @@ function getElementBounds(element, frame = currentFrame()) {
     );
   }
 
-  if (element.type === "line" || element.type === "arrow" || element.type === "rect" || element.type === "ellipse") {
+  if (
+    element.type === "line" ||
+    element.type === "arrow" ||
+    element.type === "rect" ||
+    element.type === "ellipse"
+  ) {
     const inset = Math.max(6, (element.size || 1) / 2);
     return makeBounds(
       Math.min(element.start.x, element.end.x) - inset,
@@ -1611,7 +2364,8 @@ function labelBounds(element, frame = currentFrame()) {
   const paddingY = 8;
   const position = resolveLabelPosition(element, frame);
   measurementContext.font = `600 ${fontSize}px "Avenir Next", sans-serif`;
-  const width = measurementContext.measureText(element.text || "").width + paddingX * 2;
+  const width =
+    measurementContext.measureText(element.text || "").width + paddingX * 2;
   const height = fontSize + paddingY * 2;
   return makeBounds(
     position.x,
@@ -1626,7 +2380,9 @@ function resolveLabelPosition(label, frame = currentFrame()) {
     return { x: label.x, y: label.y, attached: false };
   }
 
-  const target = frame.elements.find((element) => element.id === label.attachedTo);
+  const target = frame.elements.find(
+    (element) => element.id === label.attachedTo,
+  );
   if (!target || !label.anchor) {
     return { x: label.x, y: label.y, attached: false };
   }
@@ -1683,9 +2439,13 @@ function hitSelectionHandle(element, point) {
   }
 
   const threshold = SELECTION_HANDLE_SIZE;
-  return selectionHandles(bounds).find((handle) =>
-    Math.abs(point.x - handle.x) <= threshold && Math.abs(point.y - handle.y) <= threshold,
-  ) || null;
+  return (
+    selectionHandles(bounds).find(
+      (handle) =>
+        Math.abs(point.x - handle.x) <= threshold &&
+        Math.abs(point.y - handle.y) <= threshold,
+    ) || null
+  );
 }
 
 function hitSelectionHandleFromBounds(bounds, point) {
@@ -1694,9 +2454,13 @@ function hitSelectionHandleFromBounds(bounds, point) {
   }
 
   const threshold = SELECTION_HANDLE_SIZE;
-  return selectionHandles(bounds).find((handle) =>
-    Math.abs(point.x - handle.x) <= threshold && Math.abs(point.y - handle.y) <= threshold,
-  ) || null;
+  return (
+    selectionHandles(bounds).find(
+      (handle) =>
+        Math.abs(point.x - handle.x) <= threshold &&
+        Math.abs(point.y - handle.y) <= threshold,
+    ) || null
+  );
 }
 
 function hitTestElement(frame, point) {
@@ -1724,7 +2488,12 @@ function selectionForElement(frame, element) {
 }
 
 function boundsIntersect(a, b) {
-  return a.left <= b.right && a.right >= b.left && a.top <= b.bottom && a.bottom >= b.top;
+  return (
+    a.left <= b.right &&
+    a.right >= b.left &&
+    a.top <= b.bottom &&
+    a.bottom >= b.top
+  );
 }
 
 function isPointNearElement(element, point) {
@@ -1743,7 +2512,11 @@ function isPointNearElement(element, point) {
     const centerY = (bounds.top + bounds.bottom) / 2;
     const radiusX = Math.max(1, bounds.width / 2 + threshold);
     const radiusY = Math.max(1, bounds.height / 2 + threshold);
-    return (((point.x - centerX) ** 2) / (radiusX ** 2)) + (((point.y - centerY) ** 2) / (radiusY ** 2)) <= 1;
+    return (
+      (point.x - centerX) ** 2 / radiusX ** 2 +
+        (point.y - centerY) ** 2 / radiusY ** 2 <=
+      1
+    );
   }
 
   if (element.type === "line" || element.type === "arrow") {
@@ -1755,7 +2528,13 @@ function isPointNearElement(element, point) {
       return distanceBetweenPoints(point, element.points[0]) <= threshold;
     }
     for (let index = 1; index < element.points.length; index += 1) {
-      if (distanceToSegment(point, element.points[index - 1], element.points[index]) <= threshold) {
+      if (
+        distanceToSegment(
+          point,
+          element.points[index - 1],
+          element.points[index],
+        ) <= threshold
+      ) {
         return true;
       }
     }
@@ -1766,11 +2545,21 @@ function isPointNearElement(element, point) {
 }
 
 function expandBounds(bounds, inset) {
-  return makeBounds(bounds.left - inset, bounds.top - inset, bounds.right + inset, bounds.bottom + inset);
+  return makeBounds(
+    bounds.left - inset,
+    bounds.top - inset,
+    bounds.right + inset,
+    bounds.bottom + inset,
+  );
 }
 
 function pointInBounds(bounds, point) {
-  return point.x >= bounds.left && point.x <= bounds.right && point.y >= bounds.top && point.y <= bounds.bottom;
+  return (
+    point.x >= bounds.left &&
+    point.x <= bounds.right &&
+    point.y >= bounds.top &&
+    point.y <= bounds.bottom
+  );
 }
 
 function distanceBetweenPoints(a, b) {
@@ -1778,12 +2567,20 @@ function distanceBetweenPoints(a, b) {
 }
 
 function distanceToSegment(point, start, end) {
-  const segmentLengthSquared = ((end.x - start.x) ** 2) + ((end.y - start.y) ** 2);
+  const segmentLengthSquared = (end.x - start.x) ** 2 + (end.y - start.y) ** 2;
   if (segmentLengthSquared === 0) {
     return distanceBetweenPoints(point, start);
   }
 
-  const t = Math.max(0, Math.min(1, (((point.x - start.x) * (end.x - start.x)) + ((point.y - start.y) * (end.y - start.y))) / segmentLengthSquared));
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point.x - start.x) * (end.x - start.x) +
+        (point.y - start.y) * (end.y - start.y)) /
+        segmentLengthSquared,
+    ),
+  );
   const projection = {
     x: start.x + t * (end.x - start.x),
     y: start.y + t * (end.y - start.y),
@@ -1799,7 +2596,9 @@ function setLabelResolvedPosition(label, point, frame = currentFrame()) {
     return;
   }
 
-  const target = frame.elements.find((element) => element.id === label.attachedTo);
+  const target = frame.elements.find(
+    (element) => element.id === label.attachedTo,
+  );
   const bounds = target ? getElementBounds(target, frame) : null;
   if (!bounds || bounds.width === 0 || bounds.height === 0) {
     label.attachedTo = null;
@@ -1841,13 +2640,19 @@ function detachLabelsForElement(frame, targetElementId) {
 
 function translateElement(element, deltaX, deltaY) {
   if (element.type === "path") {
-    element.points = element.points.map((point) => ({ x: point.x + deltaX, y: point.y + deltaY }));
+    element.points = element.points.map((point) => ({
+      x: point.x + deltaX,
+      y: point.y + deltaY,
+    }));
     return;
   }
 
   if (element.type === "label") {
     const resolved = resolveLabelPosition(element);
-    setLabelResolvedPosition(element, { x: resolved.x + deltaX, y: resolved.y + deltaY });
+    setLabelResolvedPosition(element, {
+      x: resolved.x + deltaX,
+      y: resolved.y + deltaY,
+    });
     return;
   }
 
@@ -1884,9 +2689,16 @@ function resizeBoundsFromHandle(bounds, handleId, deltaX, deltaY) {
   return makeBounds(left, top, right, bottom);
 }
 
-function resizeElementToBounds(element, originalElement, originalBounds, nextBounds) {
-  const scaleX = originalBounds.width === 0 ? 1 : nextBounds.width / originalBounds.width;
-  const scaleY = originalBounds.height === 0 ? 1 : nextBounds.height / originalBounds.height;
+function resizeElementToBounds(
+  element,
+  originalElement,
+  originalBounds,
+  nextBounds,
+) {
+  const scaleX =
+    originalBounds.width === 0 ? 1 : nextBounds.width / originalBounds.width;
+  const scaleY =
+    originalBounds.height === 0 ? 1 : nextBounds.height / originalBounds.height;
   const mapPoint = (point) => ({
     x: nextBounds.left + (point.x - originalBounds.left) * scaleX,
     y: nextBounds.top + (point.y - originalBounds.top) * scaleY,
@@ -1901,7 +2713,10 @@ function resizeElementToBounds(element, originalElement, originalBounds, nextBou
     const originalPosition = resolveLabelPosition(originalElement);
     const anchor = mapPoint(originalPosition);
     setLabelResolvedPosition(element, anchor);
-    element.size = Math.max(18, Math.round((originalElement.size || 18) * ((scaleX + scaleY) / 2)));
+    element.size = Math.max(
+      18,
+      Math.round((originalElement.size || 18) * ((scaleX + scaleY) / 2)),
+    );
     return;
   }
 
@@ -1919,16 +2734,28 @@ function onPointerDown(event) {
 
   if (state.tool === "select") {
     const selectedElements = currentSelectedElements(frame);
-    const selectedElement = selectedElements.length === 1 ? selectedElements[0] : null;
-    const selectionBounds = selectedElements.length > 1
-      ? unionBounds(selectedElements.map((element) => getElementBounds(element, frame)).filter(Boolean))
-      : null;
-    const multiHandle = selectedElements.length > 1 && !event.shiftKey
-      ? hitSelectionHandleFromBounds(selectionBounds, point)
-      : null;
-    const singleHandle = selectedElement && !event.shiftKey ? hitSelectionHandle(selectedElement, point) : null;
+    const selectedElement =
+      selectedElements.length === 1 ? selectedElements[0] : null;
+    const selectionBounds =
+      selectedElements.length > 1
+        ? unionBounds(
+            selectedElements
+              .map((element) => getElementBounds(element, frame))
+              .filter(Boolean),
+          )
+        : null;
+    const multiHandle =
+      selectedElements.length > 1 && !event.shiftKey
+        ? hitSelectionHandleFromBounds(selectionBounds, point)
+        : null;
+    const singleHandle =
+      selectedElement && !event.shiftKey
+        ? hitSelectionHandle(selectedElement, point)
+        : null;
     const handle = multiHandle || singleHandle;
-    const hitElement = handle ? (selectedElement || selectedElements[0]) : hitTestElement(frame, point);
+    const hitElement = handle
+      ? selectedElement || selectedElements[0]
+      : hitTestElement(frame, point);
 
     if (!hitElement) {
       state.elementTransform = {
@@ -1970,10 +2797,24 @@ function onPointerDown(event) {
       handle: handle?.id || null,
       startPoint: point,
       originalElement: structuredClone(hitElement),
-      originalBounds: activeSelection.length === 1 ? getElementBounds(hitElement, frame) : unionBounds(activeSelection.map((id) => getElementBounds(frame.elements.find((element) => element.id === id), frame)).filter(Boolean)),
+      originalBounds:
+        activeSelection.length === 1
+          ? getElementBounds(hitElement, frame)
+          : unionBounds(
+              activeSelection
+                .map((id) =>
+                  getElementBounds(
+                    frame.elements.find((element) => element.id === id),
+                    frame,
+                  ),
+                )
+                .filter(Boolean),
+            ),
       originalElements: Object.fromEntries(
         activeSelection.map((id) => {
-          const element = frame.elements.find((candidate) => candidate.id === id);
+          const element = frame.elements.find(
+            (candidate) => candidate.id === id,
+          );
           return [id, structuredClone(element)];
         }),
       ),
@@ -1988,7 +2829,8 @@ function onPointerDown(event) {
 
   if (state.tool === "label") {
     const hitElement = hitTestElement(frame, point);
-    const attachTargetId = hitElement && hitElement.type !== "label" ? hitElement.id : null;
+    const attachTargetId =
+      hitElement && hitElement.type !== "label" ? hitElement.id : null;
     openLabelEditor(point, event, attachTargetId);
     return;
   }
@@ -1997,7 +2839,11 @@ function onPointerDown(event) {
   clearElementSelection();
   trySetPointerCapture(event.pointerId);
 
-  if (state.tool === "pen" || state.tool === "marker" || state.tool === "erase") {
+  if (
+    state.tool === "pen" ||
+    state.tool === "marker" ||
+    state.tool === "erase"
+  ) {
     state.draftElement = {
       id: uid("stroke"),
       type: "path",
@@ -2034,18 +2880,39 @@ function onPointerMove(event) {
     }
   }
 
-  if (state.tool === "select" && state.elementTransform && event.pointerId === state.elementTransform.pointerId) {
+  if (
+    state.tool === "select" &&
+    state.elementTransform &&
+    event.pointerId === state.elementTransform.pointerId
+  ) {
     const frame = currentFrame();
     if (state.elementTransform.mode === "lasso") {
       state.elementTransform.currentPoint = pointFromEvent(event);
-      if (distanceBetweenPoints(state.elementTransform.currentPoint, state.elementTransform.startPoint) > 2) {
+      if (
+        distanceBetweenPoints(
+          state.elementTransform.currentPoint,
+          state.elementTransform.startPoint,
+        ) > 2
+      ) {
         state.elementTransform.didMove = true;
       }
       const lassoBounds = makeBounds(
-        Math.min(state.elementTransform.startPoint.x, state.elementTransform.currentPoint.x),
-        Math.min(state.elementTransform.startPoint.y, state.elementTransform.currentPoint.y),
-        Math.max(state.elementTransform.startPoint.x, state.elementTransform.currentPoint.x),
-        Math.max(state.elementTransform.startPoint.y, state.elementTransform.currentPoint.y),
+        Math.min(
+          state.elementTransform.startPoint.x,
+          state.elementTransform.currentPoint.x,
+        ),
+        Math.min(
+          state.elementTransform.startPoint.y,
+          state.elementTransform.currentPoint.y,
+        ),
+        Math.max(
+          state.elementTransform.startPoint.x,
+          state.elementTransform.currentPoint.x,
+        ),
+        Math.max(
+          state.elementTransform.startPoint.y,
+          state.elementTransform.currentPoint.y,
+        ),
       );
       const hitIds = frame.elements
         .filter((element) => {
@@ -2054,7 +2921,9 @@ function onPointerMove(event) {
         })
         .map((element) => element.id);
       const nextIds = state.elementTransform.additive
-        ? Array.from(new Set([...state.elementTransform.previousSelection, ...hitIds]))
+        ? Array.from(
+            new Set([...state.elementTransform.previousSelection, ...hitIds]),
+          )
         : hitIds;
       setSelectedElements(nextIds, nextIds.at(-1) || null);
       renderSelectionActions();
@@ -2083,7 +2952,9 @@ function onPointerMove(event) {
     });
 
     if (state.elementTransform.mode === "move") {
-      selectedElements.forEach((element) => translateElement(element, deltaX, deltaY));
+      selectedElements.forEach((element) =>
+        translateElement(element, deltaX, deltaY),
+      );
     } else if (state.elementTransform.originalBounds) {
       const nextBounds = resizeBoundsFromHandle(
         state.elementTransform.originalBounds,
@@ -2123,7 +2994,8 @@ function onPointerMove(event) {
   }
   const point = pointFromEvent(event);
   if (state.draftElement.type === "path") {
-    const previous = state.draftElement.points[state.draftElement.points.length - 1];
+    const previous =
+      state.draftElement.points[state.draftElement.points.length - 1];
     const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
     if (distance > 2) {
       state.draftElement.points.push(point);
@@ -2144,7 +3016,11 @@ function onPointerUp(event) {
     renderCanvas();
   }
 
-  if (state.tool === "select" && state.elementTransform && event.pointerId === state.elementTransform.pointerId) {
+  if (
+    state.tool === "select" &&
+    state.elementTransform &&
+    event.pointerId === state.elementTransform.pointerId
+  ) {
     const frame = currentFrame();
     if (state.elementTransform.mode === "lasso") {
       if (!state.elementTransform.didMove && !state.elementTransform.additive) {
@@ -2209,7 +3085,11 @@ function onCanvasPointerEnter(event) {
 }
 
 function onDeviceShellPointerDown(event) {
-  if (state.viewMode !== "frame" || !state.spacePressed || event.target.closest("#label-editor")) {
+  if (
+    state.viewMode !== "frame" ||
+    !state.spacePressed ||
+    event.target.closest("#label-editor")
+  ) {
     return;
   }
 
@@ -2278,7 +3158,10 @@ function commitLabelEditor() {
   frame.elements.push(label);
   setSelectedElements([label.id], label.id);
   cancelLabelEditor({ preserveSelection: true });
-  touchFrame(frame, { capture: true, status: draft.attachTargetId ? "Attached label added" : "Label added" });
+  touchFrame(frame, {
+    capture: true,
+    status: draft.attachTargetId ? "Attached label added" : "Label added",
+  });
 }
 
 function cancelLabelEditor(options = {}) {
@@ -2375,7 +3258,9 @@ function onFlowBoardClick(event) {
     state.flowConnectionDraft = null;
     renderFlowInspector();
     renderFlowBoard();
-    renderStatus(`Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another frame to connect it.`);
+    renderStatus(
+      `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another frame to connect it.`,
+    );
     return;
   }
 
@@ -2390,12 +3275,17 @@ function onFlowBoardClick(event) {
     return;
   }
 
-  if (state.pendingConnectionFromFrameId && state.pendingConnectionFromFrameId !== frameId) {
+  if (
+    state.pendingConnectionFromFrameId &&
+    state.pendingConnectionFromFrameId !== frameId
+  ) {
     upsertConnection(state.pendingConnectionFromFrameId, frameId);
     state.activeFrameId = frameId;
     clearElementSelection();
     renderAll();
-    renderStatus(`Linked ${frameTitleById(state.selectedConnectionId ? currentConnection()?.fromFrameId : state.pendingConnectionFromFrameId)} to ${frameTitleById(frameId)}.`);
+    renderStatus(
+      `Linked ${frameTitleById(state.selectedConnectionId ? currentConnection()?.fromFrameId : state.pendingConnectionFromFrameId)} to ${frameTitleById(frameId)}.`,
+    );
     return;
   }
 
@@ -2455,12 +3345,17 @@ function onFlowBoardPointerDown(event) {
 
 function onWindowPointerMove(event) {
   if (state.shellPan && event.pointerId === state.shellPan.pointerId) {
-    dom.deviceShell.scrollLeft = state.shellPan.scrollLeft - (event.clientX - state.shellPan.startX);
-    dom.deviceShell.scrollTop = state.shellPan.scrollTop - (event.clientY - state.shellPan.startY);
+    dom.deviceShell.scrollLeft =
+      state.shellPan.scrollLeft - (event.clientX - state.shellPan.startX);
+    dom.deviceShell.scrollTop =
+      state.shellPan.scrollTop - (event.clientY - state.shellPan.startY);
     return;
   }
 
-  if (state.flowConnectionDraft && event.pointerId === state.flowConnectionDraft.pointerId) {
+  if (
+    state.flowConnectionDraft &&
+    event.pointerId === state.flowConnectionDraft.pointerId
+  ) {
     state.flowConnectionDraft.pointer = pointFromFlowEvent(event);
     renderFlowBoard();
   }
@@ -2494,12 +3389,25 @@ function onWindowPointerUp(event) {
     return;
   }
 
-  if (state.flowConnectionDraft && event.pointerId === state.flowConnectionDraft.pointerId) {
-    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-flow-frame-id]");
-    if (target && target.dataset.flowFrameId !== state.flowConnectionDraft.fromFrameId) {
-      upsertConnection(state.flowConnectionDraft.fromFrameId, target.dataset.flowFrameId);
+  if (
+    state.flowConnectionDraft &&
+    event.pointerId === state.flowConnectionDraft.pointerId
+  ) {
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest("[data-flow-frame-id]");
+    if (
+      target &&
+      target.dataset.flowFrameId !== state.flowConnectionDraft.fromFrameId
+    ) {
+      upsertConnection(
+        state.flowConnectionDraft.fromFrameId,
+        target.dataset.flowFrameId,
+      );
       state.activeFrameId = target.dataset.flowFrameId;
-      renderStatus(`Connected ${frameTitleById(state.flowConnectionDraft.fromFrameId)} to ${frameTitleById(target.dataset.flowFrameId)}.`);
+      renderStatus(
+        `Connected ${frameTitleById(state.flowConnectionDraft.fromFrameId)} to ${frameTitleById(target.dataset.flowFrameId)}.`,
+      );
     }
     state.flowConnectionDraft = null;
     state.pendingConnectionFromFrameId = null;
@@ -2527,7 +3435,11 @@ function onWindowKeyDown(event) {
     return;
   }
 
-  if (event.key === " " && state.viewMode === "frame" && !shouldIgnoreDeleteShortcut(event.target)) {
+  if (
+    event.key === " " &&
+    state.viewMode === "frame" &&
+    !shouldIgnoreDeleteShortcut(event.target)
+  ) {
     event.preventDefault();
     state.spacePressed = true;
     renderCanvas();
@@ -2535,7 +3447,11 @@ function onWindowKeyDown(event) {
   }
 
   const isMeta = event.metaKey || event.ctrlKey;
-  if (state.viewMode === "frame" && isMeta && !shouldIgnoreDeleteShortcut(event.target)) {
+  if (
+    state.viewMode === "frame" &&
+    isMeta &&
+    !shouldIgnoreDeleteShortcut(event.target)
+  ) {
     if (event.key.toLowerCase() === "c" && selectionIds().length) {
       return;
     }
@@ -2610,7 +3526,9 @@ function shouldIgnoreDeleteShortcut(target) {
     return true;
   }
 
-  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+  return Boolean(
+    target.closest("input, textarea, select, [contenteditable='true']"),
+  );
 }
 
 function pointFromFlowEvent(event) {
@@ -2623,7 +3541,9 @@ function pointFromFlowEvent(event) {
 
 function upsertConnection(fromFrameId, toFrameId) {
   const existing = state.connections.find(
-    (connection) => connection.fromFrameId === fromFrameId && connection.toFrameId === toFrameId,
+    (connection) =>
+      connection.fromFrameId === fromFrameId &&
+      connection.toFrameId === toFrameId,
   );
   if (existing) {
     state.selectedConnectionId = existing.id;
@@ -2676,7 +3596,9 @@ function deleteSelectedConnection() {
   if (!state.selectedConnectionId) {
     return;
   }
-  state.connections = state.connections.filter((connection) => connection.id !== state.selectedConnectionId);
+  state.connections = state.connections.filter(
+    (connection) => connection.id !== state.selectedConnectionId,
+  );
   state.selectedConnectionId = null;
   persistState();
   renderAll();
@@ -2692,9 +3614,14 @@ function deleteSelectedElement() {
   const frame = currentFrame();
   pushHistory(frame.id);
   ids.forEach((id) => detachLabelsForElement(frame, id));
-  frame.elements = frame.elements.filter((element) => !ids.includes(element.id));
+  frame.elements = frame.elements.filter(
+    (element) => !ids.includes(element.id),
+  );
   clearElementSelection();
-  touchFrame(frame, { capture: true, status: ids.length > 1 ? "Selection deleted" : "Element deleted" });
+  touchFrame(frame, {
+    capture: true,
+    status: ids.length > 1 ? "Selection deleted" : "Element deleted",
+  });
 }
 
 function groupSelectedElements() {
@@ -2709,7 +3636,10 @@ function groupSelectedElements() {
   selected.forEach((element) => {
     element.groupId = groupId;
   });
-  touchFrame(frame, { capture: true, status: `Grouped ${selected.length} elements` });
+  touchFrame(frame, {
+    capture: true,
+    status: `Grouped ${selected.length} elements`,
+  });
 }
 
 function ungroupSelectedElements() {
@@ -2723,7 +3653,10 @@ function ungroupSelectedElements() {
   selected.forEach((element) => {
     delete element.groupId;
   });
-  touchFrame(frame, { capture: true, status: selected.length > 1 ? "Selection ungrouped" : "Element ungrouped" });
+  touchFrame(frame, {
+    capture: true,
+    status: selected.length > 1 ? "Selection ungrouped" : "Element ungrouped",
+  });
 }
 
 function duplicateSelectedElements() {
@@ -2749,7 +3682,10 @@ function duplicateSelectedElements() {
     }
 
     if (copy.type === "path") {
-      copy.points = copy.points.map((point) => ({ x: point.x + 24, y: point.y + 24 }));
+      copy.points = copy.points.map((point) => ({
+        x: point.x + 24,
+        y: point.y + 24,
+      }));
     } else if (copy.type === "label") {
       copy.x += 24;
       copy.y += 24;
@@ -2761,14 +3697,25 @@ function duplicateSelectedElements() {
   });
 
   duplicates.forEach((copy) => {
-    if (copy.type === "label" && copy.attachedTo && selectedIds.has(copy.attachedTo)) {
+    if (
+      copy.type === "label" &&
+      copy.attachedTo &&
+      selectedIds.has(copy.attachedTo)
+    ) {
       copy.attachedTo = idMap.get(copy.attachedTo) || copy.attachedTo;
     }
   });
 
   frame.elements.push(...duplicates);
-  setSelectedElements(duplicates.map((element) => element.id), duplicates.at(-1)?.id || null);
-  touchFrame(frame, { capture: true, status: duplicates.length > 1 ? "Selection duplicated" : "Element duplicated" });
+  setSelectedElements(
+    duplicates.map((element) => element.id),
+    duplicates.at(-1)?.id || null,
+  );
+  touchFrame(frame, {
+    capture: true,
+    status:
+      duplicates.length > 1 ? "Selection duplicated" : "Element duplicated",
+  });
 }
 
 async function tryPasteElements(event) {
@@ -2783,7 +3730,11 @@ async function tryPasteElements(event) {
 
   try {
     const payload = JSON.parse(text);
-    if (payload?.kind !== "canvax-elements" || !Array.isArray(payload.elements) || !payload.elements.length) {
+    if (
+      payload?.kind !== "canvax-elements" ||
+      !Array.isArray(payload.elements) ||
+      !payload.elements.length
+    ) {
       return false;
     }
 
@@ -2815,7 +3766,10 @@ function pasteElements(elements) {
     }
 
     if (copy.type === "path") {
-      copy.points = copy.points.map((point) => ({ x: point.x + 32, y: point.y + 32 }));
+      copy.points = copy.points.map((point) => ({
+        x: point.x + 32,
+        y: point.y + 32,
+      }));
     } else if (copy.type === "label") {
       copy.x += 32;
       copy.y += 32;
@@ -2827,14 +3781,24 @@ function pasteElements(elements) {
   });
 
   clones.forEach((copy) => {
-    if (copy.type === "label" && copy.attachedTo && selectedIds.has(copy.attachedTo)) {
+    if (
+      copy.type === "label" &&
+      copy.attachedTo &&
+      selectedIds.has(copy.attachedTo)
+    ) {
       copy.attachedTo = idMap.get(copy.attachedTo) || copy.attachedTo;
     }
   });
 
   frame.elements.push(...clones);
-  setSelectedElements(clones.map((element) => element.id), clones.at(-1)?.id || null);
-  touchFrame(frame, { capture: true, status: clones.length > 1 ? "Selection pasted" : "Element pasted" });
+  setSelectedElements(
+    clones.map((element) => element.id),
+    clones.at(-1)?.id || null,
+  );
+  touchFrame(frame, {
+    capture: true,
+    status: clones.length > 1 ? "Selection pasted" : "Element pasted",
+  });
 }
 
 function reorderSelection(moveToFront) {
@@ -2850,7 +3814,12 @@ function reorderSelection(moveToFront) {
   frame.elements = moveToFront
     ? [...remaining, ...selected]
     : [...selected, ...remaining];
-  touchFrame(frame, { capture: true, status: moveToFront ? "Selection brought forward" : "Selection sent backward" });
+  touchFrame(frame, {
+    capture: true,
+    status: moveToFront
+      ? "Selection brought forward"
+      : "Selection sent backward",
+  });
 }
 
 function bringSelectionForward() {
@@ -2869,6 +3838,27 @@ function closeHelpOverlay() {
   dom.helpOverlay.hidden = true;
 }
 
+function openPreviewWindow(options = {}) {
+  const { announce = true } = options;
+  const previewWindow = window.open("/preview.html", PREVIEW_WINDOW_NAME);
+  if (!previewWindow) {
+    renderStatus("Preview popup blocked. Open /preview.html manually.");
+    return null;
+  }
+
+  try {
+    previewWindow.opener = null;
+  } catch {
+    // Ignore cross-window restrictions and keep the preview flow alive.
+  }
+
+  if (announce) {
+    dom.workspaceStatus.textContent = "Live preview opened in a separate tab.";
+    renderStatus("Live preview opened");
+  }
+  return previewWindow;
+}
+
 function deleteCapture(captureId) {
   const frame = currentFrame();
   if (!frame.captures.some((capture) => capture.id === captureId)) {
@@ -2876,7 +3866,13 @@ function deleteCapture(captureId) {
   }
 
   frame.captures = frame.captures.filter((capture) => capture.id !== captureId);
-  frame.thumbnail = frame.captures[0]?.image || renderFrameToDataUrl(frame, { maxWidth: 420, mime: "image/jpeg", quality: 0.84 });
+  frame.thumbnail =
+    frame.captures[0]?.image ||
+    renderFrameToDataUrl(frame, {
+      maxWidth: 420,
+      mime: "image/jpeg",
+      quality: 0.84,
+    });
   touchFrame(frame, { capture: false, status: "Capture deleted" });
 }
 
@@ -2887,13 +3883,18 @@ function clearCaptures() {
   }
 
   frame.captures = [];
-  frame.thumbnail = renderFrameToDataUrl(frame, { maxWidth: 420, mime: "image/jpeg", quality: 0.84 });
+  frame.thumbnail = renderFrameToDataUrl(frame, {
+    maxWidth: 420,
+    mime: "image/jpeg",
+    quality: 0.84,
+  });
   touchFrame(frame, { capture: false, status: "Captures cleared" });
 }
 
 function removeConnectionsForFrame(frameId) {
   state.connections = state.connections.filter(
-    (connection) => connection.fromFrameId !== frameId && connection.toFrameId !== frameId,
+    (connection) =>
+      connection.fromFrameId !== frameId && connection.toFrameId !== frameId,
   );
   if (state.selectedConnectionId && !currentConnection()) {
     state.selectedConnectionId = null;
@@ -2902,7 +3903,8 @@ function removeConnectionsForFrame(frameId) {
     state.pendingConnectionFromFrameId = null;
   }
   if (state.entryFrameId === frameId) {
-    state.entryFrameId = state.frames.find((frame) => frame.id !== frameId)?.id || null;
+    state.entryFrameId =
+      state.frames.find((frame) => frame.id !== frameId)?.id || null;
   }
 }
 
@@ -2910,8 +3912,18 @@ function isElementMeaningful(element) {
   if (element.type === "path") {
     return element.points.length > 1;
   }
-  if (element.type === "line" || element.type === "arrow" || element.type === "rect" || element.type === "ellipse") {
-    return Math.hypot(element.end.x - element.start.x, element.end.y - element.start.y) > 5;
+  if (
+    element.type === "line" ||
+    element.type === "arrow" ||
+    element.type === "rect" ||
+    element.type === "ellipse"
+  ) {
+    return (
+      Math.hypot(
+        element.end.x - element.start.x,
+        element.end.y - element.start.y,
+      ) > 5
+    );
   }
   return true;
 }
@@ -2999,6 +4011,9 @@ function deleteFrame() {
     state.selectedConnectionId = null;
     state.pendingConnectionFromFrameId = null;
     state.entryFrameId = only.id;
+    state.voice.segments = state.voice.segments.filter(
+      (segment) => segment.scope !== "frame" || segment.frameId !== only.id,
+    );
     clearElementSelection();
     persistState();
     renderAll();
@@ -3006,9 +4021,18 @@ function deleteFrame() {
     return;
   }
 
-  const currentIndex = state.frames.findIndex((frame) => frame.id === state.activeFrameId);
+  const currentIndex = state.frames.findIndex(
+    (frame) => frame.id === state.activeFrameId,
+  );
+  const deletedFrameId = state.activeFrameId;
   removeConnectionsForFrame(state.activeFrameId);
-  state.frames = state.frames.filter((frame) => frame.id !== state.activeFrameId);
+  state.frames = state.frames.filter(
+    (frame) => frame.id !== state.activeFrameId,
+  );
+  state.voice.segments = state.voice.segments.filter(
+    (segment) =>
+      segment.scope !== "frame" || segment.frameId !== deletedFrameId,
+  );
   state.activeFrameId = state.frames[Math.max(0, currentIndex - 1)].id;
   clearElementSelection();
   if (!state.entryFrameId) {
@@ -3073,13 +4097,20 @@ function scheduleCapture(reason) {
   }
   window.clearTimeout(state.captureTimer);
   renderStatus(`${reason} • autosnap in 2s`);
-  state.captureTimer = window.setTimeout(() => freezeFrame(false), AUTO_CAPTURE_DELAY);
+  state.captureTimer = window.setTimeout(
+    () => freezeFrame(false),
+    AUTO_CAPTURE_DELAY,
+  );
 }
 
 function freezeFrame(manual = false) {
   const frame = currentFrame();
   window.clearTimeout(state.captureTimer);
-  const captureImage = renderFrameToDataUrl(frame, { maxWidth: 420, mime: "image/jpeg", quality: 0.84 });
+  const captureImage = renderFrameToDataUrl(frame, {
+    maxWidth: 420,
+    mime: "image/jpeg",
+    quality: 0.84,
+  });
   frame.thumbnail = captureImage;
   frame.captures.unshift({
     id: uid("capture"),
@@ -3092,6 +4123,7 @@ function freezeFrame(manual = false) {
   renderFrameList();
   renderCaptures();
   renderStatus(manual ? "Manual freeze saved" : "Autosnap freeze saved");
+  scheduleLivePreviewSync();
   void saveExportToWorkspace({ silent: true });
 }
 
@@ -3157,8 +4189,14 @@ function ensureImage(src) {
   }
   if (cached?.status === "loading") {
     return new Promise((resolve, reject) => {
-      cached.image.addEventListener("load", () => resolve(cached.image), { once: true });
-      cached.image.addEventListener("error", () => reject(new Error("Image could not load.")), { once: true });
+      cached.image.addEventListener("load", () => resolve(cached.image), {
+        once: true,
+      });
+      cached.image.addEventListener(
+        "error",
+        () => reject(new Error("Image could not load.")),
+        { once: true },
+      );
     });
   }
   return new Promise((resolve, reject) => {
@@ -3180,10 +4218,48 @@ async function fetchServerStatus() {
     state.serverStatus = data;
     renderServerStatus();
     if (data.exportRoot) {
-      dom.workspaceStatus.textContent = `Live canvas updates will be written to ${data.exportRoot}.`;
+      dom.workspaceStatus.textContent = `Live canvas updates will be written to ${data.exportRoot}. Use Preview for a separate live viewer tab.`;
     }
   } catch {
     dom.workspaceStatus.textContent = "Local server status unavailable.";
+  }
+}
+
+async function refreshPreviewStateFromServer() {
+  try {
+    const response = await fetch("/api/preview-state", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Preview state unavailable.");
+    }
+    state.serverStatus = {
+      ...state.serverStatus,
+      previewManifest: data.previewManifest || null,
+      previewManifestPath:
+        data.paths?.previewManifestPath ||
+        state.serverStatus.previewManifestPath ||
+        "",
+      liveMarkdownPath:
+        data.paths?.liveMarkdownPath ||
+        state.serverStatus.liveMarkdownPath ||
+        "",
+      liveVoiceMarkdownPath:
+        data.paths?.liveVoiceMarkdownPath ||
+        state.serverStatus.liveVoiceMarkdownPath ||
+        "",
+    };
+    renderCodexOutput();
+    renderServerStatus();
+  } catch {
+    state.serverStatus = {
+      ...state.serverStatus,
+      previewManifest: state.serverStatus.previewManifest || null,
+    };
+  } finally {
+    window.clearTimeout(state.previewStateTimer);
+    state.previewStateTimer = window.setTimeout(() => {
+      void refreshPreviewStateFromServer();
+    }, MANIFEST_POLL_INTERVAL);
   }
 }
 
@@ -3202,24 +4278,46 @@ function buildPromptMarkdown() {
     "- Use the drawing plus notes to infer structure, behavior, asset direction, and platform adaptation.",
     "- When explicit flow links exist, treat them as the primary interaction map instead of guessing transitions from frame order alone.",
     "",
-    "## Frames",
   ];
+
+  const voiceExport = buildVoiceExport();
+  if (voiceExport.segmentCount) {
+    lines.push("## Voice notes");
+    lines.push(
+      "Treat these spoken notes as raw intent captured while sketching. Prefer them when they clarify ambiguous regions, behaviors, or priorities.",
+    );
+    lines.push("");
+    lines.push(...buildVoiceSectionLines(voiceExport, { includeEmpty: false }));
+    lines.push("");
+  }
+
+  lines.push("## Frames");
 
   state.frames.forEach((frame, index) => {
     const viewport = viewportPresets[frame.viewport];
     lines.push("");
     lines.push(`### Frame ${index + 1}: ${frame.title}`);
-    lines.push(`- Canvas: ${viewport.label} (${viewport.width}x${viewport.height})`);
+    lines.push(
+      `- Canvas: ${viewport.label} (${viewport.width}x${viewport.height})`,
+    );
     lines.push(`- Intent: ${frame.objective || "Not specified"}`);
     lines.push(`- Notes / structure: ${frame.layout || "Not specified"}`);
     lines.push(`- Behavior / flow: ${frame.motion || "Not specified"}`);
-    lines.push(`- Assets / generation notes: ${frame.assets || "Not specified"}`);
-    lines.push(`- Variant / platform notes: ${frame.mobile || "Not specified"}`);
+    lines.push(
+      `- Assets / generation notes: ${frame.assets || "Not specified"}`,
+    );
+    lines.push(
+      `- Variant / platform notes: ${frame.mobile || "Not specified"}`,
+    );
     lines.push(`- Captures saved: ${frame.captures.length}`);
 
-    const outgoingConnections = state.connections.filter((connection) => connection.fromFrameId === frame.id);
+    const outgoingConnections = state.connections.filter(
+      (connection) => connection.fromFrameId === frame.id,
+    );
     if (outgoingConnections.length) {
-      lines.push(`- Outgoing links: ${outgoingConnections.map((connection) => `${connection.label || "continue"} -> ${frameTitleById(connection.toFrameId)}`).join("; ")}`);
+      lines.push(
+        `- Outgoing links: ${outgoingConnections.map((connection) => `${connection.label || "continue"} -> ${frameTitleById(connection.toFrameId)}`).join("; ")}`,
+      );
     }
   });
 
@@ -3234,7 +4332,9 @@ function buildPromptMarkdown() {
       );
     });
   } else {
-    lines.push("- No explicit flow links. Use frame order only if the notes imply sequence.");
+    lines.push(
+      "- No explicit flow links. Use frame order only if the notes imply sequence.",
+    );
   }
 
   lines.push("");
@@ -3246,15 +4346,139 @@ function buildPromptMarkdown() {
   return lines.join("\n");
 }
 
+function buildVoiceExport(frameSelection = state.frames) {
+  const selectedFrames = Array.isArray(frameSelection) ? frameSelection : [];
+  const selectedFrameIds = new Set(selectedFrames.map((frame) => frame.id));
+  const frameLookup = new Map(
+    selectedFrames.map((frame, index) => [
+      frame.id,
+      { frame, index: index + 1 },
+    ]),
+  );
+  const segments = state.voice.segments
+    .filter((segment) => {
+      if (segment.scope === "session") {
+        return true;
+      }
+      return segment.frameId && selectedFrameIds.has(segment.frameId);
+    })
+    .map((segment) => ({
+      ...structuredClone(segment),
+      frameTitle:
+        segment.frameTitle ||
+        (segment.frameId ? frameTitleById(segment.frameId) : "") ||
+        "",
+    }));
+
+  const frameGroups = selectedFrames
+    .map((frame) => {
+      const items = segments.filter(
+        (segment) => segment.scope === "frame" && segment.frameId === frame.id,
+      );
+      if (!items.length) {
+        return null;
+      }
+      const lookup = frameLookup.get(frame.id);
+      return {
+        frameId: frame.id,
+        frameTitle: frame.title,
+        frameIndex: lookup?.index || 0,
+        segments: items,
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    activeScope: state.voice.scope,
+    segmentCount: segments.length,
+    sessionSegmentCount: segments.filter(
+      (segment) => segment.scope === "session",
+    ).length,
+    frameSegmentCount: segments.filter((segment) => segment.scope === "frame")
+      .length,
+    latestSegmentAt: segments[0]?.at || "",
+    segments,
+    frameGroups,
+  };
+}
+
+function buildVoiceSectionLines(
+  voiceExport = buildVoiceExport(),
+  { includeEmpty = true } = {},
+) {
+  const lines = [];
+  if (!voiceExport.segmentCount) {
+    if (includeEmpty) {
+      lines.push("- No voice notes captured.");
+    }
+    return lines;
+  }
+
+  const boardSegments = voiceExport.segments.filter(
+    (segment) => segment.scope === "session",
+  );
+
+  if (boardSegments.length) {
+    lines.push("### Whole board");
+    boardSegments.forEach((segment) => {
+      lines.push(
+        `- [${segment.at}] ${collapseVoiceTextForMarkdown(segment.text)}`,
+      );
+    });
+  }
+
+  voiceExport.frameGroups.forEach((group) => {
+    if (lines.length) {
+      lines.push("");
+    }
+    lines.push(`### Frame ${group.frameIndex}: ${group.frameTitle}`);
+    group.segments.forEach((segment) => {
+      lines.push(
+        `- [${segment.at}] ${collapseVoiceTextForMarkdown(segment.text)}`,
+      );
+    });
+  });
+
+  return lines;
+}
+
+function buildVoiceMarkdown(frameSelection = state.frames) {
+  const voiceExport = buildVoiceExport(frameSelection);
+  const lines = [
+    `# ${(state.board.project || "Canvax live canvas").trim()} voice notes`,
+    "",
+    "These spoken notes were captured in Canvax while the sketch was being developed.",
+    "",
+    `- Generated: ${new Date().toISOString()}`,
+    `- Active scope when exported: ${voiceScopeLabel(state.voice.scope, currentFrame())}`,
+    `- Total segments: ${voiceExport.segmentCount}`,
+    `- Whole-board segments: ${voiceExport.sessionSegmentCount}`,
+    `- Frame-scoped segments: ${voiceExport.frameSegmentCount}`,
+    "",
+  ];
+
+  lines.push(...buildVoiceSectionLines(voiceExport, { includeEmpty: true }));
+  return lines.join("\n");
+}
+
+function collapseVoiceTextForMarkdown(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function buildExportPackage(frameSelection = state.frames) {
   const selectedFrames = [];
   for (const [index, frame] of frameSelection.entries()) {
     await ensureImage(frame.backgroundImage);
+    const viewport = viewportPresets[frame.viewport];
     selectedFrames.push({
       id: frame.id,
       index: index + 1,
       title: frame.title,
       viewport: frame.viewport,
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
       objective: frame.objective,
       layout: frame.layout,
       motion: frame.motion,
@@ -3263,27 +4487,157 @@ async function buildExportPackage(frameSelection = state.frames) {
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
       captureCount: frame.captures.length,
-      snapshotDataUrl: renderFrameToDataUrl(frame, { maxWidth: 1400, mime: "image/jpeg", quality: 0.9 }),
+      snapshotDataUrl: renderFrameToDataUrl(frame, {
+        maxWidth: 1400,
+        mime: "image/jpeg",
+        quality: 0.9,
+      }),
       thumbnailDataUrl:
-        frame.thumbnail || renderFrameToDataUrl(frame, { maxWidth: 420, mime: "image/jpeg", quality: 0.84 }),
+        frame.thumbnail ||
+        renderFrameToDataUrl(frame, {
+          maxWidth: 420,
+          mime: "image/jpeg",
+          quality: 0.84,
+        }),
     });
   }
 
   return {
     generatedAt: new Date().toISOString(),
     board: state.board,
+    activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
     connections: state.connections.map((connection) => ({
       ...connection,
       fromTitle: frameTitleById(connection.fromFrameId),
       toTitle: frameTitleById(connection.toFrameId),
     })),
+    voice: buildVoiceExport(frameSelection),
     prompt: buildPromptMarkdown(),
     frames: selectedFrames,
   };
 }
 
-function renderFrameToDataUrl(frame, { maxWidth, mime = "image/png", quality = 0.92 } = {}) {
+function normalizeMaterializePoint(point) {
+  return {
+    x: Number(point?.x) || 0,
+    y: Number(point?.y) || 0,
+  };
+}
+
+function normalizeMaterializeBounds(bounds) {
+  if (!bounds) {
+    return null;
+  }
+  return {
+    left: Number(bounds.left) || 0,
+    top: Number(bounds.top) || 0,
+    right: Number(bounds.right) || 0,
+    bottom: Number(bounds.bottom) || 0,
+    width: Number(bounds.width) || 0,
+    height: Number(bounds.height) || 0,
+  };
+}
+
+function buildMaterializeElement(element, frame = currentFrame()) {
+  if (!element || typeof element !== "object") {
+    return null;
+  }
+
+  const base = {
+    id: element.id || uid("element"),
+    type: element.type || "unknown",
+    color: normalizeColor(element.color, state.color),
+    size: Number(element.size) || 0,
+    alpha: Number.isFinite(element.alpha) ? element.alpha : 1,
+    composite:
+      typeof element.composite === "string" ? element.composite : "source-over",
+    groupId: typeof element.groupId === "string" ? element.groupId : "",
+    bounds: normalizeMaterializeBounds(getElementBounds(element, frame)),
+  };
+
+  if (element.type === "path") {
+    return {
+      ...base,
+      points: Array.isArray(element.points)
+        ? element.points.map((point) => normalizeMaterializePoint(point))
+        : [],
+    };
+  }
+
+  if (element.type === "label") {
+    const resolved = resolveLabelPosition(element, frame);
+    return {
+      ...base,
+      text: typeof element.text === "string" ? element.text : "",
+      x: Number(element.x) || 0,
+      y: Number(element.y) || 0,
+      attachedTo:
+        typeof element.attachedTo === "string" ? element.attachedTo : "",
+      anchor:
+        element.anchor && typeof element.anchor === "object"
+          ? {
+              xRatio: Number(element.anchor.xRatio) || 0,
+              yRatio: Number(element.anchor.yRatio) || 0,
+            }
+          : null,
+      resolvedPosition: {
+        x: Number(resolved.x) || 0,
+        y: Number(resolved.y) || 0,
+        attached: Boolean(resolved.attached),
+      },
+    };
+  }
+
+  return {
+    ...base,
+    start: normalizeMaterializePoint(element.start),
+    end: normalizeMaterializePoint(element.end),
+  };
+}
+
+async function buildMaterializePayload(frame = currentFrame()) {
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  await ensureImage(frame.backgroundImage);
+  return {
+    generatedAt: new Date().toISOString(),
+    board: structuredClone(state.board),
+    frame: {
+      id: frame.id,
+      title: frame.title,
+      viewport: frame.viewport,
+      viewportLabel: viewport.label,
+      viewportWidth: viewport.width,
+      viewportHeight: viewport.height,
+      objective: frame.objective,
+      layout: frame.layout,
+      motion: frame.motion,
+      assets: frame.assets,
+      mobile: frame.mobile,
+      updatedAt: frame.updatedAt,
+      captureCount: frame.captures.length,
+      backgroundImage: frame.backgroundImage || "",
+      snapshotDataUrl: renderFrameToDataUrl(frame, {
+        mime: "image/png",
+      }),
+      thumbnailDataUrl:
+        frame.thumbnail ||
+        renderFrameToDataUrl(frame, {
+          maxWidth: 420,
+          mime: "image/jpeg",
+          quality: 0.84,
+        }),
+      elements: frame.elements
+        .map((element) => buildMaterializeElement(element, frame))
+        .filter(Boolean),
+    },
+  };
+}
+
+function renderFrameToDataUrl(
+  frame,
+  { maxWidth, mime = "image/png", quality = 0.92 } = {},
+) {
   const viewport = viewportPresets[frame.viewport];
   const baseCanvas = document.createElement("canvas");
   baseCanvas.width = viewport.width;
@@ -3300,7 +4654,13 @@ function renderFrameToDataUrl(frame, { maxWidth, mime = "image/png", quality = 0
   previewCanvas.width = Math.round(viewport.width * scale);
   previewCanvas.height = Math.round(viewport.height * scale);
   const previewContext = previewCanvas.getContext("2d");
-  previewContext.drawImage(baseCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+  previewContext.drawImage(
+    baseCanvas,
+    0,
+    0,
+    previewCanvas.width,
+    previewCanvas.height,
+  );
   return previewCanvas.toDataURL(mime, quality);
 }
 
@@ -3318,6 +4678,7 @@ async function saveExportToWorkspace(options = {}) {
       body: JSON.stringify({
         package: exportPackage,
         markdown: dom.specOutput.value,
+        voiceMarkdown: buildVoiceMarkdown(),
       }),
     });
     const data = await response.json();
@@ -3331,10 +4692,69 @@ async function saveExportToWorkspace(options = {}) {
       : `Saved latest export to ${data.jsonPath}`;
   } catch (error) {
     if (!silent) {
-      dom.workspaceStatus.textContent = error instanceof Error ? error.message : "Export save failed.";
+      dom.workspaceStatus.textContent =
+        error instanceof Error ? error.message : "Export save failed.";
     }
   } finally {
     dom.saveWorkspace.disabled = false;
+  }
+}
+
+async function materializeCurrentFrame() {
+  const frame = currentFrame();
+  if (!frame) {
+    return;
+  }
+
+  const hasCanvasState =
+    frame.elements.length || frame.backgroundImage || frame.captures.length;
+  if (!hasCanvasState) {
+    dom.workspaceStatus.textContent =
+      "Add a sketch, labels, or a reference first, then materialize it.";
+    renderStatus("Nothing to materialize yet");
+    return;
+  }
+
+  const originalLabel = dom.materializeFrame.textContent;
+  try {
+    dom.materializeFrame.disabled = true;
+    dom.materializeFrame.textContent = "Materializing...";
+    dom.workspaceStatus.textContent = `Materializing ${frame.title}...`;
+    renderStatus(`Materializing ${frame.title}...`);
+    await saveExportToWorkspace({ silent: true });
+    const payload = await buildMaterializePayload(frame);
+    const response = await fetch("/api/materialize-frame", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Materialize failed.");
+    }
+
+    state.serverStatus = {
+      ...state.serverStatus,
+      previewManifest:
+        data.previewManifest || state.serverStatus.previewManifest,
+      previewManifestPath:
+        data.previewManifestPath ||
+        state.serverStatus.previewManifestPath ||
+        "",
+    };
+    renderCodexOutput();
+    renderServerStatus();
+    scheduleLivePreviewSync();
+    openPreviewWindow({ announce: false });
+    dom.workspaceStatus.textContent = `Materialized ${frame.title} to ${data.previewPath}`;
+    renderStatus(`Materialized ${frame.title}`);
+  } catch (error) {
+    dom.workspaceStatus.textContent =
+      error instanceof Error ? error.message : "Materialize failed.";
+    renderStatus("Materialize failed");
+  } finally {
+    dom.materializeFrame.disabled = false;
+    dom.materializeFrame.textContent = originalLabel;
   }
 }
 
@@ -3349,7 +4769,8 @@ async function installSkill() {
     }
     dom.workspaceStatus.textContent = data.message;
   } catch (error) {
-    dom.workspaceStatus.textContent = error instanceof Error ? error.message : "Skill install failed.";
+    dom.workspaceStatus.textContent =
+      error instanceof Error ? error.message : "Skill install failed.";
   } finally {
     dom.installSkill.disabled = false;
   }
@@ -3367,6 +4788,80 @@ async function copyPrompt() {
 function persistState() {
   const snapshot = buildPersistedSnapshot(state);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  scheduleLivePreviewSync();
+}
+
+function scheduleLivePreviewSync() {
+  window.clearTimeout(state.livePreviewTimer);
+  state.livePreviewTimer = window.setTimeout(() => {
+    publishLivePreviewState();
+  }, LIVE_PREVIEW_DEBOUNCE);
+}
+
+function publishLivePreviewState() {
+  try {
+    const payload = buildLivePreviewPayload();
+    const raw = JSON.stringify(payload);
+    window.localStorage.setItem(LIVE_PREVIEW_STORAGE_KEY, raw);
+    livePreviewChannel?.postMessage(payload);
+  } catch {
+    // Ignore preview mirroring failures and preserve the main board workflow.
+  }
+}
+
+function buildLivePreviewPayload() {
+  return {
+    updatedAt: new Date().toISOString(),
+    liveMarkdown: buildPromptMarkdown(),
+    liveVoiceMarkdown: buildVoiceMarkdown(),
+    previewManifest: state.serverStatus.previewManifest || null,
+    liveExport: {
+      generatedAt: new Date().toISOString(),
+      board: structuredClone(state.board),
+      activeFrameId: state.activeFrameId,
+      entryFrameId: state.entryFrameId,
+      voice: buildVoiceExport(),
+      connections: state.connections.map((connection) => ({
+        ...structuredClone(connection),
+        fromTitle: frameTitleById(connection.fromFrameId),
+        toTitle: frameTitleById(connection.toFrameId),
+      })),
+      frames: state.frames.map((frame, index) => {
+        const viewport = viewportPresets[frame.viewport];
+        const isActive = frame.id === state.activeFrameId;
+        return {
+          id: frame.id,
+          index: index + 1,
+          title: frame.title,
+          viewport: frame.viewport,
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+          objective: frame.objective,
+          layout: frame.layout,
+          motion: frame.motion,
+          assets: frame.assets,
+          mobile: frame.mobile,
+          updatedAt: frame.updatedAt,
+          captureCount: frame.captures.length,
+          liveThumbnailDataUrl:
+            frame.thumbnail ||
+            renderFrameToDataUrl(frame, {
+              maxWidth: 320,
+              mime: "image/jpeg",
+              quality: 0.82,
+            }),
+          liveSnapshotDataUrl: isActive
+            ? renderFrameToDataUrl(frame, {
+                maxWidth: 1400,
+                mime: "image/jpeg",
+                quality: 0.9,
+              })
+            : "",
+        };
+      }),
+      prompt: buildPromptMarkdown(),
+    },
+  };
 }
 
 function buildPersistedSnapshot(source) {
@@ -3374,6 +4869,7 @@ function buildPersistedSnapshot(source) {
     version: STORAGE_VERSION,
     board: source.board,
     frames: source.frames,
+    voice: source.voice,
     viewMode: source.viewMode,
     connections: source.connections,
     entryFrameId: source.entryFrameId,
@@ -3387,6 +4883,386 @@ function buildPersistedSnapshot(source) {
     saveNotice: source.saveNotice,
     statusText: source.statusText,
   };
+}
+
+function resolveManifestTargetEntry(manifest, preferredFrameId = "") {
+  const targets = collectManifestTargets(manifest);
+  const frameTarget = preferredFrameId
+    ? targets.find((target) => target.frameIds.includes(preferredFrameId))
+    : null;
+  if (frameTarget) {
+    return frameTarget;
+  }
+  const primaryTarget =
+    targets.find((target) => target.id === "primary") || targets[0] || null;
+  if (primaryTarget) {
+    return primaryTarget;
+  }
+  return derivePreviewTargetFromArtifacts(manifest, preferredFrameId);
+}
+
+function collectManifestTargets(manifest) {
+  if (!manifest || typeof manifest !== "object") {
+    return [];
+  }
+
+  const values = [];
+  if (Array.isArray(manifest.targets)) {
+    values.push(...manifest.targets);
+  }
+  if (
+    manifest.previewUrl ||
+    manifest.url ||
+    manifest.previewPath ||
+    manifest.path
+  ) {
+    values.unshift(manifest);
+  }
+
+  const uniqueTargets = new Map();
+  values
+    .map((target, index) => normalizeManifestTarget(target, index))
+    .filter(Boolean)
+    .forEach((target) => {
+      const key = target.id || target.url || target.previewPath;
+      if (!uniqueTargets.has(key)) {
+        uniqueTargets.set(key, target);
+      }
+    });
+
+  return [...uniqueTargets.values()];
+}
+
+function collectManifestArtifacts(manifest) {
+  if (
+    !manifest ||
+    typeof manifest !== "object" ||
+    !Array.isArray(manifest.artifacts)
+  ) {
+    return [];
+  }
+  return manifest.artifacts
+    .map((artifact, index) => normalizeManifestArtifact(artifact, index))
+    .filter(Boolean);
+}
+
+function derivePreviewTargetFromArtifacts(manifest, preferredFrameId = "") {
+  const artifacts = collectManifestArtifacts(manifest);
+  const prioritizedArtifacts = preferredFrameId
+    ? [
+        ...artifacts.filter((entry) =>
+          entry.frameIds.includes(preferredFrameId),
+        ),
+        ...artifacts.filter(
+          (entry) => !entry.frameIds.includes(preferredFrameId),
+        ),
+      ]
+    : artifacts;
+  const artifact = prioritizedArtifacts.find((entry) => {
+    const path = typeof entry.path === "string" ? entry.path.toLowerCase() : "";
+    const kind = typeof entry.kind === "string" ? entry.kind.toLowerCase() : "";
+    const url =
+      typeof entry.resolvedUrl === "string"
+        ? entry.resolvedUrl.toLowerCase()
+        : "";
+    return (
+      kind === "preview" || path.endsWith(".html") || url.endsWith(".html")
+    );
+  });
+  if (!artifact) {
+    return null;
+  }
+
+  const href = artifact.resolvedUrl || artifact.url || "";
+  if (!href) {
+    return null;
+  }
+
+  return {
+    id: "artifact-preview",
+    label: artifact.label || "Generated preview artifact",
+    source: "artifact-manifest",
+    type: "implementation-preview",
+    url: href,
+    resolvedUrl: href,
+    previewPath: artifact.path || "",
+    description: artifact.description || artifact.status || "",
+    frameIds: Array.isArray(artifact.frameIds) ? artifact.frameIds : [],
+    versionTag: artifact.versionTag || "",
+    generatedAt: artifact.generatedAt || "",
+    sourceFrameId: artifact.sourceFrameId || "",
+    sourceFrameTitle: artifact.sourceFrameTitle || "",
+    sourceFrameUpdatedAt: artifact.sourceFrameUpdatedAt || "",
+  };
+}
+
+function collectManifestChanges(manifest) {
+  if (!manifest || typeof manifest !== "object") {
+    return [];
+  }
+  const source = Array.isArray(manifest.changes)
+    ? manifest.changes
+    : Array.isArray(manifest.changedFiles)
+      ? manifest.changedFiles
+      : [];
+  return source
+    .map((change, index) => normalizeManifestChange(change, index))
+    .filter(Boolean);
+}
+
+function normalizeManifestTarget(value, index = 0) {
+  if (!value || (typeof value !== "object" && typeof value !== "string")) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const url = normalizeHref(value);
+    if (!url) {
+      return null;
+    }
+    return {
+      id: index === 0 ? "primary" : `target-${index + 1}`,
+      label: index === 0 ? "Primary preview" : `Preview target ${index + 1}`,
+      source: "manifest",
+      type: "implementation-preview",
+      url,
+      resolvedUrl: url,
+      previewPath: "",
+      description: "",
+      frameIds: [],
+    };
+  }
+
+  const resolvedUrl = normalizeHref(
+    value.resolvedUrl || value.url || value.previewUrl || value.targetUrl,
+  );
+  const previewPath =
+    typeof value.previewPath === "string"
+      ? value.previewPath.trim()
+      : typeof value.path === "string"
+        ? value.path.trim()
+        : typeof value.htmlPath === "string"
+          ? value.htmlPath.trim()
+          : "";
+  if (!resolvedUrl && !previewPath) {
+    return null;
+  }
+
+  return {
+    id:
+      typeof value.id === "string" && value.id.trim()
+        ? value.id.trim()
+        : index === 0
+          ? "primary"
+          : `target-${index + 1}`,
+    label:
+      typeof value.label === "string" && value.label.trim()
+        ? value.label.trim()
+        : index === 0
+          ? "Primary preview"
+          : `Preview target ${index + 1}`,
+    source:
+      typeof value.source === "string" && value.source.trim()
+        ? value.source.trim()
+        : "manifest",
+    type:
+      typeof value.type === "string" && value.type.trim()
+        ? value.type.trim()
+        : "implementation-preview",
+    url: resolvedUrl,
+    resolvedUrl,
+    previewPath,
+    description:
+      typeof value.description === "string" ? value.description.trim() : "",
+    frameIds: Array.isArray(value.frameIds)
+      ? value.frameIds.filter(Boolean)
+      : [],
+    versionTag:
+      typeof value.versionTag === "string" ? value.versionTag.trim() : "",
+    generatedAt:
+      typeof value.generatedAt === "string" ? value.generatedAt.trim() : "",
+    sourceFrameId:
+      typeof value.sourceFrameId === "string" ? value.sourceFrameId.trim() : "",
+    sourceFrameTitle:
+      typeof value.sourceFrameTitle === "string"
+        ? value.sourceFrameTitle.trim()
+        : "",
+    sourceFrameUpdatedAt:
+      typeof value.sourceFrameUpdatedAt === "string"
+        ? value.sourceFrameUpdatedAt.trim()
+        : "",
+  };
+}
+
+function normalizeManifestArtifact(value, index = 0) {
+  if (!value || (typeof value !== "object" && typeof value !== "string")) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const path = value.trim();
+    return path
+      ? {
+          id: `artifact-${index + 1}`,
+          label: path.split("/").pop() || `Artifact ${index + 1}`,
+          path,
+          kind: "artifact",
+          description: "",
+          status: "",
+          resolvedUrl: "",
+          frameIds: [],
+        }
+      : null;
+  }
+
+  const path =
+    typeof value.path === "string"
+      ? value.path.trim()
+      : typeof value.filePath === "string"
+        ? value.filePath.trim()
+        : typeof value.outputPath === "string"
+          ? value.outputPath.trim()
+          : "";
+  const resolvedUrl = normalizeHref(value.resolvedUrl || value.url);
+  if (!path && !resolvedUrl) {
+    return null;
+  }
+
+  return {
+    id:
+      typeof value.id === "string" && value.id.trim()
+        ? value.id.trim()
+        : `artifact-${index + 1}`,
+    label:
+      typeof value.label === "string" && value.label.trim()
+        ? value.label.trim()
+        : path.split("/").pop() || `Artifact ${index + 1}`,
+    path,
+    kind:
+      typeof value.kind === "string" && value.kind.trim()
+        ? value.kind.trim()
+        : typeof value.type === "string" && value.type.trim()
+          ? value.type.trim()
+          : "artifact",
+    description:
+      typeof value.description === "string" ? value.description.trim() : "",
+    status: typeof value.status === "string" ? value.status.trim() : "",
+    resolvedUrl,
+    frameIds: Array.isArray(value.frameIds)
+      ? value.frameIds.filter(Boolean)
+      : [],
+    versionTag:
+      typeof value.versionTag === "string" ? value.versionTag.trim() : "",
+    generatedAt:
+      typeof value.generatedAt === "string" ? value.generatedAt.trim() : "",
+    sourceFrameId:
+      typeof value.sourceFrameId === "string" ? value.sourceFrameId.trim() : "",
+    sourceFrameTitle:
+      typeof value.sourceFrameTitle === "string"
+        ? value.sourceFrameTitle.trim()
+        : "",
+    sourceFrameUpdatedAt:
+      typeof value.sourceFrameUpdatedAt === "string"
+        ? value.sourceFrameUpdatedAt.trim()
+        : "",
+  };
+}
+
+function describeManifestFreshness(target, frame) {
+  if (!target || !frame) {
+    return "";
+  }
+
+  const outputTime = Date.parse(
+    target.sourceFrameUpdatedAt || target.generatedAt,
+  );
+  const frameTime = Date.parse(frame.updatedAt || "");
+  if (!Number.isFinite(outputTime) || !Number.isFinite(frameTime)) {
+    return "";
+  }
+
+  if (frameTime > outputTime + 1) {
+    return `Current sketch is newer than this output. Rematerialize ${frame.title} to refresh it.`;
+  }
+
+  const syncedAt = target.sourceFrameUpdatedAt || target.generatedAt;
+  return syncedAt
+    ? `Output is synced with the sketch as of ${formatDateTime(syncedAt)}.`
+    : "";
+}
+
+function normalizeManifestChange(value, index = 0) {
+  if (!value || (typeof value !== "object" && typeof value !== "string")) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const path = value.trim();
+    return path
+      ? {
+          id: `change-${index + 1}`,
+          label: path.split("/").pop() || `Change ${index + 1}`,
+          path,
+          kind: "updated",
+          summary: "",
+          resolvedUrl: "",
+          frameIds: [],
+        }
+      : null;
+  }
+
+  const path =
+    typeof value.path === "string"
+      ? value.path.trim()
+      : typeof value.filePath === "string"
+        ? value.filePath.trim()
+        : typeof value.outputPath === "string"
+          ? value.outputPath.trim()
+          : "";
+  if (!path) {
+    return null;
+  }
+
+  return {
+    id:
+      typeof value.id === "string" && value.id.trim()
+        ? value.id.trim()
+        : `change-${index + 1}`,
+    label:
+      typeof value.label === "string" && value.label.trim()
+        ? value.label.trim()
+        : path.split("/").pop() || `Change ${index + 1}`,
+    path,
+    kind:
+      typeof value.kind === "string" && value.kind.trim()
+        ? value.kind.trim()
+        : "updated",
+    summary:
+      typeof value.summary === "string"
+        ? value.summary.trim()
+        : typeof value.description === "string"
+          ? value.description.trim()
+          : "",
+    resolvedUrl: normalizeHref(value.resolvedUrl || value.url),
+    frameIds: Array.isArray(value.frameIds)
+      ? value.frameIds.filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeHref(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    return new URL(trimmed, window.location.origin).toString();
+  } catch {
+    return "";
+  }
 }
 
 function timeLabel(dateString) {
@@ -3426,15 +5302,44 @@ async function runSelfTest() {
 
   try {
     await sleep(50);
-    results.push(assert(toolDefinitions.length === dom.toolButtons.querySelectorAll("[data-tool]").length, "tool chips render"));
-    results.push(assert(viewModes.length === dom.viewModeButtons.querySelectorAll("[data-view-mode]").length, "view mode toggles render"));
-    results.push(assert(palette.length === dom.colorButtons.querySelectorAll("[data-color]").length, "color swatches render"));
-    results.push(assert(Object.keys(viewportPresets).length === dom.viewportSelect.options.length, "viewport presets render"));
+    results.push(
+      assert(
+        toolDefinitions.length ===
+          dom.toolButtons.querySelectorAll("[data-tool]").length,
+        "tool chips render",
+      ),
+    );
+    results.push(
+      assert(
+        viewModes.length ===
+          dom.viewModeButtons.querySelectorAll("[data-view-mode]").length,
+        "view mode toggles render",
+      ),
+    );
+    results.push(
+      assert(
+        palette.length ===
+          dom.colorButtons.querySelectorAll("[data-color]").length,
+        "color swatches render",
+      ),
+    );
+    results.push(
+      assert(
+        Object.keys(viewportPresets).length ===
+          dom.viewportSelect.options.length,
+        "viewport presets render",
+      ),
+    );
 
     resetFrameForSelfTest();
     state.size = 22;
     renderColors();
-    results.push(assert(dom.sizePreviewDot.style.width === "22px", "brush size preview updates before drawing"));
+    results.push(
+      assert(
+        dom.sizePreviewDot.style.width === "22px",
+        "brush size preview updates before drawing",
+      ),
+    );
     state.size = 14;
     renderColors();
 
@@ -3442,83 +5347,147 @@ async function runSelfTest() {
     results.push(assert(lastElement()?.type === "path", "pen draws a path"));
 
     await drawWithTool("marker", [280, 150], [440, 210]);
-    results.push(assert(lastElement()?.type === "path" && lastElement()?.alpha === 0.42, "marker draws translucent path"));
+    results.push(
+      assert(
+        lastElement()?.type === "path" && lastElement()?.alpha === 0.42,
+        "marker draws translucent path",
+      ),
+    );
 
     await drawWithTool("line", [120, 260], [320, 300]);
-    results.push(assert(lastElement()?.type === "line", "line tool draws line"));
+    results.push(
+      assert(lastElement()?.type === "line", "line tool draws line"),
+    );
 
     await drawWithTool("rect", [360, 260], [620, 420]);
-    results.push(assert(lastElement()?.type === "rect", "rect tool draws rectangle"));
+    results.push(
+      assert(lastElement()?.type === "rect", "rect tool draws rectangle"),
+    );
 
     await drawWithTool("ellipse", [700, 260], [920, 430]);
-    results.push(assert(lastElement()?.type === "ellipse", "oval tool draws ellipse"));
+    results.push(
+      assert(lastElement()?.type === "ellipse", "oval tool draws ellipse"),
+    );
 
     await drawWithTool("arrow", [140, 470], [420, 560]);
-    results.push(assert(lastElement()?.type === "arrow", "arrow tool draws arrow"));
+    results.push(
+      assert(lastElement()?.type === "arrow", "arrow tool draws arrow"),
+    );
 
     const ellipseBeforeMove = structuredClone(findElementByType("ellipse"));
     await drawWithTool("select", [810, 340], [880, 390]);
     const ellipseAfterMove = findElementByType("ellipse");
     results.push(
       assert(
-        ellipseBeforeMove && ellipseAfterMove &&
-          (ellipseBeforeMove.start.x !== ellipseAfterMove.start.x || ellipseBeforeMove.start.y !== ellipseAfterMove.start.y),
+        ellipseBeforeMove &&
+          ellipseAfterMove &&
+          (ellipseBeforeMove.start.x !== ellipseAfterMove.start.x ||
+            ellipseBeforeMove.start.y !== ellipseAfterMove.start.y),
         "select tool moves an element",
       ),
     );
 
     const ellipseBeforeResize = structuredClone(findElementByType("ellipse"));
-    setSelectedElements(ellipseAfterMove?.id ? [ellipseAfterMove.id] : [], ellipseAfterMove?.id || null);
+    setSelectedElements(
+      ellipseAfterMove?.id ? [ellipseAfterMove.id] : [],
+      ellipseAfterMove?.id || null,
+    );
     renderCanvas();
-    await drawWithTool("select", [ellipseAfterMove.end.x, ellipseAfterMove.end.y], [ellipseAfterMove.end.x + 64, ellipseAfterMove.end.y + 48]);
+    await drawWithTool(
+      "select",
+      [ellipseAfterMove.end.x, ellipseAfterMove.end.y],
+      [ellipseAfterMove.end.x + 64, ellipseAfterMove.end.y + 48],
+    );
     const ellipseAfterResize = findElementByType("ellipse");
     results.push(
       assert(
-        ellipseBeforeResize && ellipseAfterResize &&
-          (Math.abs(ellipseAfterResize.end.x - ellipseBeforeResize.end.x) > 8 || Math.abs(ellipseAfterResize.end.y - ellipseBeforeResize.end.y) > 8),
+        ellipseBeforeResize &&
+          ellipseAfterResize &&
+          (Math.abs(ellipseAfterResize.end.x - ellipseBeforeResize.end.x) > 8 ||
+            Math.abs(ellipseAfterResize.end.y - ellipseBeforeResize.end.y) > 8),
         "select tool resizes an element",
       ),
     );
 
     await addLabelForSelfTest("State A", [520, 160]);
-    results.push(assert(lastElement()?.type === "label", "label tool adds label"));
+    results.push(
+      assert(lastElement()?.type === "label", "label tool adds label"),
+    );
 
     await drawWithTool("erase", [150, 150], [200, 190]);
-    results.push(assert(lastElement()?.composite === "destination-out", "eraser creates erase stroke"));
+    results.push(
+      assert(
+        lastElement()?.composite === "destination-out",
+        "eraser creates erase stroke",
+      ),
+    );
 
     const beforeUndo = currentFrame().elements.length;
     undoFrame();
-    results.push(assert(currentFrame().elements.length === beforeUndo - 1, "undo removes last element"));
+    results.push(
+      assert(
+        currentFrame().elements.length === beforeUndo - 1,
+        "undo removes last element",
+      ),
+    );
     redoFrame();
-    results.push(assert(currentFrame().elements.length === beforeUndo, "redo restores last element"));
+    results.push(
+      assert(
+        currentFrame().elements.length === beforeUndo,
+        "redo restores last element",
+      ),
+    );
 
     const beforeFreeze = currentFrame().captures.length;
     freezeFrame(true);
     await sleep(150);
-    results.push(assert(currentFrame().captures.length === beforeFreeze + 1, "freeze frame stores capture"));
+    results.push(
+      assert(
+        currentFrame().captures.length === beforeFreeze + 1,
+        "freeze frame stores capture",
+      ),
+    );
 
     const beforeAdd = state.frames.length;
     addFrame();
-    results.push(assert(state.frames.length === beforeAdd + 1, "add frame works"));
+    results.push(
+      assert(state.frames.length === beforeAdd + 1, "add frame works"),
+    );
     upsertConnection(state.frames[0].id, state.frames[1].id);
-    results.push(assert(state.connections.length === 1, "flow link creation works"));
+    results.push(
+      assert(state.connections.length === 1, "flow link creation works"),
+    );
     deleteSelectedConnection();
-    results.push(assert(state.connections.length === 0, "flow link deletion works"));
+    results.push(
+      assert(state.connections.length === 0, "flow link deletion works"),
+    );
     upsertConnection(state.frames[0].id, state.frames[1].id);
     duplicateFrame();
-    results.push(assert(state.frames.length === beforeAdd + 2, "duplicate frame works"));
+    results.push(
+      assert(state.frames.length === beforeAdd + 2, "duplicate frame works"),
+    );
     deleteFrame();
     deleteFrame();
-    results.push(assert(state.frames.length === beforeAdd, "delete frame works"));
+    results.push(
+      assert(state.frames.length === beforeAdd, "delete frame works"),
+    );
 
     await saveExportToWorkspace({ silent: true });
-    results.push(assert(Boolean(state.saveNotice), "workspace export completes"));
-    results.push(assert(state.frames.length === startedFrameCount, "self-test restores frame count"));
+    results.push(
+      assert(Boolean(state.saveNotice), "workspace export completes"),
+    );
+    results.push(
+      assert(
+        state.frames.length === startedFrameCount,
+        "self-test restores frame count",
+      ),
+    );
   } catch (error) {
     results.push({
       name: "self-test runtime",
       passed: false,
-      detail: error instanceof Error ? error.message : "Unknown self-test error",
+      detail:
+        error instanceof Error ? error.message : "Unknown self-test error",
     });
   }
 
@@ -3570,22 +5539,36 @@ function dispatchPointerSequence(start, end) {
   const rect = dom.canvas.getBoundingClientRect();
   const points = [
     start,
-    [start[0] + (end[0] - start[0]) * 0.33, start[1] + (end[1] - start[1]) * 0.33],
-    [start[0] + (end[0] - start[0]) * 0.66, start[1] + (end[1] - start[1]) * 0.66],
+    [
+      start[0] + (end[0] - start[0]) * 0.33,
+      start[1] + (end[1] - start[1]) * 0.33,
+    ],
+    [
+      start[0] + (end[0] - start[0]) * 0.66,
+      start[1] + (end[1] - start[1]) * 0.66,
+    ],
     end,
   ];
   const pointerId = Math.floor(Math.random() * 1000) + 1;
-  dom.canvas.dispatchEvent(makePointerEvent("pointerdown", rect, points[0], pointerId));
+  dom.canvas.dispatchEvent(
+    makePointerEvent("pointerdown", rect, points[0], pointerId),
+  );
   for (const point of points.slice(1, -1)) {
-    dom.canvas.dispatchEvent(makePointerEvent("pointermove", rect, point, pointerId));
+    dom.canvas.dispatchEvent(
+      makePointerEvent("pointermove", rect, point, pointerId),
+    );
   }
-  dom.canvas.dispatchEvent(makePointerEvent("pointerup", rect, points.at(-1), pointerId, false));
+  dom.canvas.dispatchEvent(
+    makePointerEvent("pointerup", rect, points.at(-1), pointerId, false),
+  );
 }
 
 function dispatchPointerTap(point) {
   const rect = dom.canvas.getBoundingClientRect();
   const pointerId = Math.floor(Math.random() * 1000) + 1;
-  dom.canvas.dispatchEvent(makePointerEvent("pointerdown", rect, point, pointerId));
+  dom.canvas.dispatchEvent(
+    makePointerEvent("pointerdown", rect, point, pointerId),
+  );
 }
 
 function makePointerEvent(type, rect, point, pointerId, pressed = true) {
@@ -3605,7 +5588,9 @@ function lastElement() {
 }
 
 function findElementByType(type) {
-  return currentFrame().elements.find((element) => element.type === type) || null;
+  return (
+    currentFrame().elements.find((element) => element.type === type) || null
+  );
 }
 
 function assert(condition, name, detail = "") {
@@ -3617,7 +5602,9 @@ function renderSelfTestResults(results) {
   pre.id = "selftest-results";
   pre.textContent = JSON.stringify(results, null, 2);
   document.body.appendChild(pre);
-  document.body.dataset.selftestPassed = String(results.every((result) => result.passed));
+  document.body.dataset.selftestPassed = String(
+    results.every((result) => result.passed),
+  );
 }
 
 function sleep(ms) {

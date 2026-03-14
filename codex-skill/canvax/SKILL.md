@@ -35,10 +35,22 @@ Prefer these files when they exist:
 
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
+- `exports/canvax-voice-latest.md`
+- `exports/canvax-preview-manifest.json`
+- `artifacts/canvax/codex-output.json`
 - `exports/canvax-storyboard-latest.json`
 - `exports/canvax-storyboard-latest.md`
 
 The live JSON export is the primary source because it includes frame metadata and the saved image paths.
+
+When Codex has already produced an implementation target or changed files, also check:
+
+- `artifacts/canvax/codex-output.json`
+- `exports/canvax-preview-manifest.json`
+
+Use the Codex output manifest as the canonical place to publish implementation results back to Canvax. The preview window and board inspector will merge it automatically with any manual preview attachment.
+
+If the user wants a quick styled local surface before any real app preview exists, tell them to use `Materialize` in the Canvax board. That writes a generated HTML preview under `artifacts/preview/materialized/...` and updates the manual preview manifest automatically.
 
 Do not ask the user to paste the file path again once this skill is active. Default to `exports/canvax-live-latest.json`.
 
@@ -55,3 +67,27 @@ If the user asks whether Canvax is a skill or a command, answer precisely:
 - Use the frame notes to infer components, motion, platform adaptation, and asset prompts.
 - If the user asks for implementation, work from the latest export instead of asking them to re-explain the layout.
 - If the user says "use Canvax", "read my canvas", "continue from the canvas", or similar, read the live export immediately.
+
+## Publish Codex output back to Canvax
+
+After you implement something from the canvas, write the Codex output manifest so the board and preview can show what changed.
+
+Preferred command:
+
+```bash
+node scripts/write-codex-output.mjs --preview-path artifacts/preview/home.html --change web/app.js::Updated layout --artifact docs/spec.md::Generated handoff spec
+```
+
+If you have a running local preview instead of a workspace HTML file:
+
+```bash
+node scripts/write-codex-output.mjs --url http://localhost:3000 --change src/app.tsx::Implemented the sketch
+```
+
+If a changed file or artifact is specific to one or more Canvax frames, append the frame ids in a third `::` segment so the preview can highlight the current-frame context:
+
+```bash
+node scripts/write-codex-output.mjs --artifact artifacts/preview/home.html::Generated home preview::frame-home --change src/app.tsx::Implemented the home frame::frame-home
+```
+
+That keeps the current chat, preview window, and board inspector aligned without asking the user to attach output manually.

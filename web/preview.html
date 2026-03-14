@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+        <title>Canvax Preview</title>
+        <link rel="stylesheet" href="/preview.css" />
+    </head>
+    <body>
+        <div class="preview-shell">
+            <header class="preview-header">
+                <div>
+                    <p class="eyebrow">Canvax live preview</p>
+                    <h1>Viewport Companion</h1>
+                    <p class="lede">
+                        This window follows the active Canvax frame and shows
+                        the sketch and generated output inside the same viewport
+                        shell.
+                    </p>
+                </div>
+                <div class="header-actions">
+                    <div
+                        id="compare-mode-buttons"
+                        class="compare-mode-buttons"
+                        role="tablist"
+                        aria-label="Preview compare mode"
+                    >
+                        <button
+                            class="compare-mode active"
+                            data-compare-mode="split"
+                            type="button"
+                            aria-pressed="true"
+                        >
+                            Split
+                        </button>
+                        <button
+                            class="compare-mode"
+                            data-compare-mode="sketch"
+                            type="button"
+                            aria-pressed="false"
+                        >
+                            Sketch
+                        </button>
+                        <button
+                            class="compare-mode"
+                            data-compare-mode="output"
+                            type="button"
+                            aria-pressed="false"
+                        >
+                            Output
+                        </button>
+                    </div>
+                    <button
+                        id="follow-active"
+                        class="ghost-button"
+                        type="button"
+                        aria-pressed="true"
+                    >
+                        Following active frame
+                    </button>
+                    <button
+                        id="save-snapshot"
+                        class="ghost-button"
+                        type="button"
+                    >
+                        Save snapshot
+                    </button>
+                    <button
+                        id="refresh-preview"
+                        class="ghost-button"
+                        type="button"
+                    >
+                        Refresh now
+                    </button>
+                    <button id="open-board" class="accent-button" type="button">
+                        Open board
+                    </button>
+                </div>
+            </header>
+
+            <section class="status-strip">
+                <div class="status-card">
+                    <span class="status-label">Board status</span>
+                    <strong id="preview-status">Waiting for Canvax...</strong>
+                </div>
+                <div class="status-card">
+                    <span class="status-label">Last sync</span>
+                    <strong id="preview-updated">Never</strong>
+                </div>
+                <div class="status-card wide">
+                    <span class="status-label">Live source</span>
+                    <strong id="preview-source">/api/preview-state</strong>
+                </div>
+            </section>
+
+            <main class="preview-layout">
+                <aside class="rail">
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="eyebrow">Frames</p>
+                                <h2 id="frame-rail-title">No frames yet</h2>
+                            </div>
+                            <span id="frame-rail-count" class="helper-text"
+                                >0 frames</span
+                            >
+                        </div>
+                        <div id="frame-rail" class="frame-rail empty-state">
+                            Sketch in Canvax and this preview will populate
+                            automatically.
+                        </div>
+                    </section>
+
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="eyebrow">Preview target</p>
+                                <h2>Connected output</h2>
+                            </div>
+                        </div>
+                        <label class="field">
+                            Local preview URL
+                            <div class="field-row">
+                                <input
+                                    id="manual-preview-url"
+                                    type="url"
+                                    placeholder="http://localhost:3000"
+                                    spellcheck="false"
+                                />
+                                <button
+                                    id="save-preview-url"
+                                    class="ghost-button"
+                                    type="button"
+                                >
+                                    Attach
+                                </button>
+                            </div>
+                        </label>
+                        <p class="helper-text">
+                            Attach a local app preview here. Canvax will persist
+                            it into the preview manifest so this generated
+                            surface stays bound across refreshes and sessions.
+                        </p>
+                        <div
+                            id="target-summary"
+                            class="target-summary empty-state"
+                        >
+                            No connected implementation target yet.
+                        </div>
+                        <button
+                            id="clear-preview-url"
+                            class="ghost-button"
+                            type="button"
+                        >
+                            Clear attached URL
+                        </button>
+                    </section>
+
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="eyebrow">Flow</p>
+                                <h2>Current graph</h2>
+                            </div>
+                            <span id="flow-count-preview" class="helper-text"
+                                >0 links</span
+                            >
+                        </div>
+                        <div
+                            id="flow-list-preview"
+                            class="flow-list empty-state"
+                        >
+                            No links yet.
+                        </div>
+                    </section>
+
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="eyebrow">Codex output</p>
+                                <h2>Artifacts and changes</h2>
+                            </div>
+                        </div>
+                        <div class="manifest-grid">
+                            <article class="manifest-block">
+                                <div class="manifest-head">
+                                    <strong>Artifacts</strong>
+                                    <span
+                                        id="artifact-count"
+                                        class="helper-text"
+                                        >0 files</span
+                                    >
+                                </div>
+                                <div
+                                    id="artifact-list"
+                                    class="manifest-list empty-state"
+                                >
+                                    No generated artifacts connected yet.
+                                </div>
+                            </article>
+                            <article class="manifest-block">
+                                <div class="manifest-head">
+                                    <strong>Changed files</strong>
+                                    <span id="change-count" class="helper-text"
+                                        >0 files</span
+                                    >
+                                </div>
+                                <div
+                                    id="change-list"
+                                    class="manifest-list empty-state"
+                                >
+                                    No Codex file changes attached yet.
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="eyebrow">Snapshots</p>
+                                <h2>Saved compare states</h2>
+                            </div>
+                            <span id="snapshot-count" class="helper-text"
+                                >0 saved</span
+                            >
+                        </div>
+                        <div
+                            id="snapshot-list"
+                            class="snapshot-list empty-state"
+                        >
+                            No preview snapshots saved yet.
+                        </div>
+                    </section>
+                </aside>
+
+                <section class="main-column">
+                    <section class="panel compare-panel">
+                        <div class="panel-header compare-header">
+                            <div>
+                                <p class="eyebrow">Live compare</p>
+                                <h2 id="selected-frame-title">
+                                    Awaiting first frame
+                                </h2>
+                                <p id="selected-frame-meta" class="helper-text">
+                                    Canvax will sync the current frame after
+                                    autosnap or freeze.
+                                </p>
+                            </div>
+                            <div class="compare-badges">
+                                <span id="viewport-badge" class="badge"
+                                    >Canvas</span
+                                >
+                                <span id="follow-badge" class="badge subtle"
+                                    >Auto-follow on</span
+                                >
+                                <span
+                                    id="target-state-badge"
+                                    class="badge subtle"
+                                    >No output target</span
+                                >
+                            </div>
+                        </div>
+
+                        <div
+                            id="compare-stage"
+                            class="compare-stage mode-split"
+                        >
+                            <section
+                                id="sketch-surface-card"
+                                class="surface-card"
+                            >
+                                <div class="surface-head">
+                                    <div>
+                                        <p class="eyebrow">Sketch</p>
+                                        <h3>Current board capture</h3>
+                                    </div>
+                                </div>
+                                <div
+                                    id="sketch-viewer"
+                                    class="surface-viewer empty-state"
+                                >
+                                    No saved frame capture yet.
+                                </div>
+                            </section>
+
+                            <section
+                                id="implementation-surface-card"
+                                class="surface-card"
+                            >
+                                <div class="surface-head">
+                                    <div>
+                                        <p class="eyebrow">
+                                            Interactive output
+                                        </p>
+                                        <h3>Generated implementation</h3>
+                                    </div>
+                                    <a
+                                        id="open-target-link"
+                                        class="ghost-link"
+                                        href="#"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        hidden
+                                        >Open target</a
+                                    >
+                                </div>
+                                <div
+                                    id="implementation-viewer"
+                                    class="surface-viewer empty-state"
+                                >
+                                    No connected implementation preview yet.
+                                    Attach a local preview URL or let a future
+                                    Canvax manifest provide one.
+                                </div>
+                            </section>
+                        </div>
+
+                        <div class="compare-context">
+                            <div class="compare-context-head">
+                                <strong>Current frame context</strong>
+                                <span
+                                    id="compare-context-note"
+                                    class="helper-text"
+                                    >No frame-specific output metadata
+                                    yet.</span
+                                >
+                            </div>
+                            <div
+                                id="compare-context-list"
+                                class="compare-context-list empty-state"
+                            >
+                                Codex-linked files for the selected frame will
+                                appear here.
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="two-up">
+                        <section class="panel">
+                            <div class="panel-header">
+                                <div>
+                                    <p class="eyebrow">Selected frame</p>
+                                    <h2>Interpretation notes</h2>
+                                </div>
+                            </div>
+                            <div
+                                id="frame-notes-preview"
+                                class="notes-grid empty-state"
+                            >
+                                Select a frame to inspect its notes.
+                            </div>
+                        </section>
+
+                        <section class="panel">
+                            <div class="panel-header">
+                                <div>
+                                    <p class="eyebrow">Live handoff</p>
+                                    <h2>Codex prompt</h2>
+                                </div>
+                            </div>
+                            <pre id="prompt-preview" class="prompt-preview">
+Waiting for the live Canvax export...</pre
+                            >
+                        </section>
+                    </section>
+                </section>
+            </main>
+        </div>
+
+        <script type="module" src="/preview.js"></script>
+    </body>
+</html>

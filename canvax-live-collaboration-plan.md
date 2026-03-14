@@ -11,7 +11,7 @@ The core product decision in this plan is:
 
 - Keep the current **local companion app + Codex skill** architecture for near-term delivery.
 - Treat **voice dictation as a Canvax-native capability**, not as something borrowed from the Codex app chat input.
-- Add a **preview/runtime panel** as a first-class optional surface for generated implementations.
+- Add a **preview/runtime window** opened from Canvax as a first-class optional surface for generated implementations.
 - Preserve the current lightweight live export flow, but extend it into a durable session model with structured events and artifacts.
 - Keep the **core collaboration loop free of any separate paid OpenAI API requirement** beyond the user already having Codex access through their ChatGPT plan.
 
@@ -38,13 +38,31 @@ The right behavior is not “borrow the Codex chat microphone button and hope Ca
    - markdown spec
    - changed file manifest
    - preview outputs
-7. Canvax reflects those outputs inside the board so the user can compare sketch, spoken intent, and generated implementation without context switching.
+7. Canvax exposes a `Preview` action that opens a dedicated browser tab/window for generated output so the user can compare sketch, spoken intent, and implementation without crowding the input board.
 
 This means the experience should support three useful operating modes:
 
 - `Sketch only`: fast scratchpad with live export.
 - `Sketch + dictate`: rough drawing plus thinking aloud.
-- `Sketch + dictate + preview`: full live collaboration loop where Canvax also shows what Codex produced.
+- `Sketch + dictate + preview window`: full live collaboration loop where Canvax launches a dedicated output surface for what Codex produced.
+
+## Preview Model
+
+The preview should not take over the main Canvax drawing surface.
+
+The recommended interaction is:
+
+1. The main Canvax window stays optimized for sketching, notes, flow, and capture.
+2. A visible `Preview` button opens a separate browser tab or window.
+3. That preview surface reads the latest artifact manifest and local preview targets.
+4. The preview surface can refresh independently while the user keeps sketching in the main board.
+
+This is the right tradeoff because:
+
+- the sketch UI stays focused and uncluttered
+- implementation output can use more space without squeezing tools or inspector controls
+- users can place the preview on another monitor or alongside the board
+- the architecture still works with the current local companion-app shape
 
 The existing Codex chat dictation button can still be used manually in conversation, but this plan should **not** depend on it as the system integration point because there is no documented surface that exposes that live voice stream to a local Canvax skill or board.
 
@@ -100,7 +118,7 @@ Sources for these assumptions:
   - Local web surface on macOS as primary support
   - Live structured exports that Codex can read immediately
   - Voice dictation inside Canvax itself
-  - Preview surface for generated UI/code output
+  - Separate preview window/tab for generated UI/code output
   - Better persistence, replay, and traceability of user intent
   - Zero-extra-API operation for the core sketch + voice + Codex loop
 - Out of scope for the first implementation:
@@ -285,7 +303,7 @@ Sources for these assumptions:
   - latest implementation notes
   - generated spec markdown
   - changed files
-  - preview links
+  - preview launch links
 - **Complexity**: 8
 - **Dependencies**: Task 3.1
 - **Acceptance Criteria**:
@@ -315,33 +333,33 @@ Sources for these assumptions:
   - Sample skill invocation review
 
 ## Sprint 4: Add a Preview Surface for What Codex Builds
-**Goal**: Let users compare rough sketch against generated implementation or spec output without context switching.
+**Goal**: Let users compare rough sketch against generated implementation or spec output without disrupting the main Canvax input UI.
 **Demo/Validation**:
 - Draw a rough screen
 - Ask Codex to implement it
-- View the output in a live preview panel next to the sketch
+- Click `Preview`
+- View the output in a dedicated browser tab/window while keeping the sketch board unchanged
 
-### Task 4.1: Add preview workspace shell
+### Task 4.1: Add preview launch button and dedicated preview page
 - **Location**:
   - [web/index.html](/Users/devanshvarshney/Canvax/web/index.html)
   - [web/styles.css](/Users/devanshvarshney/Canvax/web/styles.css)
-- **Description**: Add a third workspace mode or split-view preview area:
-  - sketch only
-  - sketch + preview
-  - flow + preview
+- **Description**: Add a `Preview` action in Canvax that opens a separate browser tab/window backed by a dedicated preview route/page.
 - **Complexity**: 6
 - **Dependencies**: Sprint 3
 - **Acceptance Criteria**:
-  - Preview pane can render HTML preview, images, or markdown output
-  - Layout remains responsive on narrower screens
-  - User can keep sketch visible while inspecting output
+  - Main Canvax board layout does not need to switch into split-view
+  - Preview window can render HTML preview, images, or markdown output
+  - Preview launch is obvious and stable from the main board
 - **Validation**:
-  - Responsive screenshots
-  - Manual split-view testing
+  - Manual open/close test
+  - Screenshot review of both board and preview surfaces
 
-### Task 4.2: Connect preview pane to generated artifacts
+### Task 4.2: Connect preview window to generated artifacts
 - **Location**:
   - [web/app.js](/Users/devanshvarshney/Canvax/web/app.js)
+  - new file: `/Users/devanshvarshney/Canvax/web/preview.html`
+  - new file: `/Users/devanshvarshney/Canvax/web/preview.js`
   - [scripts/canvax.mjs](/Users/devanshvarshney/Canvax/scripts/canvax.mjs)
 - **Description**: Load preview targets from the artifact manifest:
   - static HTML preview
@@ -350,28 +368,30 @@ Sources for these assumptions:
 - **Complexity**: 7
 - **Dependencies**: Task 4.1
 - **Acceptance Criteria**:
-  - Preview pane updates when manifest changes
+  - Preview window updates when manifest changes
   - Broken preview states fail gracefully
   - Preview metadata shows source file/path and last update time
 - **Validation**:
   - Simulate artifact updates
   - Verify live refresh
 
-### Task 4.3: Add compare and handoff workflows
+### Task 4.3: Add compare and handoff workflows across board and preview
 - **Location**:
   - [web/app.js](/Users/devanshvarshney/Canvax/web/app.js)
   - [web/index.html](/Users/devanshvarshney/Canvax/web/index.html)
+  - new file: `/Users/devanshvarshney/Canvax/web/preview.js`
 - **Description**: Add compare affordances:
-  - “compare with sketch”
+  - “open preview”
   - “open generated spec”
   - “show changed files”
   - “freeze preview snapshot”
+  - selected-frame awareness between board and preview where practical
 - **Complexity**: 6
 - **Dependencies**: Task 4.2
 - **Acceptance Criteria**:
-  - User can visually compare sketch intent and preview output
+  - User can visually compare sketch intent and preview output across two surfaces
   - Snapshot can be preserved as a new artifact entry
-  - Generated markdown/spec is accessible in Canvax
+  - Generated markdown/spec is accessible from the board or preview window
 - **Validation**:
   - Manual compare workflow
   - Preview snapshot artifact test
@@ -428,6 +448,7 @@ Sources for these assumptions:
   - capture deletion
   - dictation state transitions with mocked provider
   - preview manifest loading
+  - preview window launch behavior
 - Add export contract fixtures to validate:
   - JSON schema versioning
   - transcript embedding
@@ -438,7 +459,7 @@ Sources for these assumptions:
   - stale saved state migration
   - long-running sketch session
   - reopen after crash
-  - mobile/narrow layout sanity check for help, inspector, and preview panes
+  - mobile/narrow layout sanity check for help, inspector, and preview launch controls
 
 ## Potential Risks & Gotchas
 
@@ -461,8 +482,8 @@ Sources for these assumptions:
   - System clipboard should not silently override image paste behavior.
   - Mitigation: parse Canvax JSON payload first, then fall back to images/text.
 - **Preview security**:
-  - Previewing generated HTML in-app can create local script/security concerns.
-  - Mitigation: sandbox iframe policy and explicit source boundaries.
+  - Previewing generated HTML in a separate local window still creates local script/security concerns.
+  - Mitigation: dedicated preview route, sandbox boundaries where possible, and explicit source constraints.
 - **Session drift between Codex and Canvax**:
   - Codex may change code while the sketch evolves.
   - Mitigation: artifact timestamps, event log, and “latest generated from session state X” metadata.
@@ -492,17 +513,17 @@ For Canvax to feel like a real live Codex collaborator, the biggest missing piec
 - voice dictation inside the board itself
 - structured transcript + sketch fusion in exports
 - an artifact inbox showing what Codex wrote back
-- a preview/runtime panel for generated output
+- a preview/runtime window for generated output
 - durable event logging and replay
 
 So yes: **voice dictation is a meaningful next step**, but it should be built into Canvax itself rather than assuming the Codex chat voice button can be shared with the board.
 
-And yes: **a preview surface is also worth building**, because the highest-value loop is:
+And yes: **a preview surface is also worth building**, but it should open as a separate browser tab/window so the main drawing UI stays focused. The highest-value loop is:
 
 1. user sketches
 2. user speaks intent
 3. Codex reads sketch + transcript
 4. Codex writes code/spec/artifacts
-5. Canvax shows the new output next to the sketch
+5. Canvax opens or refreshes the preview window with the new output while the sketch board remains intact
 
 That is the point where Canvax stops being only a scratch pad and becomes a real collaborative design-to-build surface.

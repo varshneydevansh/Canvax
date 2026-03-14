@@ -19,6 +19,13 @@ That means Canvax is **a local command plus a Codex skill**. It is not currently
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
+- Captures board-scoped or frame-scoped voice notes, using browser speech recognition when available and manual pasted dictation when it is not.
+- Supports a preview manifest that can bind a live implementation target, changed files, and generated artifacts to the current sketch workflow.
+- Surfaces Codex output context directly in the Canvax inspector, including connected preview targets, generated artifacts, and changed files.
+- Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
+- Lets you save preview compare snapshots into the workspace for later review.
+- Materializes the active frame into a styled local HTML preview artifact without changing the sketch board.
+- Reuses a stable per-frame materialized preview target so repeated updates refresh the same output surface instead of spawning unrelated preview routes.
 - Installs a Codex skill so the canvas can be invoked from Codex as `/canvax` or `$canvax`.
 - Requires no extra OpenAI API key for the core sketch-to-Codex workflow.
 
@@ -73,6 +80,7 @@ Then sketch in the browser board and continue the same chat with prompts like:
 - [Usage guide](docs/USAGE.md)
 - [Architecture guide](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)
+- [Execution status](docs/EXECUTION_STATUS.md)
 - [Live collaboration plan](canvax-live-collaboration-plan.md)
 
 ## Service Commands
@@ -101,6 +109,10 @@ Canvax writes live handoff files under `exports/`:
 
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
+- `exports/canvax-voice-latest.md`
+- `exports/canvax-preview-manifest.json`
+- `artifacts/canvax/codex-output.json`
+- `artifacts/preview/materialized/`
 
 Legacy compatibility files may also exist:
 
@@ -109,22 +121,44 @@ Legacy compatibility files may also exist:
 
 The JSON export is the main handoff file for Codex because it contains structured frame metadata plus image paths.
 
+The preview manifest is the bridge for generated output. It can describe:
+
+- the current implementation preview target
+- generated artifacts like specs or exported HTML
+- changed workspace files Codex wants to surface in the preview window
+
+If the manifest contains a generated HTML artifact, Canvax can now use that as the implementation preview target automatically even when no explicit preview URL was attached.
+
+Materialize mode uses that same preview path. When you click `Materialize` in the board, Canvax writes a styled HTML artifact plus a serialized frame payload under `artifacts/preview/materialized/...` and updates `exports/canvax-preview-manifest.json` so Preview can open it immediately.
+
+The canonical Codex-written output file is:
+
+- `artifacts/canvax/codex-output.json`
+
+That file is merged automatically with the manual preview manifest so Canvax can show:
+
+- generated preview targets
+- changed files
+- artifacts like specs, notes, or exported HTML
+
 ## Current Workflow
 
 1. Open Canvax with `./canvax --open`.
 2. Install the skill once with `node scripts/install-canvax-skill.mjs`.
 3. Invoke `/canvax` or `$canvax` in Codex.
 4. Sketch frames, label regions, and connect screens in Flow view.
-5. Pause for autosnap or press `Freeze frame`.
-6. Ask Codex to use the current Canvax.
-7. Codex reads the latest live export and works from that visual handoff.
+5. Capture spoken intent with `Voice notes` if you want Canvax to preserve what you are saying while drawing.
+6. Pause for autosnap or press `Freeze frame`.
+7. Press `Materialize` if you want a styled local preview of the current frame before writing app code.
+8. Ask Codex to use the current Canvax.
+9. Codex reads the latest live export and works from that visual handoff.
 
 ## Current Limits
 
 - The board lives in a browser tab, not inside the native Codex composer.
-- The current live loop is sketch-to-export-to-Codex. A richer preview/artifact loop is planned, not finished.
+- A first deterministic Materialize loop exists, but the richer live AI rewrite loop is still not finished.
 - The core workflow does not depend on a separate paid OpenAI API key.
-- Voice-plus-sketch and richer live preview remain roadmap items in the current plan.
+- Board-side voice notes now exist, but the richer voice+sketch checkpoint/event-log loop is still not finished.
 
 ## Repo Layout
 

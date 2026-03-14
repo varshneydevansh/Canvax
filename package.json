@@ -6,6 +6,8 @@
   "scripts": {
     "canvax": "node scripts/canvax.mjs",
     "start": "node scripts/canvax.mjs",
-    "check": "node --check scripts/canvax.mjs && node --check web/app.js"
+    "codex-output": "node scripts/write-codex-output.mjs",
+    "manifest": "node scripts/write-preview-manifest.mjs",
+    "check": "node --check scripts/canvax.mjs && node --check scripts/write-preview-manifest.mjs && node --check scripts/write-codex-output.mjs && node --check web/app.js && node --check web/preview.js"
   }
 }
