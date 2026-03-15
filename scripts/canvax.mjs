@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { closeSync, openSync } from "node:fs";
 import {
+  appendFile,
   mkdir,
   readFile,
   realpath,
@@ -27,12 +28,19 @@ const previewSnapshotsIndexPath = resolve(
   "preview-snapshots.json",
 );
 const codexOutputRoot = resolve(projectRoot, "artifacts", "canvax");
+const checkpointsRoot = resolve(codexOutputRoot, "checkpoints");
+const checkpointsIndexPath = resolve(checkpointsRoot, "checkpoints.json");
 const runtimeRoot = resolve(projectRoot, ".canvax");
 const runtimePath = resolve(runtimeRoot, "runtime.json");
 const serverLogPath = resolve(runtimeRoot, "server.log");
 const liveJsonPath = resolve(exportsRoot, "canvax-live-latest.json");
 const liveMarkdownPath = resolve(exportsRoot, "canvax-live-latest.md");
 const liveVoiceMarkdownPath = resolve(exportsRoot, "canvax-voice-latest.md");
+const latestCheckpointPath = resolve(
+  exportsRoot,
+  "canvax-checkpoint-latest.json",
+);
+const sessionEventsPath = resolve(exportsRoot, "canvax-session-events.jsonl");
 const previewManifestPath = resolve(
   exportsRoot,
   "canvax-preview-manifest.json",
@@ -43,6 +51,12 @@ const legacyMarkdownPath = resolve(exportsRoot, "canvax-storyboard-latest.md");
 const skillSource = resolve(projectRoot, "codex-skill", "canvax");
 const skillTarget = resolve(homedir(), ".codex", "skills", "canvax");
 const defaultPort = Number(process.env.CANVAX_PORT || 3210);
+const HANDOFF_SCHEMA_VERSION = 1;
+const WORKSPACE_FOLLOW_TTL_MS = 1200;
+const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
+const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
+const LOCAL_TRANSPORT_MODE = "local-companion";
+const FUTURE_TRANSPORT_MODE = "app-server";
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -65,6 +79,86 @@ const wantsJson = args.includes("--json");
 const wantsRestart = args.includes("--restart");
 const wantsServe = args.includes("--serve");
 const wantsHelp = args.includes("--help") || args.includes("-h");
+let workspaceFollowCache = null;
+
+function buildTransportDescriptor(overrides = {}) {
+  const base = {
+    id: "canvax-local-companion-v1",
+    mode: LOCAL_TRANSPORT_MODE,
+    label: "Local companion",
+    runtime: "browser board + local Node service + Codex skill",
+    durableHandoff: {
+      type: "file-export",
+      primary: "exports/canvax-live-latest.json",
+      markdown: "exports/canvax-live-latest.md",
+      voice: "exports/canvax-voice-latest.md",
+      checkpoint: "exports/canvax-checkpoint-latest.json",
+    },
+    liveMirror: {
+      type: "browser-storage",
+      storageKey: LIVE_PREVIEW_STORAGE_KEY,
+      channel: LIVE_PREVIEW_CHANNEL_NAME,
+    },
+    outputBinding: {
+      type: "manifest",
+      manual: "exports/canvax-preview-manifest.json",
+      codex: "artifacts/canvax/codex-output.json",
+      workspaceFollow: "git-status-live",
+    },
+    future: {
+      mode: FUTURE_TRANSPORT_MODE,
+      label: "App Server client",
+      protocol: "json-rpc",
+      status: "planned",
+    },
+  };
+
+  return {
+    ...base,
+    ...(overrides && typeof overrides === "object" && !Array.isArray(overrides)
+      ? overrides
+      : {}),
+    durableHandoff: {
+      ...base.durableHandoff,
+      ...(overrides?.durableHandoff &&
+      typeof overrides.durableHandoff === "object" &&
+      !Array.isArray(overrides.durableHandoff)
+        ? overrides.durableHandoff
+        : {}),
+    },
+    liveMirror: {
+      ...base.liveMirror,
+      ...(overrides?.liveMirror &&
+      typeof overrides.liveMirror === "object" &&
+      !Array.isArray(overrides.liveMirror)
+        ? overrides.liveMirror
+        : {}),
+    },
+    outputBinding: {
+      ...base.outputBinding,
+      ...(overrides?.outputBinding &&
+      typeof overrides.outputBinding === "object" &&
+      !Array.isArray(overrides.outputBinding)
+        ? overrides.outputBinding
+        : {}),
+    },
+    future: {
+      ...base.future,
+      ...(overrides?.future &&
+      typeof overrides.future === "object" &&
+      !Array.isArray(overrides.future)
+        ? overrides.future
+        : {}),
+    },
+  };
+}
+
+function normalizeTransportDescriptor(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return buildTransportDescriptor();
+  }
+  return buildTransportDescriptor(value);
+}
 
 if (wantsHelp) {
   printHelp();
@@ -93,6 +187,9 @@ async function runCli() {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          latestCheckpointPath,
+          checkpointsIndexPath,
+          sessionEventsPath,
         },
         "Canvax is not running.",
       );
@@ -108,6 +205,9 @@ async function runCli() {
         liveJsonPath,
         liveMarkdownPath,
         liveVoiceMarkdownPath,
+        latestCheckpointPath,
+        checkpointsIndexPath,
+        sessionEventsPath,
       },
       "Canvax stopped.",
     );
@@ -124,6 +224,9 @@ async function runCli() {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          latestCheckpointPath,
+          checkpointsIndexPath,
+          sessionEventsPath,
         },
         `Canvax is not running. Default port is ${defaultPort}.`,
       );
@@ -222,11 +325,15 @@ async function runServer(port) {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          latestCheckpointPath,
+          checkpointsIndexPath,
+          sessionEventsPath,
           previewManifestPath,
           codexOutputManifestPath,
           previewSnapshotsIndexPath,
           previewUrl: `http://localhost:${port}/preview.html`,
           runtimePath,
+          transport: buildTransportDescriptor(),
           url: `http://localhost:${port}`,
         });
       }
@@ -237,6 +344,20 @@ async function runServer(port) {
 
       if (request.method === "POST" && url.pathname === "/api/save-export") {
         return handleSaveExport(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/save-checkpoint"
+      ) {
+        return handleSaveCheckpoint(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/publish-workspace-output"
+      ) {
+        return handlePublishWorkspaceOutput(request, response);
       }
 
       if (request.method === "POST" && url.pathname === "/api/install-skill") {
@@ -389,6 +510,10 @@ async function handleSaveExport(request, response) {
 
   const exportJson = {
     ...payload.package,
+    schemaVersion:
+      Number(payload.package.schemaVersion) || HANDOFF_SCHEMA_VERSION,
+    storageVersion: Number(payload.package.storageVersion) || 0,
+    transport: normalizeTransportDescriptor(payload.package.transport),
     frames: savedFrames,
   };
 
@@ -415,6 +540,171 @@ async function handleSaveExport(request, response) {
     jsonPath: liveJsonPath,
     markdownPath: liveMarkdownPath,
     voiceMarkdownPath: liveVoiceMarkdownPath,
+    transport: buildTransportDescriptor(),
+  });
+}
+
+async function handleSaveCheckpoint(request, response) {
+  const payload = await readJson(request);
+  const checkpoint = normalizeCheckpointPayload(payload?.checkpoint);
+  if (!checkpoint) {
+    return writeJson(response, 400, {
+      error: "Checkpoint payload is required.",
+    });
+  }
+
+  const timestamp = buildTimestamp();
+  const checkpointId = `${timestamp}-${slugify(checkpoint.frameTitle || checkpoint.label || checkpoint.reason || "checkpoint")}`;
+  const checkpointRoot = resolve(checkpointsRoot, checkpointId);
+  const checkpointPath = join(
+    "artifacts",
+    "canvax",
+    "checkpoints",
+    checkpointId,
+    "checkpoint.json",
+  );
+
+  const record = {
+    id: checkpointId,
+    savedAt: new Date().toISOString(),
+    reason: checkpoint.reason || "manual-push",
+    label: checkpoint.label || "Checkpoint",
+    frameId: checkpoint.frameId || "",
+    frameTitle: checkpoint.frameTitle || "",
+    voiceSegmentCount: Number(checkpoint.summary?.voiceSegmentCount) || 0,
+    captureCount: Number(checkpoint.summary?.captureCount) || 0,
+    artifactCount: Number(checkpoint.summary?.artifactCount) || 0,
+    changeCount: Number(checkpoint.summary?.changeCount) || 0,
+    targetLabel: checkpoint.previewTarget?.label || "",
+    jsonPath: checkpoint.export?.jsonPath || "",
+    markdownPath: checkpoint.export?.markdownPath || "",
+    voiceMarkdownPath: checkpoint.export?.voiceMarkdownPath || "",
+    checkpointPath,
+  };
+
+  const checkpointBody = {
+    ...checkpoint,
+    ...record,
+  };
+
+  await mkdir(checkpointRoot, { recursive: true });
+  await mkdir(exportsRoot, { recursive: true });
+  await writeFile(
+    resolve(checkpointRoot, "checkpoint.json"),
+    `${JSON.stringify(checkpointBody, null, 2)}\n`,
+  );
+  await writeFile(
+    latestCheckpointPath,
+    `${JSON.stringify(checkpointBody, null, 2)}\n`,
+  );
+
+  const existingIndex = await readOptionalJson(checkpointsIndexPath);
+  const existingItems =
+    existingIndex && Array.isArray(existingIndex.items)
+      ? existingIndex.items
+      : [];
+  const nextItems = [record, ...existingItems].slice(0, 32);
+  const indexBody = {
+    updatedAt: new Date().toISOString(),
+    items: nextItems,
+  };
+  await mkdir(checkpointsRoot, { recursive: true });
+  await writeFile(
+    checkpointsIndexPath,
+    `${JSON.stringify(indexBody, null, 2)}\n`,
+  );
+
+  const eventBody = {
+    type: "checkpoint",
+    id: checkpointId,
+    at: record.savedAt,
+    reason: record.reason,
+    label: record.label,
+    note: checkpoint.note || "",
+    frameId: record.frameId,
+    frameTitle: record.frameTitle,
+    summary: checkpoint.summary || null,
+    export: checkpoint.export || null,
+    previewTarget: checkpoint.previewTarget || null,
+    outputDigest: checkpoint.outputDigest || null,
+  };
+  await appendFile(sessionEventsPath, `${JSON.stringify(eventBody)}\n`);
+
+  return writeJson(response, 200, {
+    saved: true,
+    checkpoint: enhanceCheckpointRecord(record),
+    checkpointHistory: enhanceCheckpointHistory(indexBody),
+    latestCheckpointPath,
+    checkpointsIndexPath,
+    sessionEventsPath,
+  });
+}
+
+async function handlePublishWorkspaceOutput(request, response) {
+  const payload = await readJson(request);
+  const frameId = cleanString(payload?.frameId);
+  const frameTitle = cleanString(payload?.frameTitle);
+  const clear = Boolean(payload?.clear);
+  const existingCodexManifest = await readOptionalJson(codexOutputManifestPath);
+  const manualPreviewManifest = await readOptionalJson(previewManifestPath);
+  const existingManifest = normalizePreviewManifest(
+    existingCodexManifest || {},
+  );
+
+  if (clear) {
+    try {
+      await unlink(codexOutputManifestPath);
+    } catch {
+      // Ignore missing manifest removals.
+    }
+
+    return writeJson(response, 200, {
+      cleared: true,
+      changeCount: 0,
+      manifest: null,
+      previewManifest: enhanceManifest(
+        mergeManifestSources(manualPreviewManifest, null),
+      ),
+    });
+  }
+
+  const changeEntries = await collectWorkspaceChangeEntries({
+    frameId,
+    frameTitle,
+  });
+  const nextManifest = buildAutoPublishedCodexManifest(existingManifest, {
+    frameId,
+    frameTitle,
+    changeEntries,
+  });
+
+  if (hasManifestContent(nextManifest)) {
+    await mkdir(codexOutputRoot, { recursive: true });
+    await writeFile(
+      codexOutputManifestPath,
+      `${JSON.stringify(nextManifest, null, 2)}\n`,
+    );
+  } else {
+    try {
+      await unlink(codexOutputManifestPath);
+    } catch {
+      // Ignore missing manifest removals.
+    }
+  }
+
+  return writeJson(response, 200, {
+    saved: true,
+    changeCount: changeEntries.length,
+    manifest: hasManifestContent(nextManifest)
+      ? enhanceManifest(nextManifest)
+      : null,
+    previewManifest: enhanceManifest(
+      mergeManifestSources(
+        manualPreviewManifest,
+        hasManifestContent(nextManifest) ? nextManifest : null,
+      ),
+    ),
+    codexOutputManifestPath,
   });
 }
 
@@ -448,10 +738,24 @@ async function handlePreviewState(response) {
   const liveExport = enhanceLiveExport(await readOptionalJson(liveJsonPath));
   const liveMarkdown = await readOptionalText(liveMarkdownPath);
   const liveVoiceMarkdown = await readOptionalText(liveVoiceMarkdownPath);
+  const checkpointHistory = enhanceCheckpointHistory(
+    await readOptionalJson(checkpointsIndexPath),
+  );
+  const sessionEvents = await readRecentSessionEvents(sessionEventsPath, 48);
   const previewManifest = await readOptionalJson(previewManifestPath);
   const codexOutputManifest = await readOptionalJson(codexOutputManifestPath);
-  const mergedPreviewManifest = enhanceManifest(
-    mergeManifestSources(previewManifest, codexOutputManifest),
+  const workspaceFollow = await buildLiveWorkspaceFollowState({
+    liveExport,
+    codexOutputManifest,
+  });
+  const mergedManifest = mergeManifestSources(
+    previewManifest,
+    workspaceFollow.codexManifest,
+  );
+  const mergedPreviewManifest = enhanceManifest(mergedManifest);
+  const outputDigest = buildPreviewOutputDigest(
+    mergedManifest,
+    workspaceFollow.meta,
   );
   const previewSnapshots = enhancePreviewSnapshots(
     await readOptionalJson(previewSnapshotsIndexPath),
@@ -459,15 +763,23 @@ async function handlePreviewState(response) {
 
   return writeJson(response, 200, {
     updatedAt: new Date().toISOString(),
+    transport: buildTransportDescriptor(),
     liveExport,
     liveMarkdown,
     liveVoiceMarkdown,
+    checkpointHistory,
+    sessionEvents,
     previewManifest: mergedPreviewManifest,
+    workspaceFollow: workspaceFollow.meta,
+    outputDigest,
     previewSnapshots,
     paths: {
       liveJsonPath,
       liveMarkdownPath,
       liveVoiceMarkdownPath,
+      checkpointLatestPath: latestCheckpointPath,
+      checkpointsIndexPath,
+      sessionEventsPath,
       previewManifestPath,
       codexOutputManifestPath,
       previewSnapshotsIndexPath,
@@ -654,6 +966,15 @@ async function handleMaterializeFrame(request, response) {
   const previewPath = join(relativeRoot, "index.html");
   const contextPath = join(relativeRoot, "frame.json");
   const metaPath = join(relativeRoot, "meta.json");
+  const previousPayload = await readOptionalJson(
+    resolve(outputRoot, "frame.json"),
+  );
+  const previousMeta = await readOptionalJson(resolve(outputRoot, "meta.json"));
+  const refinement = buildMaterializeRefinement(
+    previousPayload,
+    payload,
+    previousMeta,
+  );
   let sketchPath = "";
 
   await mkdir(outputRoot, { recursive: true });
@@ -672,6 +993,7 @@ async function handleMaterializeFrame(request, response) {
         sourceFrameUpdatedAt: frame.updatedAt,
         previewPath,
         contextPath,
+        refinement,
       },
       null,
       2,
@@ -688,6 +1010,7 @@ async function handleMaterializeFrame(request, response) {
 
   const html = buildMaterializedPreviewDocument(payload, {
     sketchSrc: sketchPath ? "./sketch.png" : "",
+    refinement,
   });
   await writeFile(resolve(outputRoot, "index.html"), html);
 
@@ -700,6 +1023,7 @@ async function handleMaterializeFrame(request, response) {
     contextPath,
     metaPath,
     sketchPath,
+    refinement,
   });
   await mkdir(exportsRoot, { recursive: true });
   await writeFile(
@@ -714,6 +1038,7 @@ async function handleMaterializeFrame(request, response) {
     contextPath,
     metaPath,
     sketchPath,
+    refinement,
     previewManifestPath,
     previewManifest: enhanceManifest(nextManifest),
   });
@@ -723,7 +1048,10 @@ function normalizeMaterializePayload(value) {
   const source =
     value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return {
+    schemaVersion: Number(source.schemaVersion) || HANDOFF_SCHEMA_VERSION,
+    storageVersion: Number(source.storageVersion) || 0,
     generatedAt: cleanString(source.generatedAt) || new Date().toISOString(),
+    transport: normalizeTransportDescriptor(source.transport),
     board: normalizeMaterializeBoard(source.board),
     frame: normalizeMaterializeFrame(source.frame),
   };
@@ -857,6 +1185,386 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, next));
 }
 
+function buildMaterializeRefinement(
+  previousPayload,
+  nextPayload,
+  previousMeta = null,
+) {
+  const nextFrame = nextPayload?.frame || null;
+  const previousFrame = previousPayload?.frame || null;
+  if (!nextFrame) {
+    return normalizeMaterializeRefinement(null);
+  }
+
+  const viewportWidth = Number(nextFrame.viewportWidth) || 1440;
+  const viewportHeight = Number(nextFrame.viewportHeight) || 1024;
+  const previousIteration = Number(previousMeta?.refinement?.iteration) || 0;
+  const nextElements = Array.isArray(nextFrame.elements)
+    ? nextFrame.elements
+    : [];
+  const previousElements = Array.isArray(previousFrame?.elements)
+    ? previousFrame.elements
+    : [];
+  const previousElementMap = new Map(
+    previousElements
+      .map((element) => [cleanString(element.id), element])
+      .filter(([id]) => id),
+  );
+  const nextElementMap = new Map(
+    nextElements
+      .map((element) => [cleanString(element.id), element])
+      .filter(([id]) => id),
+  );
+  const noteFieldNames = ["objective", "layout", "motion", "assets", "mobile"];
+  const boardFieldNames = ["project", "goal", "audience", "designMood"];
+  const noteFieldsChanged = noteFieldNames.filter(
+    (field) =>
+      cleanString(previousFrame?.[field]) !== cleanString(nextFrame?.[field]),
+  );
+  const boardFieldsChanged = boardFieldNames.filter(
+    (field) =>
+      cleanString(previousPayload?.board?.[field]) !==
+      cleanString(nextPayload?.board?.[field]),
+  );
+  const viewportChanged =
+    !previousFrame ||
+    Number(previousFrame.viewportWidth) !== viewportWidth ||
+    Number(previousFrame.viewportHeight) !== viewportHeight ||
+    cleanString(previousFrame.viewport) !== cleanString(nextFrame.viewport);
+  const backgroundChanged =
+    cleanString(previousFrame?.backgroundImage) !==
+    cleanString(nextFrame.backgroundImage);
+  const changedRegions = [];
+  const added = [];
+  const removed = [];
+  const updated = [];
+
+  nextElementMap.forEach((element, elementId) => {
+    const previousElement = previousElementMap.get(elementId);
+    if (!previousElement) {
+      added.push(elementId);
+      const region = buildRefinementRegionFromElement(
+        element,
+        "added",
+        `Added ${element.type || "element"}`,
+        nextFrame,
+      );
+      if (region) {
+        changedRegions.push(region);
+      }
+      return;
+    }
+    if (
+      fingerprintMaterializeElement(previousElement) !==
+      fingerprintMaterializeElement(element)
+    ) {
+      updated.push(elementId);
+      const region = buildRefinementRegionFromBounds(
+        unionMaterializeBounds(previousElement.bounds, element.bounds),
+        "updated",
+        `Updated ${element.type || "element"}`,
+        nextFrame,
+      );
+      if (region) {
+        changedRegions.push(region);
+      }
+    }
+  });
+
+  previousElementMap.forEach((element, elementId) => {
+    if (nextElementMap.has(elementId)) {
+      return;
+    }
+    removed.push(elementId);
+    const region = buildRefinementRegionFromElement(
+      element,
+      "removed",
+      `Removed ${element.type || "element"}`,
+      nextFrame,
+    );
+    if (region) {
+      changedRegions.push(region);
+    }
+  });
+
+  if (noteFieldsChanged.length) {
+    const region = buildRefinementRegionFromBounds(
+      {
+        left: 0,
+        top: 0,
+        width: Math.min(viewportWidth, Math.max(260, viewportWidth * 0.72)),
+        height: Math.min(viewportHeight, Math.max(160, viewportHeight * 0.22)),
+      },
+      "notes",
+      "Frame notes refined",
+      nextFrame,
+    );
+    if (region) {
+      changedRegions.push(region);
+    }
+  }
+
+  if (backgroundChanged) {
+    const region = buildRefinementRegionFromBounds(
+      {
+        left: 0,
+        top: 0,
+        width: viewportWidth,
+        height: viewportHeight,
+      },
+      "background",
+      "Reference or canvas background changed",
+      nextFrame,
+    );
+    if (region) {
+      changedRegions.push(region);
+    }
+  }
+
+  const uniqueRegions = dedupeRefinementRegions(changedRegions).slice(0, 8);
+  const hasPrevious = Boolean(previousFrame);
+  const changed =
+    !hasPrevious ||
+    Boolean(
+      added.length ||
+      removed.length ||
+      updated.length ||
+      noteFieldsChanged.length ||
+      boardFieldsChanged.length ||
+      backgroundChanged ||
+      viewportChanged,
+    );
+  const regionCount = uniqueRegions.length;
+  const counts = {
+    added: added.length,
+    removed: removed.length,
+    updated: updated.length,
+    noteFieldsChanged: noteFieldsChanged.length,
+    boardFieldsChanged: boardFieldsChanged.length,
+    backgroundChanged: backgroundChanged ? 1 : 0,
+    viewportChanged: viewportChanged ? 1 : 0,
+    regionCount,
+  };
+
+  let summary = "";
+  if (!hasPrevious) {
+    const parts = [];
+    if (nextElements.length) {
+      parts.push(
+        `${nextElements.length} sketch element${nextElements.length === 1 ? "" : "s"}`,
+      );
+    }
+    if (noteFieldsChanged.length) {
+      parts.push(
+        `${noteFieldsChanged.length} note field${noteFieldsChanged.length === 1 ? "" : "s"}`,
+      );
+    }
+    summary = parts.length
+      ? `Initial materialize from ${parts.join(" and ")}.`
+      : "Initial materialize from the current sketch.";
+  } else if (!changed) {
+    summary = "Rematerialized without a structural delta.";
+  } else {
+    const parts = [];
+    if (added.length) {
+      parts.push(`${added.length} added`);
+    }
+    if (updated.length) {
+      parts.push(`${updated.length} updated`);
+    }
+    if (removed.length) {
+      parts.push(`${removed.length} removed`);
+    }
+    if (noteFieldsChanged.length) {
+      parts.push(
+        `${noteFieldsChanged.length} note edit${noteFieldsChanged.length === 1 ? "" : "s"}`,
+      );
+    }
+    if (backgroundChanged) {
+      parts.push("reference changed");
+    }
+    if (viewportChanged) {
+      parts.push("viewport adjusted");
+    }
+    summary = `Refined from previous output: ${parts.join(", ")}${regionCount ? ` across ${regionCount} region${regionCount === 1 ? "" : "s"}` : ""}.`;
+  }
+
+  return normalizeMaterializeRefinement({
+    iteration: previousIteration + 1,
+    hasPrevious,
+    changed,
+    comparedAgainst: cleanString(previousMeta?.generatedAt),
+    summary,
+    counts,
+    changedFields: [
+      ...noteFieldsChanged.map((field) => `frame:${field}`),
+      ...boardFieldsChanged.map((field) => `board:${field}`),
+      ...(backgroundChanged ? ["frame:backgroundImage"] : []),
+      ...(viewportChanged ? ["frame:viewport"] : []),
+    ],
+    changedElementIds: {
+      added,
+      removed,
+      updated,
+    },
+    changedRegions: uniqueRegions,
+  });
+}
+
+function normalizeMaterializeRefinement(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const counts =
+    source.counts &&
+    typeof source.counts === "object" &&
+    !Array.isArray(source.counts)
+      ? source.counts
+      : {};
+  return {
+    iteration: Math.max(1, Number(source.iteration) || 1),
+    hasPrevious: Boolean(source.hasPrevious),
+    changed: typeof source.changed === "boolean" ? source.changed : true,
+    comparedAgainst: cleanString(source.comparedAgainst),
+    summary: cleanString(source.summary),
+    counts: {
+      added: Math.max(0, Number(counts.added) || 0),
+      removed: Math.max(0, Number(counts.removed) || 0),
+      updated: Math.max(0, Number(counts.updated) || 0),
+      noteFieldsChanged: Math.max(0, Number(counts.noteFieldsChanged) || 0),
+      boardFieldsChanged: Math.max(0, Number(counts.boardFieldsChanged) || 0),
+      backgroundChanged: Math.max(0, Number(counts.backgroundChanged) || 0),
+      viewportChanged: Math.max(0, Number(counts.viewportChanged) || 0),
+      regionCount: Math.max(0, Number(counts.regionCount) || 0),
+    },
+    changedFields: normalizeStringArray(source.changedFields),
+    changedElementIds: {
+      added: normalizeStringArray(source.changedElementIds?.added),
+      removed: normalizeStringArray(source.changedElementIds?.removed),
+      updated: normalizeStringArray(source.changedElementIds?.updated),
+    },
+    changedRegions: Array.isArray(source.changedRegions)
+      ? source.changedRegions
+          .map((region) => normalizeRefinementRegion(region))
+          .filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeRefinementRegion(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const left = Math.max(0, Number(value.left) || 0);
+  const top = Math.max(0, Number(value.top) || 0);
+  const width = Math.max(12, Number(value.width) || 0);
+  const height = Math.max(12, Number(value.height) || 0);
+  return {
+    left,
+    top,
+    width,
+    height,
+    kind: cleanString(value.kind) || "updated",
+    label: cleanString(value.label) || "Changed region",
+  };
+}
+
+function buildRefinementRegionFromElement(element, kind, label, frame) {
+  return buildRefinementRegionFromBounds(
+    element?.bounds || null,
+    kind,
+    label,
+    frame,
+  );
+}
+
+function buildRefinementRegionFromBounds(bounds, kind, label, frame) {
+  if (!bounds || typeof bounds !== "object") {
+    return null;
+  }
+  const viewportWidth = Number(frame?.viewportWidth) || 1440;
+  const viewportHeight = Number(frame?.viewportHeight) || 1024;
+  const left = clampNumber(bounds.left, 0, viewportWidth, 0);
+  const top = clampNumber(bounds.top, 0, viewportHeight, 0);
+  const width = clampNumber(bounds.width, 12, viewportWidth, 12);
+  const height = clampNumber(bounds.height, 12, viewportHeight, 12);
+  return normalizeRefinementRegion({
+    left,
+    top,
+    width: Math.min(width, viewportWidth - left),
+    height: Math.min(height, viewportHeight - top),
+    kind,
+    label,
+  });
+}
+
+function unionMaterializeBounds(leftBounds, rightBounds) {
+  const left = normalizeMaterializeBounds(leftBounds);
+  const right = normalizeMaterializeBounds(rightBounds);
+  if (!left) {
+    return right;
+  }
+  if (!right) {
+    return left;
+  }
+  const unionLeft = Math.min(left.left, right.left);
+  const unionTop = Math.min(left.top, right.top);
+  const unionRight = Math.max(left.right, right.right);
+  const unionBottom = Math.max(left.bottom, right.bottom);
+  return {
+    left: unionLeft,
+    top: unionTop,
+    right: unionRight,
+    bottom: unionBottom,
+    width: unionRight - unionLeft,
+    height: unionBottom - unionTop,
+  };
+}
+
+function fingerprintMaterializeElement(element) {
+  if (!element || typeof element !== "object") {
+    return "";
+  }
+  return JSON.stringify({
+    type: cleanString(element.type),
+    color: normalizeHexColor(element.color) || "",
+    size: Number(element.size) || 0,
+    alpha: Number(element.alpha) || 0,
+    composite: cleanString(element.composite),
+    groupId: cleanString(element.groupId),
+    text: cleanString(element.text),
+    attachedTo: cleanString(element.attachedTo),
+    start: normalizeMaterializePoint(element.start),
+    end: normalizeMaterializePoint(element.end),
+    bounds: normalizeMaterializeBounds(element.bounds),
+    resolvedPosition:
+      element.resolvedPosition && typeof element.resolvedPosition === "object"
+        ? {
+            x: Number(element.resolvedPosition.x) || 0,
+            y: Number(element.resolvedPosition.y) || 0,
+            attached: Boolean(element.resolvedPosition.attached),
+          }
+        : null,
+    x: Number(element.x) || 0,
+    y: Number(element.y) || 0,
+    points: Array.isArray(element.points)
+      ? element.points.map((point) => normalizeMaterializePoint(point))
+      : [],
+  });
+}
+
+function dedupeRefinementRegions(regions) {
+  return dedupeByKey(regions.filter(Boolean), (region) =>
+    [
+      region.kind,
+      region.label,
+      Math.round(region.left),
+      Math.round(region.top),
+      Math.round(region.width),
+      Math.round(region.height),
+    ].join(":"),
+  );
+}
+
 function upsertMaterializedPreviewManifest(existingManifest, materialized) {
   const manifest = normalizePreviewManifest(existingManifest || {});
   const frameId = cleanString(materialized.frame.id) || "frame";
@@ -871,6 +1579,7 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
   const versionTag = cleanString(materialized.versionTag) || generatedAt;
   const sourceFrameUpdatedAt =
     cleanString(materialized.frame.updatedAt) || new Date().toISOString();
+  const refinement = normalizeMaterializeRefinement(materialized.refinement);
   const preservedTargets = manifest.targets.filter(
     (target) => cleanString(target.id) !== targetId,
   );
@@ -912,6 +1621,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
+        changeSummary: refinement.summary,
+        refinement,
       },
       ...preservedTargets,
     ],
@@ -928,6 +1639,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
+        changeSummary: refinement.summary,
+        refinement,
       },
       {
         id: contextArtifactId,
@@ -942,6 +1655,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
+        changeSummary: refinement.summary,
+        refinement,
       },
       {
         id: metaArtifactId,
@@ -956,6 +1671,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
+        changeSummary: refinement.summary,
+        refinement,
       },
       ...(materialized.sketchPath
         ? [
@@ -972,6 +1689,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
               sourceFrameId: frameId,
               sourceFrameTitle: frameTitle,
               sourceFrameUpdatedAt,
+              changeSummary: refinement.summary,
+              refinement,
             },
           ]
         : []),
@@ -984,6 +1703,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
   const board = payload.board || normalizeMaterializeBoard({});
   const frame = payload.frame || normalizeMaterializeFrame({});
   const sketchSrc = cleanString(options.sketchSrc);
+  const refinement = normalizeMaterializeRefinement(options.refinement);
   const accent = pickMaterializeAccent(frame.elements);
   const accentStrong = mixHex(accent, "#1b1513", 0.18);
   const accentSoft = rgbaFromHex(accent, 0.14);
@@ -1151,6 +1871,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
       }
 
       .context-chip,
+      .refinement-chip,
       .toolbar {
         position: absolute;
         z-index: 4;
@@ -1172,14 +1893,32 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         flex-wrap: wrap;
       }
 
+      .refinement-chip {
+        top: 1rem;
+        right: 1rem;
+        max-width: min(34rem, 56%);
+        display: grid;
+        gap: 0.16rem;
+        align-items: start;
+        justify-items: start;
+      }
+
       .context-chip strong {
         font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
         font-size: 1rem;
       }
 
-      .context-chip span {
+      .context-chip span,
+      .refinement-chip span {
         color: var(--muted);
         font-size: 0.84rem;
+      }
+
+      .refinement-chip strong {
+        font-size: 0.8rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
       }
 
       .toolbar {
@@ -1429,6 +2168,14 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         .context-chip {
           max-width: calc(100% - 2rem);
         }
+
+        .refinement-chip {
+          top: auto;
+          right: auto;
+          left: 1rem;
+          bottom: 4.8rem;
+          max-width: calc(100% - 2rem);
+        }
       }
     </style>
   </head>
@@ -1450,6 +2197,14 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
               : ""
           }
         </div>
+        ${
+          refinement.summary
+            ? `<div class="refinement-chip">
+                <strong>Refinement ${refinement.iteration}</strong>
+                <span>${escapeHtml(refinement.summary)}</span>
+              </div>`
+            : ""
+        }
         <div class="component-layer">
           ${contentMarkup}
         </div>
@@ -2009,6 +2764,16 @@ function slugify(input) {
   );
 }
 
+function hashString(input) {
+  let hash = 2166136261;
+  const value = String(input || "");
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 function buildTimestamp() {
   const now = new Date();
   const parts = [
@@ -2034,6 +2799,7 @@ function enhanceLiveExport(value) {
 
   return {
     ...value,
+    transport: normalizeTransportDescriptor(value.transport),
     frames: Array.isArray(value.frames)
       ? value.frames.map((frame) => ({
           ...frame,
@@ -2095,6 +2861,41 @@ function enhanceManifest(value) {
   return next;
 }
 
+function enhanceCheckpointHistory(value) {
+  if (!value || typeof value !== "object") {
+    return { updatedAt: "", items: [] };
+  }
+  return {
+    updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+    items: Array.isArray(value.items)
+      ? value.items.map((item) => enhanceCheckpointRecord(item)).filter(Boolean)
+      : [],
+  };
+}
+
+function enhanceCheckpointRecord(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const checkpointPath = cleanString(value.checkpointPath);
+  const jsonPath = cleanString(value.jsonPath);
+  const markdownPath = cleanString(value.markdownPath);
+  const voiceMarkdownPath = cleanString(value.voiceMarkdownPath);
+  return {
+    ...value,
+    checkpointUrl: checkpointPath
+      ? workspaceUrlForPath(checkpointPath, value.savedAt)
+      : "",
+    jsonUrl: jsonPath ? workspaceUrlForPath(jsonPath, value.savedAt) : "",
+    markdownUrl: markdownPath
+      ? workspaceUrlForPath(markdownPath, value.savedAt)
+      : "",
+    voiceMarkdownUrl: voiceMarkdownPath
+      ? workspaceUrlForPath(voiceMarkdownPath, value.savedAt)
+      : "",
+  };
+}
+
 function enhancePreviewSnapshots(value) {
   if (!value || typeof value !== "object") {
     return { updatedAt: "", items: [] };
@@ -2121,6 +2922,137 @@ function enhancePreviewSnapshotRecord(value) {
       ? workspaceUrlForPath(snapshotPath, value.savedAt)
       : "",
     sketchUrl: sketchPath ? workspaceUrlForPath(sketchPath, value.savedAt) : "",
+  };
+}
+
+function normalizeCheckpointPayload(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : null;
+  if (!source) {
+    return null;
+  }
+
+  return {
+    schemaVersion: Number(source.schemaVersion) || HANDOFF_SCHEMA_VERSION,
+    storageVersion: Number(source.storageVersion) || 0,
+    savedAt: cleanString(source.savedAt) || new Date().toISOString(),
+    transport: normalizeTransportDescriptor(source.transport),
+    reason: cleanString(source.reason) || "manual-push",
+    label: cleanString(source.label) || "Checkpoint",
+    note: cleanString(source.note),
+    frameId:
+      cleanString(source.frameId) || cleanString(source.activeFrameId) || "",
+    frameTitle:
+      cleanString(source.frameTitle) ||
+      cleanString(source.activeFrameTitle) ||
+      "",
+    board:
+      source.board &&
+      typeof source.board === "object" &&
+      !Array.isArray(source.board)
+        ? source.board
+        : {},
+    activeFrameId: cleanString(source.activeFrameId),
+    activeFrameTitle: cleanString(source.activeFrameTitle),
+    entryFrameId: cleanString(source.entryFrameId),
+    connections: Array.isArray(source.connections) ? source.connections : [],
+    frames: Array.isArray(source.frames) ? source.frames : [],
+    voice:
+      source.voice &&
+      typeof source.voice === "object" &&
+      !Array.isArray(source.voice)
+        ? source.voice
+        : null,
+    summary:
+      source.summary &&
+      typeof source.summary === "object" &&
+      !Array.isArray(source.summary)
+        ? source.summary
+        : {},
+    export:
+      source.export &&
+      typeof source.export === "object" &&
+      !Array.isArray(source.export)
+        ? source.export
+        : {},
+    previewTarget:
+      source.previewTarget &&
+      typeof source.previewTarget === "object" &&
+      !Array.isArray(source.previewTarget)
+        ? source.previewTarget
+        : null,
+    outputDigest:
+      source.outputDigest &&
+      typeof source.outputDigest === "object" &&
+      !Array.isArray(source.outputDigest)
+        ? source.outputDigest
+        : null,
+    artifacts: Array.isArray(source.artifacts) ? source.artifacts : [],
+    changes: Array.isArray(source.changes) ? source.changes : [],
+    prompt: cleanString(source.prompt),
+  };
+}
+
+async function readRecentSessionEvents(filePath, limit = 48) {
+  const raw = await readOptionalText(filePath);
+  if (!raw.trim()) {
+    return [];
+  }
+
+  return raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-limit)
+    .reverse()
+    .map((line) => {
+      try {
+        return normalizeSessionEvent(JSON.parse(line));
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function normalizeSessionEvent(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return {
+    type: cleanString(value.type),
+    id: cleanString(value.id),
+    at: cleanString(value.at),
+    reason: cleanString(value.reason),
+    label: cleanString(value.label),
+    note: cleanString(value.note),
+    frameId: cleanString(value.frameId),
+    frameTitle: cleanString(value.frameTitle),
+    summary:
+      value.summary &&
+      typeof value.summary === "object" &&
+      !Array.isArray(value.summary)
+        ? value.summary
+        : null,
+    export:
+      value.export &&
+      typeof value.export === "object" &&
+      !Array.isArray(value.export)
+        ? value.export
+        : null,
+    previewTarget:
+      value.previewTarget &&
+      typeof value.previewTarget === "object" &&
+      !Array.isArray(value.previewTarget)
+        ? value.previewTarget
+        : null,
+    outputDigest:
+      value.outputDigest &&
+      typeof value.outputDigest === "object" &&
+      !Array.isArray(value.outputDigest)
+        ? value.outputDigest
+        : null,
   };
 }
 
@@ -2169,6 +3101,9 @@ function buildRuntime(port) {
     liveJsonPath,
     liveMarkdownPath,
     liveVoiceMarkdownPath,
+    latestCheckpointPath,
+    checkpointsIndexPath,
+    sessionEventsPath,
     previewManifestPath,
     codexOutputManifestPath,
     previewSnapshotsIndexPath,
@@ -2300,6 +3235,39 @@ async function readLogTail() {
   }
 }
 
+async function runCommand(command, args, options = {}) {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd || projectRoot,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (error) => {
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolvePromise({ stdout, stderr });
+        return;
+      }
+      reject(
+        new Error(
+          stderr.trim() ||
+            `${command} ${args.join(" ")} exited with code ${code}.`,
+        ),
+      );
+    });
+  });
+}
+
 function printCliOutput(asJson, payload, message) {
   if (asJson) {
     console.log(JSON.stringify(payload, null, 2));
@@ -2313,6 +3281,7 @@ function printCliOutput(asJson, payload, message) {
   console.log(`Live export: ${liveJsonPath}`);
   console.log(`Live markdown: ${liveMarkdownPath}`);
   console.log(`Live voice markdown: ${liveVoiceMarkdownPath}`);
+  console.log(`Latest checkpoint: ${latestCheckpointPath}`);
   console.log(`Codex output manifest: ${codexOutputManifestPath}`);
 }
 
@@ -2393,6 +3362,130 @@ function mergeManifestSources(manualManifest, codexManifest) {
   });
 }
 
+function buildPreviewOutputDigest(manifest, workspaceFollowMeta = null) {
+  const normalized = normalizePreviewManifest(manifest || {});
+  const targets = normalizePreviewTargets(normalized.targets || []);
+  const artifacts = normalizePreviewArtifacts(normalized.artifacts || []);
+  const changes = normalizePreviewChanges(normalized.changes || []);
+  const primaryTarget =
+    targets.find((target) => target.id === "primary") || targets[0] || null;
+  const refinementSummary =
+    cleanString(primaryTarget?.refinement?.summary) ||
+    cleanString(
+      artifacts.find((artifact) => cleanString(artifact.changeSummary))
+        ?.changeSummary,
+    );
+  const targetLabel = cleanString(primaryTarget?.label);
+  const frameTitle = cleanString(workspaceFollowMeta?.frameTitle);
+  const digestSource = JSON.stringify({
+    targets: targets.map((target) => ({
+      id: cleanString(target.id),
+      url: cleanString(target.url),
+      previewPath: cleanString(target.previewPath),
+      versionTag: cleanString(target.versionTag),
+      generatedAt: cleanString(target.generatedAt),
+      sourceFrameId: cleanString(target.sourceFrameId),
+      sourceFrameUpdatedAt: cleanString(target.sourceFrameUpdatedAt),
+      changeSummary: cleanString(target.changeSummary),
+      refinement: target.refinement
+        ? {
+            iteration: Number(target.refinement.iteration) || 0,
+            summary: cleanString(target.refinement.summary),
+            counts: target.refinement.counts || {},
+            regionCount: Array.isArray(target.refinement.changedRegions)
+              ? target.refinement.changedRegions.length
+              : 0,
+          }
+        : null,
+    })),
+    artifacts: artifacts.map((artifact) => ({
+      id: cleanString(artifact.id),
+      path: cleanString(artifact.path),
+      kind: cleanString(artifact.kind),
+      versionTag: cleanString(artifact.versionTag),
+      generatedAt: cleanString(artifact.generatedAt),
+      changeSummary: cleanString(artifact.changeSummary),
+      frameIds: normalizeStringArray(artifact.frameIds),
+    })),
+    changes: changes.map((change) => ({
+      id: cleanString(change.id),
+      path: cleanString(change.path),
+      kind: cleanString(change.kind),
+      summary: cleanString(change.summary),
+      frameIds: normalizeStringArray(change.frameIds),
+    })),
+    workspaceFollow: workspaceFollowMeta
+      ? {
+          enabled: workspaceFollowMeta.enabled !== false,
+          clean: Boolean(workspaceFollowMeta.clean),
+          changeCount: Number(workspaceFollowMeta.changeCount) || 0,
+          frameId: cleanString(workspaceFollowMeta.frameId),
+          frameTitle,
+          error: cleanString(workspaceFollowMeta.error),
+        }
+      : null,
+  });
+  return {
+    digest: `output-${hashString(digestSource)}`,
+    mode: primaryTarget
+      ? "target-connected"
+      : changes.length || artifacts.length
+        ? "context-only"
+        : workspaceFollowMeta?.clean
+          ? "workspace-clean"
+          : "idle",
+    summary: buildPreviewOutputSummary({
+      targetLabel,
+      refinementSummary,
+      artifactCount: artifacts.length,
+      changeCount: changes.length,
+      targetCount: targets.length,
+      frameTitle,
+      workspaceFollowMeta,
+    }),
+    targetLabel,
+    targetType: cleanString(primaryTarget?.type),
+    targetCount: targets.length,
+    artifactCount: artifacts.length,
+    changeCount: changes.length,
+    refinementSummary,
+    frameTitle,
+    clean: Boolean(workspaceFollowMeta?.clean),
+  };
+}
+
+function buildPreviewOutputSummary({
+  targetLabel = "",
+  refinementSummary = "",
+  artifactCount = 0,
+  changeCount = 0,
+  targetCount = 0,
+  frameTitle = "",
+  workspaceFollowMeta = null,
+} = {}) {
+  const artifactText = `${artifactCount} artifact${artifactCount === 1 ? "" : "s"}`;
+  const changeText = `${changeCount} changed file${changeCount === 1 ? "" : "s"}`;
+
+  if (targetLabel) {
+    const intro = refinementSummary
+      ? `${refinementSummary} ${targetLabel} is active.`
+      : `${targetLabel} is active.`;
+    return `${intro} ${artifactText} and ${changeText} are attached.`;
+  }
+
+  if (artifactCount || changeCount || targetCount) {
+    const scope = frameTitle ? ` for ${frameTitle}` : "";
+    return `Output context now tracks ${artifactText} and ${changeText}${scope}.`;
+  }
+
+  if (workspaceFollowMeta?.enabled !== false && workspaceFollowMeta?.clean) {
+    const scope = frameTitle ? ` for ${frameTitle}` : "";
+    return `Workspace is clean${scope}, and no connected implementation target is attached yet.`;
+  }
+
+  return "No connected implementation output is attached yet.";
+}
+
 function mergePreviewManifest(existingManifest, payload) {
   const nextTarget = buildPreviewTargetFromPayload(payload);
   const baseManifest = normalizePreviewManifest(existingManifest || {});
@@ -2432,6 +3525,302 @@ function clearPrimaryPreviewTarget(existingManifest) {
     targets: remainingTargets,
   });
   return hasManifestContent(nextManifest) ? nextManifest : null;
+}
+
+function buildAutoPublishedCodexManifest(
+  existingManifest,
+  { frameId = "", frameTitle = "", changeEntries = [] } = {},
+) {
+  const baseManifest = normalizePreviewManifest(existingManifest || {});
+  const targetLabel = frameTitle || "the current board";
+  const autoNote = changeEntries.length
+    ? `Auto-published ${changeEntries.length} workspace change${changeEntries.length === 1 ? "" : "s"} for ${targetLabel}.`
+    : `Auto-published a clean workspace state for ${targetLabel}.`;
+  const notes = [cleanString(baseManifest.notes), autoNote]
+    .filter(Boolean)
+    .filter((entry, index, values) => values.indexOf(entry) === index)
+    .join("\n\n");
+
+  return normalizePreviewManifest({
+    ...baseManifest,
+    updatedAt: new Date().toISOString(),
+    source: "codex-auto-publish",
+    notes,
+    changes: changeEntries,
+    targets: baseManifest.targets,
+    artifacts: baseManifest.artifacts,
+  });
+}
+
+async function buildLiveWorkspaceFollowState({
+  liveExport,
+  codexOutputManifest,
+} = {}) {
+  const activeFrameId =
+    cleanString(liveExport?.activeFrameId) ||
+    cleanString(liveExport?.entryFrameId);
+  const activeFrame = Array.isArray(liveExport?.frames)
+    ? liveExport.frames.find(
+        (frame) => cleanString(frame?.id) === activeFrameId,
+      )
+    : null;
+  const frameTitle = cleanString(activeFrame?.title);
+  const manifestSignature = JSON.stringify({
+    updatedAt: cleanString(codexOutputManifest?.updatedAt),
+    targetCount: Array.isArray(codexOutputManifest?.targets)
+      ? codexOutputManifest.targets.length
+      : 0,
+    artifactCount: Array.isArray(codexOutputManifest?.artifacts)
+      ? codexOutputManifest.artifacts.length
+      : 0,
+    changeCount: Array.isArray(codexOutputManifest?.changes)
+      ? codexOutputManifest.changes.length
+      : 0,
+  });
+  const cacheKey = `${activeFrameId}::${frameTitle}::${manifestSignature}`;
+  if (
+    workspaceFollowCache &&
+    workspaceFollowCache.key === cacheKey &&
+    Date.now() - workspaceFollowCache.at < WORKSPACE_FOLLOW_TTL_MS
+  ) {
+    return workspaceFollowCache.value;
+  }
+
+  const fallbackManifest = hasManifestContent(
+    normalizePreviewManifest(codexOutputManifest || {}),
+  )
+    ? normalizePreviewManifest(codexOutputManifest || {})
+    : null;
+
+  try {
+    const changeEntries = await collectWorkspaceChangeEntries({
+      frameId: activeFrameId,
+      frameTitle,
+    });
+    const liveCodexManifest = buildLiveWorkspaceFollowManifest(
+      codexOutputManifest,
+      {
+        frameId: activeFrameId,
+        frameTitle,
+        changeEntries,
+      },
+    );
+    const result = {
+      codexManifest: hasManifestContent(liveCodexManifest)
+        ? liveCodexManifest
+        : null,
+      meta: {
+        enabled: true,
+        source: "git-status-live",
+        updatedAt: new Date().toISOString(),
+        frameId: activeFrameId,
+        frameTitle,
+        changeCount: changeEntries.length,
+        clean: changeEntries.length === 0,
+      },
+    };
+    workspaceFollowCache = {
+      key: cacheKey,
+      at: Date.now(),
+      value: result,
+    };
+    return result;
+  } catch (error) {
+    const result = {
+      codexManifest: fallbackManifest,
+      meta: {
+        enabled: false,
+        source: "git-status-live",
+        updatedAt: new Date().toISOString(),
+        frameId: activeFrameId,
+        frameTitle,
+        changeCount: Array.isArray(fallbackManifest?.changes)
+          ? fallbackManifest.changes.length
+          : 0,
+        clean:
+          !Array.isArray(fallbackManifest?.changes) ||
+          !fallbackManifest.changes.length,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Workspace follow unavailable.",
+      },
+    };
+    workspaceFollowCache = {
+      key: cacheKey,
+      at: Date.now(),
+      value: result,
+    };
+    return result;
+  }
+}
+
+function buildLiveWorkspaceFollowManifest(
+  existingManifest,
+  { frameId = "", frameTitle = "", changeEntries = [] } = {},
+) {
+  const baseManifest = normalizePreviewManifest(existingManifest || {});
+  const liveChanges = mergeLiveWorkspaceChanges(
+    baseManifest.changes,
+    changeEntries,
+  );
+  const source = cleanString(baseManifest.source);
+
+  return normalizePreviewManifest({
+    ...baseManifest,
+    updatedAt: new Date().toISOString(),
+    source: source ? `${source}+workspace-follow` : "codex-workspace-follow",
+    notes: baseManifest.notes,
+    targets: baseManifest.targets,
+    artifacts: baseManifest.artifacts,
+    changes: liveChanges,
+    context: {
+      frameId,
+      frameTitle,
+    },
+  });
+}
+
+function mergeLiveWorkspaceChanges(existingChanges, liveEntries) {
+  const existingByPath = new Map(
+    normalizePreviewChanges(existingChanges || []).map((entry) => [
+      cleanString(entry.path),
+      entry,
+    ]),
+  );
+
+  return normalizePreviewChanges(
+    liveEntries.map((entry, index) => {
+      const normalized = normalizePreviewChange(entry, index);
+      if (!normalized) {
+        return null;
+      }
+      const existing = existingByPath.get(normalized.path);
+      return {
+        ...normalized,
+        id: buildWorkspaceChangeId(normalized.path, index),
+        label: cleanString(existing?.label) || normalized.label,
+        kind: cleanString(existing?.kind) || normalized.kind,
+        summary: cleanString(existing?.summary) || normalized.summary,
+        frameIds:
+          Array.isArray(existing?.frameIds) && existing.frameIds.length
+            ? existing.frameIds
+            : normalized.frameIds,
+      };
+    }),
+  );
+}
+
+async function collectWorkspaceChangeEntries({
+  frameId = "",
+  frameTitle = "",
+} = {}) {
+  const output = await runCommand("git", [
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=all",
+  ]);
+  const entries = output.stdout
+    .split("\n")
+    .map((line) => parseGitStatusLine(line))
+    .filter(Boolean)
+    .filter((entry) => !isIgnoredAutoPublishPath(entry.path));
+
+  return entries.map((entry, index) => ({
+    id: buildWorkspaceChangeId(entry.path, index),
+    path: entry.path,
+    label: entry.path.split("/").pop() || `Change ${index + 1}`,
+    kind: "updated",
+    summary: frameTitle
+      ? `${capitalize(entry.status)} while working on ${frameTitle}`
+      : capitalize(entry.status),
+    frameIds: frameId ? [frameId] : [],
+  }));
+}
+
+function buildWorkspaceChangeId(path, index = 0) {
+  const normalizedPath = cleanString(path);
+  if (!normalizedPath) {
+    return `change-${index + 1}`;
+  }
+  return `change-${slugify(normalizedPath)}`;
+}
+
+function parseGitStatusLine(line) {
+  const raw = String(line ?? "").replace(/\r$/, "");
+  if (!raw.trim()) {
+    return null;
+  }
+  if (raw.startsWith("?? ")) {
+    return {
+      path: raw.slice(3).trim(),
+      status: "untracked",
+    };
+  }
+
+  const statusCode = raw.slice(0, 2);
+  const pathPart = raw.slice(3).trim();
+  if (!pathPart) {
+    return null;
+  }
+  const resolvedPath =
+    statusCode.includes("R") || statusCode.includes("C")
+      ? pathPart.split(" -> ").at(-1)?.trim() || pathPart
+      : pathPart;
+
+  return {
+    path: resolvedPath,
+    status: summarizeGitStatus(statusCode),
+  };
+}
+
+function summarizeGitStatus(statusCode) {
+  if (statusCode === "??") {
+    return "untracked";
+  }
+  const normalized = cleanString(statusCode);
+  if (normalized.includes("R")) {
+    return "renamed";
+  }
+  if (normalized.includes("A")) {
+    return "added";
+  }
+  if (normalized.includes("D")) {
+    return "deleted";
+  }
+  if (normalized.includes("C")) {
+    return "copied";
+  }
+  if (normalized.includes("M")) {
+    return "modified";
+  }
+  return "updated";
+}
+
+function isIgnoredAutoPublishPath(value) {
+  const path = cleanString(value).replaceAll("\\", "/");
+  if (!path) {
+    return true;
+  }
+  return (
+    path.startsWith("exports/") ||
+    path.startsWith(".canvax/") ||
+    path === "artifacts/" ||
+    path === "artifacts/canvax/" ||
+    path === "artifacts/preview/" ||
+    path === "artifacts/canvax/codex-output.json" ||
+    path.startsWith("artifacts/canvax/checkpoints/") ||
+    path.startsWith("artifacts/preview/snapshots/") ||
+    path.startsWith("artifacts/preview/materialized/")
+  );
+}
+
+function capitalize(value) {
+  const text = cleanString(value);
+  if (!text) {
+    return "";
+  }
+  return `${text[0].toUpperCase()}${text.slice(1)}`;
 }
 
 function normalizePreviewManifest(value, existingManifest = null) {
@@ -2515,6 +3904,8 @@ function normalizePreviewTarget(entry, index = 0) {
           sourceFrameId: "",
           sourceFrameTitle: "",
           sourceFrameUpdatedAt: "",
+          changeSummary: "",
+          refinement: normalizeMaterializeRefinement(null),
         }
       : null;
   }
@@ -2551,6 +3942,8 @@ function normalizePreviewTarget(entry, index = 0) {
     sourceFrameId: cleanString(entry.sourceFrameId),
     sourceFrameTitle: cleanString(entry.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(entry.sourceFrameUpdatedAt),
+    changeSummary: cleanString(entry.changeSummary),
+    refinement: normalizeMaterializeRefinement(entry.refinement),
   };
 }
 
@@ -2581,6 +3974,8 @@ function normalizePreviewArtifact(entry, index = 0) {
           sourceFrameId: "",
           sourceFrameTitle: "",
           sourceFrameUpdatedAt: "",
+          changeSummary: "",
+          refinement: normalizeMaterializeRefinement(null),
         }
       : null;
   }
@@ -2611,6 +4006,8 @@ function normalizePreviewArtifact(entry, index = 0) {
     sourceFrameId: cleanString(entry.sourceFrameId),
     sourceFrameTitle: cleanString(entry.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(entry.sourceFrameUpdatedAt),
+    changeSummary: cleanString(entry.changeSummary),
+    refinement: normalizeMaterializeRefinement(entry.refinement),
   };
 }
 
@@ -2714,6 +4111,8 @@ function buildPreviewTargetFromPayload(payload) {
     sourceFrameId: cleanString(source.sourceFrameId),
     sourceFrameTitle: cleanString(source.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(source.sourceFrameUpdatedAt),
+    changeSummary: cleanString(source.changeSummary),
+    refinement: normalizeMaterializeRefinement(source.refinement),
   };
 }
 

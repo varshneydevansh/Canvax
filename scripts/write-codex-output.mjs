@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,9 @@ const codexOutputRoot = resolve(projectRoot, "artifacts", "canvax");
 const codexOutputManifestPath = resolve(codexOutputRoot, "codex-output.json");
 
 const args = process.argv.slice(2);
+const wantsJson = args.includes("--json");
+const wantsDryRun = args.includes("--dry-run");
+const fromGitStatus = args.includes("--from-git-status");
 
 if (args.includes("--help") || args.includes("-h")) {
   printHelp();
@@ -22,19 +26,39 @@ if (args.includes("--clear")) {
 const url = readOption(args, "--url");
 const previewPath = readOption(args, "--preview-path");
 const label = readOption(args, "--label") || "Codex generated output";
-const source = readOption(args, "--source") || "codex";
+const source =
+  readOption(args, "--source") ||
+  (fromGitStatus ? "codex-auto-publish" : "codex");
 const description = readOption(args, "--description") || "";
-const notes = readOption(args, "--notes") || "";
+const notes =
+  readOption(args, "--notes") ||
+  (fromGitStatus
+    ? "Auto-published from the current git workspace status."
+    : "");
 const targetType = readOption(args, "--type") || "implementation-preview";
 const frameIds = readMultiOption(args, "--frame");
-const changes = readMultiOption(args, "--change").map((entry, index) =>
+const manualChanges = readMultiOption(args, "--change").map((entry, index) =>
   buildChange(entry, index),
+);
+const autoPublishedChanges = fromGitStatus
+  ? await collectWorkspaceChangeEntries()
+  : [];
+const changes = dedupeByKey(
+  [...manualChanges, ...autoPublishedChanges],
+  (entry, index) => entry.id || entry.path || `change-${index + 1}`,
 );
 const artifacts = readMultiOption(args, "--artifact").map((entry, index) =>
   buildArtifact(entry, index),
 );
 
-if (!url && !previewPath && !changes.length && !artifacts.length && !notes) {
+if (
+  !url &&
+  !previewPath &&
+  !changes.length &&
+  !artifacts.length &&
+  !notes &&
+  !fromGitStatus
+) {
   console.error(
     "Nothing to write. Provide --url or --preview-path, or attach --change/--artifact/--notes.",
   );
@@ -72,21 +96,40 @@ const manifest = {
   artifacts,
 };
 
-await mkdir(codexOutputRoot, { recursive: true });
-await writeFile(
-  codexOutputManifestPath,
-  `${JSON.stringify(manifest, null, 2)}\n`,
-);
+if (!wantsDryRun) {
+  await mkdir(codexOutputRoot, { recursive: true });
+  await writeFile(
+    codexOutputManifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+}
 
-console.log(`Saved Codex output manifest to ${codexOutputManifestPath}`);
-if (primaryTarget) {
-  console.log(`Primary target: ${url || previewPath}`);
-}
-if (changes.length) {
+const result = {
+  saved: !wantsDryRun,
+  dryRun: wantsDryRun,
+  manifestPath: codexOutputManifestPath,
+  source,
+  changeCount: changes.length,
+  artifactCount: artifacts.length,
+  target: primaryTarget ? url || previewPath : "",
+  manifest,
+};
+
+if (wantsJson) {
+  console.log(JSON.stringify(result, null, 2));
+} else {
+  console.log(
+    wantsDryRun
+      ? `Dry run prepared Codex output manifest for ${codexOutputManifestPath}`
+      : `Saved Codex output manifest to ${codexOutputManifestPath}`,
+  );
+  if (primaryTarget) {
+    console.log(`Primary target: ${url || previewPath}`);
+  }
   console.log(`Changed files: ${changes.length}`);
-}
-if (artifacts.length) {
-  console.log(`Artifacts: ${artifacts.length}`);
+  if (artifacts.length) {
+    console.log(`Artifacts: ${artifacts.length}`);
+  }
 }
 
 function readOption(inputArgs, flag) {
@@ -141,6 +184,25 @@ function parseFrameIds(value) {
     .filter(Boolean);
 }
 
+async function collectWorkspaceChangeEntries() {
+  const { stdout } = await runCommand("git", ["status", "--porcelain"], {
+    cwd: projectRoot,
+  });
+  return stdout
+    .split("\n")
+    .map((line) => parseGitStatusLine(line))
+    .filter(Boolean)
+    .filter((entry) => !isIgnoredAutoPublishPath(entry.path))
+    .map((entry, index) => ({
+      id: `change-${index + 1}`,
+      path: entry.path,
+      label: entry.path.split("/").pop() || entry.path,
+      kind: summarizeGitStatus(entry.statusCode),
+      summary: `${capitalize(summarizeGitStatus(entry.statusCode))} via git status`,
+      frameIds,
+    }));
+}
+
 async function readOptionalJson(filePath) {
   try {
     const raw = await readFile(filePath, "utf8");
@@ -153,9 +215,37 @@ async function readOptionalJson(filePath) {
 async function clearManifest() {
   try {
     await unlink(codexOutputManifestPath);
-    console.log(`Removed ${codexOutputManifestPath}`);
+    if (wantsJson) {
+      console.log(
+        JSON.stringify(
+          {
+            cleared: true,
+            manifestPath: codexOutputManifestPath,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log(`Removed ${codexOutputManifestPath}`);
+    }
   } catch {
-    console.log(`No Codex output manifest found at ${codexOutputManifestPath}`);
+    if (wantsJson) {
+      console.log(
+        JSON.stringify(
+          {
+            cleared: false,
+            manifestPath: codexOutputManifestPath,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.log(
+        `No Codex output manifest found at ${codexOutputManifestPath}`,
+      );
+    }
   }
 }
 
@@ -165,8 +255,11 @@ function printHelp() {
 Usage:
   node scripts/write-codex-output.mjs --url http://localhost:3000
   node scripts/write-codex-output.mjs --preview-path artifacts/preview/home.html
+  node scripts/write-codex-output.mjs --from-git-status
   node scripts/write-codex-output.mjs --artifact artifacts/preview/home.html::Generated interactive preview::frame-home
   node scripts/write-codex-output.mjs --change web/app.js::Updated hero layout::frame-home --artifact docs/spec.md::Generated handoff spec::frame-home
+  node scripts/write-codex-output.mjs --from-git-status --preview-path artifacts/preview/home.html
+  node scripts/write-codex-output.mjs --from-git-status --dry-run --json
   node scripts/write-codex-output.mjs --clear
 
 Options:
@@ -178,8 +271,116 @@ Options:
   --notes <value>           Manifest-level notes
   --type <value>            Target type label
   --frame <id>              Associate the target with a frame id, repeatable
+  --from-git-status         Build changed-file entries from git status automatically
+  --dry-run                 Build the manifest without writing it to disk
+  --json                    Print machine-readable output
   --change <path::summary::frameIds>  Add a changed file entry, repeatable
   --artifact <path::desc::frameIds>   Add an artifact entry, repeatable
   --clear                   Remove the Codex output manifest
 `);
+}
+
+function parseGitStatusLine(line) {
+  const raw = String(line ?? "").replace(/\r$/, "");
+  if (!raw.trim() || raw.length < 4) {
+    return null;
+  }
+  const statusCode = raw.slice(0, 2);
+  const pathPart = raw.slice(3).trim();
+  if (!pathPart) {
+    return null;
+  }
+  const path = pathPart.includes(" -> ")
+    ? pathPart.split(" -> ").at(-1)?.trim() || pathPart
+    : pathPart;
+  return {
+    statusCode,
+    path: path.replaceAll("\\", "/"),
+  };
+}
+
+function summarizeGitStatus(statusCode) {
+  const code = String(statusCode || "").trim();
+  if (!code) {
+    return "updated";
+  }
+  if (code.includes("?")) {
+    return "created";
+  }
+  if (code.includes("D")) {
+    return "deleted";
+  }
+  if (code.includes("R")) {
+    return "renamed";
+  }
+  if (code.includes("A")) {
+    return "created";
+  }
+  return "updated";
+}
+
+function isIgnoredAutoPublishPath(value) {
+  const path = String(value || "")
+    .trim()
+    .replaceAll("\\", "/");
+  if (!path) {
+    return true;
+  }
+  return (
+    path.startsWith("exports/") ||
+    path.startsWith(".canvax/") ||
+    path === "artifacts/" ||
+    path === "artifacts/canvax/" ||
+    path === "artifacts/preview/" ||
+    path === "artifacts/canvax/codex-output.json" ||
+    path.startsWith("artifacts/canvax/checkpoints/") ||
+    path.startsWith("artifacts/preview/snapshots/") ||
+    path.startsWith("artifacts/preview/materialized/")
+  );
+}
+
+function capitalize(value) {
+  const text = String(value || "").trim();
+  return text ? `${text[0].toUpperCase()}${text.slice(1)}` : "";
+}
+
+function dedupeByKey(values, buildKey) {
+  const unique = new Map();
+  values.forEach((value, index) => {
+    const key = buildKey(value, index);
+    if (!key || unique.has(key)) {
+      return;
+    }
+    unique.set(key, value);
+  });
+  return [...unique.values()];
+}
+
+function runCommand(command, commandArgs, options = {}) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(command, commandArgs, {
+      cwd: options.cwd,
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", rejectPromise);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolvePromise({ stdout, stderr });
+        return;
+      }
+      rejectPromise(
+        new Error(stderr.trim() || `${command} exited with code ${code}`),
+      );
+    });
+  });
 }

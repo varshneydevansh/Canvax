@@ -1,11 +1,15 @@
 const STORAGE_KEY = "canvax-studio-v1";
 const STORAGE_VERSION = 2;
+const HANDOFF_SCHEMA_VERSION = 1;
 const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
 const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
+const TRANSPORT_MODE = "local-companion";
+const FUTURE_TRANSPORT_MODE = "app-server";
 const MAX_CAPTURES = 6;
 const AUTO_CAPTURE_DELAY = 2000;
 const LIVE_PREVIEW_DEBOUNCE = 160;
 const MANIFEST_POLL_INTERVAL = 2500;
+const MAX_OUTPUT_ACTIVITY_ITEMS = 8;
 const FLOW_CARD_WIDTH = 256;
 const FLOW_CARD_HEIGHT = 180;
 const FLOW_SURFACE_PADDING = 120;
@@ -142,12 +146,23 @@ const dom = {
   captureList: document.querySelector("#capture-list"),
   specOutput: document.querySelector("#spec-output"),
   analyzeStatus: document.querySelector("#analysis-status"),
+  workspaceFollowStatus: document.querySelector("#workspace-follow-status"),
+  transportStatus: document.querySelector("#transport-status"),
+  codexPublishOutput: document.querySelector("#codex-publish-output"),
+  codexClearOutput: document.querySelector("#codex-clear-output"),
   codexOpenTarget: document.querySelector("#codex-open-target"),
   codexOutputSummary: document.querySelector("#codex-output-summary"),
   artifactInboxCount: document.querySelector("#artifact-inbox-count"),
   artifactInbox: document.querySelector("#artifact-inbox"),
   changedFileCount: document.querySelector("#changed-file-count"),
   changedFileList: document.querySelector("#changed-file-list"),
+  outputActivityCount: document.querySelector("#output-activity-count"),
+  outputActivityList: document.querySelector("#output-activity-list"),
+  rewriteQueueCount: document.querySelector("#rewrite-queue-count"),
+  rewriteQueueList: document.querySelector("#rewrite-queue-list"),
+  checkpointCount: document.querySelector("#checkpoint-count"),
+  checkpointPush: document.querySelector("#checkpoint-push"),
+  checkpointList: document.querySelector("#checkpoint-list"),
   saveWorkspace: document.querySelector("#save-workspace"),
   copyPrompt: document.querySelector("#copy-prompt"),
   installSkill: document.querySelector("#install-skill"),
@@ -163,6 +178,7 @@ const dom = {
 };
 
 const imageCache = new Map();
+const frameRenderCache = new Map();
 const histories = new Map();
 const measurementCanvas = document.createElement("canvas");
 const measurementContext = measurementCanvas.getContext("2d");
@@ -178,6 +194,7 @@ init();
 function init() {
   populateViewportSelect();
   bindEvents();
+  bindInteractionFeedback();
   fetchServerStatus();
   refreshPreviewStateFromServer();
   renderAll();
@@ -211,6 +228,15 @@ function bindEvents() {
   dom.copyPrompt.addEventListener("click", copyPrompt);
   dom.saveWorkspace.addEventListener("click", saveExportToWorkspace);
   dom.installSkill.addEventListener("click", installSkill);
+  dom.checkpointPush.addEventListener("click", () => {
+    void saveCheckpointToWorkspace("manual-push", { silent: false });
+  });
+  dom.codexPublishOutput.addEventListener("click", () => {
+    void publishWorkspaceOutput();
+  });
+  dom.codexClearOutput.addEventListener("click", () => {
+    void clearPublishedCodexOutput();
+  });
   dom.groupSelection.addEventListener("click", groupSelectedElements);
   dom.ungroupSelection.addEventListener("click", ungroupSelectedElements);
   dom.duplicateSelection.addEventListener("click", duplicateSelectedElements);
@@ -488,6 +514,58 @@ function bindEvents() {
   });
 }
 
+function bindInteractionFeedback() {
+  const interactiveSelector =
+    "button, .ghost-link-button, .upload-button, [role='button']";
+
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target.closest(interactiveSelector);
+    if (!target || target.matches(":disabled")) {
+      return;
+    }
+    applyInteractionClass(target, "ux-press", 180);
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest(interactiveSelector);
+    if (!target || target.matches(":disabled")) {
+      return;
+    }
+    applyInteractionClass(target, "ux-flash", 220);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    const target = event.target.closest(interactiveSelector);
+    if (!target || target.matches(":disabled")) {
+      return;
+    }
+    applyInteractionClass(target, "ux-press", 180);
+  });
+}
+
+function applyInteractionClass(element, className, durationMs) {
+  if (!(element instanceof HTMLElement)) {
+    return;
+  }
+
+  const timerKey =
+    className === "ux-press" ? "__uxPressTimer" : "__uxFlashTimer";
+  if (element[timerKey]) {
+    window.clearTimeout(element[timerKey]);
+  }
+
+  element.classList.remove(className);
+  void element.offsetWidth;
+  element.classList.add(className);
+  element[timerKey] = window.setTimeout(() => {
+    element.classList.remove(className);
+    element[timerKey] = 0;
+  }, durationMs);
+}
+
 function normalizeColor(input, fallback = palette[0]) {
   if (typeof input !== "string") {
     return fallback;
@@ -575,9 +653,16 @@ function hydrateState() {
       serverStatus: {
         exportRoot: null,
         previewManifest: null,
+        checkpointHistory: null,
+        workspaceFollow: null,
+        transport: buildTransportDescriptor(),
+        outputDigest: null,
+        outputActivity: [],
+        sessionEvents: [],
       },
       captureTimer: null,
       previewStateTimer: null,
+      outputCheckpointInFlight: false,
       draftElement: null,
       isDrawing: false,
       flowDrag: null,
@@ -678,6 +763,93 @@ function frameHasMeaningfulNotes(frame) {
   );
 }
 
+function buildTransportDescriptor(overrides = {}) {
+  const base = {
+    id: "canvax-local-companion-v1",
+    mode: TRANSPORT_MODE,
+    label: "Local companion",
+    runtime: "browser board + local Node service + Codex skill",
+    durableHandoff: {
+      type: "file-export",
+      primary: "exports/canvax-live-latest.json",
+      markdown: "exports/canvax-live-latest.md",
+      voice: "exports/canvax-voice-latest.md",
+      checkpoint: "exports/canvax-checkpoint-latest.json",
+    },
+    liveMirror: {
+      type: "browser-storage",
+      storageKey: LIVE_PREVIEW_STORAGE_KEY,
+      channel: LIVE_PREVIEW_CHANNEL_NAME,
+    },
+    outputBinding: {
+      type: "manifest",
+      manual: "exports/canvax-preview-manifest.json",
+      codex: "artifacts/canvax/codex-output.json",
+      workspaceFollow: "git-status-live",
+    },
+    future: {
+      mode: FUTURE_TRANSPORT_MODE,
+      label: "App Server client",
+      protocol: "json-rpc",
+      status: "planned",
+    },
+  };
+
+  return {
+    ...base,
+    ...(overrides && typeof overrides === "object" && !Array.isArray(overrides)
+      ? overrides
+      : {}),
+    durableHandoff: {
+      ...base.durableHandoff,
+      ...(overrides?.durableHandoff &&
+      typeof overrides.durableHandoff === "object" &&
+      !Array.isArray(overrides.durableHandoff)
+        ? overrides.durableHandoff
+        : {}),
+    },
+    liveMirror: {
+      ...base.liveMirror,
+      ...(overrides?.liveMirror &&
+      typeof overrides.liveMirror === "object" &&
+      !Array.isArray(overrides.liveMirror)
+        ? overrides.liveMirror
+        : {}),
+    },
+    outputBinding: {
+      ...base.outputBinding,
+      ...(overrides?.outputBinding &&
+      typeof overrides.outputBinding === "object" &&
+      !Array.isArray(overrides.outputBinding)
+        ? overrides.outputBinding
+        : {}),
+    },
+    future: {
+      ...base.future,
+      ...(overrides?.future &&
+      typeof overrides.future === "object" &&
+      !Array.isArray(overrides.future)
+        ? overrides.future
+        : {}),
+    },
+  };
+}
+
+function currentTransportDescriptor() {
+  const transport = state?.serverStatus?.transport;
+  if (transport && typeof transport === "object" && !Array.isArray(transport)) {
+    return buildTransportDescriptor(transport);
+  }
+  return buildTransportDescriptor();
+}
+
+function describeTransportSummary(transport = currentTransportDescriptor()) {
+  const currentLabel = cleanString(transport?.label) || "Local companion";
+  const futureLabel =
+    cleanString(transport?.future?.label) || "App Server client";
+  return `Transport: ${currentLabel} via live files, manifests, and browser session mirroring today. Future path: ${futureLabel}.`;
+}
+
 function createInitialState() {
   const firstFrame = createFrame({ title: "Frame 1", frameIndex: 0 });
   return {
@@ -710,9 +882,16 @@ function createInitialState() {
     serverStatus: {
       exportRoot: null,
       previewManifest: null,
+      checkpointHistory: null,
+      workspaceFollow: null,
+      transport: buildTransportDescriptor(),
+      outputDigest: null,
+      outputActivity: [],
+      sessionEvents: [],
     },
     captureTimer: null,
     previewStateTimer: null,
+    outputCheckpointInFlight: false,
     draftElement: null,
     isDrawing: false,
     flowDrag: null,
@@ -963,6 +1142,7 @@ function renderAll() {
   renderCaptures();
   renderSpec();
   renderCodexOutput();
+  renderCheckpointPanel();
   renderUndoRedo();
   renderServerStatus();
 }
@@ -1069,6 +1249,9 @@ function renderFrameList() {
   dom.frameList.innerHTML = state.frames
     .map((frame, index) => {
       const viewport = viewportPresets[frame.viewport];
+      const outputStatus = describeFrameOutputStatus(frame, {
+        includeGlobal: frame.id === state.activeFrameId,
+      });
       const subtitle = [viewport.label, timeLabel(frame.updatedAt)]
         .filter(Boolean)
         .join(" • ");
@@ -1078,7 +1261,10 @@ function renderFrameList() {
             ${frame.thumbnail ? `<img src="${frame.thumbnail}" alt="" />` : ""}
           </div>
           <div class="frame-meta">
-            <strong>${index + 1}. ${escapeHtml(frame.title)}</strong>
+            <div class="frame-meta-row">
+              <strong>${index + 1}. ${escapeHtml(frame.title)}</strong>
+              ${renderFrameOutputBadge(outputStatus)}
+            </div>
             <span>${escapeHtml(subtitle)}</span>
             <span>${frame.captures.length} capture${frame.captures.length === 1 ? "" : "s"}</span>
           </div>
@@ -1091,6 +1277,9 @@ function renderFrameList() {
 function renderFrameForm() {
   const frame = currentFrame();
   const viewport = viewportPresets[frame.viewport];
+  const outputStatus = describeFrameOutputStatus(frame, {
+    includeGlobal: true,
+  });
   dom.frameTitle.value = frame.title;
   dom.viewportSelect.value = frame.viewport;
   dom.frameObjective.value = frame.objective;
@@ -1103,7 +1292,18 @@ function renderFrameForm() {
     dom.stageSubtitle.textContent = `${state.frames.length} frames • ${state.connections.length} links • entry: ${frameTitleById(state.entryFrameId)}`;
   } else {
     dom.stageTitle.textContent = frame.title;
-    dom.stageSubtitle.textContent = `${viewport.label} canvas • ${viewport.width}×${viewport.height} • ${frame.backgroundImage ? "reference underlay loaded" : "blank sketch sheet"}`;
+    const subtitleParts = [
+      `${viewport.label} canvas`,
+      `${viewport.width}×${viewport.height}`,
+      frame.backgroundImage
+        ? "reference underlay loaded"
+        : "blank sketch sheet",
+    ];
+    if (outputStatus?.label) {
+      subtitleParts.push(outputStatus.label.toLowerCase());
+    }
+    dom.stageSubtitle.textContent = subtitleParts.join(" • ");
+    dom.stageSubtitle.title = outputStatus?.detail || "";
   }
 }
 
@@ -1335,6 +1535,7 @@ function stopVoiceDictation() {
   stopVoiceRecognitionInstance();
   renderVoicePanel();
   renderStatus("Dictation stopped");
+  void saveCheckpointToWorkspace("dictation-stop", { silent: true });
 }
 
 function humanizeVoiceError(code) {
@@ -1362,6 +1563,7 @@ function addManualVoiceNote() {
   state.voice.manualDraft = "";
   dom.voiceManualInput.value = "";
   renderVoicePanel();
+  void saveCheckpointToWorkspace("voice-note", { silent: true });
 }
 
 function clearVoiceScope() {
@@ -1453,9 +1655,16 @@ function renderCodexOutput() {
     typeof manifest?.notes === "string" ? manifest.notes.trim() : "";
   const targetHref = target?.resolvedUrl || target?.url || "";
   const freshness = describeManifestFreshness(target, currentFrame());
+  const refinement = describeTargetRefinement(target);
+  const codexManifestSource =
+    typeof manifest?.source === "string" ? manifest.source : "";
 
   dom.codexOpenTarget.hidden = !targetHref;
   dom.codexOpenTarget.href = targetHref || "#";
+  dom.codexClearOutput.disabled = !(
+    codexManifestSource.includes("codex") || changes.length
+  );
+  dom.codexPublishOutput.disabled = false;
 
   if (!target) {
     dom.codexOutputSummary.className = "codex-output-summary empty-state";
@@ -1472,6 +1681,7 @@ function renderCodexOutput() {
       <p class="artifact-meta">${escapeHtml(target.source || "manifest")} • ${escapeHtml(routeLabel)}</p>
       ${target.description ? `<p class="artifact-copy">${escapeHtml(target.description)}</p>` : ""}
       ${freshness ? `<p class="artifact-copy">${escapeHtml(freshness)}</p>` : ""}
+      ${refinement ? `<p class="artifact-copy">${escapeHtml(refinement)}</p>` : ""}
       ${notes ? `<p class="artifact-copy">${escapeHtml(notes)}</p>` : ""}
     `;
   }
@@ -1490,6 +1700,113 @@ function renderCodexOutput() {
     emptyMessage: "No changed files attached yet.",
     fallbackKind: "updated",
   });
+  renderOutputActivity();
+  renderRewriteQueue();
+}
+
+function renderOutputActivity() {
+  const items = Array.isArray(state.serverStatus.outputActivity)
+    ? state.serverStatus.outputActivity
+    : [];
+  dom.outputActivityCount.textContent = `${items.length} ${items.length === 1 ? "item" : "items"}`;
+  if (!items.length) {
+    dom.outputActivityList.className = "artifact-inbox empty-state";
+    dom.outputActivityList.textContent =
+      "No live output activity yet. Keep sketching or let Codex change files and this feed will update.";
+    return;
+  }
+
+  dom.outputActivityList.className = "artifact-inbox";
+  dom.outputActivityList.innerHTML = items
+    .map(
+      (item) => `
+        <article class="artifact-item output-activity-item">
+          <div class="artifact-item-row">
+            <strong>${escapeHtml(item.summary || "Output update")}</strong>
+            <span class="artifact-kind subtle">${escapeHtml(timeLabel(item.at))}</span>
+          </div>
+          ${item.detail ? `<p class="artifact-meta">${escapeHtml(item.detail)}</p>` : ""}
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderRewriteQueue() {
+  const items = buildRewriteQueue();
+  dom.rewriteQueueCount.textContent = `${items.length} ${items.length === 1 ? "frame" : "frames"}`;
+  if (!items.length) {
+    dom.rewriteQueueList.className = "artifact-inbox empty-state";
+    dom.rewriteQueueList.textContent =
+      "No frames currently need rewrite attention.";
+    return;
+  }
+
+  dom.rewriteQueueList.className = "artifact-inbox";
+  dom.rewriteQueueList.innerHTML = items
+    .map(
+      (item) => `
+        <article class="artifact-item output-activity-item">
+          <div class="artifact-item-row">
+            <strong>${escapeHtml(item.title || "Untitled frame")}</strong>
+            <span class="artifact-kind subtle">${escapeHtml(item.label)}</span>
+          </div>
+          ${item.detail ? `<p class="artifact-meta">${escapeHtml(item.detail)}</p>` : ""}
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderCheckpointPanel() {
+  const history = state.serverStatus.checkpointHistory || { items: [] };
+  const items = Array.isArray(history.items) ? history.items : [];
+  dom.checkpointCount.textContent = `${items.length} ${items.length === 1 ? "item" : "items"}`;
+  dom.checkpointPush.disabled = false;
+
+  if (!items.length) {
+    dom.checkpointList.className = "checkpoint-list empty-state";
+    dom.checkpointList.textContent = "No checkpoints saved yet.";
+    return;
+  }
+
+  dom.checkpointList.className = "checkpoint-list";
+  dom.checkpointList.innerHTML = items
+    .map((item) => {
+      const links = [
+        item.checkpointUrl
+          ? `<a class="ghost-link-button artifact-link" href="${escapeHtml(item.checkpointUrl)}" target="_blank" rel="noopener noreferrer">Open checkpoint</a>`
+          : "",
+        item.jsonUrl
+          ? `<a class="ghost-link-button artifact-link" href="${escapeHtml(item.jsonUrl)}" target="_blank" rel="noopener noreferrer">Open export</a>`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("");
+      const meta = [
+        checkpointReasonLabel(item.reason),
+        item.frameTitle || "Whole board",
+        item.voiceSegmentCount ? `${item.voiceSegmentCount} voice` : "No voice",
+        item.captureCount ? `${item.captureCount} captures` : "No captures",
+      ].join(" • ");
+
+      return `
+        <article class="artifact-item checkpoint-item">
+          <div class="artifact-item-row">
+            <strong>${escapeHtml(item.label || checkpointReasonLabel(item.reason))}</strong>
+            <span class="artifact-kind subtle">${escapeHtml(timeLabel(item.savedAt))}</span>
+          </div>
+          <p class="artifact-meta">${escapeHtml(meta)}</p>
+          ${
+            item.targetLabel
+              ? `<p class="artifact-copy">${escapeHtml(`Target: ${item.targetLabel}`)}</p>`
+              : ""
+          }
+          ${links ? `<div class="button-row tight">${links}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderArtifactInbox({
@@ -1538,6 +1855,14 @@ function renderServerStatus() {
   const artifacts = collectManifestArtifacts(manifest);
   const changes = collectManifestChanges(manifest);
   const freshness = describeManifestFreshness(target, currentFrame());
+  const refinement = describeTargetRefinement(target);
+  const workspaceFollowText = describeWorkspaceFollow(
+    state.serverStatus.workspaceFollow,
+  );
+  dom.transportStatus.textContent = describeTransportSummary();
+
+  dom.workspaceFollowStatus.hidden = !workspaceFollowText;
+  dom.workspaceFollowStatus.textContent = workspaceFollowText;
 
   if (!manifest) {
     dom.analyzeStatus.textContent =
@@ -1546,20 +1871,239 @@ function renderServerStatus() {
   }
 
   if (target && (artifacts.length || changes.length)) {
+    const linkedText = `${artifacts.length} artifact${artifacts.length === 1 ? "" : "s"} and ${changes.length} changed file${changes.length === 1 ? "" : "s"} are linked to this board.`;
     dom.analyzeStatus.textContent = freshness
-      ? `${freshness} ${artifacts.length} artifact${artifacts.length === 1 ? "" : "s"} and ${changes.length} changed file${changes.length === 1 ? "" : "s"} are linked to this board.`
-      : `Codex output is attached: ${artifacts.length} artifact${artifacts.length === 1 ? "" : "s"} and ${changes.length} changed file${changes.length === 1 ? "" : "s"} are linked to this board.`;
+      ? `${freshness} ${refinement ? `${refinement} ` : ""}${linkedText}`
+      : `Codex output is attached: ${refinement ? `${refinement} ` : ""}${linkedText}`;
     return;
   }
 
   if (target) {
-    dom.analyzeStatus.textContent =
-      "A connected implementation target is attached to this board. Open it directly or use Preview to compare it against the sketch.";
+    dom.analyzeStatus.textContent = refinement
+      ? `${refinement} Open the connected target directly or use Preview to compare it against the sketch.`
+      : "A connected implementation target is attached to this board. Open it directly or use Preview to compare it against the sketch.";
     return;
   }
 
   dom.analyzeStatus.textContent =
     "Canvax keeps a live export for Codex. Use the canvas, pause for autosnap, then ask Codex to read the latest Canvax export.";
+}
+
+function describeWorkspaceFollow(workspaceFollow) {
+  if (!workspaceFollow || typeof workspaceFollow !== "object") {
+    return "";
+  }
+
+  if (workspaceFollow.enabled === false) {
+    return workspaceFollow.error
+      ? `Live workspace follow is unavailable: ${workspaceFollow.error}`
+      : "Live workspace follow is unavailable right now.";
+  }
+
+  if (workspaceFollow.source !== "git-status-live") {
+    return "";
+  }
+
+  const count = Number.isInteger(workspaceFollow.changeCount)
+    ? workspaceFollow.changeCount
+    : 0;
+  const targetLabel =
+    typeof workspaceFollow.frameTitle === "string" &&
+    workspaceFollow.frameTitle.trim()
+      ? workspaceFollow.frameTitle.trim()
+      : "the current board";
+
+  if (count > 0) {
+    return `Live workspace follow is mirroring ${count} current git change${count === 1 ? "" : "s"} for ${targetLabel}.`;
+  }
+
+  return `Live workspace follow is on. The workspace is currently clean for ${targetLabel}.`;
+}
+
+function buildOutputActivityDetail(outputDigest) {
+  if (!outputDigest || typeof outputDigest !== "object") {
+    return "";
+  }
+
+  const parts = [];
+  if (outputDigest.targetLabel) {
+    parts.push(outputDigest.targetLabel);
+  }
+  if (Number.isInteger(outputDigest.changeCount)) {
+    parts.push(
+      `${outputDigest.changeCount} changed file${outputDigest.changeCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (Number.isInteger(outputDigest.artifactCount)) {
+    parts.push(
+      `${outputDigest.artifactCount} artifact${outputDigest.artifactCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (outputDigest.refinementSummary) {
+    parts.push(outputDigest.refinementSummary);
+  }
+  if (!parts.length && outputDigest.frameTitle) {
+    parts.push(outputDigest.frameTitle);
+  }
+  return parts.join(" • ");
+}
+
+function updateOutputActivityHistory(
+  currentItems,
+  previousDigest,
+  nextDigest,
+  at = new Date().toISOString(),
+) {
+  const items = Array.isArray(currentItems) ? [...currentItems] : [];
+  const previousKey = previousDigest?.digest || "";
+  const nextKey = nextDigest?.digest || "";
+
+  if (!nextKey) {
+    return items;
+  }
+
+  if (items.length && items[0]?.digest === nextKey) {
+    return items;
+  }
+
+  if (!previousKey && !items.length) {
+    return [
+      {
+        id: `${nextKey}-${at}`,
+        digest: nextKey,
+        at,
+        summary: nextDigest.summary || "Current output context attached",
+        detail: buildOutputActivityDetail(nextDigest),
+      },
+    ];
+  }
+
+  if (previousKey === nextKey) {
+    return items;
+  }
+
+  return [
+    {
+      id: `${nextKey}-${at}`,
+      digest: nextKey,
+      at,
+      summary: nextDigest.summary || "Output context changed",
+      detail: buildOutputActivityDetail(nextDigest),
+    },
+    ...items,
+  ].slice(0, MAX_OUTPUT_ACTIVITY_ITEMS);
+}
+
+function buildOutputActivityFromSessionEvents(sessionEvents) {
+  if (!Array.isArray(sessionEvents)) {
+    return [];
+  }
+
+  return sessionEvents
+    .filter((event) => {
+      if (!event || typeof event !== "object") {
+        return false;
+      }
+      const reason = typeof event.reason === "string" ? event.reason : "";
+      return (
+        reason === "output-update" ||
+        reason === "publish-output" ||
+        reason === "materialize"
+      );
+    })
+    .map((event) => {
+      const digest =
+        typeof event.outputDigest?.digest === "string"
+          ? event.outputDigest.digest
+          : "";
+      const detail = [
+        typeof event.outputDigest?.targetLabel === "string"
+          ? event.outputDigest.targetLabel
+          : "",
+        Number.isInteger(event.summary?.changeCount)
+          ? `${event.summary.changeCount} changed file${event.summary.changeCount === 1 ? "" : "s"}`
+          : "",
+        Number.isInteger(event.summary?.artifactCount)
+          ? `${event.summary.artifactCount} artifact${event.summary.artifactCount === 1 ? "" : "s"}`
+          : "",
+        typeof event.outputDigest?.refinementSummary === "string"
+          ? event.outputDigest.refinementSummary
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" • ");
+
+      return {
+        id:
+          typeof event.id === "string" && event.id.trim()
+            ? event.id.trim()
+            : `${digest || event.reason || "event"}-${event.at || ""}`,
+        digest,
+        at:
+          typeof event.at === "string" && event.at.trim()
+            ? event.at.trim()
+            : new Date().toISOString(),
+        summary:
+          typeof event.note === "string" && event.note.trim()
+            ? event.note.trim()
+            : typeof event.label === "string" && event.label.trim()
+              ? event.label.trim()
+              : "Output update",
+        detail,
+      };
+    });
+}
+
+function mergeOutputActivityEntries(...groups) {
+  const merged = [];
+  const seen = new Set();
+  groups.flat().forEach((item) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const key =
+      (typeof item.digest === "string" && item.digest.trim()) ||
+      (typeof item.id === "string" && item.id.trim());
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    merged.push(item);
+  });
+  return merged.slice(0, MAX_OUTPUT_ACTIVITY_ITEMS);
+}
+
+async function maybeCheckpointOutputUpdate(previousDigest, nextDigest) {
+  if (
+    !previousDigest ||
+    !nextDigest ||
+    previousDigest.digest === nextDigest.digest ||
+    state.outputCheckpointInFlight
+  ) {
+    return;
+  }
+
+  if (
+    nextDigest.mode !== "target-connected" &&
+    nextDigest.mode !== "context-only"
+  ) {
+    return;
+  }
+
+  const currentFrameLabel = currentFrame()?.title || "the current board";
+  state.outputCheckpointInFlight = true;
+  try {
+    await saveCheckpointToWorkspace("output-update", {
+      silent: true,
+      exportResult: buildExistingExportReference(),
+      label: "Output update",
+      note:
+        nextDigest.summary ||
+        `Connected output changed while working on ${currentFrameLabel}.`,
+    });
+  } finally {
+    state.outputCheckpointInFlight = false;
+  }
 }
 
 function renderFlowBoard() {
@@ -4124,7 +4668,50 @@ function freezeFrame(manual = false) {
   renderCaptures();
   renderStatus(manual ? "Manual freeze saved" : "Autosnap freeze saved");
   scheduleLivePreviewSync();
-  void saveExportToWorkspace({ silent: true });
+  void syncFreezeHandoff(manual);
+}
+
+async function syncFreezeHandoff(manual = false) {
+  const reason = manual ? "manual-freeze" : "autosnap-freeze";
+  const exportResult = await saveExportToWorkspace({ silent: true });
+  if (!exportResult) {
+    return null;
+  }
+  await refreshMaterializedFrameFromFreeze(exportResult);
+  await saveCheckpointToWorkspace(reason, {
+    silent: true,
+    exportResult,
+  });
+  return exportResult;
+}
+
+function frameHasMaterializedTarget(
+  frameId,
+  manifest = state.serverStatus.previewManifest || null,
+) {
+  if (!frameId) {
+    return false;
+  }
+  return collectManifestTargets(manifest).some(
+    (target) =>
+      target.frameIds.includes(frameId) &&
+      (target.type === "materialized-preview" ||
+        target.source === "canvax-materialize"),
+  );
+}
+
+async function refreshMaterializedFrameFromFreeze(exportResult = null) {
+  const frame = currentFrame();
+  if (!frame || !frameHasMaterializedTarget(frame.id)) {
+    return null;
+  }
+  return materializeCurrentFrame({
+    silent: true,
+    announce: false,
+    openPreview: false,
+    skipCheckpoint: true,
+    exportResult,
+  });
 }
 
 async function applyBackgroundFile(file) {
@@ -4215,7 +4802,10 @@ async function fetchServerStatus() {
   try {
     const response = await fetch("/api/status");
     const data = await response.json();
-    state.serverStatus = data;
+    state.serverStatus = {
+      ...data,
+      transport: buildTransportDescriptor(data.transport),
+    };
     renderServerStatus();
     if (data.exportRoot) {
       dom.workspaceStatus.textContent = `Live canvas updates will be written to ${data.exportRoot}. Use Preview for a separate live viewer tab.`;
@@ -4232,9 +4822,31 @@ async function refreshPreviewStateFromServer() {
     if (!response.ok) {
       throw new Error(data.error || "Preview state unavailable.");
     }
+    const previousOutputDigest = state.serverStatus.outputDigest || null;
+    const nextOutputDigest = data.outputDigest || null;
+    const localOutputActivity = updateOutputActivityHistory(
+      state.serverStatus.outputActivity,
+      previousOutputDigest,
+      nextOutputDigest,
+      data.updatedAt || new Date().toISOString(),
+    );
+    const persistedOutputActivity = buildOutputActivityFromSessionEvents(
+      data.sessionEvents || [],
+    );
+    const nextOutputActivity = mergeOutputActivityEntries(
+      localOutputActivity,
+      persistedOutputActivity,
+    );
     state.serverStatus = {
       ...state.serverStatus,
       previewManifest: data.previewManifest || null,
+      workspaceFollow: data.workspaceFollow || null,
+      transport: buildTransportDescriptor(data.transport),
+      outputDigest: nextOutputDigest,
+      outputActivity: nextOutputActivity,
+      sessionEvents: Array.isArray(data.sessionEvents)
+        ? data.sessionEvents
+        : [],
       previewManifestPath:
         data.paths?.previewManifestPath ||
         state.serverStatus.previewManifestPath ||
@@ -4247,13 +4859,35 @@ async function refreshPreviewStateFromServer() {
         data.paths?.liveVoiceMarkdownPath ||
         state.serverStatus.liveVoiceMarkdownPath ||
         "",
+      checkpointHistory:
+        data.checkpointHistory || state.serverStatus.checkpointHistory || null,
+      checkpointLatestPath:
+        data.paths?.checkpointLatestPath ||
+        state.serverStatus.checkpointLatestPath ||
+        "",
+      checkpointsIndexPath:
+        data.paths?.checkpointsIndexPath ||
+        state.serverStatus.checkpointsIndexPath ||
+        "",
+      sessionEventsPath:
+        data.paths?.sessionEventsPath ||
+        state.serverStatus.sessionEventsPath ||
+        "",
     };
+    renderCheckpointPanel();
     renderCodexOutput();
     renderServerStatus();
+    void maybeCheckpointOutputUpdate(previousOutputDigest, nextOutputDigest);
   } catch {
     state.serverStatus = {
       ...state.serverStatus,
       previewManifest: state.serverStatus.previewManifest || null,
+      checkpointHistory: state.serverStatus.checkpointHistory || null,
+      workspaceFollow: state.serverStatus.workspaceFollow || null,
+      transport: state.serverStatus.transport || buildTransportDescriptor(),
+      outputDigest: state.serverStatus.outputDigest || null,
+      outputActivity: state.serverStatus.outputActivity || [],
+      sessionEvents: state.serverStatus.sessionEvents || [],
     };
   } finally {
     window.clearTimeout(state.previewStateTimer);
@@ -4337,6 +4971,15 @@ function buildPromptMarkdown() {
     );
   }
 
+  const rewriteQueue = buildRewriteQueue();
+  if (rewriteQueue.length) {
+    lines.push("");
+    lines.push("## Rewrite queue");
+    rewriteQueue.slice(0, 6).forEach((item) => {
+      lines.push(`- ${item.title}: ${item.label}. ${item.detail}`);
+    });
+  }
+
   lines.push("");
   lines.push("## Output ask");
   lines.push(
@@ -4389,6 +5032,8 @@ function buildVoiceExport(frameSelection = state.frames) {
     .filter(Boolean);
 
   return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    storageVersion: STORAGE_VERSION,
     activeScope: state.voice.scope,
     segmentCount: segments.length,
     sessionSegmentCount: segments.filter(
@@ -4468,6 +5113,7 @@ function collapseVoiceTextForMarkdown(value) {
 }
 
 async function buildExportPackage(frameSelection = state.frames) {
+  const rewriteQueue = buildRewriteQueue(frameSelection);
   const selectedFrames = [];
   for (const [index, frame] of frameSelection.entries()) {
     await ensureImage(frame.backgroundImage);
@@ -4503,7 +5149,10 @@ async function buildExportPackage(frameSelection = state.frames) {
   }
 
   return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    storageVersion: STORAGE_VERSION,
     generatedAt: new Date().toISOString(),
+    transport: currentTransportDescriptor(),
     board: state.board,
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
@@ -4512,10 +5161,182 @@ async function buildExportPackage(frameSelection = state.frames) {
       fromTitle: frameTitleById(connection.fromFrameId),
       toTitle: frameTitleById(connection.toFrameId),
     })),
+    rewriteQueue,
     voice: buildVoiceExport(frameSelection),
     prompt: buildPromptMarkdown(),
     frames: selectedFrames,
   };
+}
+
+function checkpointReasonLabel(reason) {
+  const labels = {
+    "manual-push": "Manual checkpoint",
+    "manual-freeze": "Manual freeze",
+    "autosnap-freeze": "Autosnap freeze",
+    "dictation-stop": "Dictation stop",
+    "voice-note": "Voice note",
+    materialize: "Materialize",
+    "publish-output": "Published output",
+    "output-update": "Output update",
+  };
+  return labels[reason] || "Checkpoint";
+}
+
+function summarizeFrameForCheckpoint(frame, index) {
+  return {
+    id: frame.id,
+    index: index + 1,
+    title: frame.title,
+    viewport: frame.viewport,
+    objective: frame.objective,
+    layout: frame.layout,
+    motion: frame.motion,
+    assets: frame.assets,
+    mobile: frame.mobile,
+    updatedAt: frame.updatedAt,
+    captureCount: frame.captures.length,
+    latestCaptureAt: frame.captures[0]?.at || "",
+  };
+}
+
+function summarizeManifestItems(items, kind) {
+  return items.map((item) => ({
+    id: item.id || "",
+    label: item.label || item.path || item.url || "",
+    kind: item.kind || kind,
+    path: item.path || item.previewPath || "",
+    url: item.url || item.resolvedUrl || "",
+    summary: item.summary || item.description || "",
+    frameIds: Array.isArray(item.frameIds) ? [...item.frameIds] : [],
+    source: item.source || "",
+  }));
+}
+
+function buildCheckpointPayload(reason, exportResult = null, options = {}) {
+  const frame = currentFrame();
+  const manifest = state.serverStatus.previewManifest || null;
+  const target = resolveManifestTargetEntry(manifest, state.activeFrameId);
+  const artifacts = collectManifestArtifacts(manifest);
+  const changes = collectManifestChanges(manifest);
+  const rewriteQueue = buildRewriteQueue();
+  const voice = buildVoiceExport();
+  const totalCaptureCount = state.frames.reduce(
+    (sum, entry) => sum + entry.captures.length,
+    0,
+  );
+
+  return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    storageVersion: STORAGE_VERSION,
+    savedAt: new Date().toISOString(),
+    transport: currentTransportDescriptor(),
+    reason,
+    label:
+      typeof options.label === "string" && options.label.trim()
+        ? options.label.trim()
+        : checkpointReasonLabel(reason),
+    note:
+      typeof options.note === "string" && options.note.trim()
+        ? options.note.trim()
+        : "",
+    board: structuredClone(state.board),
+    activeFrameId: state.activeFrameId,
+    activeFrameTitle: frame?.title || "",
+    entryFrameId: state.entryFrameId,
+    connections: state.connections.map((connection) => ({
+      ...structuredClone(connection),
+      fromTitle: frameTitleById(connection.fromFrameId),
+      toTitle: frameTitleById(connection.toFrameId),
+    })),
+    frames: state.frames.map((entry, index) =>
+      summarizeFrameForCheckpoint(entry, index),
+    ),
+    voice,
+    summary: {
+      frameCount: state.frames.length,
+      connectionCount: state.connections.length,
+      captureCount: totalCaptureCount,
+      voiceSegmentCount: voice.segmentCount,
+      artifactCount: artifacts.length,
+      changeCount: changes.length,
+      pendingRewriteCount: rewriteQueue.length,
+    },
+    export:
+      exportResult && typeof exportResult === "object"
+        ? {
+            archiveRoot: exportResult.archiveRoot || "",
+            jsonPath: exportResult.jsonPath || "",
+            markdownPath: exportResult.markdownPath || "",
+            voiceMarkdownPath: exportResult.voiceMarkdownPath || "",
+          }
+        : null,
+    previewTarget: target
+      ? {
+          id: target.id || "",
+          label: target.label || "",
+          type: target.type || "",
+          previewPath: target.previewPath || "",
+          url: target.url || target.resolvedUrl || "",
+          source: target.source || "",
+          description: target.description || "",
+        }
+      : null,
+    outputDigest: state.serverStatus.outputDigest || null,
+    rewriteQueue,
+    artifacts: summarizeManifestItems(artifacts, "artifact"),
+    changes: summarizeManifestItems(changes, "updated"),
+    prompt: buildPromptMarkdown(),
+  };
+}
+
+function buildExistingExportReference() {
+  return {
+    archiveRoot: state.saveNotice || "",
+    jsonPath: state.serverStatus.liveJsonPath || "",
+    markdownPath: state.serverStatus.liveMarkdownPath || "",
+    voiceMarkdownPath: state.serverStatus.liveVoiceMarkdownPath || "",
+  };
+}
+
+async function saveCheckpointToWorkspace(reason, options = {}) {
+  const { silent = true, exportResult = null } = options;
+  try {
+    const resolvedExport =
+      exportResult || (await saveExportToWorkspace({ silent: true }));
+    const checkpoint = buildCheckpointPayload(reason, resolvedExport, options);
+    const response = await fetch("/api/save-checkpoint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checkpoint }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Checkpoint save failed.");
+    }
+
+    state.serverStatus = {
+      ...state.serverStatus,
+      checkpointHistory:
+        data.checkpointHistory || state.serverStatus.checkpointHistory,
+      checkpointLatestPath:
+        data.latestCheckpointPath || state.serverStatus.checkpointLatestPath,
+      checkpointsIndexPath:
+        data.checkpointsIndexPath || state.serverStatus.checkpointsIndexPath,
+      sessionEventsPath:
+        data.sessionEventsPath || state.serverStatus.sessionEventsPath,
+    };
+    renderCheckpointPanel();
+    if (!silent) {
+      dom.workspaceStatus.textContent = `Checkpoint saved to ${data.latestCheckpointPath}`;
+    }
+    return data;
+  } catch (error) {
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        error instanceof Error ? error.message : "Checkpoint save failed.";
+    }
+    return null;
+  }
 }
 
 function normalizeMaterializePoint(point) {
@@ -4600,7 +5421,10 @@ async function buildMaterializePayload(frame = currentFrame()) {
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   await ensureImage(frame.backgroundImage);
   return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    storageVersion: STORAGE_VERSION,
     generatedAt: new Date().toISOString(),
+    transport: currentTransportDescriptor(),
     board: structuredClone(state.board),
     frame: {
       id: frame.id,
@@ -4634,7 +5458,64 @@ async function buildMaterializePayload(frame = currentFrame()) {
   };
 }
 
-function renderFrameToDataUrl(
+function renderFrameToDataUrl(frame, options = {}) {
+  const cacheKey = buildFrameRenderCacheKey(frame, options);
+  let frameCache = frameRenderCache.get(frame.id);
+  if (!frameCache) {
+    frameCache = new Map();
+    frameRenderCache.set(frame.id, frameCache);
+  }
+
+  const cacheToken = buildFrameRenderCacheToken(frame);
+  const cached = frameCache.get(cacheKey);
+  if (cached?.token === cacheToken && typeof cached.dataUrl === "string") {
+    return cached.dataUrl;
+  }
+
+  const dataUrl = renderFrameToDataUrlUncached(frame, options);
+  frameCache.set(cacheKey, {
+    token: cacheToken,
+    dataUrl,
+  });
+  return dataUrl;
+}
+
+function buildFrameRenderCacheKey(
+  frame,
+  { maxWidth, mime = "image/png", quality = 0.92 } = {},
+) {
+  return [
+    frame.viewport,
+    maxWidth || "full",
+    mime,
+    Number(quality).toFixed(2),
+  ].join("|");
+}
+
+function buildFrameRenderCacheToken(frame) {
+  return [
+    frame.updatedAt || "",
+    frame.backgroundImage || "",
+    Array.isArray(frame.elements) ? frame.elements.length : 0,
+    Array.isArray(frame.captures) ? frame.captures.length : 0,
+    frame.thumbnail || "",
+  ].join("|");
+}
+
+function pruneFrameRenderCache(frames = state.frames) {
+  const validFrameIds = new Set(
+    Array.isArray(frames)
+      ? frames.map((frame) => frame.id).filter(Boolean)
+      : [],
+  );
+  [...frameRenderCache.keys()].forEach((frameId) => {
+    if (!validFrameIds.has(frameId)) {
+      frameRenderCache.delete(frameId);
+    }
+  });
+}
+
+function renderFrameToDataUrlUncached(
   frame,
   { maxWidth, mime = "image/png", quality = 0.92 } = {},
 ) {
@@ -4686,42 +5567,64 @@ async function saveExportToWorkspace(options = {}) {
       throw new Error(data.error || "Export save failed.");
     }
     state.saveNotice = data.archiveRoot;
+    await publishWorkspaceOutput({
+      silent: true,
+      skipCheckpoint: true,
+    });
     persistState();
     dom.workspaceStatus.textContent = silent
       ? `Live canvas synced to ${data.jsonPath}`
       : `Saved latest export to ${data.jsonPath}`;
+    return data;
   } catch (error) {
     if (!silent) {
       dom.workspaceStatus.textContent =
         error instanceof Error ? error.message : "Export save failed.";
     }
+    return null;
   } finally {
     dom.saveWorkspace.disabled = false;
   }
 }
 
-async function materializeCurrentFrame() {
+async function materializeCurrentFrame(options = {}) {
+  const {
+    silent = false,
+    announce = true,
+    openPreview = true,
+    skipCheckpoint = false,
+    exportResult = null,
+  } = options;
   const frame = currentFrame();
   if (!frame) {
-    return;
+    return null;
   }
 
   const hasCanvasState =
     frame.elements.length || frame.backgroundImage || frame.captures.length;
   if (!hasCanvasState) {
-    dom.workspaceStatus.textContent =
-      "Add a sketch, labels, or a reference first, then materialize it.";
-    renderStatus("Nothing to materialize yet");
-    return;
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        "Add a sketch, labels, or a reference first, then materialize it.";
+    }
+    if (announce) {
+      renderStatus("Nothing to materialize yet");
+    }
+    return null;
   }
 
   const originalLabel = dom.materializeFrame.textContent;
   try {
     dom.materializeFrame.disabled = true;
-    dom.materializeFrame.textContent = "Materializing...";
-    dom.workspaceStatus.textContent = `Materializing ${frame.title}...`;
-    renderStatus(`Materializing ${frame.title}...`);
-    await saveExportToWorkspace({ silent: true });
+    if (!silent) {
+      dom.materializeFrame.textContent = "Materializing...";
+      dom.workspaceStatus.textContent = `Materializing ${frame.title}...`;
+    }
+    if (announce) {
+      renderStatus(`Materializing ${frame.title}...`);
+    }
+    const resolvedExport =
+      exportResult || (await saveExportToWorkspace({ silent: true }));
     const payload = await buildMaterializePayload(frame);
     const response = await fetch("/api/materialize-frame", {
       method: "POST",
@@ -4745,13 +5648,33 @@ async function materializeCurrentFrame() {
     renderCodexOutput();
     renderServerStatus();
     scheduleLivePreviewSync();
-    openPreviewWindow({ announce: false });
-    dom.workspaceStatus.textContent = `Materialized ${frame.title} to ${data.previewPath}`;
-    renderStatus(`Materialized ${frame.title}`);
+    void refreshPreviewStateFromServer();
+    if (openPreview) {
+      openPreviewWindow({ announce: false });
+    }
+    if (!skipCheckpoint) {
+      void saveCheckpointToWorkspace("materialize", {
+        silent: true,
+        exportResult: resolvedExport,
+        note: `Materialized ${frame.title} from the current Canvax frame.`,
+      });
+    }
+    if (!silent) {
+      dom.workspaceStatus.textContent = `Materialized ${frame.title} to ${data.previewPath}`;
+    }
+    if (announce) {
+      renderStatus(`Materialized ${frame.title}`);
+    }
+    return data;
   } catch (error) {
-    dom.workspaceStatus.textContent =
-      error instanceof Error ? error.message : "Materialize failed.";
-    renderStatus("Materialize failed");
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        error instanceof Error ? error.message : "Materialize failed.";
+    }
+    if (announce) {
+      renderStatus("Materialize failed");
+    }
+    return null;
   } finally {
     dom.materializeFrame.disabled = false;
     dom.materializeFrame.textContent = originalLabel;
@@ -4776,6 +5699,103 @@ async function installSkill() {
   }
 }
 
+async function publishWorkspaceOutput(options = {}) {
+  const frame = currentFrame();
+  const {
+    silent = false,
+    skipCheckpoint = false,
+    frameId = frame?.id || "",
+    frameTitle = frame?.title || "",
+  } = options;
+  const originalLabel = dom.codexPublishOutput.textContent;
+  try {
+    if (!silent) {
+      dom.codexPublishOutput.disabled = true;
+      dom.workspaceStatus.textContent =
+        "Publishing workspace changes back into Canvax...";
+    }
+    const response = await fetch("/api/publish-workspace-output", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        frameId,
+        frameTitle,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Workspace publish failed.");
+    }
+
+    state.serverStatus = {
+      ...state.serverStatus,
+      previewManifest:
+        data.previewManifest || state.serverStatus.previewManifest || null,
+    };
+    renderCodexOutput();
+    renderServerStatus();
+    void refreshPreviewStateFromServer();
+    if (!skipCheckpoint) {
+      void saveCheckpointToWorkspace("publish-output", {
+        silent: true,
+        note:
+          data.changeCount > 0
+            ? `Published ${data.changeCount} workspace change${data.changeCount === 1 ? "" : "s"} for ${frameTitle || "the current board"}.`
+            : "Published the current workspace state back into Canvax.",
+      });
+    }
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        data.changeCount > 0
+          ? `Published ${data.changeCount} workspace change${data.changeCount === 1 ? "" : "s"} to Canvax.`
+          : "Published the current workspace state to Canvax.";
+    }
+    return data;
+  } catch (error) {
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        error instanceof Error ? error.message : "Workspace publish failed.";
+    }
+    return null;
+  } finally {
+    if (!silent) {
+      dom.codexPublishOutput.disabled = false;
+      dom.codexPublishOutput.textContent = originalLabel;
+    }
+  }
+}
+
+async function clearPublishedCodexOutput() {
+  try {
+    dom.codexClearOutput.disabled = true;
+    dom.workspaceStatus.textContent = "Clearing published Codex output...";
+    const response = await fetch("/api/publish-workspace-output", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clear: true }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Clear published output failed.");
+    }
+
+    state.serverStatus = {
+      ...state.serverStatus,
+      previewManifest:
+        data.previewManifest || state.serverStatus.previewManifest || null,
+    };
+    renderCodexOutput();
+    renderServerStatus();
+    void refreshPreviewStateFromServer();
+    dom.workspaceStatus.textContent = "Cleared published Codex output.";
+  } catch (error) {
+    dom.workspaceStatus.textContent =
+      error instanceof Error ? error.message : "Clear published output failed.";
+  } finally {
+    dom.codexClearOutput.disabled = false;
+  }
+}
+
 async function copyPrompt() {
   try {
     await navigator.clipboard.writeText(dom.specOutput.value);
@@ -4787,6 +5807,7 @@ async function copyPrompt() {
 
 function persistState() {
   const snapshot = buildPersistedSnapshot(state);
+  pruneFrameRenderCache(snapshot.frames || []);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   scheduleLivePreviewSync();
 }
@@ -4810,16 +5831,24 @@ function publishLivePreviewState() {
 }
 
 function buildLivePreviewPayload() {
+  const rewriteQueue = buildRewriteQueue();
+  pruneFrameRenderCache();
   return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    storageVersion: STORAGE_VERSION,
     updatedAt: new Date().toISOString(),
+    transport: currentTransportDescriptor(),
     liveMarkdown: buildPromptMarkdown(),
     liveVoiceMarkdown: buildVoiceMarkdown(),
     previewManifest: state.serverStatus.previewManifest || null,
+    rewriteQueue,
     liveExport: {
       generatedAt: new Date().toISOString(),
+      transport: currentTransportDescriptor(),
       board: structuredClone(state.board),
       activeFrameId: state.activeFrameId,
       entryFrameId: state.entryFrameId,
+      rewriteQueue,
       voice: buildVoiceExport(),
       connections: state.connections.map((connection) => ({
         ...structuredClone(connection),
@@ -4883,6 +5912,14 @@ function buildPersistedSnapshot(source) {
     saveNotice: source.saveNotice,
     statusText: source.statusText,
   };
+}
+
+function renderFrameOutputBadge(status) {
+  if (!status?.label) {
+    return "";
+  }
+  const title = status.detail || status.label;
+  return `<span class="frame-status-badge ${escapeHtml(status.tone || "muted")}" title="${escapeHtml(title)}">${escapeHtml(status.label)}</span>`;
 }
 
 function resolveManifestTargetEntry(manifest, preferredFrameId = "") {
@@ -4993,6 +6030,8 @@ function derivePreviewTargetFromArtifacts(manifest, preferredFrameId = "") {
     sourceFrameId: artifact.sourceFrameId || "",
     sourceFrameTitle: artifact.sourceFrameTitle || "",
     sourceFrameUpdatedAt: artifact.sourceFrameUpdatedAt || "",
+    changeSummary: artifact.changeSummary || "",
+    refinement: normalizeRefinementData(artifact.refinement),
   };
 }
 
@@ -5030,6 +6069,13 @@ function normalizeManifestTarget(value, index = 0) {
       previewPath: "",
       description: "",
       frameIds: [],
+      versionTag: "",
+      generatedAt: "",
+      sourceFrameId: "",
+      sourceFrameTitle: "",
+      sourceFrameUpdatedAt: "",
+      changeSummary: "",
+      refinement: normalizeRefinementData(null),
     };
   }
 
@@ -5091,6 +6137,9 @@ function normalizeManifestTarget(value, index = 0) {
       typeof value.sourceFrameUpdatedAt === "string"
         ? value.sourceFrameUpdatedAt.trim()
         : "",
+    changeSummary:
+      typeof value.changeSummary === "string" ? value.changeSummary.trim() : "",
+    refinement: normalizeRefinementData(value.refinement),
   };
 }
 
@@ -5111,6 +6160,13 @@ function normalizeManifestArtifact(value, index = 0) {
           status: "",
           resolvedUrl: "",
           frameIds: [],
+          versionTag: "",
+          generatedAt: "",
+          sourceFrameId: "",
+          sourceFrameTitle: "",
+          sourceFrameUpdatedAt: "",
+          changeSummary: "",
+          refinement: normalizeRefinementData(null),
         }
       : null;
   }
@@ -5165,7 +6221,285 @@ function normalizeManifestArtifact(value, index = 0) {
       typeof value.sourceFrameUpdatedAt === "string"
         ? value.sourceFrameUpdatedAt.trim()
         : "",
+    changeSummary:
+      typeof value.changeSummary === "string" ? value.changeSummary.trim() : "",
+    refinement: normalizeRefinementData(value.refinement),
   };
+}
+
+function normalizeRefinementData(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const counts =
+    source.counts &&
+    typeof source.counts === "object" &&
+    !Array.isArray(source.counts)
+      ? source.counts
+      : {};
+  return {
+    iteration: Math.max(1, Number(source.iteration) || 1),
+    hasPrevious: Boolean(source.hasPrevious),
+    changed: typeof source.changed === "boolean" ? source.changed : false,
+    comparedAgainst:
+      typeof source.comparedAgainst === "string"
+        ? source.comparedAgainst.trim()
+        : "",
+    summary: typeof source.summary === "string" ? source.summary.trim() : "",
+    counts: {
+      added: Math.max(0, Number(counts.added) || 0),
+      removed: Math.max(0, Number(counts.removed) || 0),
+      updated: Math.max(0, Number(counts.updated) || 0),
+      noteFieldsChanged: Math.max(0, Number(counts.noteFieldsChanged) || 0),
+      boardFieldsChanged: Math.max(0, Number(counts.boardFieldsChanged) || 0),
+      backgroundChanged: Math.max(0, Number(counts.backgroundChanged) || 0),
+      viewportChanged: Math.max(0, Number(counts.viewportChanged) || 0),
+      regionCount: Math.max(0, Number(counts.regionCount) || 0),
+    },
+    changedFields: Array.isArray(source.changedFields)
+      ? source.changedFields.filter(Boolean)
+      : [],
+    changedRegions: Array.isArray(source.changedRegions)
+      ? source.changedRegions
+          .map((region) => normalizeRefinementRegion(region))
+          .filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeRefinementRegion(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  return {
+    left: Math.max(0, Number(value.left) || 0),
+    top: Math.max(0, Number(value.top) || 0),
+    width: Math.max(0, Number(value.width) || 0),
+    height: Math.max(0, Number(value.height) || 0),
+    kind: typeof value.kind === "string" ? value.kind.trim() : "",
+    label: typeof value.label === "string" ? value.label.trim() : "",
+  };
+}
+
+function describeTargetRefinement(target) {
+  if (!target) {
+    return "";
+  }
+  return target.changeSummary || target.refinement?.summary || "";
+}
+
+function findFrameSpecificTarget(manifest, frameId) {
+  if (!frameId) {
+    return null;
+  }
+  const explicitTarget = collectManifestTargets(manifest).find((target) => {
+    const frameIds = Array.isArray(target.frameIds) ? target.frameIds : [];
+    return (
+      frameIds.includes(frameId) ||
+      cleanString(target.sourceFrameId) === cleanString(frameId)
+    );
+  });
+  if (explicitTarget) {
+    return explicitTarget;
+  }
+  const artifactTarget = derivePreviewTargetFromArtifacts(manifest, frameId);
+  if (!artifactTarget) {
+    return null;
+  }
+  const frameIds = Array.isArray(artifactTarget.frameIds)
+    ? artifactTarget.frameIds
+    : [];
+  return frameIds.includes(frameId) ||
+    cleanString(artifactTarget.sourceFrameId) === cleanString(frameId)
+    ? artifactTarget
+    : null;
+}
+
+function describeFrameOutputStatus(
+  frame,
+  { includeGlobal = false, manifest = state.serverStatus.previewManifest } = {},
+) {
+  if (!frame) {
+    return null;
+  }
+
+  const specificTarget = findFrameSpecificTarget(manifest, frame.id);
+  const target =
+    specificTarget ||
+    (includeGlobal ? resolveManifestTargetEntry(manifest, frame.id) : null);
+  if (!target) {
+    return null;
+  }
+
+  const detail =
+    describeManifestFreshness(target, frame) ||
+    describeTargetRefinement(target) ||
+    target.label ||
+    "";
+  const stale = detail.startsWith("Current sketch is newer");
+  const bound = Boolean(specificTarget);
+  const materialized =
+    target.type === "materialized-preview" ||
+    target.source === "canvax-materialize";
+
+  if (stale) {
+    return {
+      label: "Output stale",
+      tone: "warning",
+      detail,
+      target,
+    };
+  }
+
+  if (!bound) {
+    return {
+      label: "Global target",
+      tone: "muted",
+      detail:
+        detail ||
+        "A connected output target exists, but it is not scoped to this frame.",
+      target,
+    };
+  }
+
+  return {
+    label: materialized ? "Materialized" : "Output synced",
+    tone: materialized ? "active" : "synced",
+    detail:
+      detail ||
+      (materialized
+        ? "This frame has a connected materialized preview."
+        : "This frame has a connected output target."),
+    target,
+  };
+}
+
+function frameHasMeaningfulHandoff(frame) {
+  if (!frame) {
+    return false;
+  }
+  return Boolean(
+    (Array.isArray(frame.elements) && frame.elements.length) ||
+    (Array.isArray(frame.captures) && frame.captures.length) ||
+    cleanString(frame.backgroundImage) ||
+    cleanString(frame.objective) ||
+    cleanString(frame.layout) ||
+    cleanString(frame.motion) ||
+    cleanString(frame.assets) ||
+    cleanString(frame.mobile),
+  );
+}
+
+function itemHasFrameBinding(item, frameId) {
+  if (!item || !frameId) {
+    return false;
+  }
+  const frameIds = Array.isArray(item.frameIds) ? item.frameIds : [];
+  return (
+    frameIds.includes(frameId) ||
+    cleanString(item.sourceFrameId) === cleanString(frameId)
+  );
+}
+
+function buildRewriteQueue(
+  frames = state.frames,
+  manifest = state.serverStatus.previewManifest,
+  activeFrameId = state.activeFrameId,
+) {
+  const normalizedFrames = Array.isArray(frames) ? frames : [];
+  const targets = collectManifestTargets(manifest);
+  const artifacts = collectManifestArtifacts(manifest);
+  const changes = collectManifestChanges(manifest);
+  const hasAnyTargets = targets.length > 0;
+
+  return normalizedFrames
+    .map((frame, index) => {
+      if (!frameHasMeaningfulHandoff(frame)) {
+        return null;
+      }
+
+      const specificTarget = findFrameSpecificTarget(manifest, frame.id);
+      const relatedArtifacts = artifacts.filter((item) =>
+        itemHasFrameBinding(item, frame.id),
+      );
+      const relatedChanges = changes.filter((item) =>
+        itemHasFrameBinding(item, frame.id),
+      );
+      const freshness = specificTarget
+        ? describeManifestFreshness(specificTarget, frame)
+        : "";
+
+      if (specificTarget && freshness.startsWith("Current sketch is newer")) {
+        return {
+          id: `${frame.id}-stale`,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs refresh",
+          reason: "stale-target",
+          priority: 0,
+          updatedAt: frame.updatedAt,
+          detail: freshness,
+        };
+      }
+
+      if (
+        !specificTarget &&
+        (relatedArtifacts.length || relatedChanges.length)
+      ) {
+        return {
+          id: `${frame.id}-target`,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs target",
+          reason: "missing-target",
+          priority: 1,
+          updatedAt: frame.updatedAt,
+          detail: `This frame already has ${relatedArtifacts.length} artifact${relatedArtifacts.length === 1 ? "" : "s"} and ${relatedChanges.length} changed file${relatedChanges.length === 1 ? "" : "s"} bound to it, but no connected preview target yet.`,
+        };
+      }
+
+      if (!specificTarget && frame.id === activeFrameId && hasAnyTargets) {
+        return {
+          id: `${frame.id}-binding`,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs frame binding",
+          reason: "global-only",
+          priority: 2,
+          updatedAt: frame.updatedAt,
+          detail:
+            "Only a global target is attached right now. Bind a frame-specific target or rematerialize this frame to tighten the live rewrite loop.",
+        };
+      }
+
+      if (!specificTarget && (!hasAnyTargets || frame.id === activeFrameId)) {
+        return {
+          id: `${frame.id}-first`,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs first output",
+          reason: "first-output",
+          priority: hasAnyTargets ? 3 : 2,
+          updatedAt: frame.updatedAt,
+          detail:
+            "This frame has sketch or note content but no connected output yet. Materialize it or bind a generated target when Codex implements it.",
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.priority !== right.priority) {
+        return left.priority - right.priority;
+      }
+      return String(right.updatedAt || "").localeCompare(
+        String(left.updatedAt || ""),
+      );
+    })
+    .map((item, index) => ({
+      ...item,
+      index: index + 1,
+    }));
 }
 
 function describeManifestFreshness(target, frame) {
@@ -5472,10 +6806,201 @@ async function runSelfTest() {
       assert(state.frames.length === beforeAdd, "delete frame works"),
     );
 
-    await saveExportToWorkspace({ silent: true });
+    const exportPackage = await buildExportPackage();
+    results.push(
+      assert(
+        exportPackage.schemaVersion === HANDOFF_SCHEMA_VERSION,
+        "export package includes schema version",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.transport?.mode === TRANSPORT_MODE,
+        "export package includes transport metadata",
+      ),
+    );
+    const checkpointPayload = buildCheckpointPayload("manual-push", {
+      jsonPath: "exports/canvax-live-latest.json",
+      markdownPath: "exports/canvax-live-latest.md",
+      voiceMarkdownPath: "exports/canvax-voice-latest.md",
+    });
+    results.push(
+      assert(
+        checkpointPayload.schemaVersion === HANDOFF_SCHEMA_VERSION,
+        "checkpoint payload includes schema version",
+      ),
+    );
+    results.push(
+      assert(
+        checkpointPayload.transport?.future?.mode === FUTURE_TRANSPORT_MODE,
+        "checkpoint payload carries future transport path",
+      ),
+    );
+
+    const exportResult = await saveExportToWorkspace({ silent: true });
     results.push(
       assert(Boolean(state.saveNotice), "workspace export completes"),
     );
+    results.push(
+      assert(
+        Boolean(state.serverStatus.previewManifest),
+        "workspace publish manifest syncs",
+      ),
+    );
+    const materializeResult = await materializeCurrentFrame({
+      silent: true,
+      announce: false,
+      openPreview: false,
+      skipCheckpoint: true,
+      exportResult,
+    });
+    results.push(
+      assert(
+        Boolean(materializeResult?.previewPath),
+        "materialize creates preview artifact",
+        materializeResult?.previewPath ||
+          dom.workspaceStatus.textContent ||
+          "Materialize returned no preview path.",
+      ),
+    );
+    const outputActivityItems = updateOutputActivityHistory(
+      [],
+      null,
+      {
+        digest: "output-initial",
+        mode: "context-only",
+        summary: "Initial output context",
+        targetLabel: "",
+        artifactCount: 0,
+        changeCount: 2,
+        refinementSummary: "",
+        frameTitle: "Frame 1",
+      },
+      "2026-03-14T00:00:00.000Z",
+    );
+    const nextOutputActivityItems = updateOutputActivityHistory(
+      outputActivityItems,
+      { digest: "output-initial" },
+      {
+        digest: "output-next",
+        mode: "target-connected",
+        summary: "Connected preview updated",
+        targetLabel: "Home preview",
+        artifactCount: 1,
+        changeCount: 3,
+        refinementSummary: "Updated 2 regions",
+        frameTitle: "Frame 1",
+      },
+      "2026-03-14T00:00:01.000Z",
+    );
+    results.push(
+      assert(
+        nextOutputActivityItems.length === 2 &&
+          nextOutputActivityItems[0]?.digest === "output-next",
+        "output activity history records digest changes",
+      ),
+    );
+    const persistedOutputActivityItems = buildOutputActivityFromSessionEvents([
+      {
+        id: "checkpoint-output-1",
+        at: "2026-03-14T00:00:02.000Z",
+        reason: "output-update",
+        label: "Output update",
+        note: "Connected preview updated",
+        summary: { changeCount: 4, artifactCount: 1 },
+        outputDigest: {
+          digest: "output-next",
+          targetLabel: "Home preview",
+          refinementSummary: "Updated 2 regions",
+        },
+      },
+    ]);
+    results.push(
+      assert(
+        persistedOutputActivityItems.length === 1 &&
+          persistedOutputActivityItems[0]?.digest === "output-next",
+        "session events rebuild output activity",
+      ),
+    );
+    results.push(
+      assert(
+        mergeOutputActivityEntries(
+          nextOutputActivityItems,
+          persistedOutputActivityItems,
+        ).length === 2,
+        "output activity merge dedupes digest entries",
+      ),
+    );
+    results.push(
+      assert(
+        buildExistingExportReference().jsonPath ===
+          (state.serverStatus.liveJsonPath || ""),
+        "existing export reference uses current server paths",
+      ),
+    );
+    results.push(
+      assert(
+        frameHasMaterializedTarget(state.activeFrameId),
+        "materialized frame target is tracked",
+      ),
+    );
+    const rewriteQueueItems = buildRewriteQueue(
+      [
+        {
+          id: "frame-selftest-rewrite",
+          title: "Rewrite test",
+          viewport: "desktop",
+          objective: "Needs refresh",
+          layout: "",
+          motion: "",
+          assets: "",
+          mobile: "",
+          backgroundImage: "",
+          flowPosition: { x: 120, y: 120 },
+          elements: [
+            {
+              id: "shape-1",
+              type: "rect",
+              start: { x: 80, y: 80 },
+              end: { x: 300, y: 220 },
+              color: palette[0],
+              size: 4,
+              alpha: 1,
+              composite: "source-over",
+              groupId: "",
+            },
+          ],
+          thumbnail: "",
+          captures: [],
+          createdAt: "2026-03-14T00:00:00.000Z",
+          updatedAt: "2026-03-14T00:00:02.000Z",
+        },
+      ],
+      {
+        targets: [
+          {
+            id: "materialize-target-frame-selftest-rewrite",
+            label: "Rewrite test materialized",
+            source: "canvax-materialize",
+            type: "materialized-preview",
+            previewPath:
+              "artifacts/preview/materialized/frame-selftest-rewrite/index.html",
+            frameIds: ["frame-selftest-rewrite"],
+            sourceFrameId: "frame-selftest-rewrite",
+            sourceFrameUpdatedAt: "2026-03-14T00:00:01.000Z",
+          },
+        ],
+      },
+      "frame-selftest-rewrite",
+    );
+    results.push(
+      assert(
+        rewriteQueueItems.length === 1 &&
+          rewriteQueueItems[0]?.label === "Needs refresh",
+        "rewrite queue flags stale frame output",
+      ),
+    );
+    await exerciseLargeSessionSelfTest(results);
     results.push(
       assert(
         state.frames.length === startedFrameCount,
@@ -5529,6 +7054,238 @@ async function addLabelForSelfTest(text, point) {
   dom.labelEditorInput.value = text;
   commitLabelEditor();
   await sleep(30);
+}
+
+async function exerciseLargeSessionSelfTest(results) {
+  const original = {
+    frames: structuredClone(state.frames),
+    connections: structuredClone(state.connections),
+    activeFrameId: state.activeFrameId,
+    entryFrameId: state.entryFrameId,
+    selectedConnectionId: state.selectedConnectionId,
+    pendingConnectionFromFrameId: state.pendingConnectionFromFrameId,
+    voice: structuredClone(state.voice),
+  };
+
+  try {
+    const fixture = buildLargeSessionFixture(12);
+    state.frames = fixture.frames;
+    state.connections = fixture.connections;
+    state.activeFrameId = fixture.frames[0].id;
+    state.entryFrameId = fixture.frames[0].id;
+    state.selectedConnectionId = null;
+    state.pendingConnectionFromFrameId = null;
+    state.voice = {
+      ...createInitialVoiceState(),
+      scope: "frame",
+      segments: fixture.voiceSegments,
+    };
+    persistState();
+
+    const exportPackage = await buildExportPackage(state.frames);
+    const previewPayload = buildLivePreviewPayload();
+    const checkpointPayload = buildCheckpointPayload("manual-push", {
+      jsonPath: "exports/canvax-live-latest.json",
+      markdownPath: "exports/canvax-live-latest.md",
+      voiceMarkdownPath: "exports/canvax-voice-latest.md",
+    });
+
+    results.push(
+      assert(
+        exportPackage.frames.length === fixture.frames.length,
+        "large-session export keeps all frames",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.connections.length === fixture.connections.length,
+        "large-session export keeps all flow links",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.voice.segmentCount === fixture.voiceSegments.length,
+        "large-session export keeps voice segments",
+      ),
+    );
+    results.push(
+      assert(
+        previewPayload.liveExport.frames.length === fixture.frames.length,
+        "large-session live preview mirrors all frames",
+      ),
+    );
+    results.push(
+      assert(
+        checkpointPayload.summary.frameCount === fixture.frames.length &&
+          checkpointPayload.summary.connectionCount ===
+            fixture.connections.length,
+        "large-session checkpoint summary stays consistent",
+      ),
+    );
+  } finally {
+    state.frames = original.frames;
+    state.connections = original.connections;
+    state.activeFrameId = original.activeFrameId;
+    state.entryFrameId = original.entryFrameId;
+    state.selectedConnectionId = original.selectedConnectionId;
+    state.pendingConnectionFromFrameId = original.pendingConnectionFromFrameId;
+    state.voice = original.voice;
+    persistState();
+    renderAll();
+  }
+}
+
+function buildLargeSessionFixture(frameCount = 12) {
+  const frames = Array.from({ length: frameCount }, (_, index) =>
+    buildLargeSessionFrame(index),
+  );
+  const connections = [];
+  for (let index = 0; index < frames.length - 1; index += 1) {
+    connections.push(
+      normalizeConnection({
+        id: uid("connection"),
+        fromFrameId: frames[index].id,
+        toFrameId: frames[index + 1].id,
+        label: index % 3 === 0 ? "continue" : "next",
+        notes: index % 2 === 0 ? "Primary path" : "",
+      }),
+    );
+    if (index + 2 < frames.length && index % 3 === 0) {
+      connections.push(
+        normalizeConnection({
+          id: uid("connection"),
+          fromFrameId: frames[index].id,
+          toFrameId: frames[index + 2].id,
+          label: "alternate",
+          notes: "Optional branch",
+        }),
+      );
+    }
+  }
+
+  const voiceSegments = frames.flatMap((frame, index) => [
+    {
+      id: uid("voice"),
+      text: `Frame ${index + 1} covers the ${frame.title.toLowerCase()} state.`,
+      at: new Date(Date.now() + index * 1000).toISOString(),
+      scope: "frame",
+      provider: "self-test",
+      frameId: frame.id,
+      frameTitle: frame.title,
+    },
+    ...(index % 4 === 0
+      ? [
+          {
+            id: uid("voice"),
+            text: `Global note ${index / 4 + 1}: keep transitions lightweight.`,
+            at: new Date(Date.now() + index * 1000 + 400).toISOString(),
+            scope: "session",
+            provider: "self-test",
+            frameId: "",
+            frameTitle: "",
+          },
+        ]
+      : []),
+  ]);
+
+  return {
+    frames,
+    connections,
+    voiceSegments,
+  };
+}
+
+function buildLargeSessionFrame(index) {
+  const viewportIds = Object.keys(viewportPresets);
+  const viewport = viewportIds[index % viewportIds.length];
+  const heroId = uid("shape");
+  const contentId = uid("shape");
+  const actionId = uid("shape");
+  const accent = palette[index % Math.max(1, palette.length - 1)];
+  const top = 88 + (index % 3) * 18;
+  const layoutTop = top + 190;
+  return createFrame({
+    title: `Large Frame ${index + 1}`,
+    viewport,
+    objective: `Validate dense board export for frame ${index + 1}.`,
+    layout:
+      "Hero header, content body, and action rail laid out for large-session regression coverage.",
+    motion:
+      index % 2 === 0
+        ? "Crossfade to the next frame."
+        : "Slide the current panel upward.",
+    assets: "Use low-fidelity placeholders and preserve annotation density.",
+    mobile: "Collapse supporting rails on smaller widths.",
+    flowPosition: defaultFlowPosition(index),
+    elements: [
+      {
+        id: heroId,
+        type: "rect",
+        start: { x: 96, y: top },
+        end: { x: 1260, y: top + 144 },
+        color: accent,
+        size: 6,
+        alpha: 1,
+        composite: "source-over",
+        groupId: "",
+      },
+      {
+        id: contentId,
+        type: "rect",
+        start: { x: 96, y: layoutTop },
+        end: { x: 1020, y: layoutTop + 460 },
+        color: "#1c1a1a",
+        size: 4,
+        alpha: 1,
+        composite: "source-over",
+        groupId: "",
+      },
+      {
+        id: actionId,
+        type: "rect",
+        start: { x: 1080, y: layoutTop + 60 },
+        end: { x: 1290, y: layoutTop + 138 },
+        color: accent,
+        size: 5,
+        alpha: 1,
+        composite: "source-over",
+        groupId: "",
+      },
+      {
+        id: uid("arrow"),
+        type: "arrow",
+        start: { x: 1040, y: layoutTop + 100 },
+        end: { x: 1170, y: layoutTop + 100 },
+        color: accent,
+        size: 6,
+        alpha: 1,
+        composite: "source-over",
+        groupId: "",
+      },
+      {
+        id: uid("label"),
+        type: "label",
+        text: `Frame ${index + 1}`,
+        x: 118,
+        y: top + 34,
+        color: "#1c1a1a",
+        size: 26,
+        attachedTo: heroId,
+        anchor: { xRatio: 0.06, yRatio: 0.24 },
+      },
+      {
+        id: uid("label"),
+        type: "label",
+        text: "Action",
+        x: 1110,
+        y: layoutTop + 94,
+        color: "#1c1a1a",
+        size: 18,
+        attachedTo: actionId,
+        anchor: { xRatio: 0.2, yRatio: 0.5 },
+      },
+    ],
+  });
 }
 
 function clickTool(tool) {
@@ -5620,6 +7377,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function cleanString(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function uid(prefix) {

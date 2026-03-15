@@ -77,11 +77,36 @@ When `/canvax` or `$canvax` is active, Codex should default to:
 
 The JSON file is the primary source because it contains:
 
+- schema version metadata
 - board metadata
 - frame notes
 - capture counts
 - snapshot paths
 - flow connections
+- voice notes
+
+When present, `exports/canvax-checkpoint-latest.json` is the best “what was happening at this exact moment?” handoff because it merges:
+
+- the current frame graph
+- the latest sketch/export pointers
+- voice summary
+- attached preview/output context
+
+## Transport Model
+
+Canvax currently runs in `local companion` mode.
+
+That means the live collaboration loop is split across:
+
+- browser session mirroring for fast board-to-Preview sync
+- durable file exports for Codex handoff
+- preview/output manifests for implementation binding
+
+The runtime now writes that transport metadata into live payloads, exports, checkpoints, and preview-state responses so contributors can distinguish:
+
+- what is core Canvax behavior
+- what is specific to the current local companion transport
+- what would later move to an App Server style richer Codex client
 
 ## Useful Prompts In Codex
 
@@ -101,8 +126,11 @@ Important files:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-checkpoint-latest.json`
+- `exports/canvax-session-events.jsonl`
 - `exports/canvax-preview-manifest.json`
 - `artifacts/canvax/codex-output.json`
+- `artifacts/canvax/checkpoints/`
 
 Older compatibility files may also be written:
 
@@ -141,6 +169,30 @@ The main Canvax inspector also reads that manifest now, so the board itself can 
 - generated artifacts
 - changed files from a Codex pass
 
+The board now also has `Publish changes`, which reads the current git workspace status, filters out generated Canvax files, and writes the changed-file list into the Codex output manifest automatically.
+
+Regular board syncs now do this too. When autosnap, manual freeze, or explicit export writes a fresh live export, Canvax also refreshes the current workspace change list in the Codex output manifest. Use `Publish changes` only when you want to force that refresh manually.
+
+Preview polling now also overlays a live workspace-follow view of current git changes without rewriting the manifest file every time. That means the board and Preview can keep following Codex file edits while you continue sketching, even between explicit publish/export moments.
+
+Both surfaces now also keep a small live output activity feed, so you can see when the connected output context changed while sketching. Preview also appends a revision key to the implementation iframe source, which means same-URL local previews can refresh when Codex changes relevant implementation files instead of staying visually stale.
+
+Frame cards in both the board and Preview now also show small output-status badges, so you can scan which frames are:
+
+- `Materialized`
+- `Output synced`
+- `Output stale`
+- `Global target`
+
+Canvax now also keeps a `Rewrite queue` in both surfaces. That queue highlights frames that currently need:
+
+- first output
+- a frame-specific binding
+- a connected target
+- a refresh because the sketch is newer than the bound output
+
+That activity feed now rebuilds from recent Canvax session events too, so output updates survive refreshes instead of disappearing with the current tab state.
+
 The preview window now also supports compare modes:
 
 - `Split` to see sketch and output together
@@ -170,6 +222,34 @@ That file is useful when you or Codex want only the spoken context without re-re
 - board-scoped vs frame-scoped counts
 - frame-grouped transcript segments
 
+## Handoff Checkpoints
+
+Use `Push checkpoint` when you want to preserve the current collaboration moment without waiting for a future change to overwrite the latest export.
+
+Canvax also writes checkpoints automatically for:
+
+- autosnap freeze
+- manual freeze
+- dictation stop
+- manual voice note capture
+- materialize
+- live output-context changes when the connected target/artifact/change digest actually changes
+
+Checkpoint files:
+
+- `exports/canvax-checkpoint-latest.json`
+- `exports/canvax-session-events.jsonl`
+- `artifacts/canvax/checkpoints/...`
+
+The latest checkpoint includes:
+
+- board/frame summary
+- flow summary
+- voice summary
+- export file pointers
+- attached preview target and output context when available
+- rewrite queue items that tell Codex which frames currently need output attention next
+
 ## Materialize
 
 Use `Materialize` in the main board when you want Canvax itself to turn the active frame into a styled local preview before any real app code exists.
@@ -186,6 +266,18 @@ This is a deterministic local transformation, not a paid API call.
 
 When you materialize the same frame again, Canvax now reuses the same per-frame artifact path and only updates the versioned preview URL. That means Preview can stay attached to one frame-specific target while still refreshing reliably after each rematerialize.
 
+If a frame already has a materialized target, autosnap and manual freeze now silently rematerialize that frame after the live export is saved. That keeps Preview closer to the current sketch without requiring you to press `Materialize` again after every edit.
+
+Longer sessions now also reuse cached frame thumbnails/snapshots when Canvax rebuilds the live preview/export payloads. That reduces repeated image re-encoding churn while you keep sketching across many frames.
+
+Preview now also reads Materialize refinement metadata:
+
+- a refinement summary for the current frame
+- counts for added, updated, removed, and note-driven changes
+- changed-region overlays drawn over both the sketch side and the implementation side
+
+That means the compare window can now point out which parts of the sketch changed between rematerialize passes instead of only saying that output is stale or synced.
+
 The generated materialized preview also includes a few lightweight interaction affordances:
 
 - clickable generated components
@@ -195,6 +287,8 @@ The generated materialized preview also includes a few lightweight interaction a
 If Preview says the output is stale, it means the current sketch `updatedAt` is newer than the materialized target metadata. Rematerialize that frame to bring the generated surface back in sync.
 
 Materialize is useful when you want a quick “make this sketch feel real” pass while keeping the original sketch board unchanged.
+
+The live JSON export and checkpoint payloads now also include the rewrite queue, so Codex can read which frames are stale, unbound, or still waiting for first output without having to infer that only from timestamps and targets.
 
 You can write that manifest manually with:
 
@@ -213,13 +307,13 @@ node scripts/write-preview-manifest.mjs --preview-path artifacts/preview/home.ht
 For implementation results, prefer the canonical Codex output manifest:
 
 ```bash
-node scripts/write-codex-output.mjs --preview-path artifacts/preview/home.html --change web/app.js::Updated layout --artifact docs/spec.md::Generated spec
+node scripts/write-codex-output.mjs --from-git-status --preview-path artifacts/preview/home.html
 ```
 
 To bind a file or artifact to a specific frame, add a third `::` segment with one or more frame ids:
 
 ```bash
-node scripts/write-codex-output.mjs --change web/app.js::Updated home layout::frame-home --artifact artifacts/preview/home.html::Generated home preview::frame-home
+node scripts/write-codex-output.mjs --from-git-status --artifact artifacts/preview/home.html::Generated home preview::frame-home --frame frame-home
 ```
 
 That writes `artifacts/canvax/codex-output.json`. Canvax merges it automatically with any manual preview manifest, so both the board inspector and preview window can pick up:
@@ -228,4 +322,19 @@ That writes `artifacts/canvax/codex-output.json`. Canvax merges it automatically
 - changed files
 - generated artifacts
 
+If you want to inspect the manifest before writing it, add `--dry-run --json`.
+
 If the Codex output manifest contains an HTML artifact, Canvax can auto-use that artifact as the preview target even without an explicit preview URL.
+
+## Publish Changes
+
+Use `Publish changes` in the `Live handoff` panel when you want Canvax to reflect the current workspace diff without manually running the manifest writer.
+
+That action:
+
+- reads `git status --porcelain`
+- ignores generated Canvax files like `exports/`, checkpoints, and materialized preview artifacts
+- writes the changed-file list into `artifacts/canvax/codex-output.json`
+- refreshes the board’s changed-file list immediately
+
+Use `Clear published` if you want to remove the auto-published Codex output manifest from the board.

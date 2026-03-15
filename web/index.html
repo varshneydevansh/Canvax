@@ -621,21 +621,45 @@
                 <div class="analysis-section">
                     <div class="section-header">
                         <h3>Live handoff</h3>
-                        <a
-                            id="codex-open-target"
-                            class="ghost-link-button"
-                            href="#"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            hidden
-                            >Open target</a
-                        >
+                        <div class="button-row tight">
+                            <button
+                                id="codex-publish-output"
+                                class="ghost-button"
+                                type="button"
+                                title="Publish the current git workspace changes back into Canvax for the active frame"
+                            >
+                                Publish changes
+                            </button>
+                            <button
+                                id="codex-clear-output"
+                                class="ghost-button"
+                                type="button"
+                                title="Clear the Codex output manifest written by Canvax auto-publish"
+                            >
+                                Clear published
+                            </button>
+                            <a
+                                id="codex-open-target"
+                                class="ghost-link-button"
+                                href="#"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                hidden
+                                >Open target</a
+                            >
+                        </div>
                     </div>
                     <p id="analysis-status" class="helper-text">
                         Canvax keeps a live export for Codex. Use the canvas,
                         pause for autosnap, then ask Codex to read the latest
                         Canvax export.
                     </p>
+                    <p
+                        id="workspace-follow-status"
+                        class="helper-text"
+                        hidden
+                    ></p>
+                    <p id="transport-status" class="helper-text"></p>
                     <div
                         id="codex-output-summary"
                         class="codex-output-summary empty-state"
@@ -675,12 +699,73 @@
                                 No changed files attached yet.
                             </div>
                         </section>
+                        <section class="codex-output-card">
+                            <div class="section-header compact">
+                                <h4>Activity</h4>
+                                <span
+                                    id="output-activity-count"
+                                    class="helper-text"
+                                    >0 items</span
+                                >
+                            </div>
+                            <div
+                                id="output-activity-list"
+                                class="artifact-inbox empty-state"
+                            >
+                                No live output activity yet.
+                            </div>
+                        </section>
+                        <section class="codex-output-card">
+                            <div class="section-header compact">
+                                <h4>Rewrite queue</h4>
+                                <span
+                                    id="rewrite-queue-count"
+                                    class="helper-text"
+                                    >0 frames</span
+                                >
+                            </div>
+                            <div
+                                id="rewrite-queue-list"
+                                class="artifact-inbox empty-state"
+                            >
+                                No frames currently need rewrite attention.
+                            </div>
+                        </section>
                     </div>
                     <textarea
                         id="spec-output"
                         class="output-area"
                         readonly
                     ></textarea>
+                </div>
+
+                <div class="analysis-section">
+                    <div class="section-header">
+                        <h3>Handoff checkpoints</h3>
+                        <div class="button-row tight">
+                            <span id="checkpoint-count" class="helper-text"
+                                >0 saved</span
+                            >
+                            <button
+                                id="checkpoint-push"
+                                class="ghost-button"
+                                type="button"
+                                title="Save the current sketch, voice notes, and attached output context as a durable checkpoint"
+                            >
+                                Push checkpoint
+                            </button>
+                        </div>
+                    </div>
+                    <p class="helper-text">
+                        Freeze, stop dictation, materialize, or push manually to
+                        preserve a specific collaboration moment for Codex.
+                    </p>
+                    <div
+                        id="checkpoint-list"
+                        class="checkpoint-list empty-state"
+                    >
+                        No checkpoints saved yet.
+                    </div>
                 </div>
 
                 <div class="analysis-section">

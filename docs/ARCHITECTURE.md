@@ -61,7 +61,88 @@ Responsibilities:
 4. Canvax autosnaps after idle or stores a manual freeze.
 5. `web/app.js` sends the latest export package to `/api/save-export`.
 6. `scripts/canvax.mjs` writes the JSON and Markdown exports under `exports/`.
-7. Codex uses the skill to read the latest export and continue from the sketch.
+7. The board also refreshes the Codex output manifest with current workspace changes during live export sync.
+8. Codex uses the skill to read the latest export and continue from the sketch.
+9. Preview-state polling also overlays a transient live workspace-follow manifest from current git status so board and Preview can keep tracking file changes between explicit publish steps.
+10. When Codex changes files itself, it should publish those changes back into Canvax with `node scripts/write-codex-output.mjs --from-git-status` when it wants a durable manifest update with richer metadata.
+11. The service now also computes a stable output digest from targets, artifacts, changes, and workspace-follow metadata so clients can detect meaningful output-context changes without treating every poll as a rewrite.
+12. Recent checkpoint/session events are also fed back through preview-state so clients can rebuild durable output activity after a refresh instead of relying only on in-memory polling state.
+13. When a frame is materialized again, the service computes a refinement delta, writes it into the materialize metadata, and exposes it through the preview manifest so Preview can show changed-region overlays.
+
+## Transport Layers
+
+Canvax now treats transport as an explicit contract instead of an accidental side effect of local files.
+
+### 1. Live session mirror transport
+
+Current mechanism:
+
+- browser `localStorage`
+- browser `BroadcastChannel`
+- live Preview polling
+
+Purpose:
+
+- keep the board and Preview aligned immediately inside one local browser session
+- avoid waiting for file writes just to update the Preview surface
+
+### 2. Durable handoff transport
+
+Current mechanism:
+
+- `exports/canvax-live-latest.json`
+- `exports/canvax-live-latest.md`
+- `exports/canvax-voice-latest.md`
+- `exports/canvax-checkpoint-latest.json`
+
+Purpose:
+
+- give Codex a stable, path-based handoff surface
+- preserve collaboration moments outside volatile browser memory
+
+### 3. Output binding transport
+
+Current mechanism:
+
+- `exports/canvax-preview-manifest.json`
+- `artifacts/canvax/codex-output.json`
+- transient git-status workspace follow merged into `/api/preview-state`
+
+Purpose:
+
+- attach implementation previews, generated artifacts, changed files, and rewrite state back to the sketch workflow
+
+### 4. Future richer-client transport
+
+Planned mechanism:
+
+- App Server style JSON-RPC transport
+- thread-bound event/state transport instead of file-path handoff
+
+Purpose:
+
+- replace the local companion split with a true same-thread Codex client later
+
+## Current Transport Contract
+
+The runtime now emits a `transport` object through:
+
+- `/api/status`
+- `/api/preview-state`
+- live preview payloads
+- saved exports
+- checkpoints
+- materialize payloads
+
+That contract declares:
+
+- current mode: `local-companion`
+- durable handoff: file export paths
+- output binding: manifest-based transport
+- live mirror: browser storage/channel transport
+- future mode: `app-server`
+
+This is the main guardrail against accidentally hardcoding the current local-companion implementation as if it were the only possible runtime.
 
 ## Current File Map
 
@@ -104,6 +185,8 @@ Core state areas include:
 
 `web/app.js` is currently the main state owner.
 
+Browser storage uses `version` for persistence migrations. Live exports, checkpoints, voice payloads, and live preview payloads now also carry explicit `schemaVersion` metadata so saved handoff files can evolve independently from the browser-storage format.
+
 ## Export Model
 
 Primary outputs:
@@ -113,6 +196,7 @@ Primary outputs:
 
 The JSON export currently contains:
 
+- schema metadata
 - board metadata
 - frame metadata
 - capture counts
@@ -148,6 +232,7 @@ Look in:
 
 - `web/app.js` for export package creation
 - `scripts/canvax.mjs` for file writing and service endpoints
+- `scripts/write-codex-output.mjs` for Codex-side output publishing from git status or explicit artifacts
 
 ## Current Design Boundary
 
@@ -160,6 +245,17 @@ It is not yet:
 - a finished multimodal sketch + voice collaboration surface
 
 Those are intentional future layers, not hidden shipped features.
+
+## Migration Path To A Richer Codex Client
+
+The clean migration path is:
+
+1. keep the board semantics, export schema, manifest schema, and rewrite queue logic
+2. replace file-path transport with thread/artifact/event transport
+3. replace browser-local Preview wiring with a richer Codex client surface
+4. preserve `Materialize`, checkpoints, and output binding semantics across the transport swap
+
+That is why the transport object exists now: the repo can describe what is transport-specific versus what is core Canvax behavior.
 
 ## Safe Extension Points
 

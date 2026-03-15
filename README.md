@@ -22,10 +22,21 @@ That means Canvax is **a local command plus a Codex skill**. It is not currently
 - Captures board-scoped or frame-scoped voice notes, using browser speech recognition when available and manual pasted dictation when it is not.
 - Supports a preview manifest that can bind a live implementation target, changed files, and generated artifacts to the current sketch workflow.
 - Surfaces Codex output context directly in the Canvax inspector, including connected preview targets, generated artifacts, and changed files.
+- Lets the board auto-publish current git workspace changes back into the Codex output manifest with `Publish changes`.
+- Auto-publishes the current workspace change list whenever the board writes a fresh live export, so autosnap/freeze keeps the Codex output manifest closer to current state.
+- Mirrors current git workspace changes into board and Preview polling even before a manual publish, so the changed-file list can keep following Codex edits while you keep sketching.
+- Adds a live output activity feed in the board and Preview, so output-context changes are visible while you keep sketching.
+- Adds frame-level output status badges in the board and Preview, so stale, synced, materialized, and global-target states stay visible across longer flows.
+- Adds a rewrite queue in the board and Preview, so frames that need first output, a frame binding, a target, or a refresh are surfaced explicitly instead of being inferred from scattered badges.
+- Reloads same-URL Preview targets with a digest-based revision key when connected implementation context changes, which keeps local app previews closer to live Codex edits.
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
 - Lets you save preview compare snapshots into the workspace for later review.
 - Materializes the active frame into a styled local HTML preview artifact without changing the sketch board.
 - Reuses a stable per-frame materialized preview target so repeated updates refresh the same output surface instead of spawning unrelated preview routes.
+- Refreshes an existing materialized frame automatically after freeze/autosnap so the generated preview stays closer to the sketch without reopening Preview.
+- Tracks Materialize refinements with changed-region metadata, so Preview can call out what shifted between sketch revisions instead of only showing a stale/synced badge.
+- Reuses cached frame thumbnails/snapshots when rebuilding live preview/export payloads, which reduces repeated long-session render work.
+- Writes that rewrite queue into the live handoff payloads, so Codex can read which frames currently need attention next.
 - Installs a Codex skill so the canvas can be invoked from Codex as `/canvax` or `$canvax`.
 - Requires no extra OpenAI API key for the core sketch-to-Codex workflow.
 
@@ -80,8 +91,22 @@ Then sketch in the browser board and continue the same chat with prompts like:
 - [Usage guide](docs/USAGE.md)
 - [Architecture guide](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)
+- [Upstream proposal](docs/upstream-proposal.md)
+- [Demo script](docs/canvax-demo-script.md)
 - [Execution status](docs/EXECUTION_STATUS.md)
 - [Live collaboration plan](canvax-live-collaboration-plan.md)
+
+## Feature Matrix
+
+| Area | Canvax today | Native Codex future |
+| --- | --- | --- |
+| Sketch input | Browser board started with `./canvax` | Embedded canvas panel inside a richer Codex client |
+| Live handoff | File exports under `exports/` | Thread-bound handoff items and live multimodal state |
+| Output binding | Preview manifest plus Codex-output manifest | First-party artifact, preview, and event wiring |
+| Live preview | Separate Preview tab/window | Same-thread split canvas + output surface |
+| Transport | Local companion via files, manifests, and browser session mirroring | App Server or equivalent JSON-RPC transport |
+
+The current repo is intentionally optimized for the first column while keeping the second column reachable instead of blocked by hardcoded assumptions.
 
 ## Service Commands
 
@@ -103,6 +128,23 @@ Behavior:
 
 Canvax is intentionally single-service. If one board is already running, it is reused instead of spawning another port by default.
 
+## Verification
+
+For local validation:
+
+```bash
+npm run check
+npm run regression
+```
+
+`npm run regression` now adds a headless browser pass against both the board and Preview self-test routes when a running Canvax service and local Chrome binary are available.
+
+If you want that browser pass to fail hard instead of skipping on host-level Chrome timeouts, run:
+
+```bash
+CANVAX_BROWSER_STRICT=1 npm run browser-regression
+```
+
 ## Live Export Files
 
 Canvax writes live handoff files under `exports/`:
@@ -110,8 +152,11 @@ Canvax writes live handoff files under `exports/`:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-checkpoint-latest.json`
+- `exports/canvax-session-events.jsonl`
 - `exports/canvax-preview-manifest.json`
 - `artifacts/canvax/codex-output.json`
+- `artifacts/canvax/checkpoints/`
 - `artifacts/preview/materialized/`
 
 Legacy compatibility files may also exist:
@@ -131,6 +176,8 @@ If the manifest contains a generated HTML artifact, Canvax can now use that as t
 
 Materialize mode uses that same preview path. When you click `Materialize` in the board, Canvax writes a styled HTML artifact plus a serialized frame payload under `artifacts/preview/materialized/...` and updates `exports/canvax-preview-manifest.json` so Preview can open it immediately.
 
+When you rematerialize a frame, Canvax now also saves a refinement delta into the materialize metadata and manifest target. Preview uses that to render changed-region overlays and a refinement summary for the current frame.
+
 The canonical Codex-written output file is:
 
 - `artifacts/canvax/codex-output.json`
@@ -141,6 +188,20 @@ That file is merged automatically with the manual preview manifest so Canvax can
 - changed files
 - artifacts like specs, notes, or exported HTML
 
+For Codex-side publishing, the preferred helper is now:
+
+```bash
+node scripts/write-codex-output.mjs --from-git-status
+```
+
+Add `--preview-path` or `--url` when Codex also has a concrete implementation preview to bind.
+
+Checkpoint mode now adds:
+
+- `exports/canvax-checkpoint-latest.json` as the latest merged sketch + voice + output handoff
+- `exports/canvax-session-events.jsonl` as the append-only checkpoint event log
+- `artifacts/canvax/checkpoints/` as durable saved checkpoint records
+
 ## Current Workflow
 
 1. Open Canvax with `./canvax --open`.
@@ -149,9 +210,14 @@ That file is merged automatically with the manual preview manifest so Canvax can
 4. Sketch frames, label regions, and connect screens in Flow view.
 5. Capture spoken intent with `Voice notes` if you want Canvax to preserve what you are saying while drawing.
 6. Pause for autosnap or press `Freeze frame`.
-7. Press `Materialize` if you want a styled local preview of the current frame before writing app code.
-8. Ask Codex to use the current Canvax.
-9. Codex reads the latest live export and works from that visual handoff.
+7. Use `Push checkpoint` if you want to preserve the current sketch + voice + output context as a durable handoff moment.
+8. Press `Materialize` if you want a styled local preview of the current frame before writing app code.
+9. Keep sketching. Autosnap and freeze now refresh the live export, auto-publish the current workspace change list, and silently rematerialize frames that already have a generated target.
+10. Use `Publish changes` only when you want to force a manual refresh of the current workspace change list from the board.
+11. Even without that manual publish step, board and Preview polling now mirror current git workspace changes live while you keep sketching.
+12. When Codex changes files from chat, let it run `node scripts/write-codex-output.mjs --from-git-status` so the board and preview also keep the richer persisted manifest metadata.
+13. Ask Codex to use the current Canvax.
+14. Codex reads the latest live export or checkpoint and works from that visual handoff.
 
 ## Current Limits
 
@@ -159,6 +225,7 @@ That file is merged automatically with the manual preview manifest so Canvax can
 - A first deterministic Materialize loop exists, but the richer live AI rewrite loop is still not finished.
 - The core workflow does not depend on a separate paid OpenAI API key.
 - Board-side voice notes now exist, but the richer voice+sketch checkpoint/event-log loop is still not finished.
+- Strict headless browser regression still skips on this host unless you force `CANVAX_BROWSER_STRICT=1`.
 
 ## Repo Layout
 

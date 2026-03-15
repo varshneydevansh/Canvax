@@ -94,6 +94,10 @@
                     <span class="status-label">Live source</span>
                     <strong id="preview-source">/api/preview-state</strong>
                 </div>
+                <div class="status-card">
+                    <span class="status-label">Transport</span>
+                    <strong id="transport-status">Local companion</strong>
+                </div>
             </section>
 
             <main class="preview-layout">
@@ -144,6 +148,11 @@
                             it into the preview manifest so this generated
                             surface stays bound across refreshes and sessions.
                         </p>
+                        <p
+                            id="workspace-follow-note"
+                            class="helper-text"
+                            hidden
+                        ></p>
                         <div
                             id="target-summary"
                             class="target-summary empty-state"
@@ -215,6 +224,42 @@
                                     No Codex file changes attached yet.
                                 </div>
                             </article>
+                        </div>
+                    </section>
+
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="eyebrow">Live output</p>
+                                <h2>Activity feed</h2>
+                            </div>
+                            <span id="output-activity-count" class="helper-text"
+                                >0 items</span
+                            >
+                        </div>
+                        <div
+                            id="output-activity-list"
+                            class="manifest-list empty-state"
+                        >
+                            No live output activity yet.
+                        </div>
+                    </section>
+
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="eyebrow">Rewrite queue</p>
+                                <h2>Frames needing attention</h2>
+                            </div>
+                            <span id="rewrite-queue-count" class="helper-text"
+                                >0 frames</span
+                            >
+                        </div>
+                        <div
+                            id="rewrite-queue-list"
+                            class="manifest-list empty-state"
+                        >
+                            No frames currently need rewrite attention.
                         </div>
                     </section>
 
@@ -317,6 +362,30 @@
                                     Canvax manifest provide one.
                                 </div>
                             </section>
+                        </div>
+
+                        <div class="refinement-panel">
+                            <div class="refinement-head">
+                                <strong>Refinement delta</strong>
+                                <span
+                                    id="refinement-summary"
+                                    class="helper-text"
+                                    >No materialized refinement data yet.</span
+                                >
+                            </div>
+                            <div
+                                id="refinement-stats"
+                                class="refinement-stats empty-state"
+                            >
+                                Materialize a frame, then keep editing it to see
+                                changed regions and refinement counts here.
+                            </div>
+                            <div
+                                id="refinement-regions"
+                                class="refinement-regions empty-state"
+                            >
+                                Changed sketch regions will appear here.
+                            </div>
                         </div>
 
                         <div class="compare-context">

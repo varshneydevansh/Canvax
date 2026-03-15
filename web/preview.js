@@ -6,6 +6,10 @@ const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
 const POLL_INTERVAL_MS = 2000;
 const MAX_STAGE_WIDTH = 720;
 const MAX_STAGE_HEIGHT = 560;
+const MAX_OUTPUT_ACTIVITY_ITEMS = 8;
+const wantsSelfTest =
+  new URLSearchParams(window.location.search).get("selftest") === "1";
+let previewSelfTestStarted = false;
 
 const viewportPresets = {
   desktop: { label: "Desktop", width: 1440, height: 1024 },
@@ -20,6 +24,7 @@ const dom = {
   previewStatus: document.querySelector("#preview-status"),
   previewUpdated: document.querySelector("#preview-updated"),
   previewSource: document.querySelector("#preview-source"),
+  transportStatus: document.querySelector("#transport-status"),
   compareModeButtons: document.querySelector("#compare-mode-buttons"),
   saveSnapshot: document.querySelector("#save-snapshot"),
   refreshPreview: document.querySelector("#refresh-preview"),
@@ -34,6 +39,7 @@ const dom = {
   manualPreviewUrl: document.querySelector("#manual-preview-url"),
   savePreviewUrl: document.querySelector("#save-preview-url"),
   clearPreviewUrl: document.querySelector("#clear-preview-url"),
+  workspaceFollowNote: document.querySelector("#workspace-follow-note"),
   targetSummary: document.querySelector("#target-summary"),
   flowCountPreview: document.querySelector("#flow-count-preview"),
   flowListPreview: document.querySelector("#flow-list-preview"),
@@ -41,6 +47,10 @@ const dom = {
   artifactList: document.querySelector("#artifact-list"),
   changeCount: document.querySelector("#change-count"),
   changeList: document.querySelector("#change-list"),
+  outputActivityCount: document.querySelector("#output-activity-count"),
+  outputActivityList: document.querySelector("#output-activity-list"),
+  rewriteQueueCount: document.querySelector("#rewrite-queue-count"),
+  rewriteQueueList: document.querySelector("#rewrite-queue-list"),
   snapshotCount: document.querySelector("#snapshot-count"),
   snapshotList: document.querySelector("#snapshot-list"),
   selectedFrameTitle: document.querySelector("#selected-frame-title"),
@@ -48,6 +58,9 @@ const dom = {
   sketchViewer: document.querySelector("#sketch-viewer"),
   implementationViewer: document.querySelector("#implementation-viewer"),
   compareStage: document.querySelector("#compare-stage"),
+  refinementSummary: document.querySelector("#refinement-summary"),
+  refinementStats: document.querySelector("#refinement-stats"),
+  refinementRegions: document.querySelector("#refinement-regions"),
   compareContextNote: document.querySelector("#compare-context-note"),
   compareContextList: document.querySelector("#compare-context-list"),
   frameNotesPreview: document.querySelector("#frame-notes-preview"),
@@ -64,6 +77,8 @@ const state = {
   compareMode: normalizeCompareMode(
     window.localStorage.getItem(COMPARE_MODE_KEY),
   ),
+  outputActivity: [],
+  outputDigest: null,
   pollingTimer: null,
 };
 const livePreviewChannel =
@@ -85,6 +100,7 @@ function init() {
   dom.followBadge.textContent = state.followActiveFrame
     ? "Auto-follow on"
     : "Auto-follow off";
+  bindInteractionFeedback();
   renderCompareMode();
 
   dom.refreshPreview.addEventListener("click", () => {
@@ -133,6 +149,57 @@ function init() {
   void refreshPreviewState({ manual: false });
 }
 
+function bindInteractionFeedback() {
+  const interactiveSelector = "button, .ghost-link, [role='button']";
+
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target.closest(interactiveSelector);
+    if (!target || target.matches(":disabled")) {
+      return;
+    }
+    applyInteractionClass(target, "ux-press", 180);
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest(interactiveSelector);
+    if (!target || target.matches(":disabled")) {
+      return;
+    }
+    applyInteractionClass(target, "ux-flash", 220);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    const target = event.target.closest(interactiveSelector);
+    if (!target || target.matches(":disabled")) {
+      return;
+    }
+    applyInteractionClass(target, "ux-press", 180);
+  });
+}
+
+function applyInteractionClass(element, className, durationMs) {
+  if (!(element instanceof HTMLElement)) {
+    return;
+  }
+
+  const timerKey =
+    className === "ux-press" ? "__uxPressTimer" : "__uxFlashTimer";
+  if (element[timerKey]) {
+    window.clearTimeout(element[timerKey]);
+  }
+
+  element.classList.remove(className);
+  void element.offsetWidth;
+  element.classList.add(className);
+  element[timerKey] = window.setTimeout(() => {
+    element.classList.remove(className);
+    element[timerKey] = 0;
+  }, durationMs);
+}
+
 async function refreshPreviewState({ manual }) {
   try {
     const response = await fetch("/api/preview-state", { cache: "no-store" });
@@ -140,6 +207,20 @@ async function refreshPreviewState({ manual }) {
     if (!response.ok) {
       throw new Error(payload.error || "Preview state could not load.");
     }
+    const localOutputActivity = updateOutputActivityHistory(
+      state.outputActivity,
+      state.outputDigest,
+      payload.outputDigest || null,
+      payload.updatedAt || new Date().toISOString(),
+    );
+    const persistedOutputActivity = buildOutputActivityFromSessionEvents(
+      payload.sessionEvents || [],
+    );
+    state.outputActivity = mergeOutputActivityEntries(
+      localOutputActivity,
+      persistedOutputActivity,
+    );
+    state.outputDigest = payload.outputDigest || null;
     state.payload = payload;
     syncSelectedFrame();
     renderAll();
@@ -151,6 +232,9 @@ async function refreshPreviewState({ manual }) {
       error instanceof Error ? error.message : "Preview unavailable";
   } finally {
     window.clearTimeout(state.pollingTimer);
+    if (wantsSelfTest) {
+      return;
+    }
     state.pollingTimer = window.setTimeout(() => {
       void refreshPreviewState({ manual: false });
     }, POLL_INTERVAL_MS);
@@ -205,15 +289,21 @@ function renderAll() {
   renderFrameRail();
   renderFlow();
   renderManifestContext();
+  renderOutputActivity();
+  renderRewriteQueue();
   renderSnapshots();
   renderSelectedFrame();
   renderImplementationPreview();
   renderPrompt();
+  maybeRunPreviewSelfTest();
 }
 
 function renderMeta() {
   const payload = currentPayload();
   const lastUpdated = payload?.liveExport?.generatedAt || payload?.updatedAt;
+  dom.transportStatus.textContent = describeTransportSummary(
+    resolveTransportDescriptor(payload),
+  );
   dom.previewUpdated.textContent = lastUpdated
     ? formatDateTime(lastUpdated)
     : "Never";
@@ -236,6 +326,12 @@ function renderMeta() {
   const artifactCount = collectManifestArtifacts(manifest).length;
   const changeCount = collectManifestChanges(manifest).length;
   const freshness = describeManifestFreshness(manifestTarget, currentFrame());
+  const refinement = resolveCurrentRefinement(
+    manifestTarget,
+    collectManifestArtifacts(manifest),
+    state.selectedFrameId,
+  );
+  const refinementSummary = describeRefinementSummary(refinement);
 
   renderTargetStateBadge(freshness, manifestTarget);
 
@@ -244,17 +340,20 @@ function renderMeta() {
       dom.previewStatus.textContent = freshness.message;
       return;
     }
-    dom.previewStatus.textContent = `Sketch synced with ${artifactCount} artifact${artifactCount === 1 ? "" : "s"} and ${changeCount} changed file${changeCount === 1 ? "" : "s"}`;
+    dom.previewStatus.textContent = refinementSummary
+      ? `${refinementSummary} ${artifactCount} artifact${artifactCount === 1 ? "" : "s"} and ${changeCount} changed file${changeCount === 1 ? "" : "s"} are connected.`
+      : `Sketch synced with ${artifactCount} artifact${artifactCount === 1 ? "" : "s"} and ${changeCount} changed file${changeCount === 1 ? "" : "s"}`;
     return;
   }
 
   dom.previewStatus.textContent = manifestTarget
-    ? "Sketch synced and implementation target connected"
+    ? refinementSummary || "Sketch synced and implementation target connected"
     : "Sketch synced. Attach a preview URL, let Codex write a target, or use Materialize in the board to generate one here";
 }
 
 function renderFrameRail() {
   const frames = currentLiveExport()?.frames || [];
+  const manifest = currentPayload()?.previewManifest || null;
   dom.frameRailTitle.textContent = frames.length
     ? "Live frame timeline"
     : "No frames yet";
@@ -271,13 +370,20 @@ function renderFrameRail() {
   dom.frameRail.innerHTML = frames
     .map((frame, index) => {
       const active = frame.id === state.selectedFrameId ? "active" : "";
-      const thumb =
-        frame.liveThumbnailDataUrl || frame.thumbnailUrl || frame.snapshotUrl;
+      const outputStatus = describeFrameOutputStatus(frame, manifest, {
+        includeGlobal: frame.id === state.selectedFrameId,
+      });
+      const thumb = wantsSelfTest
+        ? ""
+        : frame.liveThumbnailDataUrl || frame.thumbnailUrl || frame.snapshotUrl;
       return `
         <button class="frame-card ${active}" type="button" data-frame-id="${escapeHtml(frame.id)}">
           <div class="frame-thumb">${thumb ? `<img src="${escapeHtml(thumb)}" alt="" />` : ""}</div>
           <div class="frame-meta">
-            <strong>${index + 1}. ${escapeHtml(frame.title || `Frame ${index + 1}`)}</strong>
+            <div class="frame-meta-row">
+              <strong>${index + 1}. ${escapeHtml(frame.title || `Frame ${index + 1}`)}</strong>
+              ${renderFrameOutputBadge(outputStatus)}
+            </div>
             <div class="sketch-meta">${describeViewport(frame)} • ${frame.captureCount || 0} capture${frame.captureCount === 1 ? "" : "s"}</div>
           </div>
         </button>
@@ -343,8 +449,31 @@ function renderSelectedFrame() {
   }
 
   const viewport = getViewport(frame);
+  const outputStatus = describeFrameOutputStatus(
+    frame,
+    currentPayload()?.previewManifest || null,
+    { includeGlobal: true },
+  );
+  const refinement = resolveCurrentRefinement(
+    resolvePreviewTargetEntry(
+      currentPayload()?.previewManifest,
+      state.manualPreviewUrl,
+      frame.id,
+    ),
+    collectManifestArtifacts(currentPayload()?.previewManifest || null),
+    frame.id,
+  );
   dom.selectedFrameTitle.textContent = frame.title || "Untitled frame";
-  dom.selectedFrameMeta.textContent = `${viewport.label} • ${viewport.width}×${viewport.height} • updated ${formatDateTime(frame.updatedAt)}`;
+  const metaParts = [
+    viewport.label,
+    `${viewport.width}×${viewport.height}`,
+    `updated ${formatDateTime(frame.updatedAt)}`,
+  ];
+  if (outputStatus?.label) {
+    metaParts.push(outputStatus.label.toLowerCase());
+  }
+  dom.selectedFrameMeta.textContent = metaParts.join(" • ");
+  dom.selectedFrameMeta.title = outputStatus?.detail || "";
   dom.viewportBadge.textContent = `${viewport.label} ${viewport.width}×${viewport.height}`;
 
   const imageUrl =
@@ -353,9 +482,14 @@ function renderSelectedFrame() {
     frame.liveThumbnailDataUrl ||
     frame.thumbnailUrl;
   if (imageUrl) {
+    const capacity = measureViewerCapacity(dom.sketchViewer);
     const stage = buildViewportStage({
       viewport,
-      inner: `<img class="viewport-image viewport-content" src="${escapeHtml(imageUrl)}" alt="Saved sketch for ${escapeHtml(frame.title || "current frame")}" />`,
+      capacity,
+      inner: wantsSelfTest
+        ? `<div class="viewport-content viewport-placeholder">Sketch preview ready for ${escapeHtml(frame.title || "current frame")}</div>`
+        : `<img class="viewport-image viewport-content" src="${escapeHtml(imageUrl)}" alt="Saved sketch for ${escapeHtml(frame.title || "current frame")}" />`,
+      changeRegions: refinement?.changedRegions || [],
     });
     dom.sketchViewer.className = "surface-viewer";
     dom.sketchViewer.innerHTML = stage;
@@ -395,10 +529,16 @@ function renderSelectedFrame() {
 
 function renderImplementationPreview() {
   const frame = currentFrame();
+  const manifest = currentPayload()?.previewManifest || null;
   const target = resolvePreviewTargetEntry(
-    currentPayload()?.previewManifest,
+    manifest,
     state.manualPreviewUrl,
     state.selectedFrameId,
+  );
+  const refinement = resolveCurrentRefinement(
+    target,
+    collectManifestArtifacts(manifest),
+    frame?.id || state.selectedFrameId,
   );
   const targetUrl = target?.resolvedUrl || target?.url || "";
   dom.openTargetLink.hidden = !targetUrl;
@@ -418,9 +558,21 @@ function renderImplementationPreview() {
   }
 
   const viewport = getViewport(frame);
+  const capacity = measureViewerCapacity(dom.implementationViewer);
+  const renderUrl = buildImplementationTargetUrl(
+    target,
+    collectManifestArtifacts(manifest),
+    collectManifestChanges(manifest),
+    frame.id,
+    state.outputDigest,
+  );
   const stage = buildViewportStage({
     viewport,
-    inner: `<iframe class="viewport-iframe viewport-content" src="${escapeHtml(targetUrl)}" title="Connected implementation preview"></iframe>`,
+    capacity,
+    inner: wantsSelfTest
+      ? `<div class="viewport-content viewport-placeholder" data-target-url="${escapeHtml(renderUrl)}">Connected implementation preview ready</div>`
+      : `<iframe class="viewport-iframe viewport-content" src="${escapeHtml(renderUrl)}" title="Connected implementation preview"></iframe>`,
+    changeRegions: refinement?.changedRegions || [],
   });
   dom.implementationViewer.className = "surface-viewer";
   dom.implementationViewer.innerHTML = stage;
@@ -435,6 +587,8 @@ function renderManifestContext() {
   );
   const artifacts = collectManifestArtifacts(manifest);
   const changes = collectManifestChanges(manifest);
+  renderWorkspaceFollowNote(currentPayload()?.workspaceFollow || null);
+  renderRefinement(target, artifacts);
   renderCompareContext(target, artifacts, changes);
 
   renderTargetSummary(target, manifest);
@@ -594,6 +748,7 @@ function renderTargetSummary(target, manifest) {
   const href = target.resolvedUrl || target.url || "";
   const routeLabel = target.previewPath || href || "Connected target";
   const freshness = describeManifestFreshness(target, currentFrame());
+  const refinementSummary = describeRefinementSummary(target.refinement);
   dom.targetSummary.className = "target-summary";
   dom.targetSummary.innerHTML = `
     <div class="target-card">
@@ -604,10 +759,243 @@ function renderTargetSummary(target, manifest) {
       <p class="target-meta">${escapeHtml(target.source || "manifest")} • ${escapeHtml(routeLabel)}</p>
       ${target.description ? `<p class="target-copy">${escapeHtml(target.description)}</p>` : ""}
       ${freshness?.message ? `<p class="target-copy${freshness.stale ? " warning-copy" : " subtle"}">${escapeHtml(freshness.message)}</p>` : ""}
+      ${refinementSummary ? `<p class="target-copy subtle">${escapeHtml(refinementSummary)}</p>` : ""}
       ${notes ? `<p class="target-copy subtle">${escapeHtml(notes)}</p>` : ""}
       ${href ? `<a class="ghost-link target-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">Open connected target</a>` : ""}
     </div>
   `;
+}
+
+function renderOutputActivity() {
+  const items = Array.isArray(state.outputActivity) ? state.outputActivity : [];
+  dom.outputActivityCount.textContent = `${items.length} ${items.length === 1 ? "item" : "items"}`;
+  if (!items.length) {
+    dom.outputActivityList.className = "manifest-list empty-state";
+    dom.outputActivityList.textContent =
+      "No live output activity yet. Connected output updates will appear here while you keep sketching.";
+    return;
+  }
+
+  dom.outputActivityList.className = "manifest-list";
+  dom.outputActivityList.innerHTML = items
+    .map(
+      (item) => `
+        <article class="manifest-item activity-item">
+          <div class="manifest-item-row">
+            <strong>${escapeHtml(item.summary || "Output update")}</strong>
+            <span class="target-badge subtle">${escapeHtml(timeLabel(item.at))}</span>
+          </div>
+          ${item.detail ? `<p class="manifest-copy">${escapeHtml(item.detail)}</p>` : ""}
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderRewriteQueue() {
+  const items = buildRewriteQueue(
+    currentLiveExport()?.frames || [],
+    currentPayload()?.previewManifest || null,
+    currentLiveExport()?.activeFrameId || state.selectedFrameId,
+  );
+  dom.rewriteQueueCount.textContent = `${items.length} ${items.length === 1 ? "frame" : "frames"}`;
+  if (!items.length) {
+    dom.rewriteQueueList.className = "manifest-list empty-state";
+    dom.rewriteQueueList.textContent =
+      "No frames currently need rewrite attention.";
+    return;
+  }
+
+  dom.rewriteQueueList.className = "manifest-list";
+  dom.rewriteQueueList.innerHTML = items
+    .map(
+      (item) => `
+        <article class="manifest-item${item.frameId === state.selectedFrameId ? " active" : ""}">
+          <div class="manifest-item-row">
+            <strong>${escapeHtml(item.title || "Untitled frame")}</strong>
+            <div class="manifest-item-badges">
+              <span class="target-badge ${escapeHtml(item.tone || "subtle")}">${escapeHtml(item.label)}</span>
+            </div>
+          </div>
+          ${item.detail ? `<p class="manifest-copy">${escapeHtml(item.detail)}</p>` : ""}
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function renderWorkspaceFollowNote(workspaceFollow) {
+  const message = describeWorkspaceFollow(workspaceFollow);
+  dom.workspaceFollowNote.hidden = !message;
+  dom.workspaceFollowNote.textContent = message;
+}
+
+function buildImplementationTargetUrl(
+  target,
+  artifacts,
+  changes,
+  frameId,
+  outputDigest,
+) {
+  const sourceUrl = target?.resolvedUrl || target?.url || "";
+  if (!sourceUrl) {
+    return "";
+  }
+  const revisionKey = buildImplementationRevisionKey(
+    target,
+    artifacts,
+    changes,
+    frameId,
+    outputDigest,
+  );
+  return withRevisionParam(sourceUrl, revisionKey);
+}
+
+function buildImplementationRevisionKey(
+  target,
+  artifacts,
+  changes,
+  frameId,
+  outputDigest,
+) {
+  const relevantArtifacts = Array.isArray(artifacts)
+    ? artifacts
+        .filter(
+          (item) => itemMatchesFrame(item, frameId) || !hasFrameBinding(item),
+        )
+        .map((item) => ({
+          id: item.id,
+          path: item.path,
+          kind: item.kind,
+          versionTag: item.versionTag,
+          generatedAt: item.generatedAt,
+        }))
+    : [];
+  const relevantChanges = Array.isArray(changes)
+    ? changes
+        .filter(
+          (item) => itemMatchesFrame(item, frameId) || !hasFrameBinding(item),
+        )
+        .filter((item) => isImplementationChangeCandidate(item.path))
+        .map((item) => ({
+          id: item.id,
+          path: item.path,
+          kind: item.kind,
+          summary: item.summary,
+        }))
+    : [];
+  const fingerprint = JSON.stringify({
+    digest: outputDigest?.digest || "",
+    target: target
+      ? {
+          id: target.id,
+          url: target.url,
+          resolvedUrl: target.resolvedUrl,
+          previewPath: target.previewPath,
+          versionTag: target.versionTag,
+          generatedAt: target.generatedAt,
+          sourceFrameUpdatedAt: target.sourceFrameUpdatedAt,
+          refinement: target.refinement
+            ? {
+                iteration: target.refinement.iteration,
+                summary: target.refinement.summary,
+              }
+            : null,
+        }
+      : null,
+    artifacts: relevantArtifacts,
+    changes: relevantChanges,
+  });
+  return hashString(fingerprint);
+}
+
+function withRevisionParam(url, revision) {
+  const nextRevision = String(revision || "").trim();
+  if (!nextRevision) {
+    return url;
+  }
+  try {
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.set("canvax_rev", nextRevision);
+    return parsed.toString();
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}canvax_rev=${encodeURIComponent(nextRevision)}`;
+  }
+}
+
+function renderRefinement(target, artifacts) {
+  const frame = currentFrame();
+  if (!frame) {
+    dom.refinementSummary.textContent = "Select a frame to inspect refinement.";
+    dom.refinementStats.className = "refinement-stats empty-state";
+    dom.refinementStats.textContent = "No frame selected yet.";
+    dom.refinementRegions.className = "refinement-regions empty-state";
+    dom.refinementRegions.textContent = "Changed regions will appear here.";
+    return;
+  }
+
+  const refinement = resolveCurrentRefinement(target, artifacts, frame.id);
+  if (!refinement || !describeRefinementSummary(refinement)) {
+    dom.refinementSummary.textContent =
+      "No materialized refinement data for this frame yet.";
+    dom.refinementStats.className = "refinement-stats empty-state";
+    dom.refinementStats.textContent =
+      "Materialize this frame, then continue editing it to see the delta between revisions.";
+    dom.refinementRegions.className = "refinement-regions empty-state";
+    dom.refinementRegions.textContent =
+      "Changed sketch regions will appear here after rematerialize.";
+    return;
+  }
+
+  const stats = [
+    [`Iteration`, String(refinement.iteration || 1)],
+    [
+      `Regions`,
+      String(
+        refinement.counts?.regionCount || refinement.changedRegions.length || 0,
+      ),
+    ],
+    [`Updated`, String(refinement.counts?.updated || 0)],
+    [`Added`, String(refinement.counts?.added || 0)],
+    [`Removed`, String(refinement.counts?.removed || 0)],
+    [`Notes`, String(refinement.counts?.noteFieldsChanged || 0)],
+  ];
+
+  dom.refinementSummary.textContent = describeRefinementSummary(refinement);
+  dom.refinementStats.className = "refinement-stats";
+  dom.refinementStats.innerHTML = stats
+    .map(
+      ([label, value]) => `
+        <article class="refinement-stat">
+          <strong>${escapeHtml(value)}</strong>
+          <p class="manifest-copy">${escapeHtml(label)}</p>
+        </article>
+      `,
+    )
+    .join("");
+
+  if (!refinement.changedRegions.length) {
+    dom.refinementRegions.className = "refinement-regions empty-state";
+    dom.refinementRegions.textContent =
+      "This refinement did not produce explicit region boxes.";
+    return;
+  }
+
+  dom.refinementRegions.className = "refinement-regions";
+  dom.refinementRegions.innerHTML = refinement.changedRegions
+    .map(
+      (region, index) => `
+        <article class="refinement-region">
+          <div class="refinement-region-meta">
+            <strong>${escapeHtml(region.label || `Region ${index + 1}`)}</strong>
+            <span class="target-badge subtle">${escapeHtml(region.kind || "updated")}</span>
+          </div>
+          <p class="manifest-copy">${escapeHtml(`x ${Math.round(region.left)} • y ${Math.round(region.top)} • ${Math.round(region.width)}×${Math.round(region.height)}`)}</p>
+        </article>
+      `,
+    )
+    .join("");
 }
 
 function renderManifestList({
@@ -681,10 +1069,16 @@ function onCompareModeClick(event) {
   renderCompareMode();
 }
 
-function buildViewportStage({ viewport, inner }) {
-  const scale = computeViewportScale(viewport);
+function buildViewportStage({
+  viewport,
+  inner,
+  changeRegions = [],
+  capacity = null,
+}) {
+  const scale = computeViewportScale(viewport, capacity);
   const stageWidth = Math.max(160, Math.round(viewport.width * scale));
   const stageHeight = Math.max(160, Math.round(viewport.height * scale));
+  const overlayMarkup = buildChangeOverlayMarkup(changeRegions, scale);
 
   return `
     <div
@@ -695,17 +1089,94 @@ function buildViewportStage({ viewport, inner }) {
         <div class="viewport-canvas">
           ${inner}
         </div>
+        ${overlayMarkup}
       </div>
     </div>
   `;
 }
 
-function computeViewportScale(viewport) {
+function buildChangeOverlayMarkup(changeRegions, scale) {
+  if (!Array.isArray(changeRegions) || !changeRegions.length) {
+    return "";
+  }
+  return `
+    <div class="change-overlay-layer" aria-hidden="true">
+      ${changeRegions
+        .map((region, index) => {
+          const left = Math.max(0, Number(region.left) || 0) * scale;
+          const top = Math.max(0, Number(region.top) || 0) * scale;
+          const width = Math.max(12, Number(region.width) || 0) * scale;
+          const height = Math.max(12, Number(region.height) || 0) * scale;
+          return `
+            <div
+              class="change-overlay-box"
+              style="left:${left}px; top:${top}px; width:${width}px; height:${height}px;"
+            >
+              <span class="change-overlay-label">${escapeHtml(
+                region.label || `Change ${index + 1}`,
+              )}</span>
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function computeViewportScale(viewport, capacity = null) {
+  const availableWidth = Math.max(
+    240,
+    Math.min(MAX_STAGE_WIDTH, Number(capacity?.width) || MAX_STAGE_WIDTH),
+  );
+  const availableHeight = Math.max(
+    220,
+    Math.min(MAX_STAGE_HEIGHT, Number(capacity?.height) || MAX_STAGE_HEIGHT),
+  );
   return Math.min(
     1,
-    MAX_STAGE_WIDTH / viewport.width,
-    MAX_STAGE_HEIGHT / viewport.height,
+    availableWidth / viewport.width,
+    availableHeight / viewport.height,
   );
+}
+
+function measureViewerCapacity(element) {
+  if (!element) {
+    return {
+      width: MAX_STAGE_WIDTH,
+      height: MAX_STAGE_HEIGHT,
+    };
+  }
+
+  const rect = element.getBoundingClientRect();
+  const styles = window.getComputedStyle(element);
+  const horizontalPadding =
+    (Number.parseFloat(styles.paddingLeft) || 0) +
+    (Number.parseFloat(styles.paddingRight) || 0);
+  const verticalPadding =
+    (Number.parseFloat(styles.paddingTop) || 0) +
+    (Number.parseFloat(styles.paddingBottom) || 0);
+
+  return {
+    width: Math.max(240, rect.width - horizontalPadding - 8),
+    height: Math.max(220, rect.height - verticalPadding - 8),
+  };
+}
+
+function resolveCurrentRefinement(target, artifacts, frameId) {
+  if (target?.refinement?.summary) {
+    return target.refinement;
+  }
+  const artifact = (artifacts || []).find(
+    (item) =>
+      itemMatchesFrame(item, frameId) &&
+      item.refinement &&
+      describeRefinementSummary(item.refinement),
+  );
+  return artifact?.refinement || null;
+}
+
+function describeRefinementSummary(refinement) {
+  return refinement?.summary || "";
 }
 
 function renderPrompt() {
@@ -715,6 +1186,223 @@ function renderPrompt() {
     payload?.liveExport?.prompt ||
     "Waiting for the live Canvax export...";
   dom.promptPreview.textContent = prompt;
+}
+
+function maybeRunPreviewSelfTest() {
+  if (!wantsSelfTest || previewSelfTestStarted || !currentPayload()) {
+    return;
+  }
+  previewSelfTestStarted = true;
+  void runPreviewSelfTest();
+}
+
+async function runPreviewSelfTest() {
+  const results = [];
+
+  try {
+    await waitForPreviewSelfTestReady();
+
+    const payload = currentPayload();
+    const liveExport = currentLiveExport();
+    const frameCount = Array.isArray(liveExport?.frames)
+      ? liveExport.frames.length
+      : 0;
+    const frame = currentFrame();
+    const manifest = payload?.previewManifest || null;
+    const target = resolvePreviewTargetEntry(
+      manifest,
+      state.manualPreviewUrl,
+      state.selectedFrameId,
+    );
+    const artifacts = collectManifestArtifacts(manifest);
+    const changes = collectManifestChanges(manifest);
+    const syntheticDigest = {
+      digest: "preview-selftest-output",
+      summary: "Preview self-test output context",
+      targetLabel: "Self-test target",
+      artifactCount: 1,
+      changeCount: 2,
+      refinementSummary: "Updated 2 regions",
+      frameTitle: frame?.title || "Current frame",
+    };
+    const initialActivity = updateOutputActivityHistory(
+      [],
+      null,
+      syntheticDigest,
+      "2026-03-14T00:00:00.000Z",
+    );
+    const rebuiltActivity = buildOutputActivityFromSessionEvents([
+      {
+        id: "preview-selftest-checkpoint",
+        at: "2026-03-14T00:00:01.000Z",
+        reason: "output-update",
+        label: "Output update",
+        note: "Preview self-test output context",
+        summary: {
+          changeCount: 2,
+          artifactCount: 1,
+        },
+        outputDigest: syntheticDigest,
+      },
+    ]);
+
+    results.push(
+      assert(
+        dom.compareModeButtons.querySelectorAll("[data-compare-mode]")
+          .length === 3,
+        "preview compare mode toggles render",
+      ),
+    );
+    results.push(
+      assert(
+        typeof payload?.updatedAt === "string" && payload.updatedAt.length > 0,
+        "preview payload loads from Canvax",
+      ),
+    );
+    results.push(
+      assert(
+        resolveTransportDescriptor(payload).mode === "local-companion" &&
+          dom.transportStatus.textContent.includes("Future path"),
+        "preview transport summary renders",
+      ),
+    );
+    results.push(
+      assert(Array.isArray(liveExport?.frames), "preview resolves live export"),
+    );
+    results.push(
+      assert(
+        dom.frameRail.querySelectorAll(".frame-card").length === frameCount,
+        "preview frame rail mirrors current frames",
+      ),
+    );
+    results.push(
+      assert(
+        frameCount === 0 || Boolean(frame?.id),
+        "preview selects a frame when frames exist",
+      ),
+    );
+    results.push(
+      assert(
+        dom.promptPreview.textContent.trim().length > 32,
+        "preview prompt pane renders handoff text",
+      ),
+    );
+    results.push(
+      assert(
+        dom.targetSummary.textContent.trim().length > 0,
+        "preview target summary renders",
+      ),
+    );
+    results.push(
+      assert(
+        !target ||
+          Boolean(
+            buildImplementationTargetUrl(
+              target,
+              artifacts,
+              changes,
+              frame?.id || state.selectedFrameId,
+              payload?.outputDigest || null,
+            ),
+          ),
+        "preview target URL resolves when a target exists",
+      ),
+    );
+    results.push(
+      assert(
+        describeWorkspaceFollow(payload?.workspaceFollow || null) ===
+          dom.workspaceFollowNote.textContent,
+        "preview workspace follow note stays in sync",
+      ),
+    );
+    results.push(
+      assert(
+        initialActivity.length === 1 &&
+          rebuiltActivity.length === 1 &&
+          mergeOutputActivityEntries(initialActivity, rebuiltActivity)
+            .length === 1,
+        "preview output activity dedupes by digest",
+      ),
+    );
+    const rewriteQueueItems = buildRewriteQueue(
+      [
+        {
+          id: "frame-preview-selftest",
+          title: "Preview rewrite frame",
+          viewport: "desktop",
+          viewportWidth: 1440,
+          viewportHeight: 1024,
+          objective: "Needs output refresh",
+          layout: "",
+          motion: "",
+          assets: "",
+          mobile: "",
+          captureCount: 1,
+          updatedAt: "2026-03-14T00:00:02.000Z",
+          snapshotUrl: "/workspace/exports/assets/frame-preview-selftest.jpg",
+        },
+      ],
+      {
+        targets: [
+          {
+            id: "materialize-target-frame-preview-selftest",
+            label: "Preview rewrite materialized",
+            source: "canvax-materialize",
+            type: "materialized-preview",
+            previewPath:
+              "artifacts/preview/materialized/frame-preview-selftest/index.html",
+            frameIds: ["frame-preview-selftest"],
+            sourceFrameId: "frame-preview-selftest",
+            sourceFrameUpdatedAt: "2026-03-14T00:00:01.000Z",
+          },
+        ],
+      },
+      "frame-preview-selftest",
+    );
+    results.push(
+      assert(
+        rewriteQueueItems.length === 1 &&
+          rewriteQueueItems[0]?.label === "Needs refresh",
+        "preview rewrite queue flags stale frame output",
+      ),
+    );
+  } catch (error) {
+    results.push({
+      name: "preview self-test runtime",
+      passed: false,
+      detail:
+        error instanceof Error
+          ? error.message
+          : "Unknown preview self-test error",
+    });
+  }
+
+  renderPreviewSelfTestResults(results);
+}
+
+async function waitForPreviewSelfTestReady(timeoutMs = 4000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (currentPayload()) {
+      await delay(60);
+      return;
+    }
+    await delay(80);
+  }
+  throw new Error("Preview payload did not load in time.");
+}
+
+function renderPreviewSelfTestResults(results) {
+  window.clearTimeout(state.pollingTimer);
+  const existing = document.querySelector("#preview-selftest-results");
+  existing?.remove();
+  const pre = document.createElement("pre");
+  pre.id = "preview-selftest-results";
+  pre.textContent = JSON.stringify(results, null, 2);
+  document.body.appendChild(pre);
+  document.body.dataset.selftestPassed = String(
+    results.every((result) => result.passed),
+  );
 }
 
 function currentFrame() {
@@ -831,6 +1519,14 @@ function resolvePreviewTargetEntry(
         resolvedUrl: fallback,
         previewPath: "",
         description: "",
+        frameIds: [],
+        versionTag: "",
+        generatedAt: "",
+        sourceFrameId: "",
+        sourceFrameTitle: "",
+        sourceFrameUpdatedAt: "",
+        changeSummary: "",
+        refinement: normalizeRefinementData(null),
       }
     : null;
 }
@@ -922,6 +1618,8 @@ function derivePreviewTargetFromArtifacts(manifest, preferredFrameId = "") {
     sourceFrameId: artifact.sourceFrameId || "",
     sourceFrameTitle: artifact.sourceFrameTitle || "",
     sourceFrameUpdatedAt: artifact.sourceFrameUpdatedAt || "",
+    changeSummary: artifact.changeSummary || "",
+    refinement: normalizeRefinementData(artifact.refinement),
   };
 }
 
@@ -963,6 +1661,8 @@ function normalizeManifestTarget(value, index = 0) {
           sourceFrameId: "",
           sourceFrameTitle: "",
           sourceFrameUpdatedAt: "",
+          changeSummary: "",
+          refinement: normalizeRefinementData(null),
         }
       : null;
   }
@@ -1026,6 +1726,9 @@ function normalizeManifestTarget(value, index = 0) {
       typeof value.sourceFrameUpdatedAt === "string"
         ? value.sourceFrameUpdatedAt.trim()
         : "",
+    changeSummary:
+      typeof value.changeSummary === "string" ? value.changeSummary.trim() : "",
+    refinement: normalizeRefinementData(value.refinement),
   };
 }
 
@@ -1051,6 +1754,8 @@ function normalizeManifestArtifact(value, index = 0) {
           sourceFrameId: "",
           sourceFrameTitle: "",
           sourceFrameUpdatedAt: "",
+          changeSummary: "",
+          refinement: normalizeRefinementData(null),
         }
       : null;
   }
@@ -1105,6 +1810,59 @@ function normalizeManifestArtifact(value, index = 0) {
       typeof value.sourceFrameUpdatedAt === "string"
         ? value.sourceFrameUpdatedAt.trim()
         : "",
+    changeSummary:
+      typeof value.changeSummary === "string" ? value.changeSummary.trim() : "",
+    refinement: normalizeRefinementData(value.refinement),
+  };
+}
+
+function normalizeRefinementData(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const counts =
+    source.counts &&
+    typeof source.counts === "object" &&
+    !Array.isArray(source.counts)
+      ? source.counts
+      : {};
+  return {
+    iteration: Math.max(1, Number(source.iteration) || 1),
+    hasPrevious: Boolean(source.hasPrevious),
+    changed: typeof source.changed === "boolean" ? source.changed : false,
+    comparedAgainst:
+      typeof source.comparedAgainst === "string"
+        ? source.comparedAgainst.trim()
+        : "",
+    summary: typeof source.summary === "string" ? source.summary.trim() : "",
+    counts: {
+      added: Math.max(0, Number(counts.added) || 0),
+      removed: Math.max(0, Number(counts.removed) || 0),
+      updated: Math.max(0, Number(counts.updated) || 0),
+      noteFieldsChanged: Math.max(0, Number(counts.noteFieldsChanged) || 0),
+      boardFieldsChanged: Math.max(0, Number(counts.boardFieldsChanged) || 0),
+      backgroundChanged: Math.max(0, Number(counts.backgroundChanged) || 0),
+      viewportChanged: Math.max(0, Number(counts.viewportChanged) || 0),
+      regionCount: Math.max(0, Number(counts.regionCount) || 0),
+    },
+    changedRegions: Array.isArray(source.changedRegions)
+      ? source.changedRegions
+          .map((region) => normalizeRefinementRegion(region))
+          .filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeRefinementRegion(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  return {
+    left: Math.max(0, Number(value.left) || 0),
+    top: Math.max(0, Number(value.top) || 0),
+    width: Math.max(0, Number(value.width) || 0),
+    height: Math.max(0, Number(value.height) || 0),
+    kind: typeof value.kind === "string" ? value.kind.trim() : "",
+    label: typeof value.label === "string" ? value.label.trim() : "",
   };
 }
 
@@ -1136,6 +1894,443 @@ function describeManifestFreshness(target, frame) {
   };
 }
 
+function findFrameSpecificTarget(manifest, frameId) {
+  if (!frameId) {
+    return null;
+  }
+  const explicitTarget = collectManifestTargets(manifest).find((target) => {
+    const frameIds = Array.isArray(target.frameIds) ? target.frameIds : [];
+    return (
+      frameIds.includes(frameId) ||
+      cleanString(target.sourceFrameId) === cleanString(frameId)
+    );
+  });
+  if (explicitTarget) {
+    return explicitTarget;
+  }
+  const artifactTarget = derivePreviewTargetFromArtifacts(manifest, frameId);
+  if (!artifactTarget) {
+    return null;
+  }
+  const frameIds = Array.isArray(artifactTarget.frameIds)
+    ? artifactTarget.frameIds
+    : [];
+  return frameIds.includes(frameId) ||
+    cleanString(artifactTarget.sourceFrameId) === cleanString(frameId)
+    ? artifactTarget
+    : null;
+}
+
+function describeFrameOutputStatus(
+  frame,
+  manifest,
+  { includeGlobal = false } = {},
+) {
+  if (!frame) {
+    return null;
+  }
+
+  const specificTarget = findFrameSpecificTarget(manifest, frame.id);
+  const target =
+    specificTarget ||
+    (includeGlobal
+      ? resolvePreviewTargetEntry(manifest, state.manualPreviewUrl, frame.id)
+      : null);
+  if (!target) {
+    return null;
+  }
+
+  const freshness = describeManifestFreshness(target, frame);
+  const detail =
+    freshness?.message ||
+    describeRefinementSummary(target.refinement) ||
+    target.changeSummary ||
+    target.label ||
+    "";
+  const stale = Boolean(freshness?.stale);
+  const bound = Boolean(specificTarget);
+  const materialized =
+    target.type === "materialized-preview" ||
+    target.source === "canvax-materialize";
+
+  if (stale) {
+    return {
+      label: "Output stale",
+      tone: "warning",
+      detail,
+    };
+  }
+
+  if (!bound) {
+    return {
+      label: "Global target",
+      tone: "subtle",
+      detail:
+        detail ||
+        "A connected output target exists, but it is not scoped to this frame.",
+    };
+  }
+
+  return {
+    label: materialized ? "Materialized" : "Output synced",
+    tone: materialized ? "active" : "synced",
+    detail,
+  };
+}
+
+function renderFrameOutputBadge(status) {
+  if (!status?.label) {
+    return "";
+  }
+  const title = status.detail || status.label;
+  return `<span class="target-badge ${escapeHtml(status.tone || "subtle")}" title="${escapeHtml(title)}">${escapeHtml(status.label)}</span>`;
+}
+
+function frameHasMeaningfulHandoff(frame) {
+  if (!frame) {
+    return false;
+  }
+  return Boolean(
+    Number(frame.captureCount) > 0 ||
+    cleanString(frame.objective) ||
+    cleanString(frame.layout) ||
+    cleanString(frame.motion) ||
+    cleanString(frame.assets) ||
+    cleanString(frame.mobile) ||
+    cleanString(frame.snapshotUrl) ||
+    cleanString(frame.liveSnapshotDataUrl) ||
+    cleanString(frame.thumbnailUrl) ||
+    cleanString(frame.liveThumbnailDataUrl),
+  );
+}
+
+function itemHasFrameBinding(item, frameId) {
+  if (!item || !frameId) {
+    return false;
+  }
+  const frameIds = Array.isArray(item.frameIds) ? item.frameIds : [];
+  return (
+    frameIds.includes(frameId) ||
+    cleanString(item.sourceFrameId) === cleanString(frameId)
+  );
+}
+
+function buildRewriteQueue(frames, manifest, activeFrameId = "") {
+  const normalizedFrames = Array.isArray(frames) ? frames : [];
+  const targets = collectManifestTargets(manifest);
+  const artifacts = collectManifestArtifacts(manifest);
+  const changes = collectManifestChanges(manifest);
+  const hasAnyTargets = targets.length > 0;
+
+  return normalizedFrames
+    .map((frame, index) => {
+      if (!frameHasMeaningfulHandoff(frame)) {
+        return null;
+      }
+
+      const specificTarget = findFrameSpecificTarget(manifest, frame.id);
+      const relatedArtifacts = artifacts.filter((item) =>
+        itemHasFrameBinding(item, frame.id),
+      );
+      const relatedChanges = changes.filter((item) =>
+        itemHasFrameBinding(item, frame.id),
+      );
+      const freshness = specificTarget
+        ? describeManifestFreshness(specificTarget, frame)
+        : null;
+
+      if (specificTarget && freshness?.stale) {
+        return {
+          id: `${frame.id}-stale`,
+          index: index + 1,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs refresh",
+          tone: "warning",
+          priority: 0,
+          updatedAt: frame.updatedAt,
+          detail: freshness.message,
+        };
+      }
+
+      if (
+        !specificTarget &&
+        (relatedArtifacts.length || relatedChanges.length)
+      ) {
+        return {
+          id: `${frame.id}-target`,
+          index: index + 1,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs target",
+          tone: "subtle",
+          priority: 1,
+          updatedAt: frame.updatedAt,
+          detail: `This frame already has ${relatedArtifacts.length} artifact${relatedArtifacts.length === 1 ? "" : "s"} and ${relatedChanges.length} changed file${relatedChanges.length === 1 ? "" : "s"} bound to it, but no connected preview target yet.`,
+        };
+      }
+
+      if (!specificTarget && frame.id === activeFrameId && hasAnyTargets) {
+        return {
+          id: `${frame.id}-binding`,
+          index: index + 1,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs frame binding",
+          tone: "subtle",
+          priority: 2,
+          updatedAt: frame.updatedAt,
+          detail:
+            "Only a global target is attached right now. Bind a frame-specific target or rematerialize this frame to tighten the live rewrite loop.",
+        };
+      }
+
+      if (!specificTarget && (!hasAnyTargets || frame.id === activeFrameId)) {
+        return {
+          id: `${frame.id}-first`,
+          index: index + 1,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Needs first output",
+          tone: "subtle",
+          priority: hasAnyTargets ? 3 : 2,
+          updatedAt: frame.updatedAt,
+          detail:
+            "This frame has sketch or note content but no connected output yet. Materialize it or bind a generated target when Codex implements it.",
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.priority !== right.priority) {
+        return left.priority - right.priority;
+      }
+      return String(right.updatedAt || "").localeCompare(
+        String(left.updatedAt || ""),
+      );
+    });
+}
+
+function describeWorkspaceFollow(workspaceFollow) {
+  if (!workspaceFollow || typeof workspaceFollow !== "object") {
+    return "";
+  }
+
+  if (workspaceFollow.enabled === false) {
+    return workspaceFollow.error
+      ? `Live workspace follow is unavailable: ${workspaceFollow.error}`
+      : "Live workspace follow is unavailable right now.";
+  }
+
+  if (workspaceFollow.source !== "git-status-live") {
+    return "";
+  }
+
+  const count = Number.isInteger(workspaceFollow.changeCount)
+    ? workspaceFollow.changeCount
+    : 0;
+  const frameTitle =
+    typeof workspaceFollow.frameTitle === "string" &&
+    workspaceFollow.frameTitle.trim()
+      ? workspaceFollow.frameTitle.trim()
+      : "the current board";
+
+  if (count > 0) {
+    return `Live workspace follow is mirroring ${count} current git change${count === 1 ? "" : "s"} for ${frameTitle}.`;
+  }
+
+  return `Live workspace follow is on. The workspace is currently clean for ${frameTitle}.`;
+}
+
+function buildOutputActivityDetail(outputDigest) {
+  if (!outputDigest || typeof outputDigest !== "object") {
+    return "";
+  }
+
+  const parts = [];
+  if (outputDigest.targetLabel) {
+    parts.push(outputDigest.targetLabel);
+  }
+  if (Number.isInteger(outputDigest.changeCount)) {
+    parts.push(
+      `${outputDigest.changeCount} changed file${outputDigest.changeCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (Number.isInteger(outputDigest.artifactCount)) {
+    parts.push(
+      `${outputDigest.artifactCount} artifact${outputDigest.artifactCount === 1 ? "" : "s"}`,
+    );
+  }
+  if (outputDigest.refinementSummary) {
+    parts.push(outputDigest.refinementSummary);
+  }
+  if (!parts.length && outputDigest.frameTitle) {
+    parts.push(outputDigest.frameTitle);
+  }
+  return parts.join(" • ");
+}
+
+function updateOutputActivityHistory(
+  currentItems,
+  previousDigest,
+  nextDigest,
+  at = new Date().toISOString(),
+) {
+  const items = Array.isArray(currentItems) ? [...currentItems] : [];
+  const previousKey = previousDigest?.digest || "";
+  const nextKey = nextDigest?.digest || "";
+
+  if (!nextKey) {
+    return items;
+  }
+
+  if (items.length && items[0]?.digest === nextKey) {
+    return items;
+  }
+
+  if (!previousKey && !items.length) {
+    return [
+      {
+        id: `${nextKey}-${at}`,
+        digest: nextKey,
+        at,
+        summary: nextDigest.summary || "Current output context attached",
+        detail: buildOutputActivityDetail(nextDigest),
+      },
+    ];
+  }
+
+  if (previousKey === nextKey) {
+    return items;
+  }
+
+  return [
+    {
+      id: `${nextKey}-${at}`,
+      digest: nextKey,
+      at,
+      summary: nextDigest.summary || "Output context changed",
+      detail: buildOutputActivityDetail(nextDigest),
+    },
+    ...items,
+  ].slice(0, MAX_OUTPUT_ACTIVITY_ITEMS);
+}
+
+function buildOutputActivityFromSessionEvents(sessionEvents) {
+  if (!Array.isArray(sessionEvents)) {
+    return [];
+  }
+
+  return sessionEvents
+    .filter((event) => {
+      if (!event || typeof event !== "object") {
+        return false;
+      }
+      const reason = typeof event.reason === "string" ? event.reason : "";
+      return (
+        reason === "output-update" ||
+        reason === "publish-output" ||
+        reason === "materialize"
+      );
+    })
+    .map((event) => {
+      const digest =
+        typeof event.outputDigest?.digest === "string"
+          ? event.outputDigest.digest
+          : "";
+      const detail = [
+        typeof event.outputDigest?.targetLabel === "string"
+          ? event.outputDigest.targetLabel
+          : "",
+        Number.isInteger(event.summary?.changeCount)
+          ? `${event.summary.changeCount} changed file${event.summary.changeCount === 1 ? "" : "s"}`
+          : "",
+        Number.isInteger(event.summary?.artifactCount)
+          ? `${event.summary.artifactCount} artifact${event.summary.artifactCount === 1 ? "" : "s"}`
+          : "",
+        typeof event.outputDigest?.refinementSummary === "string"
+          ? event.outputDigest.refinementSummary
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" • ");
+
+      return {
+        id:
+          typeof event.id === "string" && event.id.trim()
+            ? event.id.trim()
+            : `${digest || event.reason || "event"}-${event.at || ""}`,
+        digest,
+        at:
+          typeof event.at === "string" && event.at.trim()
+            ? event.at.trim()
+            : new Date().toISOString(),
+        summary:
+          typeof event.note === "string" && event.note.trim()
+            ? event.note.trim()
+            : typeof event.label === "string" && event.label.trim()
+              ? event.label.trim()
+              : "Output update",
+        detail,
+      };
+    });
+}
+
+function mergeOutputActivityEntries(...groups) {
+  const merged = [];
+  const seen = new Set();
+  groups.flat().forEach((item) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const key =
+      (typeof item.digest === "string" && item.digest.trim()) ||
+      (typeof item.id === "string" && item.id.trim());
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    merged.push(item);
+  });
+  return merged.slice(0, MAX_OUTPUT_ACTIVITY_ITEMS);
+}
+
+function isImplementationChangeCandidate(path) {
+  const value = typeof path === "string" ? path.trim().toLowerCase() : "";
+  if (!value || value.startsWith("docs/") || value === "readme.md") {
+    return false;
+  }
+  return /\.(astro|cjs|css|go|graphql|gql|html|java|js|json|jsx|kt|less|php|py|qml|rb|rs|sass|scss|svelte|swift|ts|tsx|ui|vue|xml|yaml|yml)$/i.test(
+    value,
+  );
+}
+
+function hashString(input) {
+  let hash = 2166136261;
+  const value = String(input || "");
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function assert(passed, name, detail = "") {
+  return {
+    name,
+    passed: Boolean(passed),
+    detail: passed ? detail : detail || "",
+  };
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function renderTargetStateBadge(freshness, target) {
   if (!target) {
     dom.targetStateBadge.textContent = "No output target";
@@ -1151,6 +2346,38 @@ function renderTargetStateBadge(freshness, target) {
 
   dom.targetStateBadge.textContent = freshness?.badge || "Output connected";
   dom.targetStateBadge.className = "badge subtle";
+}
+
+function resolveTransportDescriptor(payload = currentPayload()) {
+  const candidate =
+    payload?.transport &&
+    typeof payload.transport === "object" &&
+    !Array.isArray(payload.transport)
+      ? payload.transport
+      : payload?.liveExport?.transport &&
+          typeof payload.liveExport.transport === "object" &&
+          !Array.isArray(payload.liveExport.transport)
+        ? payload.liveExport.transport
+        : null;
+
+  return {
+    label:
+      cleanString(candidate?.label) ||
+      cleanString(candidate?.mode) ||
+      "Local companion",
+    mode: cleanString(candidate?.mode) || "local-companion",
+    future: {
+      label: cleanString(candidate?.future?.label) || "App Server client",
+      mode: cleanString(candidate?.future?.mode) || "app-server",
+    },
+  };
+}
+
+function describeTransportSummary(transport = resolveTransportDescriptor()) {
+  const currentLabel = cleanString(transport?.label) || "Local companion";
+  const futureLabel =
+    cleanString(transport?.future?.label) || "App Server client";
+  return `${currentLabel} now. Future path: ${futureLabel}.`;
 }
 
 function normalizeManifestChange(value, index = 0) {
@@ -1459,4 +2686,8 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function cleanString(value) {
+  return typeof value === "string" ? value.trim() : "";
 }

@@ -36,12 +36,15 @@ Prefer these files when they exist:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-checkpoint-latest.json`
 - `exports/canvax-preview-manifest.json`
 - `artifacts/canvax/codex-output.json`
 - `exports/canvax-storyboard-latest.json`
 - `exports/canvax-storyboard-latest.md`
 
 The live JSON export is the primary source because it includes frame metadata and the saved image paths.
+
+If `exports/canvax-checkpoint-latest.json` exists and the user seems to be referring to a specific recent moment in the board workflow, prefer that checkpoint because it merges sketch, voice, and output context for that handoff moment.
 
 When Codex has already produced an implementation target or changed files, also check:
 
@@ -50,7 +53,17 @@ When Codex has already produced an implementation target or changed files, also 
 
 Use the Codex output manifest as the canonical place to publish implementation results back to Canvax. The preview window and board inspector will merge it automatically with any manual preview attachment.
 
+Even when no fresh manifest write has happened yet, the board and Preview will still mirror current git workspace changes live through preview-state polling. Use the manifest writer when you want that output context to be durable and richly annotated, not only transient.
+
 If the user wants a quick styled local surface before any real app preview exists, tell them to use `Materialize` in the Canvax board. That writes a generated HTML preview under `artifacts/preview/materialized/...` and updates the manual preview manifest automatically.
+
+Canvax now also writes explicit transport metadata into its live payloads, exports, and checkpoints. Treat that as a contract:
+
+- current mode: `local-companion`
+- current binding surfaces: file exports + manifests + browser session mirroring
+- future mode: `app-server`
+
+That transport metadata exists so future richer Codex-client work does not have to guess which pieces are Canvax behavior versus current local transport details.
 
 Do not ask the user to paste the file path again once this skill is active. Default to `exports/canvax-live-latest.json`.
 
@@ -72,22 +85,30 @@ If the user asks whether Canvax is a skill or a command, answer precisely:
 
 After you implement something from the canvas, write the Codex output manifest so the board and preview can show what changed.
 
-Preferred command:
+Preferred command when Codex has changed files in the workspace:
 
 ```bash
-node scripts/write-codex-output.mjs --preview-path artifacts/preview/home.html --change web/app.js::Updated layout --artifact docs/spec.md::Generated handoff spec
+node scripts/write-codex-output.mjs --from-git-status
+```
+
+Preferred command when Codex also has a preview target to bind:
+
+```bash
+node scripts/write-codex-output.mjs --from-git-status --preview-path artifacts/preview/home.html
 ```
 
 If you have a running local preview instead of a workspace HTML file:
 
 ```bash
-node scripts/write-codex-output.mjs --url http://localhost:3000 --change src/app.tsx::Implemented the sketch
+node scripts/write-codex-output.mjs --from-git-status --url http://localhost:3000
 ```
 
 If a changed file or artifact is specific to one or more Canvax frames, append the frame ids in a third `::` segment so the preview can highlight the current-frame context:
 
 ```bash
-node scripts/write-codex-output.mjs --artifact artifacts/preview/home.html::Generated home preview::frame-home --change src/app.tsx::Implemented the home frame::frame-home
+node scripts/write-codex-output.mjs --from-git-status --artifact artifacts/preview/home.html::Generated home preview::frame-home --frame frame-home
 ```
 
 That keeps the current chat, preview window, and board inspector aligned without asking the user to attach output manually.
+
+Use `--dry-run --json` if you want to inspect the manifest that would be written before saving it.

@@ -80,6 +80,9 @@ body::before {
             20rem,
             24rem
         );
+    align-items: start;
+    max-width: 118rem;
+    margin: 0 auto;
     padding: 1rem;
     min-height: 100vh;
 }
@@ -109,6 +112,8 @@ body::before {
 .timeline-panel,
 .inspector-panel {
     padding: 1.25rem;
+    overflow: auto;
+    scrollbar-gutter: stable;
 }
 
 .studio {
@@ -250,6 +255,7 @@ button,
     color: var(--ink);
     background: rgba(255, 250, 244, 0.84);
     cursor: pointer;
+    max-width: 100%;
     transition:
         transform 120ms ease,
         background 120ms ease,
@@ -260,6 +266,32 @@ button:hover,
 .upload-button:hover {
     transform: translateY(-0.0625rem);
     border-color: rgba(24, 17, 14, 0.22);
+}
+
+button:active,
+.upload-button:active,
+.ghost-link-button:active,
+button.ux-press,
+.upload-button.ux-press,
+.ghost-link-button.ux-press {
+    transform: translateY(0.0625rem) scale(0.985);
+    box-shadow: inset 0 0 0 0.0625rem rgba(24, 17, 14, 0.12);
+}
+
+button.ux-flash,
+.upload-button.ux-flash,
+.ghost-link-button.ux-flash {
+    box-shadow:
+        0 0 0 0.18rem rgba(255, 93, 58, 0.16),
+        0 0.45rem 1.1rem rgba(24, 17, 14, 0.1);
+    border-color: rgba(255, 93, 58, 0.3);
+}
+
+button:focus-visible,
+.upload-button:focus-within,
+.ghost-link-button:focus-visible {
+    outline: 0.14rem solid rgba(255, 93, 58, 0.3);
+    outline-offset: 0.12rem;
 }
 
 button:disabled {
@@ -316,6 +348,7 @@ button:disabled {
 .button-row {
     flex-wrap: wrap;
     gap: 0.6rem;
+    min-width: 0;
 }
 
 .button-row.stacked {
@@ -387,6 +420,25 @@ button:disabled {
     min-width: 0;
 }
 
+.panel-header > *,
+.section-header > *,
+.stage-header > *,
+.stage-actions > *,
+.flow-toolbar > *,
+.artifact-item,
+.codex-output-card,
+.analysis-section,
+.capture-section {
+    min-width: 0;
+}
+
+.frame-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+}
+
 .frame-meta strong,
 .frame-meta span,
 .capture-meta strong,
@@ -405,6 +457,44 @@ button:disabled {
     font-size: 0.85rem;
 }
 
+.frame-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.45rem;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(24, 17, 14, 0.1);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.frame-status-badge.active {
+    color: var(--accent-deep);
+    background: rgba(255, 93, 58, 0.12);
+    border-color: rgba(255, 93, 58, 0.2);
+}
+
+.frame-status-badge.synced {
+    color: var(--mint);
+    background: rgba(12, 141, 123, 0.12);
+    border-color: rgba(12, 141, 123, 0.18);
+}
+
+.frame-status-badge.warning {
+    color: #8a4b12;
+    background: rgba(240, 162, 2, 0.16);
+    border-color: rgba(240, 162, 2, 0.2);
+}
+
+.frame-status-badge.muted {
+    color: var(--ink-soft);
+    background: rgba(24, 17, 14, 0.05);
+    border-color: rgba(24, 17, 14, 0.1);
+}
+
 .toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -414,7 +504,7 @@ button:disabled {
 .toolbar-main {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.75rem 1rem;
 }
 
@@ -422,10 +512,13 @@ button:disabled {
     align-items: center;
     gap: 0.75rem;
     flex-wrap: wrap;
+    min-width: 0;
 }
 
 .toolbar-status {
     margin-left: auto;
+    flex: 1 1 20rem;
+    justify-content: flex-end;
 }
 
 .tool-hint {
@@ -611,6 +704,8 @@ button:disabled {
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.75rem;
+    flex: 1 1 30rem;
+    min-width: 0;
 }
 
 .zoom-controls {
@@ -801,6 +896,24 @@ button:disabled {
     justify-content: space-between;
     gap: 1rem;
     flex-wrap: wrap;
+}
+
+#workspace-follow-status,
+#transport-status {
+    overflow-wrap: anywhere;
+}
+
+.button-row.right-align > *,
+.stage-actions .button-row > *,
+.toolbar-group > * {
+    min-width: 0;
+}
+
+input[type="text"],
+textarea,
+select,
+.color-hex-input {
+    min-width: 0;
 }
 
 .flow-shell {
@@ -1171,7 +1284,7 @@ button:disabled {
 
 .codex-output-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
     gap: 0.75rem;
 }
 
@@ -1191,6 +1304,22 @@ button:disabled {
 .artifact-inbox {
     display: grid;
     gap: 0.55rem;
+}
+
+.checkpoint-list {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.checkpoint-list.empty-state {
+    padding: 0.85rem 0.95rem;
+    border-radius: var(--radius-md);
+    background: rgba(255, 249, 241, 0.72);
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+}
+
+.checkpoint-item .button-row {
+    margin-top: 0.15rem;
 }
 
 .artifact-item {
@@ -1237,6 +1366,10 @@ button:disabled {
 
 .artifact-link {
     justify-self: flex-start;
+}
+
+.output-activity-item {
+    gap: 0.3rem;
 }
 
 .capture-list {
@@ -1405,12 +1538,18 @@ button:disabled {
 
     .inspector-panel {
         grid-column: 1 / -1;
+        overflow: visible;
     }
 }
 
 @media (max-width: 68rem) {
     .shell {
         grid-template-columns: 1fr;
+    }
+
+    .timeline-panel,
+    .inspector-panel {
+        overflow: visible;
     }
 
     .timeline-panel,
@@ -1422,6 +1561,7 @@ button:disabled {
 
     .toolbar-status {
         margin-left: 0;
+        width: 100%;
     }
 
     .canvas-note {
@@ -1431,6 +1571,10 @@ button:disabled {
     .stage-actions,
     .flow-toolbar {
         justify-content: flex-start;
+    }
+
+    .stage-actions {
+        flex-basis: 100%;
     }
 
     .codex-output-grid {
@@ -1466,6 +1610,11 @@ button:disabled {
 
     .button-row.right-align {
         justify-content: flex-start;
+    }
+
+    .stage-actions .button-row.right-align > *,
+    .toolbar-status > * {
+        flex: 1 1 12rem;
     }
 
     .segmented-control {
