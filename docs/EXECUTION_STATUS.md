@@ -4,6 +4,24 @@ Updated: March 15, 2026
 
 This file tracks what is actually implemented from `canvax-live-collaboration-plan.md` so work does not drift between chat turns.
 
+## Sprint Map
+
+```text
+Sprint 1 -> board surface and interaction stability
+Sprint 2 -> voice as native input
+Sprint 3 -> live Codex collaboration loop
+Sprint 4 -> preview and materialize surface
+Sprint 5 -> future transport and upstream readiness
+```
+
+```mermaid
+flowchart LR
+    S1[Sprint 1\nBoard] --> S2[Sprint 2\nVoice]
+    S2 --> S3[Sprint 3\nLive Codex loop]
+    S3 --> S4[Sprint 4\nPreview and Materialize]
+    S4 --> S5[Sprint 5\nTransport and upstream]
+```
+
 ## Sprint Status
 
 ### Sprint 1: Stabilize the collaboration surface
@@ -21,6 +39,13 @@ Status: In progress
 - [ ] Full interaction regression pass with browser validation
 - [ ] Remaining rough edges in large-session behavior
 
+```text
+done now:
+  board, tools, selection, flow, preview button, cached frame renders
+still open:
+  stricter browser validation and long-session polish
+```
+
 ### Sprint 2: Add voice as a native Canvax input
 
 Status: In progress
@@ -29,6 +54,14 @@ Status: In progress
 - [x] Transcript capture pipeline
 - [x] Transcript-to-handoff structuring
 - [x] Checkpoint rules for sketch + voice handoff
+
+```text
+voice path:
+  board dictation/manual note
+      -> voice export
+      -> checkpoint
+      -> Codex handoff
+```
 
 ### Sprint 3: Build the live Codex collaboration loop
 
@@ -51,6 +84,15 @@ Status: In progress
 - [x] Output activity now rebuilds from recent session events, so refreshes do not wipe the visible collaboration history
 - [x] Board/checkpoint/live export now surface a rewrite queue that tells Codex which frames need first output, a frame binding, a target, or a refresh
 
+```mermaid
+flowchart TD
+    A[Board export] --> B[Output manifest]
+    B --> C[Preview-state merge]
+    C --> D[Board activity feed]
+    C --> E[Preview activity feed]
+    C --> F[Rewrite queue]
+```
+
 ### Sprint 4: Add a preview surface for what Codex builds
 
 Status: In progress
@@ -72,6 +114,17 @@ Status: In progress
 - [x] Preview now forces safe same-target reloads with a digest-based revision key when the connected output context changes
 - [x] Board and Preview now surface frame-level output status badges so stale/synced/materialized states are visible while sketching continues
 
+```text
+Preview today:
+  sketch side
+  output side
+  compare modes
+  artifacts
+  changes
+  rewrite queue
+  refinement overlays
+```
+
 ### Sprint 5: Prepare for a richer Codex client future
 
 Status: Completed
@@ -79,6 +132,13 @@ Status: Completed
 - [x] Transport abstraction for current local mode vs future App Server mode
 - [x] Upstream proposal assets
 - [x] Demo script and feature matrix
+
+```text
+future seam:
+  current transport  -> local-companion
+  future transport   -> app-server
+  preserved semantics-> frames, flow, checkpoints, rewrite queue
+```
 
 ## Current Priority Tasks
 
@@ -88,6 +148,14 @@ These are now follow-on tasks, not blockers for the current repo-level prototype
 2. Tighten the live “Codex rewrites generated output while sketching continues” loop beyond git-status mirroring, digest-based preview reloads, rewrite queues, and rematerialize refresh.
 3. Keep reducing rough edges in larger sessions and long-running boards.
 4. Explore the richer App Server client path without discarding the local companion workflow that already works today.
+
+```mermaid
+flowchart TD
+    A[Current baseline] --> B[Browser regression hardening]
+    A --> C[Live rewrite loop tightening]
+    A --> D[Long-session polish]
+    A --> E[App Server exploration]
+```
 
 ## Notes
 

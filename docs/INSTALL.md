@@ -1,5 +1,37 @@
 # Install Canvax
 
+## Install Flow
+
+```text
+clone repo
+   |
+   v
+run ./canvax --open
+   |
+   +--> starts or reuses local service
+   `--> opens browser board at localhost:3210
+   |
+   v
+run node scripts/install-canvax-skill.mjs
+   |
+   v
+restart Codex once
+   |
+   v
+use /canvax or $canvax
+```
+
+```mermaid
+flowchart TD
+    A[Project root] --> B[./canvax --open]
+    B --> C[Local service on localhost:3210]
+    B --> D[Board opens in browser]
+    A --> E[node scripts/install-canvax-skill.mjs]
+    E --> F[Symlink into ~/.codex/skills/canvax]
+    F --> G[Restart Codex]
+    G --> H[/canvax or $canvax]
+```
+
 ## Prerequisites
 
 - macOS as the primary supported platform
@@ -100,6 +132,32 @@ $canvax
 
 Then draw in the browser board and continue the same Codex thread.
 
+## Startup Model
+
+```text
+terminal                browser                 Codex
+   |                       |                      |
+   | ./canvax --open       |                      |
+   |---------------------->| service boots        |
+   |                       | board loads          |
+   |                       |                      |
+   |                       | draw and freeze      |
+   |                       |--------------------->| /canvax
+   |                       |                      | reads latest handoff
+```
+
+```mermaid
+sequenceDiagram
+    participant T as Terminal
+    participant S as Canvax service
+    participant B as Browser board
+    participant C as Codex
+    T->>S: ./canvax --open
+    S->>B: serve board
+    B->>S: save live export
+    C->>S: /canvax skill reads latest handoff
+```
+
 ## Service Management
 
 ```bash
@@ -132,3 +190,13 @@ Notes:
 ### I see an older board state
 
 The browser may still have old local state loaded. Refresh the board and let the current Canvax export resync.
+
+## Installed Pieces
+
+```text
+1. local launcher      -> ./canvax
+2. local service       -> scripts/canvax.mjs
+3. browser board       -> web/index.html + web/app.js
+4. browser Preview     -> web/preview.html + web/preview.js
+5. Codex skill         -> ~/.codex/skills/canvax symlink
+```

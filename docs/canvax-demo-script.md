@@ -4,6 +4,28 @@ This is a short operator script for showing Canvax to another developer, maintai
 
 This project was created collaboratively with OpenAI Codex.
 
+## Demo Shape
+
+```text
+show board
+  -> draw rough frames
+  -> add voice or notes
+  -> freeze
+  -> open Preview
+  -> materialize
+  -> inspect manifests/checkpoints
+```
+
+```mermaid
+flowchart TD
+    A[Show board] --> B[Sketch frames]
+    B --> C[Add notes and voice]
+    C --> D[Freeze or autosnap]
+    D --> E[Open Preview]
+    E --> F[Materialize]
+    F --> G[Show manifests, checkpoints, rewrite queue]
+```
+
 ## Setup
 
 Run:
@@ -22,6 +44,16 @@ npm run regression
 ## Demo Goal
 
 Show that Canvax lets a user sketch first, keep thinking out loud, and let Codex work from that visual handoff without forcing the user to translate the whole idea into text up front.
+
+## Demo Runtime Story
+
+```text
+user input
+   -> board
+   -> exports/checkpoints
+   -> Codex handoff
+   -> Preview and output context
+```
 
 ## Demo Flow
 

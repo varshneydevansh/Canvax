@@ -13,6 +13,48 @@ Canvax has two surfaces:
 
 That means Canvax is **a local command plus a Codex skill**. It is not currently a native first-party built-in Codex command.
 
+## System Snapshot
+
+```text
+                   CURRENT CANVAX SHAPE
+
+  user sketch/voice
+         |
+         v
+  +------------------+        save/export         +-------------------+
+  | Board            | -------------------------> | Local service     |
+  | web/index.html   |                            | scripts/canvax.mjs|
+  | web/app.js       | <------------------------- | preview-state/api |
+  +------------------+        live state          +-------------------+
+         |                                                   |
+         | open Preview                                      | write files
+         v                                                   v
+  +------------------+                            +-------------------+
+  | Preview          | <------------------------- | exports/          |
+  | web/preview.*    |     manifests/artifacts    | artifacts/        |
+  +------------------+                            +-------------------+
+         |
+         v
+  +------------------+
+  | Codex            |
+  | /canvax or       |
+  | $canvax skill    |
+  +------------------+
+```
+
+```mermaid
+flowchart LR
+    U[User] --> B[Board]
+    B --> S[Local service]
+    S --> E[exports and artifacts]
+    E --> C[Codex skill handoff]
+    S --> P[Preview]
+    C --> W[Code, specs, output]
+    W --> S
+    P --> U
+    B --> U
+```
+
 ## What It Does Today
 
 - Opens a browser-based canvas optimized for Mac trackpad, mouse, or stylus use.
@@ -39,6 +81,34 @@ That means Canvax is **a local command plus a Codex skill**. It is not currently
 - Writes that rewrite queue into the live handoff payloads, so Codex can read which frames currently need attention next.
 - Installs a Codex skill so the canvas can be invoked from Codex as `/canvax` or `$canvax`.
 - Requires no extra OpenAI API key for the core sketch-to-Codex workflow.
+
+## Current Baseline
+
+This commit line now includes the following major layers working together:
+
+- generic sketch board with Frame view and Flow view
+- Preview surface with compare modes and frame-aware output context
+- voice notes and dedicated voice handoff file
+- checkpoints and session event log
+- output manifests, workspace-follow, and output activity feed
+- `Materialize` with stable per-frame targets and refinement deltas
+- rewrite queue and frame-level output status badges
+- transport contract for current `local-companion` mode vs future `app-server` mode
+
+```mermaid
+flowchart TD
+    A[Frame and Flow editing] --> B[Autosnap or Freeze]
+    B --> C[Live export]
+    C --> D[Checkpoint and session events]
+    C --> E[Preview state]
+    C --> F[Codex handoff]
+    F --> G[Code and artifact updates]
+    G --> H[Output manifest]
+    H --> E
+    E --> I[Preview compare]
+    C --> J[Materialize]
+    J --> E
+```
 
 ## Why It Ships This Way
 
@@ -89,6 +159,7 @@ Then sketch in the browser board and continue the same chat with prompts like:
 
 - [Install guide](docs/INSTALL.md)
 - [Usage guide](docs/USAGE.md)
+- [Feature behavior guide](docs/FEATURES.md)
 - [Architecture guide](docs/ARCHITECTURE.md)
 - [Development guide](docs/DEVELOPMENT.md)
 - [Upstream proposal](docs/upstream-proposal.md)
@@ -107,6 +178,31 @@ Then sketch in the browser board and continue the same chat with prompts like:
 | Transport | Local companion via files, manifests, and browser session mirroring | App Server or equivalent JSON-RPC transport |
 
 The current repo is intentionally optimized for the first column while keeping the second column reachable instead of blocked by hardcoded assumptions.
+
+## Repo Map
+
+```text
+Canvax/
+|- canvax                         # launcher
+|- web/
+|  |- index.html                  # board shell
+|  |- styles.css                  # board UI
+|  |- app.js                      # board state, tools, exports
+|  |- preview.html                # preview shell
+|  |- preview.css                 # preview UI
+|  `- preview.js                  # preview state and compare logic
+|- scripts/
+|  |- canvax.mjs                  # local service and API
+|  |- install-canvax-skill.mjs    # skill installer
+|  |- write-preview-manifest.mjs  # preview manifest helper
+|  |- write-codex-output.mjs      # Codex output helper
+|  |- regression-check.mjs        # schema and runtime checks
+|  `- browser-regression.mjs      # headless browser checks
+|- codex-skill/canvax/            # skill wrapper
+|- docs/                          # operator and maintainer docs
+|- exports/                       # live handoff files
+`- artifacts/                     # generated output and checkpoints
+```
 
 ## Service Commands
 

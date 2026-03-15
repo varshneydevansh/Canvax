@@ -1,5 +1,26 @@
 # Develop Canvax
 
+## Contributor Map
+
+```text
+change UI?          -> web/index.html, web/styles.css, web/preview.css
+change interactions?-> web/app.js, web/preview.js
+change persistence? -> web/app.js, scripts/canvax.mjs
+change handoff?     -> scripts/canvax.mjs, docs, skill
+change validation?  -> scripts/regression-check.mjs, scripts/browser-regression.mjs
+```
+
+```mermaid
+flowchart TD
+    A[Contributor change] --> B{What kind of change?}
+    B -->|Board UI| C[web/index.html and web/styles.css]
+    B -->|Preview UI| D[web/preview.html and web/preview.css]
+    B -->|Interactions| E[web/app.js and web/preview.js]
+    B -->|Persistence and APIs| F[scripts/canvax.mjs]
+    B -->|Skill semantics| G[codex-skill and docs]
+    B -->|Regression| H[scripts/regression-check.mjs and browser-regression.mjs]
+```
+
 ## Goal Of These Docs
 
 This file is for contributors and future maintainers.
@@ -67,6 +88,14 @@ Useful service commands:
 ./canvax --restart --open
 ```
 
+```text
+edit code
+  -> run npm run check
+  -> run npm run regression
+  -> refresh board and Preview
+  -> smoke test the affected workflow
+```
+
 ## Development Principles
 
 - Keep the sketch loop fast.
@@ -75,6 +104,18 @@ Useful service commands:
 - Prefer generic canvas behavior over screen-specific assumptions.
 - Keep Codex integration path-based and explicit.
 - Keep transport-specific assumptions isolated so local companion mode can later migrate to an App Server client without rewriting the core canvas model.
+
+## Codebase Working Model
+
+```mermaid
+flowchart LR
+    A[Board interactions] --> B[Export builder]
+    B --> C[Local service write]
+    C --> D[Preview-state merge]
+    D --> E[Preview]
+    C --> F[Handoff files]
+    F --> G[Codex]
+```
 
 ## Where To Change What
 
@@ -109,6 +150,15 @@ Be careful to keep backward compatibility where possible because older live expo
 
 When you add new fields to live exports or checkpoints, keep the explicit handoff `schemaVersion` in sync and update the regression checks.
 
+```text
+schema-sensitive files
+  - web/app.js
+  - scripts/canvax.mjs
+  - scripts/regression-check.mjs
+  - docs/USAGE.md
+  - docs/ARCHITECTURE.md
+```
+
 ### Change how Codex should interpret the canvas
 
 Edit:
@@ -141,6 +191,23 @@ After interaction changes, check these manually:
 - Preview shows refinement summaries and changed-region overlays after rematerialize
 - `?selftest=1` now covers both the small interaction path and a synthetic large-session fixture
 
+## Current Test Layers
+
+```text
+1. node --check          -> syntax
+2. regression-check      -> manifests, exports, docs, live preview-state
+3. browser-regression    -> board and Preview self-test routes
+4. manual smoke test     -> real interaction loop
+```
+
+```mermaid
+flowchart TD
+    A[Edit code] --> B[npm run check]
+    B --> C[npm run regression]
+    C --> D[Manual smoke test]
+    D --> E[Commit]
+```
+
 ## Current Known Architectural Constraint
 
 `web/app.js` currently carries most of the state and interaction logic in one file. That is acceptable for this stage of the project, but contributors should expect future refactoring into smaller modules as the collaboration loop grows.
@@ -157,6 +224,13 @@ The main next layers are:
 - voice attached to canvas checkpoints
 - preview/artifact feedback loop
 - better thread-to-canvas coordination with Codex
+
+```text
+current maintainer focus
+  -> keep long sessions stable
+  -> tighten preview/live rewrite loop
+  -> preserve migration path to richer Codex client
+```
 
 ## Attribution
 

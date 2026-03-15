@@ -1,5 +1,26 @@
 # Use Canvax With Codex
 
+If you want the feature-by-feature behavior map first, read `docs/FEATURES.md` before this guide.
+
+## Operator Loop
+
+```text
+draw -> annotate -> freeze/autosnap -> ask Codex -> inspect Preview
+  ^                                                       |
+  |                                                       v
+  +---------------- sketch corrections <------------------+
+```
+
+```mermaid
+flowchart LR
+    A[Draw and annotate] --> B[Autosnap or Freeze]
+    B --> C[Live export and checkpoint]
+    C --> D[Ask Codex to use current Canvax]
+    D --> E[Specs, code, or output]
+    E --> F[Preview compare]
+    F --> A
+```
+
 ## Core Mental Model
 
 Canvax is a visual handoff surface for Codex.
@@ -38,6 +59,15 @@ Use:
 - notes in the right inspector for interpretation
 - captures for saved checkpoints of the current frame
 
+```text
+Frame view
++-----------------------------+
+| one frame canvas            |
+| tools + labels + notes      |
+| captures + voice + preview  |
++-----------------------------+
+```
+
 ## Flow View
 
 Use Flow view when you want to connect frames into a lightweight prototype map.
@@ -50,6 +80,14 @@ Use it to:
 - describe branching or sequence
 
 Codex should read both the frame sketches and the flow graph.
+
+```mermaid
+flowchart LR
+    Home --> Catalog
+    Catalog --> Detail
+    Detail --> Cart
+    Cart --> Checkout
+```
 
 ## Voice Notes
 
@@ -67,6 +105,16 @@ Voice notes are included in:
 - the live JSON export
 - the live prompt markdown
 - `exports/canvax-voice-latest.md`
+
+```text
+voice input
+   |
+   +--> frame-scoped note
+   `--> board-scoped note
+           |
+           v
+     live export + prompt + voice markdown
+```
 
 ## How Codex Should Use It
 
@@ -107,6 +155,15 @@ The runtime now writes that transport metadata into live payloads, exports, chec
 - what is core Canvax behavior
 - what is specific to the current local companion transport
 - what would later move to an App Server style richer Codex client
+
+```mermaid
+flowchart TD
+    A[Board memory and browser sync] --> B[Preview live state]
+    A --> C[Durable exports]
+    C --> D[Codex handoff]
+    E[Output manifests] --> B
+    E --> D
+```
 
 ## Useful Prompts In Codex
 
@@ -210,6 +267,22 @@ Each saved snapshot records the current frame, compare mode, linked target, arti
 
 If the manifest includes an HTML artifact, Canvax can auto-use that as the preview target even without an explicit `--url` or `--preview-path`.
 
+```text
+Codex changes files
+      |
+      v
+write-codex-output.mjs
+      |
+      v
+artifacts/canvax/codex-output.json
+      |
+      v
+preview-state merge
+      |
+      +--> board inspector
+      `--> Preview output context
+```
+
 ## Voice Handoff Files
 
 Canvax now writes a dedicated voice export:
@@ -250,6 +323,20 @@ The latest checkpoint includes:
 - attached preview target and output context when available
 - rewrite queue items that tell Codex which frames currently need output attention next
 
+```mermaid
+flowchart TD
+    A[Freeze]
+    B[Autosnap]
+    C[Voice event]
+    D[Materialize]
+    E[Output update]
+    A --> F[Checkpoint]
+    B --> F
+    C --> F
+    D --> F
+    E --> F
+```
+
 ## Materialize
 
 Use `Materialize` in the main board when you want Canvax itself to turn the active frame into a styled local preview before any real app code exists.
@@ -261,6 +348,28 @@ That flow:
 3. writes the serialized frame payload next to it for debugging and iteration
 4. updates `exports/canvax-preview-manifest.json`
 5. opens or reuses the Preview window so the generated surface can be compared against the sketch
+
+```text
+active frame
+    |
+    v
+local materialize endpoint
+    |
+    +--> html artifact
+    +--> frame payload json
+    `--> preview manifest update
+```
+
+```mermaid
+sequenceDiagram
+    participant B as Board
+    participant S as Local service
+    participant P as Preview
+    B->>S: materialize active frame
+    S->>S: write HTML artifact and meta
+    S->>S: update preview manifest
+    S->>P: preview target refresh
+```
 
 This is a deterministic local transformation, not a paid API call.
 
@@ -325,6 +434,17 @@ That writes `artifacts/canvax/codex-output.json`. Canvax merges it automatically
 If you want to inspect the manifest before writing it, add `--dry-run --json`.
 
 If the Codex output manifest contains an HTML artifact, Canvax can auto-use that artifact as the preview target even without an explicit preview URL.
+
+## Current End-To-End Shape
+
+```text
+Board input
+  -> live export
+  -> Codex reads handoff
+  -> Codex writes files/manifests
+  -> Preview compares sketch vs output
+  -> user sketches corrections
+```
 
 ## Publish Changes
 

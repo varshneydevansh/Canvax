@@ -4,6 +4,22 @@ This document explains what Canvax proves today, why it ships as a local compani
 
 This project was created collaboratively with OpenAI Codex.
 
+## Current vs Native Shape
+
+```text
+today
+  board tab + preview tab + file handoff + skill
+
+future
+  thread-bound canvas + thread-bound preview + event transport
+```
+
+```mermaid
+flowchart LR
+    A[Current local companion] --> B[Transport seam]
+    B --> C[Future App Server or native client]
+```
+
 ## Summary
 
 Canvax is a scratchpad for sketch-first collaboration with Codex:
@@ -26,6 +42,13 @@ Canvax exists as a browser companion plus skill because that is the cleanest cur
 
 This is not pretending there is a hidden native canvas extension point inside the first-party Codex app.
 
+```text
+current compromise
+  browser surface        -> input
+  local files/manifests  -> durable handoff
+  skill                  -> thread attachment
+```
+
 ## What The Repo Already Proves
 
 The current prototype already demonstrates:
@@ -38,6 +61,14 @@ The current prototype already demonstrates:
 - rewrite queues that tell Codex what needs attention next
 - deterministic local materialization from sketch to styled surface
 - durable checkpoints and session events
+
+```mermaid
+flowchart TD
+    A[Sketch] --> B[Live handoff]
+    B --> C[Codex]
+    C --> D[Preview and artifacts]
+    D --> E[Refinement]
+```
 
 ## What Native Codex Integration Would Replace
 
@@ -77,6 +108,19 @@ That contract is the migration seam. A richer client can swap transport without 
 - checkpoint semantics
 - output activity model
 - rewrite queue semantics
+
+```text
+preserve
+  frames
+  flow
+  voice
+  checkpoints
+  rewrite queue
+swap
+  files/manifests/browser mirroring
+for
+  richer thread-bound transport
+```
 
 ## Non-Goals
 

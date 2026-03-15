@@ -1,5 +1,38 @@
 # Canvax Architecture
 
+## Architecture Snapshot
+
+```text
+               +-------------------+
+               | Codex skill       |
+               | /canvax, $canvax  |
+               +---------+---------+
+                         |
+                         v
+ +-------------------+   file handoff    +----------------------+
+ | Browser board     | ----------------> | exports/             |
+ | web/index.html    |                   | checkpoints          |
+ | web/app.js        | <---------------- | preview manifest     |
+ +---------+---------+   preview-state   +----------+-----------+
+           |                                           |
+           v                                           v
+ +-------------------+                         +------------------+
+ | Preview           | <---------------------- | Local service    |
+ | web/preview.*     |   APIs and artifacts    | scripts/canvax   |
+ +-------------------+                         +------------------+
+```
+
+```mermaid
+flowchart LR
+    B[Board] --> S[Local service]
+    S --> E[Exports]
+    S --> A[Artifacts and manifests]
+    E --> C[Codex]
+    A --> P[Preview]
+    C --> A
+    B --> P
+```
+
 ## Purpose
 
 Canvax is a local sketch-to-Codex handoff system.
@@ -27,6 +60,17 @@ Responsibilities:
 - autosnap and manual freeze captures
 - write the latest live export to the local service
 
+ASCII shape:
+
+```text
+web/index.html + web/styles.css + web/app.js
+    |
+    +--> tools and drawing
+    +--> frame and flow state
+    +--> voice notes
+    +--> live export payloads
+```
+
 ### Local Service
 
 Files:
@@ -41,6 +85,18 @@ Responsibilities:
 - persist live exports under `exports/`
 - install the local Codex skill through the service endpoint
 
+ASCII shape:
+
+```text
+scripts/canvax.mjs
+    |
+    +--> serve board and Preview
+    +--> save exports
+    +--> merge preview-state
+    +--> write checkpoints
+    +--> materialize frames
+```
+
 ### Codex Skill
 
 Files:
@@ -52,6 +108,13 @@ Responsibilities:
 - define how Codex should interpret the live canvas
 - attach a chat thread to the latest export
 - default Codex to the current Canvax handoff without asking the user to repeat file paths
+
+```mermaid
+flowchart TD
+    A[Skill invocation] --> B[Read latest handoff]
+    B --> C[Interpret frame, flow, voice, output context]
+    C --> D[Implement, spec, or plan]
+```
 
 ## Runtime Flow
 
@@ -68,6 +131,22 @@ Responsibilities:
 11. The service now also computes a stable output digest from targets, artifacts, changes, and workspace-follow metadata so clients can detect meaningful output-context changes without treating every poll as a rewrite.
 12. Recent checkpoint/session events are also fed back through preview-state so clients can rebuild durable output activity after a refresh instead of relying only on in-memory polling state.
 13. When a frame is materialized again, the service computes a refinement delta, writes it into the materialize metadata, and exposes it through the preview manifest so Preview can show changed-region overlays.
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant B as Board
+    participant S as Service
+    participant P as Preview
+    participant C as Codex
+    U->>B: draw, label, speak
+    B->>S: save export
+    S->>P: preview-state
+    C->>S: read latest handoff
+    C->>S: publish output manifest
+    S->>P: output context update
+    U->>B: refine sketch again
+```
 
 ## Transport Layers
 
@@ -146,6 +225,29 @@ This is the main guardrail against accidentally hardcoding the current local-com
 
 ## Current File Map
 
+```text
+Canvax/
+|- canvax
+|- web/
+|  |- index.html
+|  |- styles.css
+|  |- app.js
+|  |- preview.html
+|  |- preview.css
+|  `- preview.js
+|- scripts/
+|  |- canvax.mjs
+|  |- install-canvax-skill.mjs
+|  |- write-preview-manifest.mjs
+|  |- write-codex-output.mjs
+|  |- regression-check.mjs
+|  `- browser-regression.mjs
+|- codex-skill/canvax/
+|- docs/
+|- exports/
+`- artifacts/
+```
+
 ### Entry points
 
 - `canvax`: shell launcher for the Node service
@@ -187,6 +289,18 @@ Core state areas include:
 
 Browser storage uses `version` for persistence migrations. Live exports, checkpoints, voice payloads, and live preview payloads now also carry explicit `schemaVersion` metadata so saved handoff files can evolve independently from the browser-storage format.
 
+```text
+browser state
+   |
+   +--> board metadata
+   +--> frames and elements
+   +--> flow links
+   +--> captures
+   +--> voice notes
+   +--> output activity
+   +--> rewrite queue
+```
+
 ## Export Model
 
 Primary outputs:
@@ -205,6 +319,16 @@ The JSON export currently contains:
 - generated prompt text
 
 The Markdown export contains the readable handoff prompt for Codex.
+
+```mermaid
+flowchart TD
+    A[Board state] --> B[Live JSON export]
+    A --> C[Prompt markdown]
+    A --> D[Voice markdown]
+    A --> E[Checkpoint]
+    F[Output manifest] --> E
+    F --> G[Preview state]
+```
 
 ## Key Interaction Areas In Code
 
@@ -258,6 +382,15 @@ The clean migration path is:
 That is why the transport object exists now: the repo can describe what is transport-specific versus what is core Canvax behavior.
 
 ## Safe Extension Points
+
+```text
+safe places to extend
+  1. web/app.js tool and export logic
+  2. web/preview.js compare and display logic
+  3. scripts/canvax.mjs service endpoints
+  4. manifest helper CLIs
+  5. skill/docs interpretation layer
+```
 
 If you want to extend the project, the clean places to start are:
 
