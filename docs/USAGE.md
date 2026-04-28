@@ -15,7 +15,7 @@ draw -> annotate -> freeze/autosnap -> ask Codex -> inspect Preview
 flowchart LR
     A[Draw and annotate] --> B[Autosnap or Freeze]
     B --> C[Live export and checkpoint]
-    C --> D[Ask Codex to use current Canvax]
+    C --> D[Generate screen or ask Codex]
     D --> E[Specs, code, or output]
     E --> F[Preview compare]
     F --> A
@@ -32,6 +32,18 @@ The intended loop is:
 3. let autosnap or `Freeze frame` save the latest state
 4. tell Codex to use the current Canvax
 5. let Codex work from the saved visual export instead of re-explaining the idea in text
+
+When Codex Desktop has Browser Use available, open the board and Preview in the in-app browser. That is the lowest-friction mode because Codex can inspect the same visual surfaces you are using while it edits code, runs checks, and publishes output context back into Canvax.
+
+```text
+Codex chat
+   |
+   +--> Browser Use: Canvax board at localhost:3210
+   |
+   +--> Browser Use: Canvax Preview / generated app
+   |
+   `--> workspace edits + manifest publishing
+```
 
 ## What To Draw
 
@@ -173,6 +185,8 @@ flowchart TD
 - `use the Canvax flow graph to plan the app`
 - `extract image prompts from this Canvax`
 - `build the first screen from the latest Canvax`
+- `open Canvax in the in-app browser`
+- `inspect the Canvax Preview and fix the generated UI`
 
 ## What Gets Saved
 
@@ -337,6 +351,49 @@ flowchart TD
     E --> F
 ```
 
+## Generate Screen
+
+Use `Generate screen` in the main board when you want Canvax itself to push the active frame closer to a real website or app screen before any real app code exists.
+
+That flow:
+
+1. reads the active frame geometry, labels, and notes
+2. reads the board generation recipe:
+   - direction
+   - output style
+   - focus
+3. writes a richer local HTML artifact under `artifacts/preview/materialized/...`
+4. updates `exports/canvax-preview-manifest.json`
+5. opens or reuses the Preview window so the generated surface can be compared against the sketch
+
+`Generate screen` is still local and deterministic. It is a richer profile-driven pass, not a paid API call.
+
+For hero-like website frames, Generate screen now uses semantic screen inference:
+
+```text
+draw rough blocks
+  -> label brand/headline/CTA/preview
+  -> Generate screen
+  -> polished hero artifact
+  -> draw or label a correction
+  -> regenerate same frame target
+```
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant B as Board
+    participant S as Service
+    participant P as Preview
+    U->>B: sketch hero blocks and labels
+    B->>S: Generate screen payload
+    S->>S: infer brand, nav, H1, CTA, preview card
+    S->>P: generated-screen-preview target
+    U->>B: pen edit or note correction
+    B->>S: regenerate same frame target
+    S->>P: refinement summary and changed regions
+```
+
 ## Materialize
 
 Use `Materialize` in the main board when you want Canvax itself to turn the active frame into a styled local preview before any real app code exists.
@@ -375,7 +432,7 @@ This is a deterministic local transformation, not a paid API call.
 
 When you materialize the same frame again, Canvax now reuses the same per-frame artifact path and only updates the versioned preview URL. That means Preview can stay attached to one frame-specific target while still refreshing reliably after each rematerialize.
 
-If a frame already has a materialized target, autosnap and manual freeze now silently rematerialize that frame after the live export is saved. That keeps Preview closer to the current sketch without requiring you to press `Materialize` again after every edit.
+If a frame already has a generated or materialized target, autosnap and manual freeze now silently refresh that frame after the live export is saved. That keeps Preview closer to the current sketch without requiring you to press `Generate screen` or `Materialize` again after every edit.
 
 Longer sessions now also reuse cached frame thumbnails/snapshots when Canvax rebuilds the live preview/export payloads. That reduces repeated image re-encoding churn while you keep sketching across many frames.
 

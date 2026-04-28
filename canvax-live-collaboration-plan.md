@@ -15,6 +15,48 @@ The core product decision in this plan is:
 - Preserve the current lightweight live export flow, but extend it into a durable session model with structured events and artifacts.
 - Keep the **core collaboration loop free of any separate paid OpenAI API requirement** beyond the user already having Codex access through their ChatGPT plan.
 
+## Current Implementation Snapshot
+
+As of April 28, 2026, the repo has moved beyond the initial scratchpad baseline:
+
+```text
+implemented now
+  board + tools + frame/flow
+  voice notes + checkpoints
+  Preview window + compare modes
+  Materialize quick mock
+  Generate screen semantic hero/page renderer
+  Codex output manifest + live workspace-follow
+  original Canvax logo and brand docs
+
+still roadmap
+  Codex-built real app/page code from a board action
+  true live rewrite loop while sketching continues
+  infinite canvas, prototype play, variants, DESIGN.md
+```
+
+```mermaid
+flowchart LR
+    A[Sketch and voice] --> B[Canvax session]
+    B --> C{Output path}
+    C -->|Materialize| D[Styled local mock]
+    C -->|Generate screen| E[Semantic generated route]
+    C -->|Future Build real screen| F[Codex-written app code]
+    D --> G[Preview]
+    E --> G
+    F --> G
+    G --> A
+
+    classDef input fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef session fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef future fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A input;
+    class B,C session;
+    class D,E,G output;
+    class F future;
+```
+
 ## Recommended Live Collaboration Loop
 
 The right behavior is not “borrow the Codex chat microphone button and hope Canvax can see it.” The safer and more complete model is:
@@ -139,7 +181,8 @@ Sources for these assumptions:
 ## Sprint 1: Stabilize the Collaboration Surface
 **Goal**: Make the current canvas feel complete and mode-correct before adding new modalities.
 **Demo/Validation**:
-- Launch `./canvax --open`
+- Launch `./canvax`
+- Open `http://localhost:3210` in Codex Browser Use when available
 - Verify Frame view and Flow view have distinct controls and guidance
 - Verify select, lasso, group, duplicate, copy/paste, pan/zoom, captures, and help all work without broken state
 
@@ -527,3 +570,14 @@ And yes: **a preview surface is also worth building**, but it should open as a s
 5. Canvax opens or refreshes the preview window with the new output while the sketch board remains intact
 
 That is the point where Canvax stops being only a scratch pad and becomes a real collaborative design-to-build surface.
+
+## Release Documentation Addendum
+
+The current documentation set now includes:
+
+- install and use paths for command, skill, and Codex Browser Use
+- architecture and development maps with ASCII and Mermaid diagrams
+- execution status, demo script, upstream proposal, and Stitch-style gap roadmap
+- brand guide and original SVG assets for the Canvax logo
+
+The Canvax logo is intentionally original. It can visually reference the project idea of "browser + sketch + code + Codex-adjacent workflow", but it must not copy OpenAI, ChatGPT, or Codex marks unless this becomes an official first-party integration.

@@ -31,6 +31,27 @@ const viewportPresets = {
   poster: { label: "Poster", width: 900, height: 1400, columns: 6 },
 };
 
+const generationDirections = [
+  { id: "product", label: "Product UI" },
+  { id: "editorial", label: "Editorial" },
+  { id: "cinematic", label: "Cinematic" },
+  { id: "dashboard", label: "Dashboard" },
+  { id: "playful", label: "Playful" },
+];
+
+const generationStyles = [
+  { id: "rapid", label: "Rapid" },
+  { id: "studio", label: "Studio" },
+  { id: "showcase", label: "Showcase" },
+];
+
+const generationFocuses = [
+  { id: "balanced", label: "Balanced" },
+  { id: "conversion", label: "Conversion" },
+  { id: "storytelling", label: "Storytelling" },
+  { id: "utility", label: "Utility" },
+];
+
 const toolDefinitions = [
   { id: "select", label: "Select" },
   { id: "pen", label: "Pen" },
@@ -87,6 +108,7 @@ const dom = {
   autosnapToggle: document.querySelector("#autosnap-toggle"),
   statusPill: document.querySelector("#status-pill"),
   openPreview: document.querySelector("#open-preview"),
+  generateScreen: document.querySelector("#generate-screen"),
   materializeFrame: document.querySelector("#materialize-frame"),
   captureButton: document.querySelector("#capture-button"),
   stageTitle: document.querySelector("#stage-title"),
@@ -131,6 +153,12 @@ const dom = {
   frameMotion: document.querySelector("#frame-motion"),
   frameAssets: document.querySelector("#frame-assets"),
   frameMobile: document.querySelector("#frame-mobile"),
+  generationDirection: document.querySelector("#generation-direction"),
+  generationStyle: document.querySelector("#generation-style"),
+  generationFocus: document.querySelector("#generation-focus"),
+  generationSummary: document.querySelector("#generation-summary"),
+  generateScreenPanel: document.querySelector("#generate-screen-panel"),
+  materializeFramePanel: document.querySelector("#materialize-frame-panel"),
   voiceStatus: document.querySelector("#voice-status"),
   voiceSegmentCount: document.querySelector("#voice-segment-count"),
   voiceScopeButtons: document.querySelector("#voice-scope-buttons"),
@@ -247,7 +275,16 @@ function bindEvents() {
   dom.zoomIn.addEventListener("click", () => updateZoom(0.1));
   dom.zoomReset.addEventListener("click", () => setZoom(1));
   dom.openPreview.addEventListener("click", openPreviewWindow);
+  dom.generateScreen.addEventListener("click", () => {
+    void generateCurrentScreen();
+  });
   dom.materializeFrame.addEventListener("click", () => {
+    void materializeCurrentFrame();
+  });
+  dom.generateScreenPanel.addEventListener("click", () => {
+    void generateCurrentScreen();
+  });
+  dom.materializeFramePanel.addEventListener("click", () => {
     void materializeCurrentFrame();
   });
   dom.helpButton.addEventListener("click", openHelpOverlay);
@@ -389,6 +426,15 @@ function bindEvents() {
   );
   dom.frameMobile.addEventListener("input", () =>
     updateFrameField("mobile", dom.frameMobile.value),
+  );
+  dom.generationDirection.addEventListener("change", () =>
+    updateGenerationField("direction", dom.generationDirection.value),
+  );
+  dom.generationStyle.addEventListener("change", () =>
+    updateGenerationField("style", dom.generationStyle.value),
+  );
+  dom.generationFocus.addEventListener("change", () =>
+    updateGenerationField("focus", dom.generationFocus.value),
   );
   dom.voiceScopeButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-voice-scope]");
@@ -589,6 +635,48 @@ function normalizeColor(input, fallback = palette[0]) {
   return `#${hex.toLowerCase()}`;
 }
 
+function createDefaultGenerationConfig() {
+  return {
+    direction: "product",
+    style: "studio",
+    focus: "balanced",
+  };
+}
+
+function normalizeGenerationConfig(
+  value,
+  fallback = createDefaultGenerationConfig(),
+) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    direction: generationDirections.some(
+      (entry) => entry.id === source.direction,
+    )
+      ? source.direction
+      : fallback.direction,
+    style: generationStyles.some((entry) => entry.id === source.style)
+      ? source.style
+      : fallback.style,
+    focus: generationFocuses.some((entry) => entry.id === source.focus)
+      ? source.focus
+      : fallback.focus,
+  };
+}
+
+function generationLabelById(values, id, fallback) {
+  return values.find((entry) => entry.id === id)?.label || fallback;
+}
+
+function generationSummaryText(config = state?.board?.generation) {
+  const recipe = normalizeGenerationConfig(config);
+  return [
+    generationLabelById(generationDirections, recipe.direction, "Product UI"),
+    generationLabelById(generationStyles, recipe.style, "Studio"),
+    generationLabelById(generationFocuses, recipe.focus, "Balanced"),
+  ].join(" • ");
+}
+
 function hydrateState() {
   const empty = createInitialState();
   try {
@@ -621,6 +709,10 @@ function hydrateState() {
       board: {
         ...empty.board,
         ...(migrated.board || {}),
+        generation: normalizeGenerationConfig(
+          migrated.board?.generation,
+          empty.board.generation,
+        ),
       },
       frames,
       activeFrameId: frames.some((frame) => frame.id === migrated.activeFrameId)
@@ -859,6 +951,7 @@ function createInitialState() {
       audience:
         "web UI, mobile UI, Qt, image direction, or any other visual surface",
       designMood: "Fast, visual, iterative.",
+      generation: createDefaultGenerationConfig(),
     },
     frames: [firstFrame],
     activeFrameId: firstFrame.id,
@@ -1152,6 +1245,19 @@ function renderBoardFields() {
   dom.boardGoal.value = state.board.goal;
   dom.boardAudience.value = state.board.audience;
   dom.boardMood.value = state.board.designMood;
+  renderGenerationRecipe();
+}
+
+function renderGenerationRecipe() {
+  const recipe = normalizeGenerationConfig(state.board.generation);
+  state.board.generation = recipe;
+  dom.generationDirection.value = recipe.direction;
+  dom.generationStyle.value = recipe.style;
+  dom.generationFocus.value = recipe.focus;
+  const summary = generationSummaryText(recipe);
+  dom.generationSummary.textContent = summary;
+  dom.generateScreen.title = `Generate a richer screen using ${summary}`;
+  dom.generateScreenPanel.title = `Generate a richer screen using ${summary}`;
 }
 
 function renderTools() {
@@ -1651,8 +1757,10 @@ function renderCodexOutput() {
   const target = resolveManifestTargetEntry(manifest, state.activeFrameId);
   const artifacts = collectManifestArtifacts(manifest);
   const changes = collectManifestChanges(manifest);
-  const notes =
-    typeof manifest?.notes === "string" ? manifest.notes.trim() : "";
+  const notes = compactDisplayText(
+    typeof manifest?.notes === "string" ? manifest.notes : "",
+    360,
+  );
   const targetHref = target?.resolvedUrl || target?.url || "";
   const freshness = describeManifestFreshness(target, currentFrame());
   const refinement = describeTargetRefinement(target);
@@ -1672,11 +1780,17 @@ function renderCodexOutput() {
       "No Codex output is attached to this board yet.";
   } else {
     const routeLabel = target.previewPath || targetHref || "Connected target";
+    const targetKind =
+      target.type === "generated-screen-preview"
+        ? "generated screen"
+        : target.type === "materialized-preview"
+          ? "materialized"
+          : target.type || "preview";
     dom.codexOutputSummary.className = "codex-output-summary";
     dom.codexOutputSummary.innerHTML = `
       <div class="artifact-item-row">
         <strong>${escapeHtml(target.label || "Connected implementation")}</strong>
-        <span class="artifact-kind">${escapeHtml(target.type || "preview")}</span>
+        <span class="artifact-kind">${escapeHtml(targetKind)}</span>
       </div>
       <p class="artifact-meta">${escapeHtml(target.source || "manifest")} • ${escapeHtml(routeLabel)}</p>
       ${target.description ? `<p class="artifact-copy">${escapeHtml(target.description)}</p>` : ""}
@@ -2008,7 +2122,8 @@ function buildOutputActivityFromSessionEvents(sessionEvents) {
       return (
         reason === "output-update" ||
         reason === "publish-output" ||
-        reason === "materialize"
+        reason === "materialize" ||
+        reason === "generate-screen"
       );
     })
     .map((event) => {
@@ -4478,6 +4593,18 @@ function updateBoard(field, value) {
   renderSpec();
 }
 
+function updateGenerationField(field, value) {
+  state.board.generation = {
+    ...normalizeGenerationConfig(state.board.generation),
+    [field]: value,
+  };
+  state.board.generation = normalizeGenerationConfig(state.board.generation);
+  persistState();
+  renderBoardFields();
+  renderSpec();
+  renderStatus(`Generation recipe updated: ${generationSummaryText()}`);
+}
+
 function updateFrameField(field, value, options = { capture: true }) {
   const frame = currentFrame();
   frame[field] = value;
@@ -4705,12 +4832,21 @@ async function refreshMaterializedFrameFromFreeze(exportResult = null) {
   if (!frame || !frameHasMaterializedTarget(frame.id)) {
     return null;
   }
+  const target = resolveManifestTargetEntry(
+    state.serverStatus.previewManifest,
+    frame.id,
+  );
+  const refreshMode =
+    target?.type === "generated-screen-preview"
+      ? "generate-screen"
+      : "materialize";
   return materializeCurrentFrame({
     silent: true,
     announce: false,
     openPreview: false,
     skipCheckpoint: true,
     exportResult,
+    mode: refreshMode,
   });
 }
 
@@ -4898,6 +5034,7 @@ async function refreshPreviewStateFromServer() {
 }
 
 function buildPromptMarkdown() {
+  const generationRecipe = generationSummaryText(state.board.generation);
   const lines = [
     `# ${state.board.project || "Canvax live canvas"}`,
     "",
@@ -4905,6 +5042,7 @@ function buildPromptMarkdown() {
     `- Ask: ${state.board.goal || "Not specified"}`,
     `- Surface / medium: ${state.board.audience || "Not specified"}`,
     `- Mood: ${state.board.designMood || "Not specified"}`,
+    `- Preferred screen generation: ${generationRecipe}`,
     "",
     "## How Codex should read this",
     "- Treat frame order as sequence, alternate states, or visual variants depending on the notes.",
@@ -5176,6 +5314,7 @@ function checkpointReasonLabel(reason) {
     "dictation-stop": "Dictation stop",
     "voice-note": "Voice note",
     materialize: "Materialize",
+    "generate-screen": "Generate screen",
     "publish-output": "Published output",
     "output-update": "Output update",
   };
@@ -5418,6 +5557,13 @@ function buildMaterializeElement(element, frame = currentFrame()) {
 }
 
 async function buildMaterializePayload(frame = currentFrame()) {
+  return buildMaterializePayloadWithMode(frame, { mode: "materialize" });
+}
+
+async function buildMaterializePayloadWithMode(
+  frame = currentFrame(),
+  { mode = "materialize" } = {},
+) {
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   await ensureImage(frame.backgroundImage);
   return {
@@ -5426,6 +5572,11 @@ async function buildMaterializePayload(frame = currentFrame()) {
     generatedAt: new Date().toISOString(),
     transport: currentTransportDescriptor(),
     board: structuredClone(state.board),
+    generation: {
+      mode: mode === "generate-screen" ? "generate-screen" : "materialize",
+      ...normalizeGenerationConfig(state.board.generation),
+      summary: generationSummaryText(state.board.generation),
+    },
     frame: {
       id: frame.id,
       title: frame.title,
@@ -5587,6 +5738,13 @@ async function saveExportToWorkspace(options = {}) {
   }
 }
 
+async function generateCurrentScreen(options = {}) {
+  return materializeCurrentFrame({
+    ...options,
+    mode: "generate-screen",
+  });
+}
+
 async function materializeCurrentFrame(options = {}) {
   const {
     silent = false,
@@ -5594,38 +5752,58 @@ async function materializeCurrentFrame(options = {}) {
     openPreview = true,
     skipCheckpoint = false,
     exportResult = null,
+    mode = "materialize",
   } = options;
   const frame = currentFrame();
   if (!frame) {
     return null;
   }
+  const isGenerateScreen = mode === "generate-screen";
+  const actionLabel = isGenerateScreen ? "Generate screen" : "Materialize";
+  const inFlightLabel = isGenerateScreen ? "Generating..." : "Materializing...";
+  const progressLabel = isGenerateScreen
+    ? `Generating screen for ${frame.title}...`
+    : `Materializing ${frame.title}...`;
+  const completedLabel = isGenerateScreen ? "Generated screen" : "Materialized";
+  const checkpointReason = isGenerateScreen ? "generate-screen" : "materialize";
 
   const hasCanvasState =
     frame.elements.length || frame.backgroundImage || frame.captures.length;
   if (!hasCanvasState) {
     if (!silent) {
       dom.workspaceStatus.textContent =
-        "Add a sketch, labels, or a reference first, then materialize it.";
+        `Add a sketch, labels, or a reference first, then ${actionLabel.toLowerCase()} it.`;
     }
     if (announce) {
-      renderStatus("Nothing to materialize yet");
+      renderStatus(
+        isGenerateScreen ? "Nothing to generate yet" : "Nothing to materialize yet",
+      );
     }
     return null;
   }
 
-  const originalLabel = dom.materializeFrame.textContent;
+  const originalGenerateLabel = dom.generateScreen.textContent;
+  const originalMaterializeLabel = dom.materializeFrame.textContent;
+  const originalGeneratePanelLabel = dom.generateScreenPanel.textContent;
+  const originalMaterializePanelLabel = dom.materializeFramePanel.textContent;
   try {
+    dom.generateScreen.disabled = true;
     dom.materializeFrame.disabled = true;
+    dom.generateScreenPanel.disabled = true;
+    dom.materializeFramePanel.disabled = true;
     if (!silent) {
-      dom.materializeFrame.textContent = "Materializing...";
-      dom.workspaceStatus.textContent = `Materializing ${frame.title}...`;
+      dom.generateScreen.textContent = inFlightLabel;
+      dom.materializeFrame.textContent = inFlightLabel;
+      dom.generateScreenPanel.textContent = inFlightLabel;
+      dom.materializeFramePanel.textContent = inFlightLabel;
+      dom.workspaceStatus.textContent = progressLabel;
     }
     if (announce) {
-      renderStatus(`Materializing ${frame.title}...`);
+      renderStatus(progressLabel);
     }
     const resolvedExport =
       exportResult || (await saveExportToWorkspace({ silent: true }));
-    const payload = await buildMaterializePayload(frame);
+    const payload = await buildMaterializePayloadWithMode(frame, { mode });
     const response = await fetch("/api/materialize-frame", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -5653,31 +5831,39 @@ async function materializeCurrentFrame(options = {}) {
       openPreviewWindow({ announce: false });
     }
     if (!skipCheckpoint) {
-      void saveCheckpointToWorkspace("materialize", {
+      void saveCheckpointToWorkspace(checkpointReason, {
         silent: true,
         exportResult: resolvedExport,
-        note: `Materialized ${frame.title} from the current Canvax frame.`,
+        note: isGenerateScreen
+          ? `Generated a richer screen for ${frame.title} using ${generationSummaryText()}.`
+          : `Materialized ${frame.title} from the current Canvax frame.`,
       });
     }
     if (!silent) {
-      dom.workspaceStatus.textContent = `Materialized ${frame.title} to ${data.previewPath}`;
+      dom.workspaceStatus.textContent = `${completedLabel} ${frame.title} to ${data.previewPath}`;
     }
     if (announce) {
-      renderStatus(`Materialized ${frame.title}`);
+      renderStatus(`${completedLabel} ${frame.title}`);
     }
     return data;
   } catch (error) {
     if (!silent) {
       dom.workspaceStatus.textContent =
-        error instanceof Error ? error.message : "Materialize failed.";
+        error instanceof Error ? error.message : `${actionLabel} failed.`;
     }
     if (announce) {
-      renderStatus("Materialize failed");
+      renderStatus(`${actionLabel} failed`);
     }
     return null;
   } finally {
+    dom.generateScreen.disabled = false;
     dom.materializeFrame.disabled = false;
-    dom.materializeFrame.textContent = originalLabel;
+    dom.generateScreenPanel.disabled = false;
+    dom.materializeFramePanel.disabled = false;
+    dom.generateScreen.textContent = originalGenerateLabel;
+    dom.materializeFrame.textContent = originalMaterializeLabel;
+    dom.generateScreenPanel.textContent = originalGeneratePanelLabel;
+    dom.materializeFramePanel.textContent = originalMaterializePanelLabel;
   }
 }
 
@@ -6337,8 +6523,10 @@ function describeFrameOutputStatus(
     "";
   const stale = detail.startsWith("Current sketch is newer");
   const bound = Boolean(specificTarget);
+  const generatedScreen = target.type === "generated-screen-preview";
   const materialized =
     target.type === "materialized-preview" ||
+    generatedScreen ||
     target.source === "canvax-materialize";
 
   if (stale) {
@@ -6362,11 +6550,17 @@ function describeFrameOutputStatus(
   }
 
   return {
-    label: materialized ? "Materialized" : "Output synced",
+    label: generatedScreen
+      ? "Generated screen"
+      : materialized
+        ? "Materialized"
+        : "Output synced",
     tone: materialized ? "active" : "synced",
     detail:
       detail ||
-      (materialized
+      (generatedScreen
+        ? "This frame has a connected generated screen."
+        : materialized
         ? "This frame has a connected materialized preview."
         : "This frame has a connected output target."),
     target,
@@ -6481,7 +6675,7 @@ function buildRewriteQueue(
           priority: hasAnyTargets ? 3 : 2,
           updatedAt: frame.updatedAt,
           detail:
-            "This frame has sketch or note content but no connected output yet. Materialize it or bind a generated target when Codex implements it.",
+            "This frame has sketch or note content but no connected output yet. Generate it, materialize it, or bind a generated target when Codex implements it.",
         };
       }
 
@@ -6610,6 +6804,35 @@ function timeLabel(dateString) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function compactDisplayText(value, maxLength = 360) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (!text) {
+    return "";
+  }
+
+  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+  const uniqueSentences = [];
+  const seen = new Set();
+  sentences.forEach((sentence) => {
+    const normalized = sentence.trim();
+    if (!normalized) {
+      return;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    uniqueSentences.push(normalized);
+  });
+
+  const compact = uniqueSentences.join(" ");
+  if (compact.length <= maxLength) {
+    return compact;
+  }
+  return `${compact.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
 }
 
 function exposeDebugHelpers() {

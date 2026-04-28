@@ -8,6 +8,7 @@
     "start": "node scripts/canvax.mjs",
     "codex-output": "node scripts/write-codex-output.mjs",
     "manifest": "node scripts/write-preview-manifest.mjs",
+    "demo:hero": "node scripts/demo-hero-live-edit.mjs",
     "browser-regression": "node scripts/browser-regression.mjs",
     "regression": "node scripts/regression-check.mjs && node scripts/browser-regression.mjs",
     "check": "node --check scripts/canvax.mjs && node --check scripts/write-preview-manifest.mjs && node --check scripts/write-codex-output.mjs && node --check scripts/regression-check.mjs && node --check web/app.js && node --check web/preview.js && node scripts/regression-check.mjs"

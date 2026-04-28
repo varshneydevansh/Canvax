@@ -11,7 +11,7 @@ show board
   -> draw rough frames
   -> add voice or notes
   -> freeze
-  -> open Preview
+  -> open Preview in Codex Browser Use
   -> materialize
   -> inspect manifests/checkpoints
 ```
@@ -22,8 +22,17 @@ flowchart TD
     B --> C[Add notes and voice]
     C --> D[Freeze or autosnap]
     D --> E[Open Preview]
-    E --> F[Materialize]
+    E --> F[Generate screen or Materialize]
     F --> G[Show manifests, checkpoints, rewrite queue]
+
+    classDef input fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef save fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef explain fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A,B,C input;
+    class D save;
+    class E,F output;
+    class G explain;
 ```
 
 ## Setup
@@ -31,8 +40,10 @@ flowchart TD
 Run:
 
 ```bash
-./canvax --open
+./canvax
 ```
+
+Then open `http://localhost:3210` in Codex Browser Use when available. Use `./canvax --open` only when demonstrating the external-browser fallback.
 
 Optional validation:
 
@@ -40,6 +51,14 @@ Optional validation:
 npm run check
 npm run regression
 ```
+
+Optional hero generation demo:
+
+```bash
+npm run demo:hero
+```
+
+That writes a deterministic sample frame, runs the local `Generate screen` path, and opens a polished hero preview route through the same materialized artifact system used by the board.
 
 ## Demo Goal
 
@@ -70,24 +89,58 @@ user input
    Point out that the live handoff is written under `exports/`.
 
 5. Open Preview.
-   Show the sketch side and the output side in the separate preview window.
+   Show the sketch side and the output side in Codex Browser Use.
 
 6. Materialize one frame.
    Explain that this is a deterministic local “make it feel real” pass, not a paid API feature.
 
-7. Publish or inspect output context.
+7. Run `Generate screen` for a hero-like frame.
+   Explain that this is still local and deterministic, but it uses a more semantic renderer that infers nav, headline, body, CTAs, proof chips, and a visual preview card from sketch intent.
+
+8. Publish or inspect output context.
    Show artifacts, changed files, activity, output badges, and the rewrite queue.
 
-8. Push a checkpoint.
+9. Push a checkpoint.
    Explain that checkpoints preserve a specific collaboration moment for Codex.
+
+```text
+hero demo loop
+  rough layout + labels
+      -> Generate screen
+      -> polished local HTML artifact
+      -> Preview compare
+      -> pen correction or label update
+      -> regenerate same frame route
+```
+
+```mermaid
+flowchart LR
+    A[Sketch hero] --> B[Label intent]
+    B --> C[Generate screen]
+    C --> D[Polished route]
+    D --> E[Preview]
+    E --> F[Refine sketch]
+    F --> C
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef action fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef result fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef preview fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A,B,F sketch;
+    class C action;
+    class D result;
+    class E preview;
+```
 
 ## Talking Points
 
 - `./canvax` is the local command.
 - `/canvax` and `$canvax` are the skill-backed Codex entry points.
+- Codex Browser Use is the preferred visual surface for the board, Preview, and generated app.
 - Current transport is local companion mode: files, manifests, and browser mirroring.
 - Future richer-client mode is explicitly planned as an App Server path, not hidden magic.
 - The Preview window is separate on purpose so the sketch surface stays uncluttered.
+- The Canvax logo is original project branding: browser frame, sketch stroke, code brackets, and a central C. It should not be presented as an OpenAI, ChatGPT, or Codex trademark.
 
 ## Good Evidence To Show
 

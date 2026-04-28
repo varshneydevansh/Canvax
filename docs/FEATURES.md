@@ -7,6 +7,7 @@ This document explains what each major Canvax surface and feature does today, ho
 ```text
 Board        -> draw, label, connect, speak, freeze
 Preview      -> compare sketch vs output
+Generate     -> richer local screen generation
 Materialize  -> local "make it feel real" pass
 Checkpoints  -> preserve collaboration moments
 Manifests    -> connect Codex output back into Canvax
@@ -16,12 +17,34 @@ Rewrite queue-> tell Codex what needs attention next
 ```mermaid
 flowchart LR
     B[Board] --> E[Exports]
+    B --> G[Generate screen]
     B --> M[Materialize]
     E --> C[Codex]
     C --> O[Output manifest]
     O --> P[Preview]
     B --> P
     E --> K[Checkpoints]
+```
+
+```mermaid
+flowchart TD
+    Rough["Rough sketch"] --> Recipe["Generation recipe"]
+    Recipe --> Semantic["Semantic screen renderer"]
+    Semantic --> Hero["Polished hero/page artifact"]
+    Hero --> Refine["Pen edit + refinement delta"]
+    Refine --> Semantic
+
+    classDef rough fill:#ffede8,stroke:#ff5d3a,color:#18110e
+    classDef recipe fill:#fff7db,stroke:#f0a202,color:#18110e
+    classDef semantic fill:#eaf7f5,stroke:#0c8d7b,color:#18110e
+    classDef hero fill:#eef3ff,stroke:#2364aa,color:#18110e
+    classDef refine fill:#f7edfb,stroke:#b246a8,color:#18110e
+
+    class Rough rough
+    class Recipe recipe
+    class Semantic semantic
+    class Hero hero
+    class Refine refine
 ```
 
 ## Surfaces
@@ -102,7 +125,7 @@ Local service = router + persistence + materialize engine
 
 The intended daily loop is:
 
-1. run `./canvax --open`
+1. run `./canvax`
 2. draw in the board
 3. add labels, notes, flow links, and voice notes if useful
 4. pause for autosnap or press `Freeze frame`
@@ -113,8 +136,11 @@ The intended daily loop is:
 
 There are two implementation paths:
 
+- `Generate screen`: richer local screen generation from the current frame using the board recipe
 - `Materialize`: quick local styled preview from the current frame
 - `Codex implementation`: actual code, specs, artifacts, and changed files in the workspace
+
+When Codex Browser Use is available, open `http://localhost:3210` there and keep both the board and Preview inside Codex. That lets Codex inspect the same UI surfaces the user is steering.
 
 ```mermaid
 sequenceDiagram
@@ -406,6 +432,7 @@ Output = implementation only
 Preview can display:
 
 - a manually attached preview URL
+- a generated HTML artifact from `Generate screen`
 - a generated HTML artifact from Materialize
 - a Codex-provided preview artifact or URL from the output manifest
 
@@ -459,6 +486,56 @@ snapshot contents
   - sketch image
 ```
 
+## Generate Screen
+
+Generate screen is the richer local generation path above quick Materialize.
+
+Behavior:
+
+- uses the active frame plus the board generation recipe
+- recipe controls:
+  - direction
+  - output style
+  - focus
+- uses a semantic hero renderer for hero-like website frames, so the output is no longer just a literal absolute-positioned wireframe
+- infers brand, nav, headline, body copy, CTAs, proof chips, preview card, and edit/refinement note from labels and frame notes
+- writes back into the same Preview loop as Materialize
+- reuses the same per-frame target so Preview stays attached across refreshes
+
+What Generate screen is for:
+
+- turning a sketch into something that feels more like a real website or app screen
+- trying stronger design directions without leaving the Canvax loop
+
+```text
+Generate screen
+  sketch geometry  -> placement hints
+  labels           -> semantic meaning
+  notes/voice      -> copy and behavior
+  recipe           -> visual direction
+  refinement delta -> what changed after the edit
+```
+
+```mermaid
+flowchart LR
+    G["Sketch geometry"] --> R["Semantic renderer"]
+    L["Labels"] --> R
+    N["Notes + voice"] --> R
+    P["Generation recipe"] --> R
+    R --> H["Polished HTML hero"]
+    H --> V["Preview compare"]
+
+    classDef source fill:#fff7db,stroke:#f0a202,color:#18110e
+    classDef renderer fill:#eaf7f5,stroke:#0c8d7b,color:#18110e
+    classDef output fill:#eef3ff,stroke:#2364aa,color:#18110e
+    classDef preview fill:#f7edfb,stroke:#b246a8,color:#18110e
+
+    class G,L,N,P source
+    class R renderer
+    class H output
+    class V preview
+```
+
 ## Materialize
 
 Materialize is the quick “make this sketch feel real” path.
@@ -503,7 +580,7 @@ The practical collaboration loop is real:
 
 - you sketch
 - Canvax preserves the handoff
-- Codex reads it
+- Generate screen or Codex reads it
 - output appears in Preview
 - you sketch corrections
 - Codex updates again

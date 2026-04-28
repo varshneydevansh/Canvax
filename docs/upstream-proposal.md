@@ -8,7 +8,7 @@ This project was created collaboratively with OpenAI Codex.
 
 ```text
 today
-  board tab + preview tab + file handoff + skill
+  local board + Codex Browser Use + preview tab + file handoff + skill
 
 future
   thread-bound canvas + thread-bound preview + event transport
@@ -18,6 +18,13 @@ future
 flowchart LR
     A[Current local companion] --> B[Transport seam]
     B --> C[Future App Server or native client]
+
+    classDef current fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef seam fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef future fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A current;
+    class B seam;
+    class C future;
 ```
 
 ## Summary
@@ -36,6 +43,7 @@ The current repo proves that this workflow is useful even without a native in-ch
 Canvax exists as a browser companion plus skill because that is the cleanest currently documented path:
 
 - a local command can launch the board
+- Codex Browser Use can keep the board, Preview, and generated app inside the Codex visual loop
 - a skill can attach the current thread to the latest handoff
 - a preview window can stay separate from the sketch surface
 - local files can preserve a durable collaboration record
@@ -44,7 +52,7 @@ This is not pretending there is a hidden native canvas extension point inside th
 
 ```text
 current compromise
-  browser surface        -> input
+  Codex browser surface  -> input and inspection
   local files/manifests  -> durable handoff
   skill                  -> thread attachment
 ```
@@ -57,9 +65,12 @@ The current prototype already demonstrates:
 - frame and flow modeling
 - voice notes attached to the board
 - live preview comparison
+- Codex Browser Use inspection of the board, Preview, and generated app routes
 - output/activity history
 - rewrite queues that tell Codex what needs attention next
 - deterministic local materialization from sketch to styled surface
+- semantic `Generate screen` output for hero-like website/app screens
+- original Canvax branding and logo assets that avoid copying first-party OpenAI marks
 - durable checkpoints and session events
 
 ```mermaid
@@ -68,13 +79,40 @@ flowchart TD
     B --> C[Codex]
     C --> D[Preview and artifacts]
     D --> E[Refinement]
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef handoff fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef codex fill:#eef3ff,stroke:#2364aa,color:#101828;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    class A,E sketch;
+    class B handoff;
+    class C codex;
+    class D output;
 ```
+
+## Brand And Trust Boundary
+
+The Canvax identity should feel adjacent to the Codex workflow without impersonating OpenAI branding.
+
+```text
+Canvax mark
+  browser chrome  -> visual workspace
+  sketch stroke   -> freehand input
+  code brackets   -> developer output
+  central C       -> Canvax identity
+```
+
+The upstream version can replace the local SVG with official product UI if OpenAI adopts the concept, but the open repo should keep its original logo assets under:
+
+- `web/assets/canvax-logo.svg`
+- `docs/assets/canvax-logo.svg`
 
 ## What Native Codex Integration Would Replace
 
 If Codex later ships a first-party canvas surface or a richer App Server client path, the native version should replace:
 
 - browser-tab board startup friction
+- explicit Browser Use coordination
 - file-path handoff as the primary collaboration transport
 - manual preview-window coordination
 - manifest files as the main output-binding layer

@@ -12,14 +12,23 @@
     <body>
         <div class="shell">
             <aside class="panel timeline-panel">
-                <div class="panel-header">
-                    <p class="eyebrow">Codex sketch partner</p>
-                    <h1>Canvax</h1>
-                    <p class="lede">
-                        Draw anything, pause for a beat, and let Canvax keep a
-                        live visual handoff that Codex can read without making
-                        you translate the idea into text first.
-                    </p>
+                <div class="panel-header brand-header">
+                    <img
+                        class="brand-logo"
+                        src="/assets/canvax-logo.svg"
+                        alt=""
+                        aria-hidden="true"
+                    />
+                    <div>
+                        <p class="eyebrow">Codex sketch partner</p>
+                        <h1>Canvax</h1>
+                        <p class="lede">
+                            Draw anything, pause for a beat, and let Canvax
+                            keep a live visual handoff that Codex can read
+                            without making you translate the idea into text
+                            first.
+                        </p>
+                    </div>
                 </div>
 
                 <div class="form-block compact-block">
@@ -193,9 +202,16 @@
                                 Preview
                             </button>
                             <button
+                                id="generate-screen"
+                                class="accent-button"
+                                title="Turn the current frame into a richer generated screen and keep Preview synced"
+                            >
+                                Generate screen
+                            </button>
+                            <button
                                 id="materialize-frame"
                                 class="ghost-button"
-                                title="Turn the current frame into a styled local preview"
+                                title="Turn the current frame into a quick styled local preview"
                             >
                                 Materialize
                             </button>
@@ -529,6 +545,68 @@
                             placeholder="How should this adapt across mobile, Qt, desktop, image variants, or other surfaces?"
                         ></textarea>
                     </label>
+                </div>
+
+                <div class="analysis-section generation-section">
+                    <div class="section-header">
+                        <h3>Generate screen</h3>
+                        <span id="generation-summary" class="helper-text"
+                            >Product UI • Studio • Balanced</span
+                        >
+                    </div>
+                    <p class="helper-text">
+                        Use this richer local generation pass when you want the
+                        active frame to feel more like a real website or app
+                        screen while keeping the sketch and Preview loop
+                        intact.
+                    </p>
+                    <div class="form-block compact-block">
+                        <label>
+                            Direction
+                            <select id="generation-direction">
+                                <option value="product">Product UI</option>
+                                <option value="editorial">Editorial</option>
+                                <option value="cinematic">Cinematic</option>
+                                <option value="dashboard">Dashboard</option>
+                                <option value="playful">Playful</option>
+                            </select>
+                        </label>
+                        <label>
+                            Output style
+                            <select id="generation-style">
+                                <option value="rapid">Rapid</option>
+                                <option value="studio">Studio</option>
+                                <option value="showcase">Showcase</option>
+                            </select>
+                        </label>
+                        <label>
+                            Focus
+                            <select id="generation-focus">
+                                <option value="balanced">Balanced</option>
+                                <option value="conversion">Conversion</option>
+                                <option value="storytelling">Storytelling</option>
+                                <option value="utility">Utility</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="button-row">
+                        <button
+                            id="generate-screen-panel"
+                            class="accent-button"
+                            type="button"
+                            title="Generate a richer local screen from the current frame"
+                        >
+                            Generate screen
+                        </button>
+                        <button
+                            id="materialize-frame-panel"
+                            class="ghost-button"
+                            type="button"
+                            title="Run the quicker deterministic Materialize pass for the current frame"
+                        >
+                            Quick materialize
+                        </button>
+                    </div>
                 </div>
 
                 <div class="analysis-section">

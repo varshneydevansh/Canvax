@@ -118,8 +118,8 @@ flowchart TD
 
 ## Runtime Flow
 
-1. `./canvax --open` starts or reuses the local service.
-2. The browser board loads from that local service.
+1. `./canvax` starts or reuses the local service.
+2. The board loads from that local service, preferably inside Codex Browser Use at `http://localhost:3210`.
 3. The user draws, annotates, or links frames.
 4. Canvax autosnaps after idle or stores a manual freeze.
 5. `web/app.js` sends the latest export package to `/api/save-export`.
@@ -131,6 +131,8 @@ flowchart TD
 11. The service now also computes a stable output digest from targets, artifacts, changes, and workspace-follow metadata so clients can detect meaningful output-context changes without treating every poll as a rewrite.
 12. Recent checkpoint/session events are also fed back through preview-state so clients can rebuild durable output activity after a refresh instead of relying only on in-memory polling state.
 13. When a frame is materialized again, the service computes a refinement delta, writes it into the materialize metadata, and exposes it through the preview manifest so Preview can show changed-region overlays.
+14. The board can now send a richer generation recipe into that same endpoint, which lets the local service produce a `generated-screen-preview` target instead of only the quicker materialized preview.
+15. Codex Browser Use is the preferred inspection surface for the board, Preview, and generated app routes while Codex edits and validates workspace files.
 
 ```mermaid
 sequenceDiagram
@@ -229,6 +231,7 @@ This is the main guardrail against accidentally hardcoding the current local-com
 Canvax/
 |- canvax
 |- web/
+|  |- assets/canvax-logo.svg
 |  |- index.html
 |  |- styles.css
 |  |- app.js
@@ -244,6 +247,8 @@ Canvax/
 |  `- browser-regression.mjs
 |- codex-skill/canvax/
 |- docs/
+|  |- assets/canvax-logo.svg
+|  `- BRANDING.md
 |- exports/
 `- artifacts/
 ```
@@ -252,6 +257,44 @@ Canvax/
 
 - `canvax`: shell launcher for the Node service
 - `scripts/canvax.mjs`: main service runtime
+
+### Generation engine
+
+`scripts/canvax.mjs` owns both local generation paths:
+
+- `Materialize`: a geometry-preserving styled preview
+- `Generate screen`: a semantic renderer path for richer screen output
+
+```text
+same endpoint
+  /api/materialize-frame
+      |
+      +-- mode: materialize       -> geometry-first styled artifact
+      `-- mode: generate-screen   -> semantic screen renderer
+```
+
+```mermaid
+flowchart LR
+    Payload["Frame payload"] --> Mode{"generation.mode"}
+    Mode -->|"materialize"| Geometry["Geometry-first renderer"]
+    Mode -->|"generate-screen"| Semantic["Semantic renderer"]
+    Semantic --> Hero["Hero/page HTML artifact"]
+    Geometry --> Mock["Styled mock artifact"]
+    Hero --> Manifest["Preview manifest"]
+    Mock --> Manifest
+
+    classDef payload fill:#fff7db,stroke:#f0a202,color:#18110e
+    classDef decision fill:#ffede8,stroke:#ff5d3a,color:#18110e
+    classDef renderer fill:#eaf7f5,stroke:#0c8d7b,color:#18110e
+    classDef output fill:#eef3ff,stroke:#2364aa,color:#18110e
+    classDef manifest fill:#f7edfb,stroke:#b246a8,color:#18110e
+
+    class Payload payload
+    class Mode decision
+    class Geometry,Semantic renderer
+    class Hero,Mock output
+    class Manifest manifest
+```
 
 ### Browser app
 
@@ -360,7 +403,7 @@ Look in:
 
 ## Current Design Boundary
 
-Today, Canvax is a local browser companion for Codex.
+Today, Canvax is a local browser companion for Codex. When Browser Use is available, that local browser surface should be the Codex in-app browser.
 
 It is not yet:
 
@@ -376,7 +419,7 @@ The clean migration path is:
 
 1. keep the board semantics, export schema, manifest schema, and rewrite queue logic
 2. replace file-path transport with thread/artifact/event transport
-3. replace browser-local Preview wiring with a richer Codex client surface
+3. replace Browser Use/local Preview wiring with a richer Codex client surface
 4. preserve `Materialize`, checkpoints, and output binding semantics across the transport swap
 
 That is why the transport object exists now: the repo can describe what is transport-specific versus what is core Canvax behavior.

@@ -1,5 +1,7 @@
 # Canvax
 
+![Canvax logo](docs/assets/canvax-logo.svg)
+
 Canvax is a Mac-first sketch companion for Codex. It gives you a local canvas to draw rough UI, flows, motion ideas, Qt layouts, image directions, or raw visual notes, then keeps a live export in the workspace so Codex can work from the sketch instead of forcing you to translate everything into text first.
 
 This project was created collaboratively with OpenAI Codex.
@@ -12,6 +14,8 @@ Canvax has two surfaces:
 - `/canvax` or `$canvax`: the Codex skill entry that attaches the current chat to the live Canvax export.
 
 That means Canvax is **a local command plus a Codex skill**. It is not currently a native first-party built-in Codex command.
+
+When the Codex app has the Browser Use plugin available, the preferred working mode is to open the local Canvax board inside Codex's in-app browser instead of a separate macOS browser. That keeps the sketch board, Preview, generated UI, and this chat in the same working loop while preserving the local service and file-based handoff.
 
 ## System Snapshot
 
@@ -40,6 +44,29 @@ That means Canvax is **a local command plus a Codex skill**. It is not currently
   | /canvax or       |
   | $canvax skill    |
   +------------------+
+```
+
+```mermaid
+flowchart LR
+    Sketch["User sketch + voice"] --> Board["Canvax Board"]
+    Board --> Export["Live export"]
+    Export --> Codex["Codex reads intent"]
+    Codex --> Screen["Generate screen / code"]
+    Screen --> Preview["Preview"]
+    Preview --> Sketch
+
+    classDef input fill:#ffede8,stroke:#ff5d3a,color:#18110e
+    classDef board fill:#fffaf3,stroke:#f0a202,color:#18110e
+    classDef handoff fill:#eaf7f5,stroke:#0c8d7b,color:#18110e
+    classDef codex fill:#eef3ff,stroke:#2364aa,color:#18110e
+    classDef output fill:#f7edfb,stroke:#b246a8,color:#18110e
+
+    class Sketch input
+    class Board board
+    class Export handoff
+    class Codex codex
+    class Screen output
+    class Preview output
 ```
 
 ```mermaid
@@ -73,8 +100,10 @@ flowchart LR
 - Reloads same-URL Preview targets with a digest-based revision key when connected implementation context changes, which keeps local app previews closer to live Codex edits.
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
 - Lets you save preview compare snapshots into the workspace for later review.
+- Adds a `Generate screen` mode with direction, style, and focus controls for richer local website/app screen generation.
 - Materializes the active frame into a styled local HTML preview artifact without changing the sketch board.
 - Reuses a stable per-frame materialized preview target so repeated updates refresh the same output surface instead of spawning unrelated preview routes.
+- Reuses that same per-frame target for richer generated-screen output, so Preview stays attached while the active frame is regenerated.
 - Refreshes an existing materialized frame automatically after freeze/autosnap so the generated preview stays closer to the sketch without reopening Preview.
 - Tracks Materialize refinements with changed-region metadata, so Preview can call out what shifted between sketch revisions instead of only showing a stale/synced badge.
 - Reuses cached frame thumbnails/snapshots when rebuilding live preview/export payloads, which reduces repeated long-session render work.
@@ -91,6 +120,7 @@ This commit line now includes the following major layers working together:
 - voice notes and dedicated voice handoff file
 - checkpoints and session event log
 - output manifests, workspace-follow, and output activity feed
+- `Generate screen` with board-side recipe controls
 - `Materialize` with stable per-frame targets and refinement deltas
 - rewrite queue and frame-level output status badges
 - transport contract for current `local-companion` mode vs future `app-server` mode
@@ -106,7 +136,7 @@ flowchart TD
     G --> H[Output manifest]
     H --> E
     E --> I[Preview compare]
-    C --> J[Materialize]
+    C --> J[Generate screen / Materialize]
     J --> E
 ```
 
@@ -126,10 +156,12 @@ Relevant docs:
 ### 1. Start the board
 
 ```bash
-./canvax --open
+./canvax
 ```
 
-That ensures one Canvax service is running on `http://localhost:3210` by default and opens it in your browser.
+That ensures one Canvax service is running on `http://localhost:3210` by default.
+
+If you are using Codex Desktop with Browser Use, open that URL in the in-app browser. Use `./canvax --open` only when you explicitly want the board in your default macOS browser.
 
 ### 2. Install the Codex skill
 
@@ -148,7 +180,7 @@ In Codex:
 - invoke `/canvax` from the slash list if it appears there
 - or invoke `$canvax`
 
-Then sketch in the browser board and continue the same chat with prompts like:
+Then sketch in the board, preferably opened through Codex Browser Use, and continue the same chat with prompts like:
 
 - `use my current Canvax`
 - `read the latest Canvax`
@@ -161,20 +193,23 @@ Then sketch in the browser board and continue the same chat with prompts like:
 - [Usage guide](docs/USAGE.md)
 - [Feature behavior guide](docs/FEATURES.md)
 - [Architecture guide](docs/ARCHITECTURE.md)
+- [Brand guide](docs/BRANDING.md)
 - [Development guide](docs/DEVELOPMENT.md)
+- [Codex Browser workflow](docs/CODEX_BROWSER_WORKFLOW.md)
 - [Upstream proposal](docs/upstream-proposal.md)
 - [Demo script](docs/canvax-demo-script.md)
 - [Execution status](docs/EXECUTION_STATUS.md)
+- [Stitch gap roadmap](docs/STITCH_GAP_ROADMAP.md)
 - [Live collaboration plan](canvax-live-collaboration-plan.md)
 
 ## Feature Matrix
 
 | Area | Canvax today | Native Codex future |
 | --- | --- | --- |
-| Sketch input | Browser board started with `./canvax` | Embedded canvas panel inside a richer Codex client |
+| Sketch input | Browser board served locally and preferably opened in Codex Browser Use | Embedded canvas panel inside a richer Codex client |
 | Live handoff | File exports under `exports/` | Thread-bound handoff items and live multimodal state |
 | Output binding | Preview manifest plus Codex-output manifest | First-party artifact, preview, and event wiring |
-| Live preview | Separate Preview tab/window | Same-thread split canvas + output surface |
+| Live preview | Preview tab/window, ideally inside Codex Browser Use | Same-thread split canvas + output surface |
 | Transport | Local companion via files, manifests, and browser session mirroring | App Server or equivalent JSON-RPC transport |
 
 The current repo is intentionally optimized for the first column while keeping the second column reachable instead of blocked by hardcoded assumptions.
@@ -185,6 +220,7 @@ The current repo is intentionally optimized for the first column while keeping t
 Canvax/
 |- canvax                         # launcher
 |- web/
+|  |- assets/canvax-logo.svg     # app logo
 |  |- index.html                  # board shell
 |  |- styles.css                  # board UI
 |  |- app.js                      # board state, tools, exports
@@ -200,6 +236,7 @@ Canvax/
 |  `- browser-regression.mjs      # headless browser checks
 |- codex-skill/canvax/            # skill wrapper
 |- docs/                          # operator and maintainer docs
+|  `- assets/canvax-logo.svg      # documentation logo copy
 |- exports/                       # live handoff files
 `- artifacts/                     # generated output and checkpoints
 ```
@@ -211,16 +248,16 @@ Canvax/
 ./canvax --open
 ./canvax --status
 ./canvax --stop
-./canvax --restart --open
+./canvax --restart
 ```
 
 Behavior:
 
 - `./canvax` starts or reuses the existing service.
-- `./canvax --open` starts or reuses the service and opens the board.
+- `./canvax --open` starts or reuses the service and opens the board in the default macOS browser. Prefer Codex Browser Use when available.
 - `./canvax --status` prints the current board URL and live export paths.
 - `./canvax --stop` stops the running service.
-- `./canvax --restart --open` restarts the service cleanly and opens the board again.
+- `./canvax --restart` restarts the service cleanly. Reopen the board in Codex Browser Use afterward.
 
 Canvax is intentionally single-service. If one board is already running, it is reused instead of spawning another port by default.
 
@@ -270,7 +307,7 @@ The preview manifest is the bridge for generated output. It can describe:
 
 If the manifest contains a generated HTML artifact, Canvax can now use that as the implementation preview target automatically even when no explicit preview URL was attached.
 
-Materialize mode uses that same preview path. When you click `Materialize` in the board, Canvax writes a styled HTML artifact plus a serialized frame payload under `artifacts/preview/materialized/...` and updates `exports/canvax-preview-manifest.json` so Preview can open it immediately.
+Generate screen and Materialize use that same preview path. When you click either action in the board, Canvax writes a local HTML artifact plus a serialized frame payload under `artifacts/preview/materialized/...` and updates `exports/canvax-preview-manifest.json` so Preview can open it immediately.
 
 When you rematerialize a frame, Canvax now also saves a refinement delta into the materialize metadata and manifest target. Preview uses that to render changed-region overlays and a refinement summary for the current frame.
 
@@ -300,20 +337,21 @@ Checkpoint mode now adds:
 
 ## Current Workflow
 
-1. Open Canvax with `./canvax --open`.
+1. Start Canvax with `./canvax`.
 2. Install the skill once with `node scripts/install-canvax-skill.mjs`.
 3. Invoke `/canvax` or `$canvax` in Codex.
 4. Sketch frames, label regions, and connect screens in Flow view.
 5. Capture spoken intent with `Voice notes` if you want Canvax to preserve what you are saying while drawing.
 6. Pause for autosnap or press `Freeze frame`.
 7. Use `Push checkpoint` if you want to preserve the current sketch + voice + output context as a durable handoff moment.
-8. Press `Materialize` if you want a styled local preview of the current frame before writing app code.
-9. Keep sketching. Autosnap and freeze now refresh the live export, auto-publish the current workspace change list, and silently rematerialize frames that already have a generated target.
-10. Use `Publish changes` only when you want to force a manual refresh of the current workspace change list from the board.
-11. Even without that manual publish step, board and Preview polling now mirror current git workspace changes live while you keep sketching.
-12. When Codex changes files from chat, let it run `node scripts/write-codex-output.mjs --from-git-status` so the board and preview also keep the richer persisted manifest metadata.
-13. Ask Codex to use the current Canvax.
-14. Codex reads the latest live export or checkpoint and works from that visual handoff.
+8. Press `Generate screen` if you want a richer local website/app screen from the current frame before writing app code.
+9. Press `Materialize` if you want the quicker deterministic version instead.
+10. Open the board and Preview in Codex Browser Use when available, then keep sketching. Autosnap and freeze now refresh the live export, auto-publish the current workspace change list, and silently refresh frames that already have a generated target.
+11. Use `Publish changes` only when you want to force a manual refresh of the current workspace change list from the board.
+12. Even without that manual publish step, board and Preview polling now mirror current git workspace changes live while you keep sketching.
+13. When Codex changes files from chat, let it run `node scripts/write-codex-output.mjs --from-git-status` so the board and preview also keep the richer persisted manifest metadata.
+14. Ask Codex to use the current Canvax.
+15. Codex reads the latest live export or checkpoint and works from that visual handoff.
 
 ## Current Limits
 

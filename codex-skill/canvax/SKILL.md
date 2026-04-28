@@ -17,8 +17,9 @@ This skill is the Codex-side wrapper for the local Canvax board. In practice:
 
 From the repo root:
 
-- Run `./canvax --open` when the user invokes `/canvax` and wants the board opened in the default macOS browser.
-- Run `./canvax` when the board only needs to stay running in the background.
+- Run `./canvax` when the user invokes `/canvax` and the board should be available at `http://localhost:3210`.
+- Prefer opening `http://localhost:3210` in Codex Browser Use when that plugin is available, so the board, Preview, generated app, and chat stay in one Codex loop.
+- Run `./canvax --open` only when the user explicitly wants the board opened in the default macOS browser.
 - Run `./canvax --status` to reuse the existing board URL instead of starting another port.
 
 Treat `./canvax` as an attach command, not a fresh launch every time:
@@ -56,6 +57,21 @@ Use the Codex output manifest as the canonical place to publish implementation r
 Even when no fresh manifest write has happened yet, the board and Preview will still mirror current git workspace changes live through preview-state polling. Use the manifest writer when you want that output context to be durable and richly annotated, not only transient.
 
 If the user wants a quick styled local surface before any real app preview exists, tell them to use `Materialize` in the Canvax board. That writes a generated HTML preview under `artifacts/preview/materialized/...` and updates the manual preview manifest automatically.
+
+If the user wants a more polished website/app-screen interpretation, prefer `Generate screen` in the board. That uses Canvax's local semantic renderer for hero-like frames: it infers navigation, headline, body copy, calls to action, proof chips, visual preview cards, and refinement notes from geometry, labels, frame notes, and voice context. It is still deterministic local generation, not a paid API call.
+
+For a quick smoke demo of that path from the repo root:
+
+```bash
+npm run demo:hero
+```
+
+When Browser Use is available, use it as the preferred visual inspection path:
+
+- open the board at `http://localhost:3210`
+- open Preview from the board or at the preview route exposed by the service
+- inspect any generated local app preview Codex binds through the output manifest
+- fix visible layout issues in code, then publish output back with `write-codex-output.mjs`
 
 Canvax now also writes explicit transport metadata into its live payloads, exports, and checkpoints. Treat that as a contract:
 

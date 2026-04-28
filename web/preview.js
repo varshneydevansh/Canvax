@@ -268,18 +268,20 @@ function syncSelectedFrame() {
     return;
   }
 
+  const frameIds = new Set(frames.map((frame) => frame.id).filter(Boolean));
+  const firstFrameId = frames[0].id;
+  const firstExistingFrameId = (...ids) =>
+    ids.find((id) => id && frameIds.has(id)) || firstFrameId;
   const activeFrameId = currentLiveExport()?.activeFrameId;
   const entryFrameId = currentLiveExport()?.entryFrameId;
   if (state.followActiveFrame) {
-    state.selectedFrameId = activeFrameId || entryFrameId || frames[0].id;
+    state.selectedFrameId = firstExistingFrameId(activeFrameId, entryFrameId);
     return;
   }
 
-  const selectedStillExists = frames.some(
-    (frame) => frame.id === state.selectedFrameId,
-  );
+  const selectedStillExists = frameIds.has(state.selectedFrameId);
   if (!selectedStillExists) {
-    state.selectedFrameId = activeFrameId || entryFrameId || frames[0].id;
+    state.selectedFrameId = firstExistingFrameId(activeFrameId, entryFrameId);
   }
 }
 
@@ -348,7 +350,7 @@ function renderMeta() {
 
   dom.previewStatus.textContent = manifestTarget
     ? refinementSummary || "Sketch synced and implementation target connected"
-    : "Sketch synced. Attach a preview URL, let Codex write a target, or use Materialize in the board to generate one here";
+    : "Sketch synced. Attach a preview URL, let Codex write a target, or use Generate screen in the board to generate one here";
 }
 
 function renderFrameRail() {
@@ -553,7 +555,7 @@ function renderImplementationPreview() {
   if (!target) {
     dom.implementationViewer.className = "surface-viewer empty-state";
     dom.implementationViewer.textContent =
-      "No connected implementation preview yet. Attach a local preview URL, let Codex write a preview manifest target, or use Materialize in the main board.";
+      "No connected implementation preview yet. Attach a local preview URL, let Codex write a preview manifest target, or use Generate screen in the main board.";
     return;
   }
 
@@ -670,9 +672,15 @@ function renderCompareContext(target, artifacts, changes) {
   );
   const currentItems = [];
   if (target && itemMatchesFrame(target, frameId)) {
+    const targetKind =
+      target.type === "generated-screen-preview"
+        ? "generated screen"
+        : target.type === "materialized-preview"
+          ? "materialized"
+          : target.type || "preview";
     currentItems.push({
       label: target.label || "Connected target",
-      kind: target.type || "preview",
+      kind: targetKind,
       scope: scopeLabel(target.frameIds),
       href: target.resolvedUrl || target.url || "",
       meta: target.previewPath || target.description || target.source || "",
@@ -743,18 +751,26 @@ function renderTargetSummary(target, manifest) {
     return;
   }
 
-  const notes =
-    manifest && typeof manifest.notes === "string" ? manifest.notes.trim() : "";
+  const notes = compactDisplayText(
+    manifest && typeof manifest.notes === "string" ? manifest.notes : "",
+    360,
+  );
   const href = target.resolvedUrl || target.url || "";
   const routeLabel = target.previewPath || href || "Connected target";
   const freshness = describeManifestFreshness(target, currentFrame());
   const refinementSummary = describeRefinementSummary(target.refinement);
+  const targetKind =
+    target.type === "generated-screen-preview"
+      ? "generated screen"
+      : target.type === "materialized-preview"
+        ? "materialized"
+        : target.type || "preview";
   dom.targetSummary.className = "target-summary";
   dom.targetSummary.innerHTML = `
     <div class="target-card">
       <div class="target-card-row">
         <strong>${escapeHtml(target.label || "Connected implementation")}</strong>
-        <span class="target-badge">${escapeHtml(target.type || "preview")}</span>
+        <span class="target-badge">${escapeHtml(targetKind)}</span>
       </div>
       <p class="target-meta">${escapeHtml(target.source || "manifest")} • ${escapeHtml(routeLabel)}</p>
       ${target.description ? `<p class="target-copy">${escapeHtml(target.description)}</p>` : ""}
@@ -941,10 +957,10 @@ function renderRefinement(target, artifacts) {
       "No materialized refinement data for this frame yet.";
     dom.refinementStats.className = "refinement-stats empty-state";
     dom.refinementStats.textContent =
-      "Materialize this frame, then continue editing it to see the delta between revisions.";
+      "Generate or materialize this frame, then continue editing it to see the delta between revisions.";
     dom.refinementRegions.className = "refinement-regions empty-state";
     dom.refinementRegions.textContent =
-      "Changed sketch regions will appear here after rematerialize.";
+      "Changed sketch regions will appear here after a refreshed generation pass.";
     return;
   }
 
@@ -1435,10 +1451,8 @@ function currentPayload() {
   );
   return {
     ...state.payload,
-    ...state.livePayload,
     liveExport: {
       ...baseExport,
-      ...liveExport,
       frames: (baseExport.frames || []).map((frame) => ({
         ...frame,
         ...(liveFrames.get(frame.id) || {}),
@@ -1949,8 +1963,10 @@ function describeFrameOutputStatus(
     "";
   const stale = Boolean(freshness?.stale);
   const bound = Boolean(specificTarget);
+  const generatedScreen = target.type === "generated-screen-preview";
   const materialized =
     target.type === "materialized-preview" ||
+    generatedScreen ||
     target.source === "canvax-materialize";
 
   if (stale) {
@@ -1972,7 +1988,11 @@ function describeFrameOutputStatus(
   }
 
   return {
-    label: materialized ? "Materialized" : "Output synced",
+    label: generatedScreen
+      ? "Generated screen"
+      : materialized
+        ? "Materialized"
+        : "Output synced",
     tone: materialized ? "active" : "synced",
     detail,
   };
@@ -2081,7 +2101,7 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
           priority: 2,
           updatedAt: frame.updatedAt,
           detail:
-            "Only a global target is attached right now. Bind a frame-specific target or rematerialize this frame to tighten the live rewrite loop.",
+            "Only a global target is attached right now. Bind a frame-specific target or rerun generation for this frame to tighten the live rewrite loop.",
         };
       }
 
@@ -2096,7 +2116,7 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
           priority: hasAnyTargets ? 3 : 2,
           updatedAt: frame.updatedAt,
           detail:
-            "This frame has sketch or note content but no connected output yet. Materialize it or bind a generated target when Codex implements it.",
+            "This frame has sketch or note content but no connected output yet. Generate it, materialize it, or bind a generated target when Codex implements it.",
         };
       }
 
@@ -2232,7 +2252,8 @@ function buildOutputActivityFromSessionEvents(sessionEvents) {
       return (
         reason === "output-update" ||
         reason === "publish-output" ||
-        reason === "materialize"
+        reason === "materialize" ||
+        reason === "generate-screen"
       );
     })
     .map((event) => {
@@ -2679,6 +2700,10 @@ function formatDateTime(value) {
   });
 }
 
+function timeLabel(value) {
+  return formatDateTime(value);
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -2690,4 +2715,33 @@ function escapeHtml(value) {
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function compactDisplayText(value, maxLength = 360) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (!text) {
+    return "";
+  }
+
+  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+  const uniqueSentences = [];
+  const seen = new Set();
+  sentences.forEach((sentence) => {
+    const normalized = sentence.trim();
+    if (!normalized) {
+      return;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    uniqueSentences.push(normalized);
+  });
+
+  const compact = uniqueSentences.join(" ");
+  if (compact.length <= maxLength) {
+    return compact;
+  }
+  return `${compact.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
 }

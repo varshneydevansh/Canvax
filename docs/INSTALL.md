@@ -6,10 +6,10 @@
 clone repo
    |
    v
-run ./canvax --open
+run ./canvax
    |
    +--> starts or reuses local service
-   `--> opens browser board at localhost:3210
+   `--> serves board at localhost:3210
    |
    v
 run node scripts/install-canvax-skill.mjs
@@ -23,9 +23,9 @@ use /canvax or $canvax
 
 ```mermaid
 flowchart TD
-    A[Project root] --> B[./canvax --open]
+    A[Project root] --> B[./canvax]
     B --> C[Local service on localhost:3210]
-    B --> D[Board opens in browser]
+    C --> D[Open board in Codex Browser Use]
     A --> E[node scripts/install-canvax-skill.mjs]
     E --> F[Symlink into ~/.codex/skills/canvax]
     F --> G[Restart Codex]
@@ -45,18 +45,32 @@ Canvax does not require a separate OpenAI API key for the core sketch-to-Codex w
 From the project root:
 
 ```bash
-./canvax --open
+./canvax
 ```
 
-This does two things:
-
-- starts or reuses the local Canvax service
-- opens the board in your default macOS browser
+This starts or reuses the local Canvax service.
 
 By default the board runs at:
 
 ```text
 http://localhost:3210
+```
+
+### Preferred Codex Desktop Setup
+
+If Codex Desktop has the Browser Use plugin available, open `http://localhost:3210` inside the Codex in-app browser.
+
+That is the preferred mode because:
+
+- the sketch board stays next to the Codex chat
+- Codex can inspect the board, Preview, and generated app with Browser Use
+- the workflow avoids bouncing between Codex and a separate macOS browser
+- the local service and export files still work exactly the same
+
+Use this only when you explicitly want the board in your default macOS browser:
+
+```text
+./canvax --open
 ```
 
 ## Install the Codex Skill
@@ -110,12 +124,33 @@ This is the most important distinction:
 
 So Canvax is not only a browser app and not only a skill. It is both.
 
+```mermaid
+flowchart LR
+    Cmd["./canvax command"] --> Service["Local service"]
+    Service --> Browser["Codex Browser Use"]
+    Skill["/canvax or $canvax skill"] --> Handoff["Latest handoff files"]
+    Browser --> Handoff
+    Handoff --> Codex["Codex work in chat"]
+
+    classDef command fill:#fff7db,stroke:#f0a202,color:#18110e
+    classDef service fill:#eaf7f5,stroke:#0c8d7b,color:#18110e
+    classDef browser fill:#eef3ff,stroke:#2364aa,color:#18110e
+    classDef skill fill:#ffede8,stroke:#ff5d3a,color:#18110e
+    classDef codex fill:#f7edfb,stroke:#b246a8,color:#18110e
+
+    class Cmd command
+    class Service,Handoff service
+    class Browser browser
+    class Skill skill
+    class Codex codex
+```
+
 ## Daily Startup
 
 Typical startup flow:
 
 ```bash
-./canvax --open
+./canvax
 ```
 
 Then in Codex:
@@ -130,14 +165,14 @@ or:
 $canvax
 ```
 
-Then draw in the browser board and continue the same Codex thread.
+Then open `http://localhost:3210` with Codex Browser Use when available, draw in the board, and continue the same Codex thread.
 
 ## Startup Model
 
 ```text
-terminal                browser                 Codex
+terminal                Codex browser           Codex
    |                       |                      |
-   | ./canvax --open       |                      |
+   | ./canvax              |                      |
    |---------------------->| service boots        |
    |                       | board loads          |
    |                       |                      |
@@ -150,9 +185,9 @@ terminal                browser                 Codex
 sequenceDiagram
     participant T as Terminal
     participant S as Canvax service
-    participant B as Browser board
+    participant B as Codex Browser board
     participant C as Codex
-    T->>S: ./canvax --open
+    T->>S: ./canvax
     S->>B: serve board
     B->>S: save live export
     C->>S: /canvax skill reads latest handoff
@@ -165,7 +200,7 @@ sequenceDiagram
 ./canvax --open
 ./canvax --status
 ./canvax --stop
-./canvax --restart --open
+./canvax --restart
 ```
 
 Notes:
@@ -184,8 +219,9 @@ Notes:
 ### The board is not opening
 
 - run `./canvax --status`
-- confirm the URL is reachable in the browser
-- if needed, run `./canvax --restart --open`
+- confirm `http://localhost:3210` is reachable in Codex Browser Use or your browser
+- if needed, run `./canvax --restart`
+- use `./canvax --open` only if you want the default macOS browser opened automatically
 
 ### I see an older board state
 

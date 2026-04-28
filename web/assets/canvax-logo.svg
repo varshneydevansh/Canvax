@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Canvax logo</title>
+  <desc id="desc">An original browser canvas mark with a pen stroke, code brackets, and a central C.</desc>
+  <defs>
+    <linearGradient id="bg" x1="72" y1="54" x2="440" y2="458" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="0.52" stop-color="#10192a"/>
+      <stop offset="1" stop-color="#ff5d3a"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="118" y1="330" x2="402" y2="158" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff5d3a"/>
+      <stop offset="0.52" stop-color="#f0a202"/>
+      <stop offset="1" stop-color="#0c8d7b"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#18110e" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <g filter="url(#softShadow)">
+    <rect x="74" y="96" width="364" height="286" rx="46" fill="#fffaf3" fill-opacity="0.92"/>
+    <path d="M74 152h364" stroke="#18110e" stroke-opacity="0.13" stroke-width="8"/>
+    <circle cx="118" cy="124" r="11" fill="#ff5d3a"/>
+    <circle cx="153" cy="124" r="11" fill="#f0a202"/>
+    <circle cx="188" cy="124" r="11" fill="#0c8d7b"/>
+  </g>
+  <path d="M185 236l-48 40 48 40" fill="none" stroke="#10192a" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M327 236l48 40-48 40" fill="none" stroke="#10192a" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M312 198c-30-20-76-18-110 8-42 31-51 95-18 134 34 40 98 42 137 8" fill="none" stroke="#10192a" stroke-width="30" stroke-linecap="round"/>
+  <path d="M132 350c48-70 112-118 192-144 27-9 42-5 47 7 6 16-12 35-56 58-46 25-84 51-114 80" fill="none" stroke="url(#stroke)" stroke-width="22" stroke-linecap="round"/>
+  <path d="M366 204l35-18-10 38z" fill="#0c8d7b"/>
+</svg>

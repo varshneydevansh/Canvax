@@ -19,6 +19,18 @@ flowchart TD
     B -->|Persistence and APIs| F[scripts/canvax.mjs]
     B -->|Skill semantics| G[codex-skill and docs]
     B -->|Regression| H[scripts/regression-check.mjs and browser-regression.mjs]
+    B -->|Branding| I[web/assets and docs/assets]
+
+    classDef entry fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef ui fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef logic fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef service fill:#eef3ff,stroke:#2364aa,color:#101828;
+    classDef docs fill:#f7edfb,stroke:#b246a8,color:#211625;
+    class A,B entry;
+    class C,D,I ui;
+    class E logic;
+    class F,H service;
+    class G docs;
 ```
 
 ## Goal Of These Docs
@@ -37,8 +49,10 @@ Use it to understand:
 Start or reuse the service:
 
 ```bash
-./canvax --open
+./canvax
 ```
+
+For manual UI work, open `http://localhost:3210` in Codex Browser Use when available. Use `./canvax --open` only when you intentionally want the default macOS browser.
 
 Basic syntax check:
 
@@ -85,7 +99,7 @@ Useful service commands:
 ```bash
 ./canvax --status
 ./canvax --stop
-./canvax --restart --open
+./canvax --restart
 ```
 
 ```text
@@ -115,7 +129,52 @@ flowchart LR
     D --> E[Preview]
     C --> F[Handoff files]
     F --> G[Codex]
+    E --> H[Generated route]
+    H --> A
+
+    classDef board fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef service fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef preview fill:#f7edfb,stroke:#b246a8,color:#211625;
+    classDef codex fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A,B board;
+    class C,D,F service;
+    class E,H preview;
+    class G codex;
 ```
+
+## Generation Working Model
+
+Canvax now has two local generation paths:
+
+```text
+Materialize
+  sketch geometry -> styled HTML mock -> Preview
+
+Generate screen
+  sketch intent + labels + notes -> semantic screen renderer -> polished HTML route -> Preview
+```
+
+```mermaid
+flowchart LR
+    A[Frame geometry] --> C{Generation mode}
+    B[Labels, notes, voice] --> C
+    C -->|Materialize| D[Geometry-faithful mock]
+    C -->|Generate screen| E[Semantic screen renderer]
+    D --> F[Preview manifest]
+    E --> F
+    F --> G[Preview route]
+
+    classDef input fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef mode fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef preview fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A,B input;
+    class C mode;
+    class D,E output;
+    class F,G preview;
+```
+
+Use `Generate screen` for hero-like website/app screens where Canvax should infer sections, hierarchy, calls to action, and visual tone. Use `Materialize` when you want a quicker mock that stays closer to raw canvas geometry.
 
 ## Where To Change What
 
@@ -172,6 +231,7 @@ Edit:
 After interaction changes, check these manually:
 
 - board opens at the expected local URL
+- board opens cleanly inside Codex Browser Use
 - tools still switch correctly
 - brush size updates correctly
 - labels can be placed and edited
@@ -180,6 +240,8 @@ After interaction changes, check these manually:
 - Flow view can create and remove links
 - live export still writes to `exports/`
 - materialized previews silently refresh after freeze when a frame already has a generated target
+- generated-screen previews produce semantic, polished routes for hero-like frames instead of only absolute-positioned sketch geometry
+- brand assets still load from `web/assets/canvax-logo.svg` in both the board and Preview
 - Codex output manifest can be refreshed from git status with `node scripts/write-codex-output.mjs --from-git-status`
 - board and Preview show live workspace-follow status while git changes are present
 - board and Preview show the current transport as local companion with an App Server future path
@@ -190,6 +252,7 @@ After interaction changes, check these manually:
 - output-context digest changes create `Output update` checkpoints without forcing a fresh export write
 - Preview shows refinement summaries and changed-region overlays after rematerialize
 - `?selftest=1` now covers both the small interaction path and a synthetic large-session fixture
+- Preview and any generated app target can be inspected inside Codex Browser Use
 
 ## Current Test Layers
 
@@ -223,6 +286,7 @@ The main next layers are:
 - richer live collaboration state
 - voice attached to canvas checkpoints
 - preview/artifact feedback loop
+- Codex Browser Use first validation for board, Preview, and generated routes
 - better thread-to-canvas coordination with Codex
 
 ```text

@@ -41,6 +41,8 @@ a {
 }
 
 .preview-shell {
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
     max-width: 1840px;
     margin: 0 auto;
@@ -63,6 +65,20 @@ a {
     gap: 20px;
     padding: 22px;
     align-items: end;
+}
+
+.preview-brand-lockup {
+    display: grid;
+    grid-template-columns: 4.25rem minmax(0, 1fr);
+    align-items: start;
+    gap: 1rem;
+}
+
+.preview-logo {
+    width: 4.25rem;
+    height: 4.25rem;
+    border-radius: 1.35rem;
+    box-shadow: 0 16px 34px rgba(57, 42, 33, 0.14);
 }
 
 .eyebrow,
@@ -869,12 +885,25 @@ a {
 }
 
 @media (max-width: 1240px) {
+    .status-strip {
+        order: 3;
+    }
+
+    .preview-layout {
+        order: 2;
+    }
+
     .preview-layout {
         grid-template-columns: 1fr;
     }
 
     .rail {
+        order: 2;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .main-column {
+        order: 1;
     }
 
     .compare-stage {
@@ -906,6 +935,7 @@ a {
 
     .field-row,
     .header-actions,
+    .preview-brand-lockup,
     .compare-badges,
     .refinement-head,
     .compare-context-head,

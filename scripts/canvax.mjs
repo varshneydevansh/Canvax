@@ -261,6 +261,7 @@ async function runCli() {
           reused: true,
           requestedPort,
           portMismatch: true,
+          openedExternalBrowser: shouldOpen,
           ...runtime,
         },
         `Canvax is already running at ${runtime.url}. Requested port ${requestedPort} was ignored. Use --restart to move it.`,
@@ -276,6 +277,7 @@ async function runCli() {
       {
         running: true,
         reused: true,
+        openedExternalBrowser: shouldOpen,
         ...runtime,
       },
       `Canvax is already running at ${runtime.url}`,
@@ -304,6 +306,7 @@ async function runCli() {
     {
       running: true,
       started: true,
+      openedExternalBrowser: shouldOpen,
       ...runtime,
     },
     `Canvax attached at ${runtime.url}`,
@@ -993,6 +996,7 @@ async function handleMaterializeFrame(request, response) {
         sourceFrameUpdatedAt: frame.updatedAt,
         previewPath,
         contextPath,
+        generation: payload.generation,
         refinement,
       },
       null,
@@ -1010,6 +1014,7 @@ async function handleMaterializeFrame(request, response) {
 
   const html = buildMaterializedPreviewDocument(payload, {
     sketchSrc: sketchPath ? "./sketch.png" : "",
+    generation: payload.generation,
     refinement,
   });
   await writeFile(resolve(outputRoot, "index.html"), html);
@@ -1023,6 +1028,7 @@ async function handleMaterializeFrame(request, response) {
     contextPath,
     metaPath,
     sketchPath,
+    generation: payload.generation,
     refinement,
   });
   await mkdir(exportsRoot, { recursive: true });
@@ -1038,6 +1044,7 @@ async function handleMaterializeFrame(request, response) {
     contextPath,
     metaPath,
     sketchPath,
+    generation: payload.generation,
     refinement,
     previewManifestPath,
     previewManifest: enhanceManifest(nextManifest),
@@ -1053,7 +1060,44 @@ function normalizeMaterializePayload(value) {
     generatedAt: cleanString(source.generatedAt) || new Date().toISOString(),
     transport: normalizeTransportDescriptor(source.transport),
     board: normalizeMaterializeBoard(source.board),
+    generation: normalizeMaterializeGeneration(
+      source.generation || source.board?.generation,
+    ),
     frame: normalizeMaterializeFrame(source.frame),
+  };
+}
+
+function normalizeMaterializeGeneration(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const mode =
+    cleanString(source.mode).toLowerCase() === "generate-screen"
+      ? "generate-screen"
+      : "materialize";
+  const direction = cleanString(source.direction).toLowerCase();
+  const style = cleanString(source.style).toLowerCase();
+  const focus = cleanString(source.focus).toLowerCase();
+  const normalized = {
+    mode,
+    direction: ["product", "editorial", "cinematic", "dashboard", "playful"].includes(
+      direction,
+    )
+      ? direction
+      : "product",
+    style: ["rapid", "studio", "showcase"].includes(style)
+      ? style
+      : "studio",
+    focus: ["balanced", "conversion", "storytelling", "utility"].includes(
+      focus,
+    )
+      ? focus
+      : "balanced",
+  };
+  return {
+    ...normalized,
+    summary:
+      cleanString(source.summary) ||
+      formatMaterializeGenerationSummary(normalized),
   };
 }
 
@@ -1065,6 +1109,7 @@ function normalizeMaterializeBoard(value) {
     goal: cleanString(source.goal),
     audience: cleanString(source.audience),
     designMood: cleanString(source.designMood),
+    generation: normalizeMaterializeGeneration(source.generation),
   };
 }
 
@@ -1569,6 +1614,9 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
   const manifest = normalizePreviewManifest(existingManifest || {});
   const frameId = cleanString(materialized.frame.id) || "frame";
   const frameTitle = cleanString(materialized.frame.title) || "Untitled frame";
+  const generation = normalizeMaterializeGeneration(materialized.generation);
+  const generationSummary = buildMaterializeGenerationSummary(generation);
+  const generatedScreen = generation.mode === "generate-screen";
   const targetId = `materialize-target-${frameId}`;
   const htmlArtifactId = `materialize-html-${frameId}`;
   const contextArtifactId = `materialize-context-${frameId}`;
@@ -1593,8 +1641,9 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
     );
   });
 
-  const note =
-    "Materialize mode creates a styled local preview from the current Canvax frame and keeps the sketch board unchanged.";
+  const note = generatedScreen
+    ? `Generate screen creates a richer local ${generationSummary} screen from the current Canvax frame and keeps the sketch board unchanged.`
+    : "Materialize mode creates a styled local preview from the current Canvax frame and keeps the sketch board unchanged.";
   const notes = [cleanString(manifest.notes), note]
     .filter(Boolean)
     .filter((entry, index, values) => values.indexOf(entry) === index)
@@ -1609,19 +1658,27 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
     targets: [
       {
         id: targetId,
-        label: `${frameTitle} materialized`,
+        label: generatedScreen
+          ? `${frameTitle} generated screen`
+          : `${frameTitle} materialized`,
         source: "canvax-materialize",
-        type: "materialized-preview",
+        type: generatedScreen
+          ? "generated-screen-preview"
+          : "materialized-preview",
         previewPath: materialized.previewPath,
-        description:
-          "Styled local preview generated directly from the current Canvax frame.",
+        description: generatedScreen
+          ? `Richer local generated screen using ${generationSummary}.`
+          : "Styled local preview generated directly from the current Canvax frame.",
         frameIds: [frameId],
         versionTag,
         generatedAt,
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
-        changeSummary: refinement.summary,
+        changeSummary:
+          refinement.summary ||
+          (generatedScreen ? generationSummary : "Materialized preview refreshed."),
+        generationSummary,
         refinement,
       },
       ...preservedTargets,
@@ -1629,17 +1686,24 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
     artifacts: [
       {
         id: htmlArtifactId,
-        label: `${frameTitle} preview`,
+        label: generatedScreen
+          ? `${frameTitle} generated preview`
+          : `${frameTitle} preview`,
         path: materialized.previewPath,
         kind: "preview",
-        description: "Generated interactive HTML artifact for this frame.",
+        description: generatedScreen
+          ? `Generated interactive HTML artifact using ${generationSummary}.`
+          : "Generated interactive HTML artifact for this frame.",
         frameIds: [frameId],
         versionTag,
         generatedAt,
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
-        changeSummary: refinement.summary,
+        changeSummary:
+          refinement.summary ||
+          (generatedScreen ? generationSummary : "Materialized preview refreshed."),
+        generationSummary,
         refinement,
       },
       {
@@ -1655,7 +1719,10 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
-        changeSummary: refinement.summary,
+        changeSummary:
+          refinement.summary ||
+          (generatedScreen ? generationSummary : "Materialized preview context."),
+        generationSummary,
         refinement,
       },
       {
@@ -1664,14 +1731,19 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
         path: materialized.metaPath,
         kind: "meta",
         description:
-          "Materialize metadata including generation time and source-frame revision.",
+          generatedScreen
+            ? "Generated-screen metadata including recipe, generation time, and source-frame revision."
+            : "Materialize metadata including generation time and source-frame revision.",
         frameIds: [frameId],
         versionTag,
         generatedAt,
         sourceFrameId: frameId,
         sourceFrameTitle: frameTitle,
         sourceFrameUpdatedAt,
-        changeSummary: refinement.summary,
+        changeSummary:
+          refinement.summary ||
+          (generatedScreen ? generationSummary : "Materialized preview metadata."),
+        generationSummary,
         refinement,
       },
       ...(materialized.sketchPath
@@ -1689,7 +1761,10 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
               sourceFrameId: frameId,
               sourceFrameTitle: frameTitle,
               sourceFrameUpdatedAt,
-              changeSummary: refinement.summary,
+              changeSummary:
+                refinement.summary ||
+                (generatedScreen ? generationSummary : "Sketch overlay saved."),
+              generationSummary,
               refinement,
             },
           ]
@@ -1699,16 +1774,218 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
   });
 }
 
+function materializeGenerationDirectionLabel(direction) {
+  switch (direction) {
+    case "editorial":
+      return "Editorial";
+    case "cinematic":
+      return "Cinematic";
+    case "dashboard":
+      return "Dashboard";
+    case "playful":
+      return "Playful";
+    default:
+      return "Product UI";
+  }
+}
+
+function materializeGenerationStyleLabel(style) {
+  switch (style) {
+    case "rapid":
+      return "Rapid";
+    case "showcase":
+      return "Showcase";
+    default:
+      return "Studio";
+  }
+}
+
+function materializeGenerationFocusLabel(focus) {
+  switch (focus) {
+    case "conversion":
+      return "Conversion";
+    case "storytelling":
+      return "Storytelling";
+    case "utility":
+      return "Utility";
+    default:
+      return "Balanced";
+  }
+}
+
+function buildMaterializeGenerationSummary(generation) {
+  const normalized = normalizeMaterializeGeneration(generation);
+  return formatMaterializeGenerationSummary(normalized);
+}
+
+function formatMaterializeGenerationSummary(generation) {
+  return [
+    materializeGenerationDirectionLabel(generation.direction),
+    materializeGenerationStyleLabel(generation.style),
+    materializeGenerationFocusLabel(generation.focus),
+  ].join(" • ");
+}
+
+function resolveMaterializeGenerationProfile(generation, accent) {
+  const normalized = normalizeMaterializeGeneration(generation);
+  const profiles = {
+    product: {
+      pageBackground:
+        "radial-gradient(circle at top left, rgba(255,255,255,0.92), transparent 28%), linear-gradient(145deg, #eaf0ff 0%, #f4f6fb 46%, #e6edf8 100%)",
+      stageBackground:
+        "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(239,244,251,0.92)), linear-gradient(160deg, rgba(255,255,255,0.84), rgba(235,240,248,0.88))",
+      paper: "#f7fbff",
+      paperStrong: "#ffffff",
+      ink: "#162033",
+      muted: "rgba(39, 51, 73, 0.72)",
+      panel: "rgba(249, 252, 255, 0.78)",
+      panelStrong: "rgba(255, 255, 255, 0.92)",
+      shadow: "rgba(23, 39, 69, 0.16)",
+      displayFont: '"SF Pro Display", "Avenir Next", "Helvetica Neue", sans-serif',
+      bodyFont: '"SF Pro Text", "Avenir Next", "Helvetica Neue", sans-serif',
+      shellTone: "cool",
+    },
+    editorial: {
+      pageBackground:
+        "radial-gradient(circle at top right, rgba(255,245,233,0.9), transparent 26%), linear-gradient(155deg, #f4ece0 0%, #fbf7f2 48%, #efe2d3 100%)",
+      stageBackground:
+        "linear-gradient(180deg, rgba(255,251,246,0.94), rgba(247,239,229,0.9)), linear-gradient(135deg, rgba(255,255,255,0.82), rgba(245,233,220,0.82))",
+      paper: "#fbf5ee",
+      paperStrong: "#fffaf6",
+      ink: "#251814",
+      muted: "rgba(74, 52, 41, 0.72)",
+      panel: "rgba(255, 249, 243, 0.74)",
+      panelStrong: "rgba(255, 251, 247, 0.9)",
+      shadow: "rgba(44, 29, 21, 0.18)",
+      displayFont: '"Iowan Old Style", "Palatino Linotype", Georgia, serif',
+      bodyFont: '"Avenir Next", "Helvetica Neue", sans-serif',
+      shellTone: "warm",
+    },
+    cinematic: {
+      pageBackground:
+        "radial-gradient(circle at 20% 20%, rgba(105,150,255,0.28), transparent 20%), radial-gradient(circle at 80% 18%, rgba(255,255,255,0.22), transparent 18%), linear-gradient(155deg, #070b14 0%, #101a2e 42%, #05070d 100%)",
+      stageBackground:
+        "radial-gradient(circle at 68% 24%, rgba(255,255,255,0.26), transparent 18%), linear-gradient(180deg, rgba(9,13,22,0.96), rgba(11,18,34,0.96)), linear-gradient(145deg, rgba(14,23,45,0.98), rgba(4,7,14,0.98))",
+      paper: "#09111f",
+      paperStrong: "#10192a",
+      ink: "#f5f8ff",
+      muted: "rgba(214, 225, 248, 0.72)",
+      panel: "rgba(17, 25, 42, 0.76)",
+      panelStrong: "rgba(19, 28, 47, 0.9)",
+      shadow: "rgba(0, 0, 0, 0.38)",
+      displayFont: '"Avenir Next Condensed", "Helvetica Neue", sans-serif',
+      bodyFont: '"Avenir Next", "Helvetica Neue", sans-serif',
+      shellTone: "dark",
+    },
+    dashboard: {
+      pageBackground:
+        "radial-gradient(circle at top left, rgba(73,118,255,0.22), transparent 24%), linear-gradient(150deg, #0f1626 0%, #172033 46%, #0f1829 100%)",
+      stageBackground:
+        "linear-gradient(180deg, rgba(20,28,43,0.96), rgba(14,22,36,0.96)), linear-gradient(145deg, rgba(27,39,59,0.96), rgba(14,20,33,0.98))",
+      paper: "#101a2c",
+      paperStrong: "#162236",
+      ink: "#eef4ff",
+      muted: "rgba(203, 218, 246, 0.7)",
+      panel: "rgba(18, 28, 43, 0.8)",
+      panelStrong: "rgba(21, 33, 51, 0.92)",
+      shadow: "rgba(5, 8, 14, 0.36)",
+      displayFont: '"SF Pro Display", "Avenir Next", "Helvetica Neue", sans-serif',
+      bodyFont: '"SF Pro Text", "Avenir Next", "Helvetica Neue", sans-serif',
+      shellTone: "grid",
+    },
+    playful: {
+      pageBackground:
+        "radial-gradient(circle at 15% 10%, rgba(255,190,132,0.32), transparent 18%), radial-gradient(circle at 78% 16%, rgba(120,212,255,0.28), transparent 18%), linear-gradient(160deg, #fff4ea 0%, #fefcff 44%, #eef7ff 100%)",
+      stageBackground:
+        "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,247,255,0.92)), linear-gradient(145deg, rgba(255,246,239,0.88), rgba(239,247,255,0.84))",
+      paper: "#fff7f0",
+      paperStrong: "#ffffff",
+      ink: "#2b1f3a",
+      muted: "rgba(90, 71, 110, 0.68)",
+      panel: "rgba(255, 250, 246, 0.76)",
+      panelStrong: "rgba(255, 255, 255, 0.9)",
+      shadow: "rgba(80, 54, 98, 0.16)",
+      displayFont: '"Marker Felt", "Avenir Next", "Helvetica Neue", sans-serif',
+      bodyFont: '"Avenir Next", "Helvetica Neue", sans-serif',
+      shellTone: "soft",
+    },
+  };
+  const profile = profiles[normalized.direction] || profiles.product;
+  const styleStrength =
+    normalized.style === "showcase" ? 1 : normalized.style === "rapid" ? 0 : 0.5;
+  const focusGlow =
+    normalized.focus === "storytelling"
+      ? rgbaFromHex(accent, 0.26)
+      : normalized.focus === "conversion"
+        ? rgbaFromHex(accent, 0.2)
+        : normalized.focus === "utility"
+          ? rgbaFromHex(accent, 0.14)
+          : rgbaFromHex(accent, 0.18);
+  return {
+    ...profile,
+    accent,
+    accentStrong:
+      normalized.direction === "cinematic"
+        ? mixHex(accent, "#0f1320", 0.26)
+        : mixHex(accent, "#1b1513", 0.18),
+    accentSoft:
+      normalized.direction === "cinematic"
+        ? rgbaFromHex(accent, 0.18)
+        : rgbaFromHex(accent, 0.14),
+    accentBorder: rgbaFromHex(accent, 0.44 + styleStrength * 0.08),
+    accentGlow: focusGlow,
+    stageGridOpacity:
+      normalized.direction === "dashboard" ? 0.82 : normalized.direction === "cinematic" ? 0.32 : 0.56,
+  };
+}
+
+function buildGeneratedScreenChrome({ frame, board, generation }) {
+  if (generation.mode !== "generate-screen") {
+    return "";
+  }
+  const project = cleanString(board.project) || "Canvax";
+  const cta =
+    cleanString(frame.objective) ||
+    cleanString(board.goal) ||
+    "Refine this concept";
+  const navPool = [cleanString(frame.layout), cleanString(frame.motion), cleanString(frame.assets)]
+    .filter(Boolean)
+    .flatMap((entry) =>
+      entry
+        .split(/[,.;]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    )
+    .slice(0, 3);
+  const navItems =
+    navPool.length > 0 ? navPool : ["Overview", "Details", "Next step"];
+  return `
+    <div class="generated-shell generated-shell-${escapeAttribute(generation.direction)}">
+      <div class="generated-topbar">
+        <span class="generated-brand">${escapeHtml(project)}</span>
+        <nav class="generated-nav" aria-label="Generated navigation">
+          ${navItems.map((item) => `<span>${escapeHtml(truncateText(item, 24))}</span>`).join("")}
+        </nav>
+        <button class="generated-cta" type="button">${escapeHtml(truncateText(cta, 22))}</button>
+      </div>
+      <div class="generated-meta-strip">
+        <span>${escapeHtml(buildMaterializeGenerationSummary(generation))}</span>
+        <span>${escapeHtml(cleanString(frame.viewportLabel) || "Canvas")}</span>
+      </div>
+    </div>
+  `;
+}
+
 function buildMaterializedPreviewDocument(payload, options = {}) {
   const board = payload.board || normalizeMaterializeBoard({});
   const frame = payload.frame || normalizeMaterializeFrame({});
+  const generation = normalizeMaterializeGeneration(
+    options.generation || payload.generation || board.generation,
+  );
   const sketchSrc = cleanString(options.sketchSrc);
   const refinement = normalizeMaterializeRefinement(options.refinement);
   const accent = pickMaterializeAccent(frame.elements);
-  const accentStrong = mixHex(accent, "#1b1513", 0.18);
-  const accentSoft = rgbaFromHex(accent, 0.14);
-  const accentBorder = rgbaFromHex(accent, 0.44);
-  const accentGlow = rgbaFromHex(accent, 0.2);
+  const profile = resolveMaterializeGenerationProfile(generation, accent);
   const attachedLabels = new Map();
   const freeLabels = [];
 
@@ -1734,6 +2011,26 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
       freeLabels.push(label);
     });
 
+  const semanticScreenMarkup =
+    generation.mode === "generate-screen"
+      ? buildGeneratedHeroScreenMarkup({
+          frame,
+          board,
+          generation,
+          profile,
+          accent,
+          attachedLabels,
+          freeLabels,
+          refinement,
+        })
+      : "";
+  const generationChrome = semanticScreenMarkup
+    ? ""
+    : buildGeneratedScreenChrome({
+        frame,
+        board,
+        generation,
+      });
   const layoutMarkup = frame.elements
     .filter(
       (element) =>
@@ -1761,6 +2058,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
     .join("\n");
 
   const contentMarkup =
+    semanticScreenMarkup ||
     layoutMarkup ||
     buildMaterializedFallbackMarkup({
       frame,
@@ -1773,21 +2071,23 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(frame.title)} • Canvax Materialized</title>
+    <title>${escapeHtml(frame.title)} • ${generation.mode === "generate-screen" ? "Canvax Generated Screen" : "Canvax Materialized"}</title>
     <style>
       :root {
         --accent: ${accent};
-        --accent-strong: ${accentStrong};
-        --accent-soft: ${accentSoft};
-        --accent-border: ${accentBorder};
-        --accent-glow: ${accentGlow};
-        --ink: #1f1715;
-        --muted: rgba(49, 38, 34, 0.72);
-        --paper: #fbf5ee;
-        --paper-strong: #fffaf6;
-        --panel: rgba(255, 249, 243, 0.74);
-        --panel-strong: rgba(255, 251, 247, 0.9);
-        --shadow: rgba(44, 29, 21, 0.18);
+        --accent-strong: ${profile.accentStrong};
+        --accent-soft: ${profile.accentSoft};
+        --accent-border: ${profile.accentBorder};
+        --accent-glow: ${profile.accentGlow};
+        --ink: ${profile.ink};
+        --muted: ${profile.muted};
+        --paper: ${profile.paper};
+        --paper-strong: ${profile.paperStrong};
+        --panel: ${profile.panel};
+        --panel-strong: ${profile.panelStrong};
+        --shadow: ${profile.shadow};
+        --display-font: ${profile.displayFont};
+        --body-font: ${profile.bodyFont};
       }
 
       * {
@@ -1805,12 +2105,9 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         place-items: center;
         min-height: 100vh;
         padding: clamp(1rem, 2vw, 2rem);
-        background:
-          radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.95), transparent 30%),
-          radial-gradient(circle at 80% 0%, ${accentSoft}, transparent 28%),
-          linear-gradient(160deg, #efe4d8 0%, #f7efe6 48%, #e9ddd1 100%);
+        background: ${profile.pageBackground};
         color: var(--ink);
-        font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+        font-family: var(--body-font);
       }
 
       body[data-show-blueprint="false"] .blueprint-layer {
@@ -1822,20 +2119,27 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         visibility: hidden;
       }
 
+      body[data-semantic-screen="true"] .context-chip,
+      body[data-semantic-screen="true"] .refinement-chip,
+      body[data-semantic-screen="true"] .stage-grid {
+        display: none;
+      }
+
       .preview-wrap {
-        width: min(100%, ${frame.viewportWidth}px);
+        position: relative;
+        width: min(calc(100vw - 2rem), ${frame.viewportWidth}px);
+        height: ${frame.viewportHeight}px;
       }
 
       .preview-stage {
         position: relative;
         width: ${frame.viewportWidth}px;
         height: ${frame.viewportHeight}px;
+        transform-origin: top left;
         overflow: hidden;
         border-radius: clamp(1.4rem, 2vw, 2rem);
         border: 1px solid rgba(106, 75, 55, 0.16);
-        background:
-          linear-gradient(180deg, rgba(255, 254, 251, 0.94), rgba(245, 238, 230, 0.92)),
-          linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(251, 244, 236, 0.88));
+        background: ${profile.stageBackground};
         box-shadow:
           0 1.4rem 3rem rgba(46, 32, 22, 0.16),
           inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -1856,7 +2160,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
           linear-gradient(90deg, rgba(115, 88, 69, 0.05) 1px, transparent 1px);
         background-size: 4.5rem 4.5rem;
         mask-image: radial-gradient(circle at center, black 65%, transparent 100%);
-        opacity: 0.6;
+        opacity: ${profile.stageGridOpacity};
       }
 
       .blueprint-layer {
@@ -1904,7 +2208,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
       }
 
       .context-chip strong {
-        font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-family: var(--display-font);
         font-size: 1rem;
       }
 
@@ -1998,7 +2302,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
 
       .node-title {
         margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-family: var(--display-font);
         font-size: clamp(1rem, 1.25vw, 1.4rem);
         line-height: 1.06;
       }
@@ -2026,7 +2330,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
 
       .role-button .node-title,
       .role-chip .node-title {
-        font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+        font-family: var(--body-font);
         font-size: 0.92rem;
         letter-spacing: 0.01em;
       }
@@ -2103,9 +2407,467 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
 
       .ellipse-copy {
         margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-family: var(--display-font);
         font-size: clamp(0.92rem, 1.1vw, 1.3rem);
         line-height: 1;
+      }
+
+      body[data-generation-mode="generate-screen"] .role-hero {
+        background:
+          linear-gradient(160deg, rgba(255,255,255,0.2), transparent 58%),
+          linear-gradient(145deg, var(--node-fill), rgba(255,255,255,0.08));
+        box-shadow:
+          0 1.5rem 3rem rgba(23, 17, 12, 0.18),
+          0 0 0 1px rgba(255,255,255,0.16) inset,
+          0 0 0 0.2rem var(--node-glow);
+      }
+
+      body[data-generation-mode="generate-screen"] .role-panel {
+        backdrop-filter: blur(18px);
+      }
+
+      body[data-generation-mode="generate-screen"] .role-button,
+      body[data-generation-mode="generate-screen"] .role-chip {
+        box-shadow:
+          0 1rem 1.8rem rgba(23, 17, 12, 0.12),
+          0 0 0 1px rgba(255,255,255,0.32) inset;
+      }
+
+      body[data-generation-direction="cinematic"] .role-hero {
+        background:
+          radial-gradient(circle at 70% 30%, rgba(255,255,255,0.28), transparent 18%),
+          linear-gradient(145deg, rgba(10,16,31,0.86), rgba(28,40,69,0.7));
+      }
+
+      body[data-generation-direction="dashboard"] .role-panel,
+      body[data-generation-direction="dashboard"] .role-input {
+        background:
+          linear-gradient(180deg, rgba(18,28,43,0.94), rgba(20,30,48,0.88));
+      }
+
+      body[data-generation-direction="playful"] .material-node {
+        border-radius: 1.4rem;
+      }
+
+      .generated-shell {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+      }
+
+      .generated-topbar,
+      .generated-meta-strip {
+        position: absolute;
+        left: 1rem;
+        right: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 0.8rem 1rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(16px);
+      }
+
+      .generated-topbar {
+        top: 1rem;
+      }
+
+      .generated-meta-strip {
+        top: 4.5rem;
+        justify-content: flex-start;
+        font-size: 0.76rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .generated-brand {
+        font-family: var(--display-font);
+        font-size: 0.92rem;
+        letter-spacing: 0.02em;
+      }
+
+      .generated-nav {
+        display: flex;
+        flex: 1 1 auto;
+        align-items: center;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        min-width: 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .generated-nav span {
+        white-space: nowrap;
+      }
+
+      .generated-cta {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.62rem 0.92rem;
+        font: inherit;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        box-shadow: 0 0.7rem 1.4rem rgba(0, 0, 0, 0.12);
+      }
+
+      .semantic-hero {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        padding: clamp(3.4rem, 5vw, 5.2rem);
+        background:
+          radial-gradient(circle at 74% 24%, rgba(255,255,255,0.32), transparent 13%),
+          radial-gradient(circle at 82% 58%, var(--accent-glow), transparent 24%),
+          radial-gradient(circle at 18% 26%, rgba(255,255,255,0.12), transparent 18%),
+          linear-gradient(135deg, rgba(255,255,255,0.07), transparent 36%),
+          var(--paper);
+        overflow: hidden;
+      }
+
+      .semantic-hero::before,
+      .semantic-hero::after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+      }
+
+      .semantic-hero::before {
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+        background-size: 5rem 5rem;
+        mask-image: radial-gradient(circle at 62% 40%, black 0%, transparent 74%);
+        opacity: 0.44;
+      }
+
+      .semantic-hero::after {
+        width: 42rem;
+        height: 42rem;
+        right: -12rem;
+        top: -10rem;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--accent-soft), transparent 62%);
+        filter: blur(0.2rem);
+        opacity: 0.9;
+      }
+
+      .semantic-nav,
+      .semantic-content,
+      .semantic-copy,
+      .semantic-preview-card,
+      .semantic-proof-row,
+      .semantic-actions {
+        position: relative;
+        z-index: 1;
+      }
+
+      .semantic-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        min-height: 4.8rem;
+        padding: 0.7rem 0.8rem 0.7rem 1.4rem;
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        backdrop-filter: blur(18px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+      }
+
+      .semantic-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.72rem;
+        color: var(--ink);
+        font-family: var(--display-font);
+        font-size: clamp(1.1rem, 1.55vw, 1.55rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+      }
+
+      .semantic-brand-mark {
+        width: 2.55rem;
+        height: 2.55rem;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 35% 30%, rgba(255,255,255,0.95), transparent 24%),
+          linear-gradient(135deg, var(--accent), var(--accent-strong));
+        box-shadow: 0 0.9rem 1.8rem var(--accent-glow);
+      }
+
+      .semantic-nav-items {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(1rem, 2vw, 2rem);
+        min-width: 0;
+        color: var(--muted);
+        font-size: clamp(0.88rem, 1vw, 1rem);
+      }
+
+      .semantic-nav-items span {
+        white-space: nowrap;
+      }
+
+      .semantic-nav-cta,
+      .semantic-primary,
+      .semantic-secondary {
+        appearance: none;
+        border: 0;
+        border-radius: 999px;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .semantic-nav-cta {
+        min-height: 3.1rem;
+        padding: 0 1.25rem;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        box-shadow: 0 0.8rem 1.8rem var(--accent-glow);
+      }
+
+      .semantic-content {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(26rem, 1.08fr);
+        align-items: center;
+        gap: clamp(3rem, 6vw, 6rem);
+        min-height: 0;
+        padding-top: clamp(3.4rem, 5vw, 5.2rem);
+      }
+
+      .semantic-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        width: fit-content;
+        margin-bottom: 1.3rem;
+        padding: 0.46rem 0.78rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.14);
+        color: var(--muted);
+        background: rgba(255,255,255,0.08);
+        font-size: 0.82rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .semantic-title {
+        max-width: 11ch;
+        margin: 0;
+        color: var(--ink);
+        font-family: var(--display-font);
+        font-size: clamp(4rem, 7.4vw, 7.8rem);
+        line-height: 0.86;
+        letter-spacing: -0.08em;
+      }
+
+      .semantic-body {
+        max-width: 42rem;
+        margin: 1.6rem 0 0;
+        color: var(--muted);
+        font-size: clamp(1.2rem, 1.55vw, 1.58rem);
+        line-height: 1.45;
+      }
+
+      .semantic-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 2.2rem;
+      }
+
+      .semantic-primary,
+      .semantic-secondary {
+        min-height: 4.25rem;
+        padding: 0 1.55rem;
+        font-size: 1.05rem;
+      }
+
+      .semantic-primary {
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        box-shadow: 0 1rem 2rem var(--accent-glow);
+      }
+
+      .semantic-secondary {
+        color: var(--ink);
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(255,255,255,0.1);
+      }
+
+      .semantic-proof-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        margin-top: 2.5rem;
+      }
+
+      .semantic-proof {
+        display: grid;
+        gap: 0.1rem;
+        min-width: 10rem;
+        padding: 0.78rem 1rem;
+        border-radius: 1.2rem;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.08);
+      }
+
+      .semantic-proof strong {
+        color: var(--ink);
+        font-size: 1.08rem;
+      }
+
+      .semantic-proof span {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .semantic-preview-wrap {
+        position: relative;
+        min-height: min(58rem, 70vh);
+      }
+
+      .semantic-orb {
+        position: absolute;
+        inset: 10% 2% auto auto;
+        width: 34rem;
+        height: 34rem;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 38% 32%, rgba(255,255,255,0.88), transparent 9%),
+          radial-gradient(circle at 52% 54%, var(--accent-soft), transparent 38%),
+          linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.04));
+        filter: blur(0.01rem);
+        box-shadow:
+          0 0 8rem var(--accent-glow),
+          inset -2rem -2rem 5rem rgba(0,0,0,0.18);
+      }
+
+      .semantic-preview-card {
+        position: absolute;
+        right: 0;
+        top: 8%;
+        width: min(100%, 39rem);
+        min-height: 32rem;
+        padding: 1.2rem;
+        border-radius: 2rem;
+        border: 1px solid rgba(255,255,255,0.16);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06)),
+          rgba(8, 13, 24, 0.52);
+        backdrop-filter: blur(22px);
+        box-shadow:
+          0 2.5rem 6rem rgba(0,0,0,0.28),
+          inset 0 1px 0 rgba(255,255,255,0.16);
+      }
+
+      .semantic-window-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.55rem 0.62rem 1rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .semantic-dots {
+        display: inline-flex;
+        gap: 0.42rem;
+      }
+
+      .semantic-dots span {
+        width: 0.72rem;
+        height: 0.72rem;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.34);
+      }
+
+      .semantic-preview-body {
+        display: grid;
+        gap: 1rem;
+        padding: 1rem;
+        border-radius: 1.45rem;
+        background:
+          radial-gradient(circle at 78% 12%, var(--accent-soft), transparent 26%),
+          rgba(255,255,255,0.08);
+      }
+
+      .semantic-preview-hero {
+        min-height: 12rem;
+        padding: 1.2rem;
+        border-radius: 1.25rem;
+        background:
+          linear-gradient(135deg, rgba(255,255,255,0.18), transparent),
+          linear-gradient(145deg, var(--accent), var(--accent-strong));
+      }
+
+      .semantic-preview-hero strong {
+        display: block;
+        max-width: 12ch;
+        color: #fff;
+        font-family: var(--display-font);
+        font-size: 2.2rem;
+        line-height: 0.9;
+        letter-spacing: -0.06em;
+      }
+
+      .semantic-preview-grid {
+        display: grid;
+        grid-template-columns: 1fr 0.75fr;
+        gap: 1rem;
+      }
+
+      .semantic-preview-panel {
+        min-height: 9rem;
+        border-radius: 1.15rem;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.12);
+      }
+
+      .semantic-preview-panel.alt {
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+      }
+
+      .semantic-meter {
+        width: 7.8rem;
+        height: 7.8rem;
+        border-radius: 50%;
+        background: conic-gradient(var(--accent) 0 72%, rgba(255,255,255,0.14) 72% 100%);
+        box-shadow: inset 0 0 0 1.1rem rgba(8,13,24,0.82);
+      }
+
+      .semantic-edit-note {
+        position: absolute;
+        left: 0;
+        bottom: 6%;
+        max-width: 34rem;
+        padding: 1rem 1.1rem;
+        border-radius: 1.2rem;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(255,255,255,0.1);
+        color: var(--muted);
+        backdrop-filter: blur(16px);
+        box-shadow: 0 1rem 2.4rem rgba(0,0,0,0.18);
+      }
+
+      .semantic-edit-note strong {
+        display: block;
+        color: var(--ink);
+        margin-bottom: 0.25rem;
       }
 
       .note-layer {
@@ -2159,12 +2921,6 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
           width: 100%;
         }
 
-        .preview-stage {
-          width: 100%;
-          height: auto;
-          aspect-ratio: ${frame.viewportWidth} / ${frame.viewportHeight};
-        }
-
         .context-chip {
           max-width: calc(100% - 2rem);
         }
@@ -2179,9 +2935,9 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
       }
     </style>
   </head>
-  <body data-show-blueprint="${sketchSrc ? "true" : "false"}" data-show-notes="${noteMarkup ? "true" : "false"}">
+  <body data-show-blueprint="${sketchSrc ? "true" : "false"}" data-show-notes="${noteMarkup && !semanticScreenMarkup ? "true" : "false"}" data-generation-mode="${escapeAttribute(generation.mode)}" data-generation-direction="${escapeAttribute(generation.direction)}" data-semantic-screen="${semanticScreenMarkup ? "true" : "false"}">
     <main class="preview-wrap">
-      <section class="preview-stage" aria-label="Materialized ${escapeHtml(frame.title)}">
+      <section class="preview-stage" aria-label="${generation.mode === "generate-screen" ? "Generated" : "Materialized"} ${escapeHtml(frame.title)}">
         <div class="stage-grid" aria-hidden="true"></div>
         ${
           sketchSrc
@@ -2191,6 +2947,11 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         <div class="context-chip">
           <strong>${escapeHtml(frame.title)}</strong>
           <span>${escapeHtml(frame.viewportLabel)} ${frame.viewportWidth}×${frame.viewportHeight}</span>
+          ${
+            generation.mode === "generate-screen"
+              ? `<span>• ${escapeHtml(buildMaterializeGenerationSummary(generation))}</span>`
+              : ""
+          }
           ${
             cleanString(board.project)
               ? `<span>• ${escapeHtml(board.project)}</span>`
@@ -2205,6 +2966,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
               </div>`
             : ""
         }
+        ${generationChrome}
         <div class="component-layer">
           ${contentMarkup}
         </div>
@@ -2227,6 +2989,20 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
     </main>
     <script>
       const body = document.body;
+      const previewWrap = document.querySelector(".preview-wrap");
+      const previewStage = document.querySelector(".preview-stage");
+      function fitPreviewStage() {
+        if (!previewWrap || !previewStage) {
+          return;
+        }
+        const availableWidth = Math.max(320, window.innerWidth - 32);
+        const scale = Math.min(1, availableWidth / ${frame.viewportWidth});
+        previewWrap.style.width = Math.ceil(${frame.viewportWidth} * scale) + "px";
+        previewWrap.style.height = Math.ceil(${frame.viewportHeight} * scale) + "px";
+        previewStage.style.transform = "scale(" + scale + ")";
+      }
+      window.addEventListener("resize", fitPreviewStage);
+      fitPreviewStage();
       document.querySelectorAll("[data-interactive='true']").forEach((node) => {
         node.addEventListener("click", () => {
           node.classList.toggle("is-active");
@@ -2389,6 +3165,256 @@ function buildMaterializedNodeMarkup({
   >
     ${shell}
   </${elementTag}>`;
+}
+
+function buildGeneratedHeroScreenMarkup({
+  frame,
+  board,
+  generation,
+  attachedLabels,
+  freeLabels,
+  refinement,
+}) {
+  const rects = frame.elements
+    .filter((element) => element.type === "rect" && element.bounds)
+    .sort((left, right) => elementArea(right) - elementArea(left));
+  if (!rects.length) {
+    return "";
+  }
+
+  const viewportWidth = Number(frame.viewportWidth) || 1440;
+  const viewportHeight = Number(frame.viewportHeight) || 1024;
+  const allLabelTexts = frame.elements
+    .filter((element) => element.type === "label")
+    .map((element) => cleanString(element.text))
+    .filter(Boolean);
+  const labelTextsForElement = (element) =>
+    (attachedLabels.get(element.id) || [])
+      .map((labelEntry) => cleanString(labelEntry.text))
+      .filter(Boolean);
+  const topNav = rects.find((element) => {
+    const bounds = element.bounds || {};
+    return (
+      bounds.top < viewportHeight * 0.24 &&
+      bounds.width > viewportWidth * 0.45 &&
+      bounds.height <= viewportHeight * 0.14
+    );
+  });
+  const copyPanel =
+    rects.find((element) => {
+      const labels = labelTextsForElement(element).join(" ");
+      const bounds = element.bounds || {};
+      return (
+        element.id !== topNav?.id &&
+        bounds.left < viewportWidth * 0.55 &&
+        bounds.width > viewportWidth * 0.22 &&
+        bounds.height > viewportHeight * 0.2 &&
+        labels.length > 14 &&
+        !/\b(preview|generated app|dashboard|chart|graph|surface)\b/i.test(labels)
+      );
+    }) ||
+    rects.find((element) => {
+      const bounds = element.bounds || {};
+      return (
+        element.id !== topNav?.id &&
+        bounds.left < viewportWidth * 0.45 &&
+        bounds.height > viewportHeight * 0.18
+      );
+    });
+  const visualPanel =
+    rects.find((element) => {
+      const bounds = element.bounds || {};
+      return (
+        element.id !== topNav?.id &&
+        element.id !== copyPanel?.id &&
+        bounds.left > viewportWidth * 0.42 &&
+        bounds.width > viewportWidth * 0.22 &&
+        bounds.height > viewportHeight * 0.18
+      );
+    }) ||
+    rects.find(
+      (element) => element.id !== topNav?.id && element.id !== copyPanel?.id,
+    );
+  const buttons = rects
+    .filter((element) => {
+      const bounds = element.bounds || {};
+      const labels = labelTextsForElement(element).join(" ").toLowerCase();
+      return (
+        element.id !== topNav?.id &&
+        element.id !== copyPanel?.id &&
+        element.id !== visualPanel?.id &&
+        (/\b(cta|start|preview|demo|join|get|see|try|launch)\b/.test(labels) ||
+          (bounds.height <= viewportHeight * 0.11 &&
+            bounds.width <= viewportWidth * 0.26))
+      );
+    })
+    .sort((left, right) => (left.bounds?.left || 0) - (right.bounds?.left || 0));
+  const proof =
+    rects.find((element) => {
+      const labels = labelTextsForElement(element).join(" ").toLowerCase();
+      return /\b(proof|stat|loop|metric|pass|saved|users)\b/.test(labels);
+    }) || buttons[2];
+
+  const navLabels = labelTextsForElement(topNav || {});
+  const copyLabels = labelTextsForElement(copyPanel || {});
+  const visualLabels = labelTextsForElement(visualPanel || {});
+  const proofLabels = labelTextsForElement(proof || {});
+  const buttonLabels = buttons
+    .map((button) => labelTextsForElement(button)[0])
+    .filter(Boolean);
+  const brand =
+    navLabels.find((text) => text.length <= 28 && !/\s{2,}|  /.test(text)) ||
+    cleanString(board.project) ||
+    "Canvax";
+  const navItems = parseGeneratedNavItems(navLabels, brand);
+  const headlineCandidates = [...copyLabels, ...allLabelTexts].filter(
+    isGeneratedHeroHeadlineCandidate,
+  );
+  const headline =
+    headlineCandidates[0] ||
+    cleanString(frame.objective) ||
+    cleanString(board.goal) ||
+    "Sketch it. Ship it.";
+  const body =
+    copyLabels.find((text) => text !== headline && text.length >= 34) ||
+    cleanString(board.goal) ||
+    cleanString(frame.layout) ||
+    "Turn rough canvas direction into a production-ready surface.";
+  const primaryCta = buttonLabels[0] || "Start from sketch";
+  const secondaryCta = buttonLabels[1] || "Open live preview";
+  const previewTitle =
+    visualLabels.find((text) => text.length >= 8) || "Generated app preview";
+  const previewDetail =
+    cleanString(frame.motion) ||
+    cleanString(frame.assets) ||
+    "Generated surface follows the latest sketch and notes.";
+  const proofTitle = proofLabels[0] || "2-pass edit loop";
+  const editNote =
+    freeLabels
+      .map((labelEntry) => cleanString(labelEntry.text))
+      .find((text) => /\b(pen|move|shift|edit|lift|resize|closer)\b/i.test(text)) ||
+    cleanString(refinement.summary) ||
+    "Sketch edits can move layout intent into the generated surface.";
+  const proofItems = [
+    [proofTitle, "Sketch-to-preview"],
+    [`${Math.max(1, refinement.counts?.regionCount || 1)} regions`, "Updated from edit"],
+    [generation.focus === "conversion" ? "CTA-ready" : "Live", "Generated surface"],
+  ];
+
+  return `
+    <section class="semantic-hero" aria-label="${escapeHtml(frame.title || "Generated hero")}">
+      <header class="semantic-nav">
+        <div class="semantic-brand">
+          <span class="semantic-brand-mark" aria-hidden="true"></span>
+          <span>${escapeHtml(truncateText(brand, 30))}</span>
+        </div>
+        <nav class="semantic-nav-items" aria-label="Generated page navigation">
+          ${navItems.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+        </nav>
+        <button class="semantic-nav-cta" type="button">${escapeHtml(truncateText(primaryCta, 24))}</button>
+      </header>
+
+      <div class="semantic-content">
+        <div class="semantic-copy">
+          <span class="semantic-kicker">${escapeHtml(buildMaterializeGenerationSummary(generation))}</span>
+          <h1 class="semantic-title">${escapeHtml(truncateText(headline, 72))}</h1>
+          <p class="semantic-body">${escapeHtml(truncateText(body, 190))}</p>
+          <div class="semantic-actions">
+            <button class="semantic-primary" type="button">${escapeHtml(truncateText(primaryCta, 28))}</button>
+            <button class="semantic-secondary" type="button">${escapeHtml(truncateText(secondaryCta, 28))}</button>
+          </div>
+          <div class="semantic-proof-row">
+            ${proofItems
+              .map(
+                ([value, label]) => `
+                  <div class="semantic-proof">
+                    <strong>${escapeHtml(truncateText(value, 22))}</strong>
+                    <span>${escapeHtml(label)}</span>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        </div>
+
+        <div class="semantic-preview-wrap">
+          <div class="semantic-orb" aria-hidden="true"></div>
+          <article class="semantic-preview-card">
+            <div class="semantic-window-bar">
+              <span class="semantic-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span>${escapeHtml(truncateText(previewTitle, 34))}</span>
+            </div>
+            <div class="semantic-preview-body">
+              <div class="semantic-preview-hero">
+                <strong>${escapeHtml(truncateText(previewTitle, 46))}</strong>
+              </div>
+              <div class="semantic-preview-grid">
+                <div class="semantic-preview-panel"></div>
+                <div class="semantic-preview-panel alt">
+                  <div class="semantic-meter" aria-hidden="true"></div>
+                </div>
+              </div>
+            </div>
+          </article>
+          <aside class="semantic-edit-note">
+            <strong>${escapeHtml(refinement.changed ? `Refinement ${refinement.iteration}` : "Live edit")}</strong>
+            <span>${escapeHtml(truncateText(editNote || previewDetail, 150))}</span>
+          </aside>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function parseGeneratedNavItems(navLabels, brand) {
+  const ignored = new Set([cleanString(brand).toLowerCase()]);
+  const source = navLabels
+    .filter((text) => !ignored.has(text.toLowerCase()))
+    .join(" ");
+  const items = source
+    .split(/\s{2,}|[|,/•]+/)
+    .flatMap((entry) => {
+      const trimmed = entry.trim();
+      if (!trimmed) {
+        return [];
+      }
+      const words = trimmed.split(/\s+/).filter(Boolean);
+      if (words.length > 1 && words.length <= 5 && trimmed.length <= 36) {
+        return [trimmed];
+      }
+      if (words.length > 5) {
+        return words.slice(0, 4);
+      }
+      return words;
+    })
+    .map((item) => truncateText(item, 18))
+    .filter(Boolean);
+  const uniqueItems = uniqueStrings(items).slice(0, 4);
+  return uniqueItems.length ? uniqueItems : ["Workflows", "Preview", "Export"];
+}
+
+function isGeneratedHeroHeadlineCandidate(value) {
+  const text = cleanString(value);
+  if (text.length < 18 || text.length > 96) {
+    return false;
+  }
+  return !/\b(workflows|preview export|generated app preview|live compare|2-pass|start from|see preview|canvax studio|cta-ready)\b/i.test(
+    text,
+  );
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const next = [];
+  values.forEach((value) => {
+    const clean = cleanString(value);
+    const key = clean.toLowerCase();
+    if (clean && !seen.has(key)) {
+      seen.add(key);
+      next.push(clean);
+    }
+  });
+  return next;
 }
 
 function buildFreeLabelMarkup(label, index) {
@@ -3277,6 +4303,12 @@ function printCliOutput(asJson, payload, message) {
   console.log(message);
   if (payload.url) {
     console.log(`Board URL: ${payload.url}`);
+    console.log(`Preferred Codex path: open ${payload.url} in Browser Use.`);
+  }
+  if (payload.openedExternalBrowser) {
+    console.log(
+      "Opened through macOS default browser because --open was explicitly provided.",
+    );
   }
   console.log(`Live export: ${liveJsonPath}`);
   console.log(`Live markdown: ${liveMarkdownPath}`);
@@ -3290,13 +4322,15 @@ function printHelp() {
 
 Usage:
   ./canvax
-  ./canvax --open
   ./canvax --status [--json]
   ./canvax --stop
-  ./canvax --restart [--port 3210] [--open]
+  ./canvax --restart [--port 3210]
+  ./canvax --open
 
 Behavior:
   - Running without arguments ensures exactly one Canvax service is active.
+  - Preferred Codex Desktop flow: run ./canvax, then open http://localhost:3210 in Browser Use.
+  - --open is an explicit external-browser fallback and uses macOS open/default browser.
   - If Canvax is already running, the existing service is reused.
   - Passing a different --port while Canvax is already running does not start a second server.
   - Use --restart to move Canvax to a different port.

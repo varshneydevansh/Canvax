@@ -1,6 +1,6 @@
 # Canvax Execution Status
 
-Updated: March 15, 2026
+Updated: April 28, 2026
 
 This file tracks what is actually implemented from `canvax-live-collaboration-plan.md` so work does not drift between chat turns.
 
@@ -20,6 +20,17 @@ flowchart LR
     S2 --> S3[Sprint 3\nLive Codex loop]
     S3 --> S4[Sprint 4\nPreview and Materialize]
     S4 --> S5[Sprint 5\nTransport and upstream]
+
+    classDef board fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef voice fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef loop fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef preview fill:#f7edfb,stroke:#b246a8,color:#211625;
+    classDef upstream fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class S1 board;
+    class S2 voice;
+    class S3 loop;
+    class S4 preview;
+    class S5 upstream;
 ```
 
 ## Sprint Status
@@ -107,6 +118,8 @@ Status: In progress
 - [x] Live compare affordances for generated files, compare modes, and frame-aware manifest highlighting
 - [x] Preview snapshot workflows
 - [x] First `Materialize` action that writes a styled local HTML preview artifact from the active frame
+- [x] `Generate screen` mode above quick Materialize, with board-side recipe controls and generated-screen target labeling
+- [x] `Generate screen` now has a semantic hero/page renderer for polished website-style output instead of only literal sketch geometry
 - [x] Rematerialize now reuses a stable per-frame artifact path and refreshes preview via versioned URLs
 - [x] Preview target resolution now prefers the currently selected frame when multiple generated targets exist
 - [x] Freeze/autosnap now silently rematerialize a frame that already has a generated target
@@ -123,6 +136,26 @@ Preview today:
   changes
   rewrite queue
   refinement overlays
+  semantic generated screens
+```
+
+```mermaid
+flowchart LR
+    A[Rough frame] --> B[Generate screen]
+    B --> C[Semantic hero renderer]
+    C --> D[Polished local HTML route]
+    D --> E[Preview compare]
+    E --> F[Pen edit or note]
+    F --> B
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef generate fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef preview fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A,F sketch;
+    class B,C generate;
+    class D output;
+    class E preview;
 ```
 
 ### Sprint 5: Prepare for a richer Codex client future
@@ -132,6 +165,7 @@ Status: Completed
 - [x] Transport abstraction for current local mode vs future App Server mode
 - [x] Upstream proposal assets
 - [x] Demo script and feature matrix
+- [x] Browser Use first operating docs for running the board, Preview, and generated app inside Codex
 
 ```text
 future seam:
@@ -148,6 +182,9 @@ These are now follow-on tasks, not blockers for the current repo-level prototype
 2. Tighten the live “Codex rewrites generated output while sketching continues” loop beyond git-status mirroring, digest-based preview reloads, rewrite queues, and rematerialize refresh.
 3. Keep reducing rough edges in larger sessions and long-running boards.
 4. Explore the richer App Server client path without discarding the local companion workflow that already works today.
+5. Use `docs/STITCH_GAP_ROADMAP.md` as the current product gap list for Stitch-style UX, Codex-built screens, image assets, prototype play, infinite canvas, and `DESIGN.md` work.
+6. Use `docs/CODEX_BROWSER_WORKFLOW.md` as the preferred operator path for testing Canvax inside Codex Browser Use before building native embedding.
+7. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
 
 ```mermaid
 flowchart TD
@@ -155,9 +192,18 @@ flowchart TD
     A --> C[Live rewrite loop tightening]
     A --> D[Long-session polish]
     A --> E[App Server exploration]
+    A --> F[Stitch-style generation UX]
+
+    classDef base fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef work fill:#eef3ff,stroke:#2364aa,color:#101828;
+    classDef design fill:#f7edfb,stroke:#b246a8,color:#211625;
+    class A base;
+    class B,C,D,E work;
+    class F design;
 ```
 
 ## Notes
 
 - Today the preview is no longer only export-driven, preview targets can persist through the manifest with richer artifact/change metadata, HTML preview artifacts can auto-resolve as generated targets, Codex-written output manifests can bind preview targets automatically, the preview has frame-aware compare modes for generated files, compare checkpoints can now be saved into the workspace, a first deterministic Materialize loop can now generate a styled local preview artifact from the active frame, board-side voice notes now flow into the live JSON export, prompt markdown, and a dedicated `exports/canvax-voice-latest.md` handoff file, Canvax now writes durable handoff checkpoints plus a checkpoint-oriented session event log, the board can auto-publish current workspace changes back into the Codex output manifest, the Codex workflow now has a matching `write-codex-output --from-git-status` helper for automatic manifest publishing after implementation work, preview-state polling overlays a transient live workspace-follow manifest from current git status, and board/Preview now keep a live output-activity feed keyed from a stable output digest that can be rebuilt from recent session events after refresh.
 - The current Materialize loop is intentionally local and deterministic. It now reuses a stable per-frame artifact path, silently refreshes existing materialized targets after freeze/autosnap, exposes refinement summaries plus changed-region metadata, lets Preview draw those changed regions directly over both the sketch and the generated output, forces same-target preview reloads when connected implementation context changes, surfaces frame-level stale/synced/materialized badges in both the board and Preview so long flows are easier to read, and writes an explicit rewrite queue into the live handoff/checkpoint state so Codex can see which frames need attention next. Browser self-test coverage includes a synthetic large-session fixture, the Preview window now has its own self-test path, and the regression scripts validate live `/api/preview-state` payload structure. There is now an explicit transport contract covering current local companion mode versus a future App Server client, plus upstream/demo docs that explain the migration path. There is still an experimental headless browser harness for the board and Preview, but it times out on this host often enough that strict browser validation is not marked complete yet. The richer “Codex rewrites the generated surface live while you keep sketching” loop is still the next layer, not the current state.
+- The preferred manual validation path is now Codex Browser Use rather than a separate external browser: start `./canvax`, open `http://localhost:3210` in the in-app browser, open Preview, inspect generated routes, and publish output context back through the Codex output manifest.

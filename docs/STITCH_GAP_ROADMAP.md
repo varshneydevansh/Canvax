@@ -1,0 +1,339 @@
+# Canvax Stitch Gap Roadmap
+
+Updated: April 28, 2026
+
+This document compares the current Canvax repo against the Stitch-style design workflow and records what is done, what is missing, and what should improve next.
+
+Canvax should not clone Stitch feature-for-feature. The stronger direction is:
+
+```text
+Stitch-like creative canvas
+        +
+Codex workspace awareness
+        +
+local-first handoff, preview, code, docs, and artifacts
+        =
+Canvax as the visual collaboration layer for building real surfaces
+```
+
+## External Reference Points
+
+Current Stitch references show these major product ideas:
+
+- AI-native canvas for high-fidelity UI creation from natural language.
+- Infinite canvas that accepts images, text, and code as context.
+- A design agent that reasons over the project evolution.
+- Agent manager for parallel design directions.
+- `DESIGN.md` import/export for design system rules.
+- Interactive prototypes where screens can be connected and played.
+- Voice-driven canvas collaboration and real-time design updates.
+- MCP, SDK, skills, and exports to bridge into developer tools.
+
+Sources:
+
+- Google Labs Stitch UI design update: https://blog.google/innovation-and-ai/models-and-research/google-labs/stitch-ai-ui-design/
+- Google Labs Stitch Gemini 3 prototype update: https://blog.google/innovation-and-ai/models-and-research/google-labs/stitch-gemini-3/
+- OpenAI ChatGPT Images 2.0 announcement: https://openai.com/index/introducing-chatgpt-images-2-0/
+
+## Current Canvax Shape
+
+```mermaid
+flowchart LR
+    U[User sketches, labels, speaks] --> B[Canvax Board]
+    B --> E[Live exports]
+    B --> G[Generate screen]
+    B --> M[Materialize]
+    E --> C[Codex]
+    C --> W[Workspace code, docs, artifacts]
+    W --> O[Codex output manifest]
+    O --> P[Preview]
+    G --> P
+    M --> P
+    P --> U
+
+    classDef user fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef board fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef codex fill:#eef3ff,stroke:#2364aa,color:#101828;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef preview fill:#f7edfb,stroke:#b246a8,color:#211625;
+    class U user;
+    class B,E,G,M board;
+    class C codex;
+    class W,O output;
+    class P preview;
+```
+
+```text
+Canvax today
+|- Board: rough sketch, frames, flow, notes, tools, voice
+|- Preview: compare sketch vs output, artifacts, changed files, rewrite queue
+|- Service: local exports, manifests, checkpoints, materialized/generated HTML
+|- Codex Browser Use: preferred way to view/inspect board, Preview, and generated apps
+|- Codex skill: tells Codex to read the live handoff files
+`- Docs: install, usage, architecture, development, proposal, status
+```
+
+## What Is Done
+
+### Board And Sketch Input
+
+- Frame view exists for single-screen sketching.
+- Flow view exists for linking multiple frames.
+- Drawing tools exist: select, pen, marker, line, rectangle, oval, arrow, label, erase.
+- Selection supports moving, resizing, deleting, duplication, layering, grouping, and lasso selection.
+- Labels can act as semantic notes for Codex, not just visible text.
+- Reference image underlays are supported through paste/drop/upload.
+- Autosnap and manual freeze write live handoff files.
+- Captures and checkpoints preserve collaboration moments.
+
+### Voice And Intent
+
+- Canvax has board-side voice notes.
+- Voice notes can be scoped to the current frame or the whole board.
+- Browser speech recognition is used when available.
+- Manual voice notes are available as a fallback.
+- Voice is written into JSON, Markdown prompt output, and `exports/canvax-voice-latest.md`.
+
+### Preview And Output Binding
+
+- Preview opens as a separate window/tab.
+- Preview supports compare modes for sketch, output, and split view.
+- Preview can follow active frame context.
+- Preview reads generated artifacts, changed files, output status, and rewrite queue state.
+- Output digest changes can trigger preview refreshes for same-URL targets.
+- Compare snapshots can be saved for review.
+
+### Generate Screen And Materialize
+
+- `Generate screen` exists as a richer local generated-screen pass.
+- `Generate screen` now has a semantic hero/page renderer for polished website-like output.
+- `Materialize` exists as a quicker deterministic local preview pass.
+- Both write HTML artifacts under `artifacts/preview/materialized/`.
+- Both update the preview manifest so Preview can open the output immediately.
+- Per-frame generated targets are stable, so repeated generation refreshes the same route.
+- Refinement metadata records changed regions between generated revisions.
+
+### Codex Workspace Loop
+
+- `/canvax` or `$canvax` can attach Codex to the live handoff.
+- Live JSON and Markdown exports exist under `exports/`.
+- `artifacts/canvax/codex-output.json` is the canonical Codex output manifest.
+- The board can publish current git workspace changes into the output manifest.
+- Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
+- Rewrite queue tells Codex which frames need first output, a target, binding, or refresh.
+- Codex Browser Use can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
+
+## What Is Still Missing
+
+### 1. True Codex-Built Screen Generation
+
+Current `Generate screen` is local and deterministic. It improves the preview, but it does not yet ask Codex to create real app/page code from the sketch and then bind that implementation back automatically.
+
+Target behavior:
+
+```text
+draw frame -> Generate with Codex -> app/page files change -> preview updates -> sketch corrections -> Codex refines changed regions
+```
+
+Needed:
+
+- A board action that creates a Codex-ready generation task from the current frame/checkpoint.
+- A standard output contract for generated app/page/screen code.
+- Automatic preview binding to the generated route or artifact.
+- Frame-aware code ownership so one frame maps to the files/components Codex generated.
+
+Current stepping stone:
+
+```text
+done
+  rough frame -> local Generate screen -> polished HTML artifact -> Preview
+
+next
+  rough frame -> Codex Build real screen -> app/page files -> live app preview
+```
+
+```mermaid
+flowchart LR
+    A[Current local Generate screen] --> B[Semantic HTML artifact]
+    B --> C[Preview]
+    C --> D[Target: Codex builds real route]
+    D --> E[App code and manifest]
+    E --> C
+
+    classDef current fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef future fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A current;
+    class B,C output;
+    class D,E future;
+```
+
+### 2. Live Two-Way Rewrite Loop
+
+Today Canvax can detect stale output and changed regions. It does not yet run a continuous loop where Codex rewrites the generated surface while the user keeps drawing.
+
+Needed:
+
+- A live task queue for frames needing rewrite attention.
+- A frame revision to output revision dependency graph.
+- A "changed sketch region -> affected generated component" map.
+- A visible rewrite progress lane in Preview.
+- Conflict handling when the user sketches while Codex is still rewriting.
+
+### 3. Infinite Canvas And Spatial Project Memory
+
+Canvax has frames and Flow view, but it is not yet an infinite design canvas with free spatial organization of references, generated outputs, branches, prompts, and code artifacts.
+
+Needed:
+
+- Zoomable infinite workspace.
+- Pan/zoom controls that feel stable on Mac trackpads.
+- Spatial groups for explorations, branches, reference boards, and generated variants.
+- Multiple generated directions visible at once.
+- Better timeline/history navigation for long sessions.
+
+### 4. Prototype Play Mode
+
+Flow links exist, but there is no polished "Play" mode that lets a user click through a prototype like a running product.
+
+Needed:
+
+- Play button for connected frames.
+- Click targets or hotspot regions on the frame canvas.
+- Transition labels that become interactive prototype behavior.
+- Automatic next-screen suggestions when a user links or clicks a component.
+- Preview playback that can switch between sketch prototype and generated implementation.
+
+### 5. Design System Extraction And `DESIGN.md`
+
+Canvax records mood, notes, color, and generated direction, but it does not yet produce a reusable design system document.
+
+Needed:
+
+- `DESIGN.md` generation from board style, labels, notes, and generated output.
+- Import `DESIGN.md` into the board as project rules.
+- Extract visual tokens from a URL, screenshot, or existing app.
+- Enforce those tokens when Codex generates or refines UI.
+
+### 6. Image Model And Asset Workflow
+
+Canvax can describe image directions and hold reference underlays. It does not yet have a first-class image generation lane.
+
+Target behavior:
+
+```text
+sketch asset region -> describe asset -> generate image candidates -> place candidate into frame -> Codex uses it in app/spec
+```
+
+Needed:
+
+- Asset regions on canvas.
+- Image prompt extraction from labels, notes, and voice.
+- A local artifact format for generated image candidates.
+- Drag/attach generated image candidates back onto frames.
+- Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
+
+### 7. Multisurface Output
+
+The current preview path is strongest for web-like screens. The Canvax goal is broader: app UI, websites, decks, images, Qt layouts, and other visual surfaces.
+
+Needed:
+
+- Surface-specific generation modes:
+  - Web page/app screen
+  - Mobile app screen
+  - Desktop/Qt screen
+  - Slide/PPT layout
+  - Image/poster/infographic
+  - Spec/wireframe only
+- Surface-specific preview renderers and export contracts.
+- Shared frame semantics so Codex can interpret all of them from the same board model.
+
+### 8. Stronger Regression And Long-Session Stability
+
+Syntax checks and regression helpers exist, but browser validation is still not hard enough for a tool that will be used continuously.
+
+Needed:
+
+- Reliable browser regression on this host.
+- Large-session tests with many frames, captures, voice notes, and generated artifacts.
+- Visual layout checks for board and Preview at multiple viewport sizes.
+- Service lifecycle tests for stop/restart/reuse behavior.
+- Stale-port recovery when a listener exists but runtime files disagree.
+
+## Improvement Backlog
+
+### P0: Make Current Baseline Trustworthy
+
+- Fix any runtime bugs in `Generate screen`, `Materialize`, and preview manifest paths.
+- Make button feedback consistent across board and Preview.
+- Finish responsive clipping fixes for compact side panels and dense metadata rows.
+- Make browser regression reliable enough to fail hard in CI.
+- Add service lifecycle diagnostics for stale ports.
+
+### P1: Reach Stitch-Style Core UX
+
+- Infinite canvas with pan/zoom.
+- Prototype Play mode.
+- Multiple generated variants visible side by side.
+- Voice-driven critique/refinement lane.
+- Branchable design explorations with a clear agent/output history.
+- Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant".
+- Brand polish across board, Preview, generated routes, and docs.
+
+### P2: Make Codex The Differentiator
+
+- One board action: `Build real screen`.
+- Codex reads the latest frame/checkpoint and writes actual app/page/component code.
+- Codex writes a manifest that binds the generated code route back to the frame.
+- Preview reloads and highlights changed code/artifact context.
+- Sketch corrections become targeted rewrite tasks instead of generic prompts.
+- Browser Use opens and inspects the board, Preview, and generated app so Codex can fix visual issues from the same workspace loop.
+
+### P3: Add Design System And Asset Intelligence
+
+- Generate/import/export `DESIGN.md`.
+- Extract design tokens from screenshots, URLs, existing repo CSS, or generated screens.
+- Add image asset lanes powered by Codex-accessible image generation when available.
+- Preserve image prompts, generated candidates, source sketches, and chosen assets as artifacts.
+
+### P4: Prepare For Native Codex Integration
+
+- Keep the local companion working.
+- Preserve the file/manifest transport as a fallback.
+- Add an App Server style transport layer for richer Codex clients.
+- Document the minimum upstream API Canvax needs:
+  - open a thread-bound canvas
+  - receive live image/sketch snapshots
+  - send generated artifacts/previews back into the same thread
+  - preserve voice, frame, flow, and rewrite queue state
+
+## Product Principles
+
+1. Canvax must stay generic. It should not become only a landing-page generator.
+2. Canvax must stay close to Codex. The best advantage is building real workspace code from visual intent.
+3. The core loop should not require the user to bring a paid API key. Optional provider integrations can exist, but the default path should use the current Codex/chat environment and local artifacts.
+4. Sketch, voice, generated output, source files, and docs should all become one collaboration state.
+5. Preview must show what changed and why, not just a static before/after.
+6. A rough sketch should be enough to start, but every generated result must remain editable through sketch, text, voice, and code.
+
+## Recommended Next Build Order
+
+```mermaid
+flowchart TD
+    A[Stabilize current Generate/Materialize runtime] --> B[Build real screen action]
+    B --> C[Frame-to-code manifest contract]
+    C --> D[Preview route binding and rewrite progress]
+    D --> E[Prototype Play mode]
+    E --> F[Infinite canvas and variant branches]
+    F --> G[DESIGN.md and asset generation lanes]
+```
+
+Concrete next steps:
+
+- Add `Build real screen` beside `Generate screen`.
+- Add a Browser Use first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
+- Implement a task artifact under `artifacts/canvax/tasks/` that Codex can read and execute.
+- Extend `write-codex-output.mjs` so Codex can bind generated routes/components to frame ids in one command.
+- Add Preview UI for "Codex is building/refining this frame" state.
+- Add prototype Play mode before attempting a full infinite canvas, because the current frame/flow model can support Play sooner.
