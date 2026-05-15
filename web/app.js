@@ -12,6 +12,9 @@ const LIVE_PREVIEW_DEBOUNCE = 160;
 const MANIFEST_POLL_INTERVAL = 2500;
 const MAX_OUTPUT_ACTIVITY_ITEMS = 8;
 const ERASER_COLOR = "rgba(0, 0, 0, 0)";
+// Canvas destination-out uses the source alpha to subtract from existing ink.
+// Keep saved eraser elements transparent, but render them with opaque source ink.
+const ERASER_RENDER_COLOR = "#000000";
 const FLOW_CARD_WIDTH = 256;
 const FLOW_CARD_HEIGHT = 180;
 const FLOW_SURFACE_PADDING = 120;
@@ -2203,10 +2206,13 @@ function drawOutputAnnotation(ctx, annotation, width, height) {
   if (!annotation?.points?.length) {
     return;
   }
+  const isEraser = annotation.composite === "destination-out";
   ctx.save();
-  ctx.globalCompositeOperation = annotation.composite || "source-over";
-  ctx.globalAlpha = annotation.alpha ?? 1;
-  ctx.strokeStyle = annotation.color || palette[0];
+  ctx.globalCompositeOperation = isEraser ? "destination-out" : "source-over";
+  ctx.globalAlpha = isEraser ? 1 : (annotation.alpha ?? 1);
+  ctx.strokeStyle = isEraser
+    ? ERASER_RENDER_COLOR
+    : annotation.color || palette[0];
   ctx.lineWidth = Math.max(2, annotation.size || state.size);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -3793,11 +3799,15 @@ function drawElement(
   isDraft = false,
   frame = currentFrame(),
 ) {
+  const isEraser = isEraserElement(element);
+  const renderColor = isEraser
+    ? ERASER_RENDER_COLOR
+    : element.color || palette[0];
   ctx.save();
-  ctx.globalCompositeOperation = element.composite || "source-over";
-  ctx.globalAlpha = element.alpha ?? 1;
-  ctx.strokeStyle = element.color;
-  ctx.fillStyle = element.color;
+  ctx.globalCompositeOperation = isEraser ? "destination-out" : "source-over";
+  ctx.globalAlpha = isEraser ? 1 : (element.alpha ?? 1);
+  ctx.strokeStyle = renderColor;
+  ctx.fillStyle = renderColor;
   ctx.lineWidth = Math.max(1, (element.size || 1) * scale);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -8889,6 +8899,7 @@ async function runSelfTest() {
       ),
     );
     results.push(assertEraserPreservesPaperLayer());
+    results.push(assertEraserRemovesInk());
     results.push(assertWorkbenchRailSizeControls());
 
     const beforeUndo = currentFrame().elements.length;
@@ -9270,6 +9281,70 @@ function assertEraserPreservesPaperLayer() {
     actual[3] > 240 && distance < 10 && !blackish,
     "eraser preserves paper and grid layer",
     `baseline=${baseline.join(",")} actual=${actual.join(",")}`,
+  );
+}
+
+function assertEraserRemovesInk() {
+  const previousGrid = state.grid;
+  const previousSelection = selectionIds();
+  const previousSelectedElementId = state.selectedElementId;
+  const samplePoint = { x: 260, y: 260 };
+  const inkElement = {
+    id: "selftest-visible-ink",
+    type: "path",
+    points: [
+      { x: samplePoint.x - 48, y: samplePoint.y },
+      { x: samplePoint.x, y: samplePoint.y },
+      { x: samplePoint.x + 48, y: samplePoint.y },
+    ],
+    color: "#ff3b1f",
+    size: 46,
+    alpha: 1,
+    composite: "source-over",
+  };
+  const eraseElement = {
+    id: "selftest-visible-eraser",
+    type: "path",
+    points: [
+      { x: samplePoint.x - 56, y: samplePoint.y },
+      { x: samplePoint.x, y: samplePoint.y },
+      { x: samplePoint.x + 56, y: samplePoint.y },
+    ],
+    color: ERASER_COLOR,
+    size: 64,
+    alpha: 1,
+    composite: "destination-out",
+  };
+  const baselineFrame = createFrame({
+    title: "Eraser removal baseline",
+    viewport: "desktop",
+    elements: [],
+  });
+  const inkFrame = createFrame({
+    title: "Eraser removal ink",
+    viewport: "desktop",
+    elements: [inkElement],
+  });
+  const erasedFrame = createFrame({
+    title: "Eraser removal check",
+    viewport: "desktop",
+    elements: [inkElement, eraseElement],
+  });
+
+  state.grid = true;
+  clearElementSelection();
+  const baseline = sampleFramePixel(baselineFrame, samplePoint);
+  const inkOnly = sampleFramePixel(inkFrame, samplePoint);
+  const actual = sampleFramePixel(erasedFrame, samplePoint);
+  state.grid = previousGrid;
+  setSelectedElements(previousSelection, previousSelectedElementId);
+
+  const inkWasVisible = colorDistance(baseline, inkOnly) > 40;
+  const erasedToPaper = colorDistance(baseline, actual) < 12;
+  return assert(
+    inkWasVisible && erasedToPaper,
+    "eraser removes existing ink without damaging paper",
+    `baseline=${baseline.join(",")} ink=${inkOnly.join(",")} actual=${actual.join(",")}`,
   );
 }
 
