@@ -207,7 +207,10 @@ Advanced is the full inspector/debugging surface for frames, flow links, notes,
 captures, manifests, generated artifacts, and long-session diagnostics. It uses
 the same dark dotted Canvax visual language as Workbench, but keeps the denser
 left timeline, central stage, and right inspector because those controls are for
-technical handoff rather than quick sketching.
+technical handoff rather than quick sketching. The mode switch describes the
+active role, and Advanced labels its frame stack, frame workspace/flow map, and
+handoff inspector so the density reads as an inspector deck instead of a
+different app.
 
 ### Task And Image Prompt Packs
 

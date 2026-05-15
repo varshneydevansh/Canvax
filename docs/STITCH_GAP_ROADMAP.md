@@ -132,7 +132,7 @@ Canvax today
 - The rail and slider size controls now resize selected elements in Select mode and only act globally when no element is selected.
 - The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it is a compact command strip focused on brief, surface/action context, voice, and generated output.
 - The generated output card is currently a compact thumbnail/status/correction target. It is not yet the large Stitch-like output workspace where designers can comfortably inspect and edit generated surfaces.
-- Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench so switching modes feels like entering an inspector deck rather than a different app.
+- Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench. The mode switch and deck labels make it read as a technical inspector layer for the same workbench rather than a different app.
 - Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
 - Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
 

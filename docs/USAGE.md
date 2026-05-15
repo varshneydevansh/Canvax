@@ -116,7 +116,7 @@ The host chip is intentionally explicit. Today it reports local Codex Browser / 
 
 `Free canvas` is a large spatial scratchpad preset. It is useful for laying out references, rough sections, and alternate directions on one surface. It is not yet a true infinite canvas with persistent spatial objects, branches, and pan/zoom project memory.
 
-Switch to `Advanced` when you need multi-frame work, flow links, captures, output manifests, or generation/debugging controls. Advanced uses the same Canvax dark workspace language as Workbench, but it intentionally keeps the denser timeline/stage/inspector layout because it is the technical handoff deck.
+Switch to `Advanced` when you need multi-frame work, flow links, captures, output manifests, or generation/debugging controls. Advanced uses the same Canvax dark workspace language as Workbench, but it intentionally keeps the denser timeline/stage/inspector layout because it is the technical handoff deck. The mode description and deck labels clarify whether you are editing the frame workspace, mapping flow, or inspecting handoff details.
 
 ## Frame View
 

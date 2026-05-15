@@ -159,6 +159,7 @@ body[data-workspace-mode="simple"] .mode-strip {
 
 body[data-workspace-mode="simple"] .mode-strip .eyebrow,
 body[data-workspace-mode="simple"] .mode-strip strong,
+body[data-workspace-mode="simple"] .mode-description,
 body[data-workspace-mode="simple"] .stage-header .eyebrow,
 body[data-workspace-mode="simple"] #stage-title {
     color: #fff8ec;
@@ -300,6 +301,7 @@ body[data-workspace-mode="advanced"] .mode-strip strong {
 
 body[data-workspace-mode="advanced"] .lede,
 body[data-workspace-mode="advanced"] .helper-text,
+body[data-workspace-mode="advanced"] .mode-description,
 body[data-workspace-mode="advanced"] label,
 body[data-workspace-mode="advanced"] .eyebrow,
 body[data-workspace-mode="advanced"] .toolbar-label,
@@ -418,6 +420,39 @@ body[data-workspace-mode="advanced"] .flow-link-label-rect {
 
 body[data-workspace-mode="advanced"] .flow-link-label-text {
     fill: #fff8ec;
+}
+
+body[data-workspace-mode="advanced"] .timeline-panel::before,
+body[data-workspace-mode="advanced"] .inspector-panel::before,
+body[data-workspace-mode="advanced"] .stage-panel::before {
+    display: inline-flex;
+    align-self: flex-start;
+    min-height: 1.65rem;
+    padding: 0.24rem 0.58rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.13);
+    background: rgba(255, 248, 236, 0.08);
+    color: rgba(255, 248, 236, 0.68);
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+body[data-workspace-mode="advanced"] .timeline-panel::before {
+    content: "Frame stack";
+}
+
+body[data-workspace-mode="advanced"] .inspector-panel::before {
+    content: "Handoff inspector";
+}
+
+body[data-workspace-mode="advanced"][data-view-mode="frame"] .stage-panel::before {
+    content: "Advanced deck · Frame workspace";
+}
+
+body[data-workspace-mode="advanced"][data-view-mode="flow"] .stage-panel::before {
+    content: "Advanced deck · Flow map";
 }
 
 .panel {
@@ -874,6 +909,14 @@ button:disabled {
     font-family: "Iowan Old Style", "Palatino Linotype", serif;
     font-size: clamp(1.25rem, 2vw, 1.7rem);
     letter-spacing: -0.04em;
+}
+
+.mode-description {
+    margin: 0.22rem 0 0;
+    max-width: 30ch;
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+    line-height: 1.25;
 }
 
 .workspace-mode-control {

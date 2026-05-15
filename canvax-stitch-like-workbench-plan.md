@@ -47,7 +47,7 @@ Current completed baseline:
 - Workbench is the default simple mode.
 - Generated output can appear beside the sketch as a compact correction/status card.
 - Correction marks over generated output are saved into frame handoff data.
-- Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language so it no longer feels like a separate product.
+- Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.

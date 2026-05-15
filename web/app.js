@@ -31,12 +31,12 @@ const workspaceModes = [
   {
     id: "simple",
     label: "Workbench",
-    description: "Simple sketch + voice + generated output mode",
+    description: "Sketch, talk, generate, and apply.",
   },
   {
     id: "advanced",
     label: "Advanced",
-    description: "Full frames, flow, manifests, and diagnostics",
+    description: "Inspector deck for frames, flow, manifests, and diagnostics.",
   },
 ];
 
@@ -142,6 +142,7 @@ const dom = {
   boardMood: document.querySelector("#board-mood"),
   workspaceModeButtons: document.querySelector("#workspace-mode-buttons"),
   workspaceModeLabel: document.querySelector("#workspace-mode-label"),
+  workspaceModeDescription: document.querySelector("#workspace-mode-description"),
   workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
   workbenchRail: document.querySelector("#workbench-rail"),
   focusPad: document.querySelector("#focus-pad"),
@@ -1635,12 +1636,16 @@ function renderWorkspaceMode() {
   }
 
   document.body.dataset.workspaceMode = mode;
+  document.body.dataset.viewMode = state.viewMode;
   document.body.dataset.workbenchTray =
     mode === "simple" && state.workbenchTrayCollapsed
       ? "collapsed"
       : "expanded";
   dom.workspaceModeLabel.textContent =
     workspaceModes.find((entry) => entry.id === mode)?.label || "Workbench";
+  dom.workspaceModeDescription.textContent =
+    workspaceModes.find((entry) => entry.id === mode)?.description ||
+    workspaceModes[0].description;
   dom.focusPad.hidden = mode !== "simple" || state.workbenchTrayCollapsed;
   dom.workbenchTrayToggle.hidden = mode !== "simple";
   dom.workbenchTrayToggle.textContent = state.workbenchTrayCollapsed
@@ -2312,6 +2317,7 @@ function renderViewMode() {
     .join("");
 
   const showFrame = state.viewMode === "frame";
+  document.body.dataset.viewMode = state.viewMode;
   dom.frameWorkspace.hidden = !showFrame;
   dom.flowWorkspace.hidden = showFrame;
   document.querySelectorAll("[data-view-scope]").forEach((node) => {
