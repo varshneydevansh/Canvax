@@ -87,9 +87,11 @@ flowchart LR
 - Opens a browser-based canvas optimized for Mac trackpad, mouse, or stylus use.
 - Starts in `Workbench`, a simplified talk-and-draw mode that keeps sketch, surface choice, generated output, correction marks, voice, apply, and preview actions available without the full advanced UI.
 - Adds a floating designer rail in Workbench, so tools, undo/redo, dictation, Make, and Apply stay available even when the tray is hidden for canvas-first work.
+- Keeps the Workbench rail as a bottom command dock with brush `-` / `+` controls and an `Image` action for spatial image-generation handoff.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
+- Writes a Codex task pack and image prompt pack with normalized coordinates plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
 - Captures board-scoped or frame-scoped voice notes, using browser speech recognition when available and manual pasted dictation when it is not.
 - Lets Codex forward submitted chat microphone transcripts into Canvax voice notes with `./canvax --transcript "..." --scope frame`.
 - Supports a preview manifest that can bind a live implementation target, changed files, and generated artifacts to the current sketch workflow.
@@ -128,6 +130,7 @@ This commit line now includes the following major layers working together:
 - `Materialize` with stable per-frame targets and refinement deltas
 - rewrite queue and frame-level output status badges
 - Workbench surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
+- task and image prompt packs for host-side code, spec, UI, and image-generation work without requiring `OPENAI_API_KEY`
 - transport contract for current `local-companion` mode vs future `app-server` mode
 
 ```mermaid

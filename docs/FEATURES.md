@@ -168,9 +168,10 @@ Behavior:
 - exposes only four drawing tools: pen, rectangle, arrow, erase
 - exposes one voice action and one manual spoken-note field
 - exposes `Make real` for the local generated-screen pass
+- exposes `Image pack` for a no-API image-generation handoff with coordinates and an HTML/CSS scaffold
 - shows the connected generated output inside the Workbench tray when one exists
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
-- provides a floating designer rail for select, pen, rect, arrow, erase, undo, redo, voice, Make, and Apply
+- provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
 - `Hide tray` collapses the context tray so the canvas becomes the primary design surface
 - `Apply to Codex` freezes the frame, writes the live export, and saves a Workbench checkpoint
 - `Preview` remains available without exposing the rest of Advanced mode
@@ -192,6 +193,45 @@ Boundary:
 - Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
 - `Free canvas` is a large board preset, not a finished infinite canvas.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
+- ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.
+
+### Task And Image Prompt Packs
+
+Files:
+
+- `exports/canvax-task-pack-latest.json`
+- `exports/canvax-task-pack-latest.md`
+- `exports/canvax-image-prompt-pack-latest.json`
+- `exports/canvax-image-prompt-pack-latest.md`
+
+Purpose:
+
+- give Codex a compact build/spec work order
+- give image-generation hosts a composition-preserving prompt pack
+- keep sketch, labels, notes, voice, output annotations, viewport, safe zones, and normalized coordinates together
+
+```text
+frame elements -> normalized bounds -> role inference -> prompt + scaffold
+```
+
+```mermaid
+flowchart LR
+    E["Elements"] --> B["Bounds 0..1"]
+    B --> R["Role inference"]
+    R --> T["Task pack"]
+    R --> I["Image prompt pack"]
+    I --> H["HTML/CSS scaffold"]
+
+    classDef source fill:#ffede8,stroke:#ff5d3a,color:#18110e;
+    classDef pack fill:#fff7db,stroke:#f0a202,color:#18110e;
+    classDef host fill:#eef3ff,stroke:#2364aa,color:#101828;
+
+    class E,B,R source;
+    class T,I pack;
+    class H host;
+```
+
+The HTML/CSS scaffold is intentionally simple. It is a placement contract for another model or host capability, not production UI code.
 
 ### Frame View
 

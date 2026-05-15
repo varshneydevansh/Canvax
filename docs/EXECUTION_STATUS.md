@@ -48,6 +48,8 @@ Status: In progress
 - [x] Preview follows the active frame viewport more closely
 - [x] Formal versioned session schema for live exports/checkpoints/live preview payloads
 - [x] Cached frame render pipeline for live preview/export generation to reduce repeated long-session re-encoding
+- [x] Workbench bottom designer dock with brush `-` / `+`, Image handoff, and tactile primary actions
+- [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [ ] Full interaction regression pass with browser validation
 - [ ] Remaining rough edges in large-session behavior
 
@@ -95,6 +97,7 @@ Status: In progress
 - [x] Output-digest changes now write `Output update` checkpoints so Codex-side implementation progress lands in the Canvax timeline too
 - [x] Output activity now rebuilds from recent session events, so refreshes do not wipe the visible collaboration history
 - [x] Board/checkpoint/live export now surface a rewrite queue that tells Codex which frames need first output, a frame binding, a target, or a refresh
+- [x] Board exports now include task and image prompt packs with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
 
 ```mermaid
 flowchart TD
@@ -103,6 +106,7 @@ flowchart TD
     C --> D[Board activity feed]
     C --> E[Preview activity feed]
     C --> F[Rewrite queue]
+    C --> G[Task/image prompt packs]
 ```
 
 ### Sprint 4: Add a preview surface for what Codex builds

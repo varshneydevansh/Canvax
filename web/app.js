@@ -122,6 +122,7 @@ const dom = {
   focusUndo: document.querySelector("#focus-undo"),
   focusRedo: document.querySelector("#focus-redo"),
   focusGenerate: document.querySelector("#focus-generate"),
+  focusImagePack: document.querySelector("#focus-image-pack"),
   focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
   focusApply: document.querySelector("#focus-apply"),
   focusPreview: document.querySelector("#focus-preview"),
@@ -134,6 +135,7 @@ const dom = {
   workbenchOutputMeta: document.querySelector("#workbench-output-meta"),
   workbenchOpenOutput: document.querySelector("#workbench-open-output"),
   workbenchClearMarks: document.querySelector("#workbench-clear-marks"),
+  railSizeValue: document.querySelector("#rail-size-value"),
   frameList: document.querySelector("#frame-list"),
   frameCount: document.querySelector("#frame-count"),
   toolButtons: document.querySelector("#tool-buttons"),
@@ -252,6 +254,7 @@ const histories = new Map();
 const outputAnnotationHistories = new Map();
 const measurementCanvas = document.createElement("canvas");
 const measurementContext = measurementCanvas.getContext("2d");
+const inkLayerCanvas = document.createElement("canvas");
 const livePreviewChannel =
   typeof BroadcastChannel !== "undefined"
     ? new BroadcastChannel(LIVE_PREVIEW_CHANNEL_NAME)
@@ -335,6 +338,9 @@ function bindEvents() {
   dom.focusRedo.addEventListener("click", redoDesignerAction);
   dom.focusGenerate.addEventListener("click", () => {
     void generateCurrentScreen();
+  });
+  dom.focusImagePack.addEventListener("click", () => {
+    void saveImagePromptPackForHost();
   });
   dom.focusVoiceToggle.addEventListener("click", () => {
     if (state.voice.status === "listening") {
@@ -511,10 +517,7 @@ function bindEvents() {
   });
 
   dom.sizeRange.addEventListener("input", () => {
-    state.size = Number(dom.sizeRange.value);
-    renderColors();
-    renderBrushPreview();
-    renderStatus();
+    updateBrushSize(Number(dom.sizeRange.value));
   });
 
   dom.gridToggle.addEventListener("change", () => {
@@ -1508,6 +1511,14 @@ function toggleWorkbenchTray() {
 }
 
 function handleWorkbenchRailAction(action) {
+  if (action === "size-down") {
+    updateBrushSize(state.size - 2);
+    return;
+  }
+  if (action === "size-up") {
+    updateBrushSize(state.size + 2);
+    return;
+  }
   if (action === "undo") {
     undoDesignerAction();
     return;
@@ -1528,9 +1539,22 @@ function handleWorkbenchRailAction(action) {
     void generateCurrentScreen();
     return;
   }
+  if (action === "image-pack") {
+    void saveImagePromptPackForHost();
+    return;
+  }
   if (action === "apply") {
     void applyFocusPadToCodex();
   }
+}
+
+function updateBrushSize(nextSize) {
+  state.size = Math.max(4, Math.min(48, Math.round(nextSize)));
+  persistState();
+  renderColors();
+  renderBrushPreview();
+  renderFocusPad();
+  renderStatus(`Brush size ${state.size}px`);
 }
 
 function setWorkspaceMode(mode) {
@@ -1642,6 +1666,11 @@ function renderFocusPad() {
       button.disabled = Boolean(state.generationInFlight);
     });
   dom.workbenchRail
+    .querySelectorAll("[data-rail-action='image-pack']")
+    .forEach((button) => {
+      button.disabled = Boolean(state.focusApplyInFlight);
+    });
+  dom.workbenchRail
     .querySelectorAll("[data-rail-action='apply']")
     .forEach((button) => {
       button.disabled = Boolean(state.focusApplyInFlight);
@@ -1663,6 +1692,7 @@ function renderFocusPad() {
   dom.focusAddManual.disabled = !state.voice.manualDraft.trim();
   dom.focusApply.disabled = Boolean(state.focusApplyInFlight);
   dom.focusGenerate.disabled = Boolean(state.generationInFlight);
+  dom.focusImagePack.disabled = Boolean(state.focusApplyInFlight);
   dom.focusVoiceToggle.textContent =
     state.voice.status === "listening" ? "Stop talking" : "Start talking";
   dom.focusVoiceToggle.classList.toggle(
@@ -2052,6 +2082,7 @@ function renderColors() {
   delete dom.colorHex.dataset.invalid;
   dom.sizeRange.value = String(state.size);
   dom.sizeValue.textContent = `${state.size} px`;
+  dom.railSizeValue.textContent = String(state.size);
   renderBrushSizeChip();
 }
 
@@ -2060,6 +2091,11 @@ function renderFrameList() {
   dom.frameList.innerHTML = state.frames
     .map((frame, index) => {
       const viewport = viewportPresets[frame.viewport];
+      const thumbnail = frameThumbnailDataUrl(frame, {
+        maxWidth: 420,
+        mime: "image/jpeg",
+        quality: 0.84,
+      });
       const outputStatus = describeFrameOutputStatus(frame, {
         includeGlobal: frame.id === state.activeFrameId,
       });
@@ -2069,7 +2105,7 @@ function renderFrameList() {
       return `
         <button class="frame-card ${frame.id === state.activeFrameId ? "active" : ""}" data-frame-id="${frame.id}">
           <div class="frame-thumb">
-            ${frame.thumbnail ? `<img src="${frame.thumbnail}" alt="" />` : ""}
+            ${thumbnail ? `<img src="${thumbnail}" alt="" />` : ""}
           </div>
           <div class="frame-meta">
             <div class="frame-meta-row">
@@ -2983,6 +3019,11 @@ function renderFlowBoard() {
   dom.flowBoard.innerHTML = state.frames
     .map((frame) => {
       const viewport = viewportPresets[frame.viewport];
+      const thumbnail = frameThumbnailDataUrl(frame, {
+        maxWidth: 420,
+        mime: "image/jpeg",
+        quality: 0.84,
+      });
       const classes = [
         "flow-card-node",
         frame.id === state.activeFrameId ? "active" : "",
@@ -3007,7 +3048,7 @@ function renderFlowBoard() {
             ${frame.id === state.entryFrameId ? '<span class="flow-card-badge">Entry</span>' : ""}
           </div>
           <div class="flow-card-preview">
-            ${frame.thumbnail ? `<img src="${frame.thumbnail}" alt="" />` : ""}
+            ${thumbnail ? `<img src="${thumbnail}" alt="" />` : ""}
           </div>
           <div class="flow-card-footer">
             <span>${countFrameConnections(frame.id)} linked</span>
@@ -3402,13 +3443,7 @@ function drawScene(ctx, frame, width, height, scale = 1, draftElement = null) {
     drawGrid(ctx, frame.viewport, width, height);
   }
 
-  frame.elements.forEach((element) =>
-    drawElement(ctx, element, scale, false, frame),
-  );
-
-  if (draftElement) {
-    drawElement(ctx, draftElement, scale, true, frame);
-  }
+  drawFrameInkLayer(ctx, frame, width, height, scale, draftElement);
 
   if (state.elementTransform?.mode === "lasso") {
     drawLassoOverlay(ctx, state.elementTransform, scale);
@@ -3471,6 +3506,25 @@ function drawGrid(ctx, viewportId, width, height) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+function drawFrameInkLayer(ctx, frame, width, height, scale, draftElement) {
+  if (inkLayerCanvas.width !== width || inkLayerCanvas.height !== height) {
+    inkLayerCanvas.width = width;
+    inkLayerCanvas.height = height;
+  }
+  const inkContext = inkLayerCanvas.getContext("2d");
+  inkContext.clearRect(0, 0, width, height);
+
+  frame.elements.forEach((element) =>
+    drawElement(inkContext, element, scale, false, frame),
+  );
+
+  if (draftElement) {
+    drawElement(inkContext, draftElement, scale, true, frame);
+  }
+
+  ctx.drawImage(inkLayerCanvas, 0, 0);
 }
 
 function drawElement(
@@ -6266,13 +6320,11 @@ async function buildExportPackage(frameSelection = state.frames) {
         mime: "image/jpeg",
         quality: 0.9,
       }),
-      thumbnailDataUrl:
-        frame.thumbnail ||
-        renderFrameToDataUrl(frame, {
-          maxWidth: 420,
-          mime: "image/jpeg",
-          quality: 0.84,
-        }),
+      thumbnailDataUrl: frameThumbnailDataUrl(frame, {
+        maxWidth: 420,
+        mime: "image/jpeg",
+        quality: 0.84,
+      }),
     });
   }
 
@@ -6294,7 +6346,324 @@ async function buildExportPackage(frameSelection = state.frames) {
     voice: buildVoiceExport(frameSelection),
     prompt: buildPromptMarkdown(),
     frames: selectedFrames,
+    taskPack: buildTaskPack(selectedFrames, rewriteQueue),
+    imagePromptPack: buildImagePromptPack(selectedFrames),
   };
+}
+
+function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
+  const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
+  return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-task-pack",
+    generatedAt: new Date().toISOString(),
+    actionMode: "design-or-build",
+    hostLane: {
+      mode: "codex-host-capability",
+      requiresOpenAiApiKey: false,
+      note:
+        "Canvax prepares the task. Codex/ChatGPT host capabilities may generate images or code when available.",
+    },
+    board: structuredClone(state.board),
+    activeFrameId: state.activeFrameId,
+    activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
+    rewriteQueue,
+    voice: buildVoiceExport(state.frames),
+    imagePromptPackPath: "exports/canvax-image-prompt-pack-latest.json",
+    frames: frames.map((frame) => ({
+      id: frame.id,
+      index: frame.index,
+      title: frame.title,
+      viewport: frame.viewport,
+      viewportWidth: frame.viewportWidth,
+      viewportHeight: frame.viewportHeight,
+      intent: frame.objective,
+      notes: frame.layout,
+      behavior: frame.motion,
+      assets: frame.assets,
+      variants: frame.mobile,
+      snapshotPath: frame.snapshotPath || "",
+      outputAnnotationCount: frame.outputAnnotationCount || 0,
+      composition: buildFrameComposition(currentFrameById(frame.id) || frame),
+    })),
+  };
+}
+
+function buildImagePromptPack(frames) {
+  const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
+  const generationRecipe = generationSummaryText(state.board.generation);
+  return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-image-prompt-pack",
+    generatedAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    intendedHost:
+      "Codex/ChatGPT image generation host lane, if available in the current chat.",
+    activeFrameId: state.activeFrameId,
+    activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
+    board: {
+      project: state.board.project,
+      ask: state.board.goal,
+      surface: state.board.audience,
+      mood: state.board.designMood,
+      generationRecipe,
+    },
+    usage:
+      "Give this prompt pack to ChatGPT image generation. Use the coordinates and HTML/CSS scaffold to preserve placement.",
+    frames: frames.map((frame) => {
+      const liveFrame = currentFrameById(frame.id) || frame;
+      const composition = buildFrameComposition(liveFrame);
+      return {
+        id: frame.id,
+        index: frame.index,
+        title: frame.title,
+        viewport: {
+          id: frame.viewport,
+          width: frame.viewportWidth,
+          height: frame.viewportHeight,
+          aspectRatio: `${frame.viewportWidth}:${frame.viewportHeight}`,
+        },
+        intent: frame.objective || state.board.goal,
+        styleDirection: [
+          state.board.designMood,
+          frame.assets,
+          frame.mobile,
+          generationRecipe,
+        ]
+          .filter(Boolean)
+          .join(" | "),
+        prompt: buildImagePromptText(frame, composition),
+        negativePrompt:
+          "Do not ignore the rough composition. Avoid unreadable text, random extra UI, duplicated limbs or objects, warped perspective, unwanted logos, and generic AI-purple styling unless explicitly requested.",
+        composition,
+        htmlCssScaffold: buildImageHtmlCssScaffold(frame, composition),
+        sketchReference: {
+          snapshotPath: frame.snapshotPath || "",
+          thumbnailPath: frame.thumbnailPath || "",
+        },
+      };
+    }),
+  };
+}
+
+function currentFrameById(frameId) {
+  return state.frames.find((frame) => frame.id === frameId) || null;
+}
+
+function buildFrameComposition(frame) {
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const elements = (frame.elements || [])
+    .map((element, index) => summarizeCompositionElement(element, frame, viewport, index))
+    .filter(Boolean);
+  return {
+    viewport: {
+      id: frame.viewport,
+      label: viewport.label,
+      width: viewport.width,
+      height: viewport.height,
+    },
+    coordinateSystem:
+      "Normalized x/y/w/h values are 0..1 relative to the frame viewport.",
+    safeZones: buildSafeZones(viewport),
+    elements,
+    labels: elements.filter((element) => element.type === "label"),
+    outputAnnotations: (frame.outputAnnotations || []).map(
+      summarizeOutputAnnotation,
+    ),
+  };
+}
+
+function summarizeCompositionElement(element, frame, viewport, index) {
+  const bounds = getElementBounds(element, frame);
+  if (!bounds) {
+    return null;
+  }
+  const normalizedBounds = normalizeBounds(bounds, viewport);
+  return {
+    id: element.id || `element-${index + 1}`,
+    index: index + 1,
+    type: element.type || "unknown",
+    role: inferElementRole(element, normalizedBounds),
+    text: element.type === "label" ? element.text || "" : "",
+    color: element.color || "",
+    strokeSize: element.size || 0,
+    bounds: normalizedBounds,
+    placement: describeBounds(normalizedBounds),
+  };
+}
+
+function normalizeBounds(bounds, viewport) {
+  const left = clamp(bounds.left / viewport.width, 0, 1);
+  const top = clamp(bounds.top / viewport.height, 0, 1);
+  const right = clamp(bounds.right / viewport.width, 0, 1);
+  const bottom = clamp(bounds.bottom / viewport.height, 0, 1);
+  return {
+    x: roundNumber(left),
+    y: roundNumber(top),
+    w: roundNumber(Math.max(0, right - left)),
+    h: roundNumber(Math.max(0, bottom - top)),
+    centerX: roundNumber(left + Math.max(0, right - left) / 2),
+    centerY: roundNumber(top + Math.max(0, bottom - top) / 2),
+  };
+}
+
+function buildSafeZones(viewport) {
+  return {
+    content: {
+      x: roundNumber(viewport.width > 600 ? 0.08 : 0.06),
+      y: 0.08,
+      w: roundNumber(viewport.width > 600 ? 0.84 : 0.88),
+      h: 0.84,
+    },
+    avoidCriticalTextAtEdges: true,
+  };
+}
+
+function inferElementRole(element, bounds) {
+  if (element.type === "label") {
+    return "semantic note or requested text";
+  }
+  if (element.type === "arrow" || element.type === "line") {
+    return "direction, motion, visual emphasis, or connection";
+  }
+  if (element.type === "ellipse") {
+    return "round object, avatar, image crop, spotlight, or circular UI";
+  }
+  if (element.type === "rect") {
+    if (bounds.w > 0.45 && bounds.h > 0.22) {
+      return "large content region, hero visual, panel, or page section";
+    }
+    return "card, button, image placeholder, text block, or layout region";
+  }
+  if (element.type === "path") {
+    return "freehand sketch stroke or organic placement cue";
+  }
+  return "visual element";
+}
+
+function describeBounds(bounds) {
+  const horizontal =
+    bounds.centerX < 0.33 ? "left" : bounds.centerX > 0.67 ? "right" : "center";
+  const vertical =
+    bounds.centerY < 0.33 ? "top" : bounds.centerY > 0.67 ? "bottom" : "middle";
+  return `${vertical}-${horizontal}`;
+}
+
+function buildImagePromptText(frame, composition) {
+  const labels = composition.labels
+    .map((label) => label.text)
+    .filter(Boolean)
+    .join("; ");
+  const placements = composition.elements
+    .slice(0, 14)
+    .map((element) => `${element.role} at ${element.placement} (${element.bounds.x}, ${element.bounds.y}, ${element.bounds.w}, ${element.bounds.h})`)
+    .join("; ");
+  return [
+    `Create an image/design for ${frame.title}.`,
+    `Canvas: ${composition.viewport.label} ${composition.viewport.width}x${composition.viewport.height}.`,
+    frame.objective ? `Intent: ${frame.objective}.` : "",
+    frame.assets ? `Style and asset notes: ${frame.assets}.` : "",
+    state.board.designMood ? `Mood: ${state.board.designMood}.` : "",
+    labels ? `Text/semantic labels to respect: ${labels}.` : "",
+    placements ? `Composition map: ${placements}.` : "",
+    "Preserve the rough layout and relative positions. Improve polish, clarity, lighting, hierarchy, and craft.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildImageHtmlCssScaffold(frame, composition) {
+  const width = composition.viewport.width;
+  const height = composition.viewport.height;
+  const blocks = composition.elements
+    .slice(0, 24)
+    .map(
+      (element) =>
+        `  <div class="el ${escapeHtml(element.type)}" data-role="${escapeHtml(element.role)}">${escapeHtml(element.text || element.type)}</div>`,
+    )
+    .join("\n");
+  const css = composition.elements
+    .slice(0, 24)
+    .map((element, index) => {
+      const selector = `.el:nth-child(${index + 1})`;
+      return `${selector}{left:${(element.bounds.x * 100).toFixed(2)}%;top:${(element.bounds.y * 100).toFixed(2)}%;width:${(element.bounds.w * 100).toFixed(2)}%;height:${(element.bounds.h * 100).toFixed(2)}%;}`;
+    })
+    .join("\n");
+  return `<!-- Coordinate scaffold for image generation placement, not production UI. -->\n<div class="canvax-frame" style="position:relative;width:${width}px;height:${height}px;">\n${blocks}\n</div>\n<style>\n.canvax-frame{background:#fff8ec;overflow:hidden;}\n.el{position:absolute;border:2px solid #ff5d3a;border-radius:12px;color:#18110e;font:600 18px sans-serif;display:grid;place-items:center;padding:8px;}\n${css}\n</style>`;
+}
+
+function buildTaskPackMarkdown(taskPack) {
+  if (!taskPack) {
+    return "";
+  }
+  const lines = [
+    `# ${(taskPack.board?.project || "Canvax").trim()} task pack`,
+    "",
+    `- Kind: ${taskPack.kind}`,
+    `- Generated: ${taskPack.generatedAt}`,
+    `- Action mode: ${taskPack.actionMode}`,
+    `- Active frame: ${taskPack.activeFrameTitle}`,
+    `- Requires OpenAI API key: ${taskPack.hostLane?.requiresOpenAiApiKey ? "yes" : "no"}`,
+    "",
+    "## Instruction",
+    "Use this task pack with the live Canvax export to build, refine, write a spec, or generate image prompts. Prefer frame composition and voice notes over guessing.",
+    "",
+    "## Frames",
+  ];
+  taskPack.frames.forEach((frame) => {
+    lines.push(`- ${frame.index}. ${frame.title}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
+  });
+  return lines.join("\n");
+}
+
+function buildImagePromptPackMarkdown(pack) {
+  if (!pack) {
+    return "";
+  }
+  const lines = [
+    `# ${(pack.board?.project || "Canvax").trim()} image prompt pack`,
+    "",
+    `- Requires OpenAI API key: ${pack.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Intended host: ${pack.intendedHost}`,
+    `- Active frame: ${pack.activeFrameTitle}`,
+    "",
+    "## How To Use",
+    "Use the prompt, composition map, and HTML/CSS scaffold as placement guidance for ChatGPT image generation. The scaffold is a spatial reference, not production code.",
+  ];
+  pack.frames.forEach((frame) => {
+    lines.push("");
+    lines.push(`## Frame ${frame.index}: ${frame.title}`);
+    lines.push("");
+    lines.push(frame.prompt);
+    lines.push("");
+    lines.push("### HTML/CSS Placement Scaffold");
+    lines.push("");
+    lines.push("```html");
+    lines.push(frame.htmlCssScaffold);
+    lines.push("```");
+  });
+  return lines.join("\n");
+}
+
+async function saveImagePromptPackForHost() {
+  renderStatus("Saving no-API image prompt pack...");
+  const result = await saveExportToWorkspace({ silent: true });
+  if (!result) {
+    renderStatus("Image prompt pack save failed");
+    return;
+  }
+  const path =
+    result.imagePromptPackMarkdownPath ||
+    "exports/canvax-image-prompt-pack-latest.md";
+  dom.workspaceStatus.textContent = `Image prompt pack ready at ${path}`;
+  state.focusLastAppliedText =
+    "Image prompt pack ready. Ask Codex/ChatGPT image generation to use it.";
+  renderFocusPad();
+  renderStatus("Image prompt pack ready for host image generation");
+}
+
+function roundNumber(value) {
+  return Number(value.toFixed(4));
 }
 
 function checkpointReasonLabel(reason) {
@@ -6610,13 +6979,11 @@ async function buildMaterializePayloadWithMode(
       snapshotDataUrl: renderFrameToDataUrl(frame, {
         mime: "image/png",
       }),
-      thumbnailDataUrl:
-        frame.thumbnail ||
-        renderFrameToDataUrl(frame, {
-          maxWidth: 420,
-          mime: "image/jpeg",
-          quality: 0.84,
-        }),
+      thumbnailDataUrl: frameThumbnailDataUrl(frame, {
+        maxWidth: 420,
+        mime: "image/jpeg",
+        quality: 0.84,
+      }),
       elements: frame.elements
         .map((element) => buildMaterializeElement(element, frame))
         .filter(Boolean),
@@ -6644,6 +7011,29 @@ function renderFrameToDataUrl(frame, options = {}) {
     dataUrl,
   });
   return dataUrl;
+}
+
+function frameThumbnailDataUrl(
+  frame,
+  options = { maxWidth: 420, mime: "image/jpeg", quality: 0.84 },
+) {
+  if (!frame) {
+    return "";
+  }
+  if (!shouldRenderLiveFrameThumbnail(frame)) {
+    return frame.thumbnail || "";
+  }
+  return renderFrameToDataUrl(frame, options);
+}
+
+function shouldRenderLiveFrameThumbnail(frame) {
+  return !frame.thumbnail || frameHasEraserStroke(frame);
+}
+
+function frameHasEraserStroke(frame) {
+  return (frame.elements || []).some(
+    (element) => element?.composite === "destination-out",
+  );
 }
 
 function buildFrameRenderCacheKey(
@@ -6726,6 +7116,10 @@ async function saveExportToWorkspace(options = {}) {
         package: exportPackage,
         markdown: dom.specOutput.value,
         voiceMarkdown: buildVoiceMarkdown(),
+        taskPackMarkdown: buildTaskPackMarkdown(exportPackage.taskPack),
+        imagePromptPackMarkdown: buildImagePromptPackMarkdown(
+          exportPackage.imagePromptPack,
+        ),
       }),
     });
     const data = await response.json();
@@ -7086,13 +7480,11 @@ function buildLivePreviewPayload() {
           outputAnnotations: (frame.outputAnnotations || []).map(
             summarizeOutputAnnotation,
           ),
-          liveThumbnailDataUrl:
-            frame.thumbnail ||
-            renderFrameToDataUrl(frame, {
-              maxWidth: 320,
-              mime: "image/jpeg",
-              quality: 0.82,
-            }),
+          liveThumbnailDataUrl: frameThumbnailDataUrl(frame, {
+            maxWidth: 320,
+            mime: "image/jpeg",
+            quality: 0.82,
+          }),
           liveSnapshotDataUrl: isActive
             ? renderFrameToDataUrl(frame, {
                 maxWidth: 1400,

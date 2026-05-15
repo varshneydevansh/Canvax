@@ -6,6 +6,16 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const liveJsonPath = resolve(projectRoot, "exports", "canvax-live-latest.json");
+const taskPackJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-task-pack-latest.json",
+);
+const imagePromptPackJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-image-prompt-pack-latest.json",
+);
 const latestCheckpointPath = resolve(
   projectRoot,
   "exports",
@@ -47,6 +57,25 @@ await validateOptionalJsonSchema(
     Array.isArray(value?.frames),
   "live export schema is valid",
   { allowLegacyWithoutSchema: true },
+);
+await validateOptionalJsonSchema(
+  taskPackJsonPath,
+  (value) =>
+    value?.kind === "canvax-task-pack" &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.frames),
+  "task pack schema is valid",
+);
+await validateOptionalJsonSchema(
+  imagePromptPackJsonPath,
+  (value) =>
+    value?.kind === "canvax-image-prompt-pack" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.frames),
+  "image prompt pack schema is valid",
 );
 await validateOptionalJsonSchema(
   latestCheckpointPath,

@@ -53,7 +53,7 @@ Product rules:
 
 - Canvax core stays local-first and must not require `OPENAI_API_KEY`.
 - Image generation is a host capability or optional adapter, not a baseline dependency.
-- The baseline UI should export prompt packs, task packs, sketches, transcripts, and previews that Codex can use in the current chat.
+- The baseline UI exports prompt packs, task packs, sketches, transcripts, coordinates, and previews that Codex can use in the current chat.
 - Direct ChatGPT/Codex microphone reuse requires a first-party bridge; the local board keeps browser speech, manual dictation, and transcript forwarding as the current bridge.
 - The repo-level plan for this redesign is `canvax-stitch-like-workbench-plan.md`.
 
@@ -127,6 +127,7 @@ Canvax today
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
+- The Workbench rail now behaves like a bottom designer dock with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
 
 ### Voice And Intent
 
@@ -160,6 +161,8 @@ Canvax today
 
 - `/canvax` or `$canvax` can attach Codex to the live handoff.
 - Live JSON and Markdown exports exist under `exports/`.
+- `canvax-task-pack-latest.*` and `canvax-image-prompt-pack-latest.*` exist for Codex and host-side image generation.
+- The image prompt pack includes normalized coordinates and an HTML/CSS placement scaffold so ChatGPT/image generation can preserve layout intent without Canvax calling an API.
 - `artifacts/canvax/codex-output.json` is the canonical Codex output manifest.
 - The board can publish current git workspace changes into the output manifest.
 - Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
@@ -272,7 +275,7 @@ Needed:
 
 ### 6. Image Model And Asset Workflow
 
-Canvax can describe image directions and hold reference underlays. It does not yet have a first-class image generation lane.
+Canvax can describe image directions, hold reference underlays, and export an image prompt pack with coordinates and an HTML/CSS placement scaffold. It does not yet manage generated image candidates as first-class board assets.
 
 Target behavior:
 
@@ -280,10 +283,22 @@ Target behavior:
 sketch asset region -> describe asset -> generate image candidates -> place candidate into frame -> Codex uses it in app/spec
 ```
 
+Current stepping stone:
+
+```text
+done
+  rough sketch -> labels/voice -> image prompt pack -> coordinates + scaffold
+
+next
+  prompt pack -> host image generation -> candidate images -> place back on canvas
+```
+
 Needed:
 
 - Asset regions on canvas.
-- Image prompt extraction from labels, notes, and voice.
+- Image candidate import and placement back into the board.
+- Variant comparison for image generations.
+- Style-lock packs for books, comics, posters, decks, and brand systems.
 - A local artifact format for generated image candidates.
 - Drag/attach generated image candidates back onto frames.
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.

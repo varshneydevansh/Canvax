@@ -40,6 +40,25 @@ Sources:
 - OpenAI Apps SDK MCP server concepts: https://developers.openai.com/apps-sdk/concepts/mcp-server
 - Google Stitch redesign reference: https://blog.google/innovation-and-ai/models-and-research/google-labs/stitch-ai-ui-design/
 
+## Implementation Status
+
+Current completed baseline:
+
+- Workbench is the default simple mode.
+- Generated output can appear beside the sketch.
+- Correction marks over generated output are saved into frame handoff data.
+- The floating rail is now a bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
+- `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
+- `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
+
+Still open:
+
+- explicit action-mode chooser
+- `DESIGN.md` import/export awareness
+- host capability registry
+- first-class generated image candidate management
+- true infinite spatial canvas
+
 ## Target UX
 
 ```text
@@ -250,6 +269,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 3.1: Add `canvax-task-pack` Export
 
+- **Status**: Shipped initial version. Needs schema hardening and regression coverage.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/ARCHITECTURE.md`
 - **Description**: Write a compact JSON and Markdown task pack containing sketch snapshot, geometry summary, labels, voice/transcript, surface type, output target, and requested action.
 - **Complexity**: 6/10
@@ -299,6 +319,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 4.1: Add Image Prompt Pack Lane
 
+- **Status**: Shipped initial version with prompt text, normalized coordinates, safe zones, and HTML/CSS placement scaffold. Candidate image import remains open.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/FEATURES.md`
 - **Description**: Convert selected sketch regions, labels, references, and transcript into structured image prompts with negative prompts, aspect ratio, safe text zones, and style rules.
 - **Complexity**: 6/10

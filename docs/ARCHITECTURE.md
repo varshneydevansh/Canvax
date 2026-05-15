@@ -69,6 +69,7 @@ web/index.html + web/styles.css + web/app.js
     +--> frame and flow state
     +--> voice notes
     +--> live export payloads
+    +--> task/image prompt packs
 ```
 
 ### Local Service
@@ -174,6 +175,10 @@ Current mechanism:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-task-pack-latest.json`
+- `exports/canvax-task-pack-latest.md`
+- `exports/canvax-image-prompt-pack-latest.json`
+- `exports/canvax-image-prompt-pack-latest.md`
 - `exports/canvax-checkpoint-latest.json`
 
 Purpose:
@@ -221,6 +226,7 @@ That contract declares:
 - durable handoff: file export paths
 - output binding: manifest-based transport
 - live mirror: browser storage/channel transport
+- host task packs: local files for Codex/image-generation handoff without API calls
 - future mode: `app-server`
 
 This is the main guardrail against accidentally hardcoding the current local-companion implementation as if it were the only possible runtime.
@@ -374,6 +380,20 @@ The JSON export currently contains:
 - saved snapshot paths
 - flow connections
 - generated prompt text
+- task pack and image prompt pack summaries
+
+The dedicated task and image prompt pack files are narrower than the full live export:
+
+- `canvax-task-pack-latest.*` is for Codex build/spec/app work.
+- `canvax-image-prompt-pack-latest.*` is for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
+
+```text
+full live export
+  |
+  +--> task pack: build/spec/action summary
+  |
+  `--> image prompt pack: prompt + coordinates + scaffold
+```
 
 The Markdown export contains the readable handoff prompt for Codex.
 

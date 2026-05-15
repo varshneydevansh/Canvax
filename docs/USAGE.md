@@ -83,7 +83,7 @@ It hides advanced panels and keeps only:
 - `Make real` for a local generated-screen preview
 - generated output beside the sketch when a preview target exists
 - correction marks drawn directly over generated output
-- a floating designer rail for the main tools and actions
+- a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Make`, `Image`, and `Apply`
 - `Hide tray` / `Show tray` for canvas-first designer focus
 - `Apply to Codex`
 - `Preview`
@@ -102,6 +102,8 @@ Workbench
 ```
 
 `Apply to Codex` freezes the current frame, writes the live handoff, and saves a Workbench checkpoint. That gives Codex a single clean moment to read: the sketch image, the generated-output correction marks, the transcript/manual note, and the active frame context.
+
+`Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, and an HTML/CSS placement scaffold. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs.
 
 `Free canvas` is a large spatial scratchpad preset. It is useful for laying out references, rough sections, and alternate directions on one surface. It is not yet a true infinite canvas with persistent spatial objects, branches, and pan/zoom project memory.
 
@@ -252,6 +254,10 @@ Important files:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-task-pack-latest.json`
+- `exports/canvax-task-pack-latest.md`
+- `exports/canvax-image-prompt-pack-latest.json`
+- `exports/canvax-image-prompt-pack-latest.md`
 - `exports/canvax-transcript-bridge.json`
 - `exports/canvax-transcript-bridge-latest.md`
 - `exports/canvax-checkpoint-latest.json`
@@ -259,6 +265,46 @@ Important files:
 - `exports/canvax-preview-manifest.json`
 - `artifacts/canvax/codex-output.json`
 - `artifacts/canvax/checkpoints/`
+
+## Task And Image Prompt Packs
+
+Canvax writes two compact host-facing packs whenever the board saves a live export.
+
+```text
+Canvax frame
+  |
+  +--> task pack
+  |     use for Codex build/spec/app work
+  |
+  `--> image prompt pack
+        use for ChatGPT/image generation placement
+```
+
+```mermaid
+flowchart LR
+    S["Sketch elements"] --> C["Coordinate summary"]
+    L["Labels + notes"] --> P["Prompt text"]
+    V["Voice transcript"] --> P
+    C --> H["HTML/CSS scaffold"]
+    P --> I["Host image generation"]
+    H --> I
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#18110e;
+    classDef prompt fill:#fff7db,stroke:#f0a202,color:#18110e;
+    classDef host fill:#eef3ff,stroke:#2364aa,color:#101828;
+
+    class S,L,V sketch;
+    class C,P,H prompt;
+    class I host;
+```
+
+Use the image prompt pack when the output is a poster, children-book spread, illustration, UI concept image, mood board, or image-composition tweak. It is explicitly local-first:
+
+- Canvax does not require `OPENAI_API_KEY`.
+- Canvax does not call a paid image API by itself.
+- Codex/ChatGPT may use the pack with whatever image-generation capability the current host exposes.
+- The pack preserves placement through `x`, `y`, `w`, and `h` values normalized from `0` to `1`.
+- The HTML/CSS scaffold is a spatial guide for generation, not final frontend code.
 
 Older compatibility files may also be written:
 

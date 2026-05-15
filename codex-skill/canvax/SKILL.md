@@ -49,6 +49,7 @@ Canvax now has `Workbench` as the simple path:
 - the user can run the local `Make real` generation pass
 - the user can draw correction marks over the connected generated output
 - the user can hide the context tray and keep working from the floating designer rail
+- the user can save an `Image pack` with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
 - `Apply to Codex` freezes the frame and writes a `focus-apply` checkpoint
 
 When the user says they used Workbench, prefer the latest checkpoint over older advanced-board context because it represents the specific sketch + voice + output-correction edit they meant Codex to act on.
@@ -70,6 +71,10 @@ Prefer these files when they exist:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-task-pack-latest.json`
+- `exports/canvax-task-pack-latest.md`
+- `exports/canvax-image-prompt-pack-latest.json`
+- `exports/canvax-image-prompt-pack-latest.md`
 - `exports/canvax-transcript-bridge.json`
 - `exports/canvax-transcript-bridge-latest.md`
 - `exports/canvax-checkpoint-latest.json`
@@ -79,6 +84,8 @@ Prefer these files when they exist:
 - `exports/canvax-storyboard-latest.md`
 
 The live JSON export is the primary source because it includes frame metadata and the saved image paths.
+
+If the user asks for image generation, illustration, poster composition, book spreads, or "where should the image model place things", read `exports/canvax-image-prompt-pack-latest.json` or `.md` after the live export. This pack is no-API by design: it gives Codex/ChatGPT host capabilities the prompt, coordinates, safe zones, and HTML/CSS placement scaffold without requiring Canvax to call a paid API.
 
 If `exports/canvax-checkpoint-latest.json` exists and the user seems to be referring to a specific recent moment in the board workflow, prefer that checkpoint because it merges sketch, voice, and output context for that handoff moment.
 

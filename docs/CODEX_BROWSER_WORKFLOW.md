@@ -23,6 +23,7 @@ Using Codex Browser Use / Atlas keeps the collaboration loop in one place:
 
 - the user sketches in Canvax
 - Codex reads the live export
+- Codex can read the task pack or image prompt pack when the request is build/spec/image-placement work
 - Codex can forward chat microphone transcripts into Canvax voice notes with `./canvax --transcript "..." --scope frame`
 - Codex uses Browser Use to inspect the board, Preview, and generated app
 - Codex changes real files in the workspace
@@ -103,6 +104,18 @@ In Browser Use / Atlas, Codex should inspect:
 - the Preview window opened from the board
 - any generated local app or HTML artifact bound through the output manifest
 - layout clipping, broken controls, stale output, and generated UI mismatches
+- `exports/canvax-image-prompt-pack-latest.md` when the user wants image generation or composition-preserving prompt guidance
+
+## Image Prompt Pack Flow
+
+```text
+draw rough layout
+    -> press Image / Image pack
+    -> Canvax writes prompt + coordinates + HTML/CSS scaffold
+    -> Codex/ChatGPT host image generation can use that pack
+```
+
+This remains local-first. Canvax does not need `OPENAI_API_KEY` for this path; it prepares the spatial handoff and lets the current Codex/ChatGPT host capability do the generation when available.
 
 ## What Codex Should Publish
 

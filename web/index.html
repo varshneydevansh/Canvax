@@ -351,6 +351,9 @@
                             <button id="focus-generate" class="ghost-button">
                                 Make real
                             </button>
+                            <button id="focus-image-pack" class="ghost-button">
+                                Image pack
+                            </button>
                             <button id="focus-voice-toggle" class="ghost-button">
                                 Start talking
                             </button>
@@ -486,6 +489,27 @@
                     >
                         Erase
                     </button>
+                    <div class="rail-size-control" aria-label="Brush size">
+                        <button
+                            class="rail-size-button"
+                            data-rail-action="size-down"
+                            type="button"
+                            title="Decrease brush size"
+                        >
+                            -
+                        </button>
+                        <span id="rail-size-value" class="rail-size-value"
+                            >14</span
+                        >
+                        <button
+                            class="rail-size-button"
+                            data-rail-action="size-up"
+                            type="button"
+                            title="Increase brush size"
+                        >
+                            +
+                        </button>
+                    </div>
                     <span class="rail-divider" aria-hidden="true"></span>
                     <button
                         class="rail-button"
@@ -510,6 +534,14 @@
                         title="Start or stop dictation"
                     >
                         Talk
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-action="image-pack"
+                        type="button"
+                        title="Save a no-API image prompt pack for Codex host image generation"
+                    >
+                        Image
                     </button>
                     <button
                         class="rail-button rail-button-strong"

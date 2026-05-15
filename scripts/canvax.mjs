@@ -36,6 +36,16 @@ const serverLogPath = resolve(runtimeRoot, "server.log");
 const liveJsonPath = resolve(exportsRoot, "canvax-live-latest.json");
 const liveMarkdownPath = resolve(exportsRoot, "canvax-live-latest.md");
 const liveVoiceMarkdownPath = resolve(exportsRoot, "canvax-voice-latest.md");
+const taskPackJsonPath = resolve(exportsRoot, "canvax-task-pack-latest.json");
+const taskPackMarkdownPath = resolve(exportsRoot, "canvax-task-pack-latest.md");
+const imagePromptPackJsonPath = resolve(
+  exportsRoot,
+  "canvax-image-prompt-pack-latest.json",
+);
+const imagePromptPackMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-image-prompt-pack-latest.md",
+);
 const transcriptBridgePath = resolve(exportsRoot, "canvax-transcript-bridge.json");
 const transcriptBridgeMarkdownPath = resolve(
   exportsRoot,
@@ -103,6 +113,8 @@ function buildTransportDescriptor(overrides = {}) {
       markdown: "exports/canvax-live-latest.md",
       voice: "exports/canvax-voice-latest.md",
       checkpoint: "exports/canvax-checkpoint-latest.json",
+      taskPack: "exports/canvax-task-pack-latest.json",
+      imagePromptPack: "exports/canvax-image-prompt-pack-latest.json",
     },
     liveMirror: {
       type: "browser-storage",
@@ -597,9 +609,27 @@ async function handleSaveExport(request, response) {
   const archiveJsonPath = resolve(archiveRoot, "storyboard.json");
   const archiveMarkdownPath = resolve(archiveRoot, "storyboard.md");
   const archiveVoiceMarkdownPath = resolve(archiveRoot, "voice-notes.md");
+  const archiveTaskPackJsonPath = resolve(archiveRoot, "task-pack.json");
+  const archiveTaskPackMarkdownPath = resolve(archiveRoot, "task-pack.md");
+  const archiveImagePromptPackJsonPath = resolve(
+    archiveRoot,
+    "image-prompt-pack.json",
+  );
+  const archiveImagePromptPackMarkdownPath = resolve(
+    archiveRoot,
+    "image-prompt-pack.md",
+  );
   const jsonBody = JSON.stringify(exportJson, null, 2);
   const markdownBody = payload.markdown || payload.package.prompt || "";
   const voiceMarkdownBody = payload.voiceMarkdown || "";
+  const taskPackBody = payload.package.taskPack
+    ? `${JSON.stringify(payload.package.taskPack, null, 2)}\n`
+    : "";
+  const taskPackMarkdownBody = payload.taskPackMarkdown || "";
+  const imagePromptPackBody = payload.package.imagePromptPack
+    ? `${JSON.stringify(payload.package.imagePromptPack, null, 2)}\n`
+    : "";
+  const imagePromptPackMarkdownBody = payload.imagePromptPackMarkdown || "";
 
   await writeFile(legacyJsonPath, jsonBody);
   await writeFile(archiveJsonPath, jsonBody);
@@ -609,12 +639,35 @@ async function handleSaveExport(request, response) {
   await writeFile(liveMarkdownPath, markdownBody);
   await writeFile(liveVoiceMarkdownPath, voiceMarkdownBody);
   await writeFile(archiveVoiceMarkdownPath, voiceMarkdownBody);
+  if (taskPackBody) {
+    await writeFile(taskPackJsonPath, taskPackBody);
+    await writeFile(archiveTaskPackJsonPath, taskPackBody);
+  }
+  if (taskPackMarkdownBody) {
+    await writeFile(taskPackMarkdownPath, taskPackMarkdownBody);
+    await writeFile(archiveTaskPackMarkdownPath, taskPackMarkdownBody);
+  }
+  if (imagePromptPackBody) {
+    await writeFile(imagePromptPackJsonPath, imagePromptPackBody);
+    await writeFile(archiveImagePromptPackJsonPath, imagePromptPackBody);
+  }
+  if (imagePromptPackMarkdownBody) {
+    await writeFile(imagePromptPackMarkdownPath, imagePromptPackMarkdownBody);
+    await writeFile(
+      archiveImagePromptPackMarkdownPath,
+      imagePromptPackMarkdownBody,
+    );
+  }
 
   return writeJson(response, 200, {
     archiveRoot,
     jsonPath: liveJsonPath,
     markdownPath: liveMarkdownPath,
     voiceMarkdownPath: liveVoiceMarkdownPath,
+    taskPackJsonPath,
+    taskPackMarkdownPath,
+    imagePromptPackJsonPath,
+    imagePromptPackMarkdownPath,
     transport: buildTransportDescriptor(),
   });
 }
