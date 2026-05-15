@@ -126,7 +126,7 @@ Local service = router + persistence + materialize engine
 The intended daily loop is:
 
 1. run `./canvax`
-2. use `Focus Pad` for quick sketch + voice + apply work
+2. use `Workbench` for quick sketch + voice + generated-output work
 3. switch to `Advanced` only when you need frames, flow, captures, manifests, or generation controls
 4. ask Codex to use the current Canvax
 5. inspect the result in `Preview`
@@ -155,9 +155,9 @@ sequenceDiagram
 
 ## Board Features
 
-### Focus Pad
+### Workbench
 
-Focus Pad is the simple default workspace mode.
+Workbench is the simple default workspace mode.
 
 Behavior:
 
@@ -167,15 +167,20 @@ Behavior:
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
 - exposes only four drawing tools: pen, rectangle, arrow, erase
 - exposes one voice action and one manual spoken-note field
-- exposes `Make screen` for the local generated-screen pass
-- `Apply to Codex` freezes the frame, writes the live export, and saves a `Focus Pad apply` checkpoint
+- exposes `Make real` for the local generated-screen pass
+- shows the connected generated output inside the Workbench tray when one exists
+- saves pen/marker correction marks drawn over the generated output as frame-level handoff data
+- provides a floating designer rail for select, pen, rect, arrow, erase, undo, redo, voice, Make, and Apply
+- `Hide tray` collapses the context tray so the canvas becomes the primary design surface
+- `Apply to Codex` freezes the frame, writes the live export, and saves a Workbench checkpoint
 - `Preview` remains available without exposing the rest of Advanced mode
 
 ```text
-simple mode
+Workbench
   rough sketch
   + voice note
-  + frame/surface controls
+  + generated output
+  + visual correction marks
   + Apply to Codex
       -> live export
       -> checkpoint
@@ -184,7 +189,7 @@ simple mode
 
 Boundary:
 
-- Focus Pad is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
+- Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
 - `Free canvas` is a large board preset, not a finished infinite canvas.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 

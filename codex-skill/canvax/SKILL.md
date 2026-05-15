@@ -40,16 +40,18 @@ If the user says "open Canvax", "use /canvax", or "make Canvax available here", 
 
 If the user says "open in Chrome", "external browser", or "outside Codex", use the explicit external flags instead.
 
-Canvax now has `Focus Pad` as the simple path:
+Canvax now has `Workbench` as the simple path:
 
 - the user chooses desktop, mobile, tablet, poster, square, or free canvas without opening Advanced mode
-- the user creates a new frame or connected section without leaving Focus Pad
+- the user creates a new frame or connected section without leaving Workbench
 - the user draws rough placement
 - the user dictates or pastes a quick spoken note
-- the user can run the local `Make screen` generation pass
+- the user can run the local `Make real` generation pass
+- the user can draw correction marks over the connected generated output
+- the user can hide the context tray and keep working from the floating designer rail
 - `Apply to Codex` freezes the frame and writes a `focus-apply` checkpoint
 
-When the user says they used Focus Pad, prefer the latest checkpoint over older advanced-board context because it represents the specific sketch + voice edit they meant Codex to act on.
+When the user says they used Workbench, prefer the latest checkpoint over older advanced-board context because it represents the specific sketch + voice + output-correction edit they meant Codex to act on.
 
 If the user asks about microphone integration, be precise: the local board can use browser speech recognition or pasted macOS/Codex dictation. It cannot directly read the Codex chat microphone stream unless Canvax becomes a native Codex client surface or gains a first-party transcript bridge.
 

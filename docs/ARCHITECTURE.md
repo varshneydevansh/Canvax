@@ -322,9 +322,9 @@ Workspace mode is part of the state model:
 
 ```text
 workspaceMode: simple
-  -> Focus Pad UI
+  -> Workbench UI
   -> active frame only
-  -> sketch + voice + Apply checkpoint
+  -> sketch + voice + generated-output correction marks + Apply checkpoint
 
 workspaceMode: advanced
   -> full board UI

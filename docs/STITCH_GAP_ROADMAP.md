@@ -126,7 +126,7 @@ Canvax today
 - Reference image underlays are supported through paste/drop/upload.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
-- Focus Pad now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, and local screen generation without requiring the user to open Advanced mode.
+- Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
 
 ### Voice And Intent
 
@@ -239,7 +239,9 @@ Current stepping stone:
 
 ```text
 done
-  Focus Pad -> Free canvas preset -> large sketch surface
+  Workbench -> Free canvas preset -> large sketch surface
+  Workbench rail -> canvas-first controls without reopening the tray
+  generated output overlay -> saved correction marks for Codex
 
 next
   true infinite canvas -> spatial objects + branches + generated variants + code artifacts

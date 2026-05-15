@@ -1,5 +1,5 @@
 const STORAGE_KEY = "canvax-studio-v1";
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 const HANDOFF_SCHEMA_VERSION = 1;
 const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
 const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
@@ -25,8 +25,8 @@ const viewModes = [
 const workspaceModes = [
   {
     id: "simple",
-    label: "Focus Pad",
-    description: "Simple sketch + voice + apply mode",
+    label: "Workbench",
+    description: "Simple sketch + voice + generated output mode",
   },
   {
     id: "advanced",
@@ -109,6 +109,8 @@ const dom = {
   boardMood: document.querySelector("#board-mood"),
   workspaceModeButtons: document.querySelector("#workspace-mode-buttons"),
   workspaceModeLabel: document.querySelector("#workspace-mode-label"),
+  workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
+  workbenchRail: document.querySelector("#workbench-rail"),
   focusPad: document.querySelector("#focus-pad"),
   focusViewportSelect: document.querySelector("#focus-viewport-select"),
   focusFrameChip: document.querySelector("#focus-frame-chip"),
@@ -117,6 +119,8 @@ const dom = {
   focusAddFrame: document.querySelector("#focus-add-frame"),
   focusAddSection: document.querySelector("#focus-add-section"),
   focusFreeCanvas: document.querySelector("#focus-free-canvas"),
+  focusUndo: document.querySelector("#focus-undo"),
+  focusRedo: document.querySelector("#focus-redo"),
   focusGenerate: document.querySelector("#focus-generate"),
   focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
   focusApply: document.querySelector("#focus-apply"),
@@ -125,6 +129,11 @@ const dom = {
   focusTranscript: document.querySelector("#focus-transcript"),
   focusManualInput: document.querySelector("#focus-manual-input"),
   focusAddManual: document.querySelector("#focus-add-manual"),
+  workbenchOutputBadge: document.querySelector("#workbench-output-badge"),
+  workbenchOutputSurface: document.querySelector("#workbench-output-surface"),
+  workbenchOutputMeta: document.querySelector("#workbench-output-meta"),
+  workbenchOpenOutput: document.querySelector("#workbench-open-output"),
+  workbenchClearMarks: document.querySelector("#workbench-clear-marks"),
   frameList: document.querySelector("#frame-list"),
   frameCount: document.querySelector("#frame-count"),
   toolButtons: document.querySelector("#tool-buttons"),
@@ -240,6 +249,7 @@ const dom = {
 const imageCache = new Map();
 const frameRenderCache = new Map();
 const histories = new Map();
+const outputAnnotationHistories = new Map();
 const measurementCanvas = document.createElement("canvas");
 const measurementContext = measurementCanvas.getContext("2d");
 const livePreviewChannel =
@@ -287,6 +297,18 @@ function bindEvents() {
     }
     setWorkspaceMode(button.dataset.workspaceMode);
   });
+  dom.workbenchTrayToggle.addEventListener("click", toggleWorkbenchTray);
+  dom.workbenchRail.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-rail-tool], [data-rail-action]");
+    if (!button) {
+      return;
+    }
+    if (button.dataset.railTool) {
+      setActiveTool(button.dataset.railTool);
+      return;
+    }
+    handleWorkbenchRailAction(button.dataset.railAction);
+  });
   dom.focusToolButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-focus-tool]");
     if (!button) {
@@ -301,7 +323,7 @@ function bindEvents() {
   });
   dom.focusAddFrame.addEventListener("click", () =>
     addFrame({
-      status: "Focus Pad frame added",
+      status: "Workbench frame added",
     }),
   );
   dom.focusAddSection.addEventListener("click", addSectionFrame);
@@ -309,6 +331,8 @@ function bindEvents() {
     updateFrameField("viewport", "free", { capture: true });
     setZoom(0.5);
   });
+  dom.focusUndo.addEventListener("click", undoDesignerAction);
+  dom.focusRedo.addEventListener("click", redoDesignerAction);
   dom.focusGenerate.addEventListener("click", () => {
     void generateCurrentScreen();
   });
@@ -323,6 +347,27 @@ function bindEvents() {
     void applyFocusPadToCodex();
   });
   dom.focusPreview.addEventListener("click", openPreviewWindow);
+  dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
+  dom.workbenchOutputSurface.addEventListener(
+    "pointerdown",
+    onWorkbenchOutputPointerDown,
+  );
+  dom.workbenchOutputSurface.addEventListener(
+    "pointermove",
+    onWorkbenchOutputPointerMove,
+  );
+  dom.workbenchOutputSurface.addEventListener(
+    "pointerup",
+    onWorkbenchOutputPointerUp,
+  );
+  dom.workbenchOutputSurface.addEventListener(
+    "pointerleave",
+    onWorkbenchOutputPointerUp,
+  );
+  dom.workbenchOutputSurface.addEventListener(
+    "pointercancel",
+    onWorkbenchOutputPointerUp,
+  );
   dom.focusManualInput.addEventListener("input", () => {
     state.voice.manualDraft = dom.focusManualInput.value;
     state.focusLastAppliedText = "";
@@ -819,6 +864,7 @@ function hydrateState() {
       )
         ? migrated.workspaceMode
         : empty.workspaceMode,
+      workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
       connections,
       entryFrameId,
       selectedConnectionId: null,
@@ -844,6 +890,8 @@ function hydrateState() {
       captureTimer: null,
       previewStateTimer: null,
       outputCheckpointInFlight: false,
+      outputAnnotationDraft: null,
+      lastActionScope: "",
       draftElement: null,
       isDrawing: false,
       flowDrag: null,
@@ -930,6 +978,8 @@ function frameHasCanvasContent(frame) {
     frame?.backgroundImage ||
     frame?.thumbnail ||
     (Array.isArray(frame?.elements) && frame.elements.length) ||
+    (Array.isArray(frame?.outputAnnotations) &&
+      frame.outputAnnotations.length) ||
     (Array.isArray(frame?.captures) && frame.captures.length),
   );
 }
@@ -1052,6 +1102,7 @@ function createInitialState() {
     zoom: 1,
     viewMode: "frame",
     workspaceMode: "simple",
+    workbenchTrayCollapsed: false,
     connections: [],
     entryFrameId: firstFrame.id,
     selectedConnectionId: null,
@@ -1076,6 +1127,8 @@ function createInitialState() {
     captureTimer: null,
     previewStateTimer: null,
     outputCheckpointInFlight: false,
+    outputAnnotationDraft: null,
+    lastActionScope: "",
     draftElement: null,
     isDrawing: false,
     flowDrag: null,
@@ -1154,6 +1207,69 @@ function normalizeVoiceSegment(segment, index = 0) {
   };
 }
 
+function normalizeOutputAnnotation(annotation, index = 0) {
+  if (!annotation || typeof annotation !== "object") {
+    return null;
+  }
+  const points = Array.isArray(annotation.points)
+    ? annotation.points
+        .map((point) => normalizeOutputAnnotationPoint(point))
+        .filter(Boolean)
+    : [];
+  if (!points.length) {
+    return null;
+  }
+
+  return {
+    id:
+      typeof annotation.id === "string" && annotation.id.trim()
+        ? annotation.id.trim()
+        : `output-mark-${index + 1}`,
+    type: "path",
+    points,
+    color: normalizeColor(annotation.color, palette[0]),
+    size: Number.isFinite(annotation.size)
+      ? Math.max(1, Math.min(48, annotation.size))
+      : 8,
+    alpha: Number.isFinite(annotation.alpha)
+      ? Math.max(0.05, Math.min(1, annotation.alpha))
+      : 1,
+    composite:
+      annotation.composite === "destination-out"
+        ? "destination-out"
+        : "source-over",
+    targetId:
+      typeof annotation.targetId === "string" ? annotation.targetId.trim() : "",
+    targetLabel:
+      typeof annotation.targetLabel === "string"
+        ? annotation.targetLabel.trim()
+        : "",
+    targetVersionTag:
+      typeof annotation.targetVersionTag === "string"
+        ? annotation.targetVersionTag.trim()
+        : "",
+    createdAt:
+      typeof annotation.createdAt === "string" && annotation.createdAt.trim()
+        ? annotation.createdAt.trim()
+        : new Date().toISOString(),
+  };
+}
+
+function normalizeOutputAnnotationPoint(point) {
+  if (!point || typeof point !== "object") {
+    return null;
+  }
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  return {
+    x: clamp(x, 0, 1),
+    y: clamp(y, 0, 1),
+  };
+}
+
 function normalizeFrame(frame, index) {
   return {
     id: frame.id || uid("frame"),
@@ -1167,6 +1283,13 @@ function normalizeFrame(frame, index) {
     backgroundImage: frame.backgroundImage || "",
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
     elements: Array.isArray(frame.elements) ? frame.elements : [],
+    outputAnnotations: Array.isArray(frame.outputAnnotations)
+      ? frame.outputAnnotations
+          .map((annotation, annotationIndex) =>
+            normalizeOutputAnnotation(annotation, annotationIndex),
+          )
+          .filter(Boolean)
+      : [],
     thumbnail: frame.thumbnail || "",
     captures: Array.isArray(frame.captures)
       ? frame.captures.slice(0, MAX_CAPTURES)
@@ -1195,6 +1318,7 @@ function createFrame(overrides = {}) {
       backgroundImage: overrides.backgroundImage || "",
       flowPosition: overrides.flowPosition || defaultFlowPosition(index),
       elements: overrides.elements || [],
+      outputAnnotations: overrides.outputAnnotations || [],
       thumbnail: overrides.thumbnail || "",
       captures: overrides.captures || [],
       createdAt: overrides.createdAt || new Date().toISOString(),
@@ -1347,9 +1471,21 @@ function renderWorkspaceMode() {
   }
 
   document.body.dataset.workspaceMode = mode;
+  document.body.dataset.workbenchTray =
+    mode === "simple" && state.workbenchTrayCollapsed
+      ? "collapsed"
+      : "expanded";
   dom.workspaceModeLabel.textContent =
-    workspaceModes.find((entry) => entry.id === mode)?.label || "Focus Pad";
-  dom.focusPad.hidden = mode !== "simple";
+    workspaceModes.find((entry) => entry.id === mode)?.label || "Workbench";
+  dom.focusPad.hidden = mode !== "simple" || state.workbenchTrayCollapsed;
+  dom.workbenchTrayToggle.hidden = mode !== "simple";
+  dom.workbenchTrayToggle.textContent = state.workbenchTrayCollapsed
+    ? "Show tray"
+    : "Hide tray";
+  dom.workbenchTrayToggle.setAttribute(
+    "aria-pressed",
+    String(state.workbenchTrayCollapsed),
+  );
   dom.workspaceModeButtons
     .querySelectorAll("[data-workspace-mode]")
     .forEach((button) => {
@@ -1358,6 +1494,43 @@ function renderWorkspaceMode() {
       button.setAttribute("aria-pressed", String(active));
     });
   renderFocusPad();
+}
+
+function toggleWorkbenchTray() {
+  state.workbenchTrayCollapsed = !state.workbenchTrayCollapsed;
+  persistState();
+  renderAll();
+  renderStatus(
+    state.workbenchTrayCollapsed
+      ? "Designer focus on: tray hidden, canvas is primary"
+      : "Workbench tray shown",
+  );
+}
+
+function handleWorkbenchRailAction(action) {
+  if (action === "undo") {
+    undoDesignerAction();
+    return;
+  }
+  if (action === "redo") {
+    redoDesignerAction();
+    return;
+  }
+  if (action === "voice") {
+    if (state.voice.status === "listening") {
+      stopVoiceDictation();
+    } else {
+      startVoiceDictation();
+    }
+    return;
+  }
+  if (action === "generate") {
+    void generateCurrentScreen();
+    return;
+  }
+  if (action === "apply") {
+    void applyFocusPadToCodex();
+  }
 }
 
 function setWorkspaceMode(mode) {
@@ -1375,7 +1548,7 @@ function setWorkspaceMode(mode) {
   renderAll();
   renderStatus(
     nextMode === "simple"
-      ? "Focus Pad ready: sketch, talk, then apply"
+      ? "Workbench ready: sketch, talk, generate, then apply"
       : "Advanced Canvax controls shown",
   );
 }
@@ -1435,6 +1608,44 @@ function renderFocusPad() {
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
     });
+  dom.workbenchRail
+    .querySelectorAll("[data-rail-tool]")
+    .forEach((button) => {
+      const active = button.dataset.railTool === state.tool;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  dom.workbenchRail
+    .querySelectorAll("[data-rail-action='undo']")
+    .forEach((button) => {
+      button.disabled = !currentUndoRedoState().canUndo;
+    });
+  dom.workbenchRail
+    .querySelectorAll("[data-rail-action='redo']")
+    .forEach((button) => {
+      button.disabled = !currentUndoRedoState().canRedo;
+    });
+  dom.workbenchRail
+    .querySelectorAll("[data-rail-action='voice']")
+    .forEach((button) => {
+      button.textContent =
+        state.voice.status === "listening" ? "Stop" : "Talk";
+      button.classList.toggle("active", state.voice.status === "listening");
+      button.setAttribute(
+        "aria-pressed",
+        String(state.voice.status === "listening"),
+      );
+    });
+  dom.workbenchRail
+    .querySelectorAll("[data-rail-action='generate']")
+    .forEach((button) => {
+      button.disabled = Boolean(state.generationInFlight);
+    });
+  dom.workbenchRail
+    .querySelectorAll("[data-rail-action='apply']")
+    .forEach((button) => {
+      button.disabled = Boolean(state.focusApplyInFlight);
+    });
 
   const frame = currentFrame();
   const frameIndex = Math.max(
@@ -1476,6 +1687,8 @@ function renderFocusPad() {
       "Draw rough placement, start talking or paste a note, then Apply to Codex.";
   }
 
+  renderWorkbenchOutput();
+
   if (state.voice.interimText) {
     dom.focusTranscript.className = "voice-live";
     dom.focusTranscript.innerHTML = `
@@ -1503,6 +1716,262 @@ function renderFocusPad() {
       `,
     )
     .join("");
+}
+
+function renderWorkbenchOutput() {
+  const manifest = state.serverStatus.previewManifest || null;
+  const target = resolveManifestTargetEntry(manifest, state.activeFrameId);
+  const frame = currentFrame();
+  const annotationCount = frame.outputAnnotations?.length || 0;
+  const status = describeFrameOutputStatus(frame, {
+    includeGlobal: true,
+    manifest,
+  });
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  const targetLabel = target?.label || status?.label || "Generated output";
+  const targetKind =
+    target?.type === "generated-screen-preview"
+      ? "Generated"
+      : target?.type === "materialized-preview"
+        ? "Materialized"
+        : target
+          ? "Attached"
+          : "No output";
+
+  dom.workbenchOutputBadge.textContent = status?.label || targetKind;
+  dom.workbenchOutputBadge.dataset.tone = status?.tone || (target ? "synced" : "empty");
+  dom.workbenchOpenOutput.hidden = !targetUrl;
+  dom.workbenchOpenOutput.href = targetUrl || "#";
+  dom.workbenchClearMarks.hidden = annotationCount === 0;
+
+  if (!target || !targetUrl) {
+    dom.workbenchOutputSurface.className =
+      "workbench-output-surface empty-state";
+    dom.workbenchOutputSurface.innerHTML = `
+      <span class="workbench-output-mark">Make real</span>
+      <p>Draw a rough layout, add spoken context, then generate a local surface here. Keep the sketch beside the output and use pen marks or notes for the next correction.</p>
+    `;
+    dom.workbenchOutputMeta.textContent = annotationCount
+      ? `${annotationCount} output correction mark(s) are saved, but no generated surface is currently attached.`
+      : "Ready for UI, image prompt, book spread, poster, app screen, deck, or spec work.";
+    return;
+  }
+
+  const framedUrl = addTargetRevisionToUrl(targetUrl, target);
+  const freshness = describeManifestFreshness(target, frame);
+  const refinement = describeTargetRefinement(target);
+  dom.workbenchOutputSurface.className = `workbench-output-surface ${
+    annotationCount ? "has-annotations" : ""
+  }`;
+  dom.workbenchOutputSurface.innerHTML = `
+    <iframe
+      src="${escapeHtml(framedUrl)}"
+      title="${escapeHtml(targetLabel)}"
+      loading="lazy"
+    ></iframe>
+    <canvas
+      id="workbench-output-overlay"
+      class="workbench-output-overlay"
+      aria-label="Draw correction marks over the generated output"
+    ></canvas>
+    <span class="workbench-output-draw-hint">${
+      annotationCount
+        ? `${annotationCount} correction mark${annotationCount === 1 ? "" : "s"}`
+        : "Draw corrections here"
+    }</span>
+  `;
+  const baseMeta =
+    freshness ||
+    refinement ||
+    target.description ||
+    `${targetKind} output is connected to this frame.`;
+  dom.workbenchOutputMeta.textContent = annotationCount
+    ? `${baseMeta} ${annotationCount} correction mark(s) are attached to this output.`
+    : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
+  window.requestAnimationFrame(renderWorkbenchOutputAnnotations);
+}
+
+function currentWorkbenchTarget() {
+  const manifest = state.serverStatus.previewManifest || null;
+  return resolveManifestTargetEntry(manifest, state.activeFrameId);
+}
+
+function workbenchOutputToolCanDraw() {
+  return state.tool === "pen" || state.tool === "marker" || state.tool === "erase";
+}
+
+function outputAnnotationPointFromEvent(event) {
+  const canvas = document.querySelector("#workbench-output-overlay");
+  if (!canvas) {
+    return null;
+  }
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return null;
+  }
+  return {
+    x: clamp((event.clientX - rect.left) / rect.width, 0, 1),
+    y: clamp((event.clientY - rect.top) / rect.height, 0, 1),
+  };
+}
+
+function onWorkbenchOutputPointerDown(event) {
+  if (
+    state.workspaceMode !== "simple" ||
+    !workbenchOutputToolCanDraw() ||
+    event.button > 0
+  ) {
+    return;
+  }
+  const target = currentWorkbenchTarget();
+  const canvas = document.querySelector("#workbench-output-overlay");
+  const point = outputAnnotationPointFromEvent(event);
+  if (!target || !canvas || !point) {
+    return;
+  }
+
+  event.preventDefault();
+  canvas.setPointerCapture?.(event.pointerId);
+  state.outputAnnotationDraft = {
+    id: uid("output-mark"),
+    type: "path",
+    points: [point],
+    color: state.tool === "erase" ? "#000000" : normalizeColor(state.color),
+    size: state.size,
+    alpha: state.tool === "marker" ? 0.42 : 1,
+    composite: state.tool === "erase" ? "destination-out" : "source-over",
+    targetId: target.id || "",
+    targetLabel: target.label || "",
+    targetVersionTag: target.versionTag || "",
+    pointerId: event.pointerId,
+    createdAt: new Date().toISOString(),
+  };
+  renderWorkbenchOutputAnnotations();
+}
+
+function onWorkbenchOutputPointerMove(event) {
+  const draft = state.outputAnnotationDraft;
+  if (!draft || draft.pointerId !== event.pointerId) {
+    return;
+  }
+  const point = outputAnnotationPointFromEvent(event);
+  if (!point) {
+    return;
+  }
+  const previous = draft.points.at(-1);
+  if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) > 0.002) {
+    draft.points.push(point);
+    renderWorkbenchOutputAnnotations();
+  }
+}
+
+function onWorkbenchOutputPointerUp(event) {
+  const draft = state.outputAnnotationDraft;
+  if (!draft || draft.pointerId !== event.pointerId) {
+    return;
+  }
+  const canvas = document.querySelector("#workbench-output-overlay");
+  canvas?.releasePointerCapture?.(event.pointerId);
+  state.outputAnnotationDraft = null;
+  const normalized = normalizeOutputAnnotation(draft);
+  if (!normalized || !isOutputAnnotationMeaningful(normalized)) {
+    renderWorkbenchOutputAnnotations();
+    return;
+  }
+  const frame = currentFrame();
+  pushOutputAnnotationHistory(frame);
+  frame.outputAnnotations = [...(frame.outputAnnotations || []), normalized].slice(
+    -80,
+  );
+  touchFrame(frame, {
+    capture: false,
+    status: "Output correction mark saved",
+  });
+}
+
+function isOutputAnnotationMeaningful(annotation) {
+  if (!annotation?.points || annotation.points.length < 2) {
+    return false;
+  }
+  const first = annotation.points[0];
+  const last = annotation.points.at(-1);
+  return Math.hypot(last.x - first.x, last.y - first.y) > 0.006;
+}
+
+function renderWorkbenchOutputAnnotations() {
+  const canvas = document.querySelector("#workbench-output-overlay");
+  if (!canvas) {
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const nextWidth = Math.max(1, Math.round(rect.width * dpr));
+  const nextHeight = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+    canvas.width = nextWidth;
+    canvas.height = nextHeight;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  const frame = currentFrame();
+  [...(frame.outputAnnotations || []), state.outputAnnotationDraft]
+    .filter(Boolean)
+    .forEach((annotation) =>
+      drawOutputAnnotation(ctx, annotation, rect.width, rect.height),
+    );
+}
+
+function drawOutputAnnotation(ctx, annotation, width, height) {
+  if (!annotation?.points?.length) {
+    return;
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = annotation.composite || "source-over";
+  ctx.globalAlpha = annotation.alpha ?? 1;
+  ctx.strokeStyle = annotation.color || palette[0];
+  ctx.lineWidth = Math.max(2, annotation.size || state.size);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(annotation.points[0].x * width, annotation.points[0].y * height);
+  for (let index = 1; index < annotation.points.length; index += 1) {
+    ctx.lineTo(annotation.points[index].x * width, annotation.points[index].y * height);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function clearWorkbenchOutputMarks() {
+  const frame = currentFrame();
+  if (!frame.outputAnnotations?.length) {
+    return;
+  }
+  pushOutputAnnotationHistory(frame);
+  frame.outputAnnotations = [];
+  state.outputAnnotationDraft = null;
+  touchFrame(frame, { capture: false, status: "Output correction marks cleared" });
+}
+
+function resolveWorkbenchTargetUrl(target) {
+  if (!target) {
+    return "";
+  }
+  if (target.resolvedUrl || target.url) {
+    return target.resolvedUrl || target.url;
+  }
+  if (target.previewPath) {
+    return `/workspace/${target.previewPath}`;
+  }
+  return "";
+}
+
+function addTargetRevisionToUrl(url, target) {
+  if (!url || !target?.versionTag) {
+    return url;
+  }
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}canvaxRevision=${encodeURIComponent(target.versionTag)}`;
 }
 
 function renderToolHint() {
@@ -1890,12 +2359,12 @@ async function applyFocusPadToCodex() {
   state.focusApplyInFlight = true;
   state.suppressOutputCheckpointUntil = Date.now() + 7000;
   renderFocusPad();
-  renderStatus("Saving Focus Pad handoff...");
+  renderStatus("Saving Workbench handoff...");
 
   try {
     if (!frame.objective.trim()) {
       frame.objective =
-        "Use this Focus Pad sketch and voice context to adjust the current design.";
+        "Use this Workbench sketch and voice context to adjust the current design.";
     }
     if (!frame.layout.trim()) {
       frame.layout =
@@ -1904,18 +2373,18 @@ async function applyFocusPadToCodex() {
     persistState();
     const exportResult = await freezeFrame(true, {
       reason: "focus-apply",
-      status: "Focus Pad checkpoint saved",
+      status: "Workbench checkpoint saved",
     });
     if (exportResult) {
       state.focusLastAppliedText =
         "Applied. The latest sketch + voice checkpoint is ready for Codex.";
       dom.workspaceStatus.textContent =
-        "Focus Pad applied. Ask Codex to use the latest Canvax checkpoint.";
-      renderStatus("Focus Pad checkpoint ready for Codex");
+        "Workbench applied. Ask Codex to use the latest Canvax checkpoint.";
+      renderStatus("Workbench checkpoint ready for Codex");
     } else {
       state.focusLastAppliedText =
         "Saved locally, but workspace sync did not finish. Try Apply again.";
-      renderStatus("Focus Pad saved locally, but workspace sync did not finish");
+      renderStatus("Workbench saved locally, but workspace sync did not finish");
     }
   } finally {
     state.focusApplyInFlight = false;
@@ -2854,9 +3323,21 @@ function hexToRgba(hex, alpha) {
 }
 
 function renderUndoRedo() {
-  const history = ensureHistory(currentFrame().id);
-  dom.undoButton.disabled = history.past.length === 0;
-  dom.redoButton.disabled = history.future.length === 0;
+  const { canUndo, canRedo } = currentUndoRedoState();
+  dom.undoButton.disabled = !canUndo;
+  dom.redoButton.disabled = !canRedo;
+  dom.focusUndo.disabled = !canUndo;
+  dom.focusRedo.disabled = !canRedo;
+}
+
+function currentUndoRedoState() {
+  const frame = currentFrame();
+  const history = ensureHistory(frame.id);
+  const annotationHistory = ensureOutputAnnotationHistory(frame.id);
+  return {
+    canUndo: history.past.length > 0 || annotationHistory.past.length > 0,
+    canRedo: history.future.length > 0 || annotationHistory.future.length > 0,
+  };
 }
 
 function syncCanvasSize() {
@@ -4386,6 +4867,20 @@ function onWindowKeyDown(event) {
   }
 
   const isMeta = event.metaKey || event.ctrlKey;
+  if (isMeta && !shouldIgnoreDeleteShortcut(event.target)) {
+    const key = event.key.toLowerCase();
+    if (key === "z" && !event.shiftKey) {
+      event.preventDefault();
+      undoDesignerAction();
+      return;
+    }
+    if ((key === "z" && event.shiftKey) || key === "y") {
+      event.preventDefault();
+      redoDesignerAction();
+      return;
+    }
+  }
+
   if (
     state.viewMode === "frame" &&
     isMeta &&
@@ -4955,7 +5450,7 @@ function addSectionFrame() {
     connectFromActive: true,
     connectionLabel: "scroll / continue",
     connectionNotes:
-      "Focus Pad section created as a connected continuation from the previous frame.",
+      "Workbench section created as a connected continuation from the previous frame.",
     status: "Connected section frame added",
   });
 }
@@ -4976,6 +5471,7 @@ function duplicateFrame() {
       y: frame.flowPosition.y + 40,
     },
     elements: structuredClone(frame.elements),
+    outputAnnotations: structuredClone(frame.outputAnnotations || []),
     thumbnail: frame.thumbnail,
     captures: structuredClone(frame.captures),
   });
@@ -4991,6 +5487,7 @@ function deleteFrame() {
   if (state.frames.length === 1) {
     const only = currentFrame();
     only.elements = [];
+    only.outputAnnotations = [];
     only.captures = [];
     only.thumbnail = "";
     only.backgroundImage = "";
@@ -5039,6 +5536,7 @@ function clearCurrentFrame() {
   const frame = currentFrame();
   pushHistory(frame.id);
   frame.elements = [];
+  frame.outputAnnotations = [];
   frame.captures = [];
   frame.thumbnail = "";
   clearElementSelection();
@@ -5052,6 +5550,13 @@ function ensureHistory(frameId) {
   return histories.get(frameId);
 }
 
+function ensureOutputAnnotationHistory(frameId) {
+  if (!outputAnnotationHistories.has(frameId)) {
+    outputAnnotationHistories.set(frameId, { past: [], future: [] });
+  }
+  return outputAnnotationHistories.get(frameId);
+}
+
 function pushHistory(frameId) {
   const history = ensureHistory(frameId);
   history.past.push(structuredClone(currentFrame().elements));
@@ -5059,6 +5564,17 @@ function pushHistory(frameId) {
     history.past.shift();
   }
   history.future = [];
+  state.lastActionScope = "frame-elements";
+}
+
+function pushOutputAnnotationHistory(frame) {
+  const history = ensureOutputAnnotationHistory(frame.id);
+  history.past.push(structuredClone(frame.outputAnnotations || []));
+  if (history.past.length > 40) {
+    history.past.shift();
+  }
+  history.future = [];
+  state.lastActionScope = "output-annotations";
 }
 
 function undoFrame() {
@@ -5069,6 +5585,7 @@ function undoFrame() {
   }
   history.future.push(structuredClone(frame.elements));
   frame.elements = history.past.pop();
+  state.lastActionScope = "frame-elements";
   touchFrame(frame, { capture: true, status: "Undo applied" });
 }
 
@@ -5080,7 +5597,76 @@ function redoFrame() {
   }
   history.past.push(structuredClone(frame.elements));
   frame.elements = history.future.pop();
+  state.lastActionScope = "frame-elements";
   touchFrame(frame, { capture: true, status: "Redo applied" });
+}
+
+function undoOutputAnnotations() {
+  const frame = currentFrame();
+  const history = ensureOutputAnnotationHistory(frame.id);
+  if (!history.past.length) {
+    return false;
+  }
+  history.future.push(structuredClone(frame.outputAnnotations || []));
+  frame.outputAnnotations = history.past.pop();
+  state.outputAnnotationDraft = null;
+  state.lastActionScope = "output-annotations";
+  touchFrame(frame, { capture: false, status: "Output correction undo applied" });
+  return true;
+}
+
+function redoOutputAnnotations() {
+  const frame = currentFrame();
+  const history = ensureOutputAnnotationHistory(frame.id);
+  if (!history.future.length) {
+    return false;
+  }
+  history.past.push(structuredClone(frame.outputAnnotations || []));
+  frame.outputAnnotations = history.future.pop();
+  state.outputAnnotationDraft = null;
+  state.lastActionScope = "output-annotations";
+  touchFrame(frame, { capture: false, status: "Output correction redo applied" });
+  return true;
+}
+
+function undoDesignerAction() {
+  const frame = currentFrame();
+  const annotationHistory = ensureOutputAnnotationHistory(frame.id);
+  if (
+    state.lastActionScope === "output-annotations" &&
+    annotationHistory.past.length &&
+    undoOutputAnnotations()
+  ) {
+    return;
+  }
+  const history = ensureHistory(frame.id);
+  if (history.past.length) {
+    undoFrame();
+    return;
+  }
+  if (annotationHistory.past.length) {
+    undoOutputAnnotations();
+  }
+}
+
+function redoDesignerAction() {
+  const frame = currentFrame();
+  const annotationHistory = ensureOutputAnnotationHistory(frame.id);
+  if (
+    state.lastActionScope === "output-annotations" &&
+    annotationHistory.future.length &&
+    redoOutputAnnotations()
+  ) {
+    return;
+  }
+  const history = ensureHistory(frame.id);
+  if (history.future.length) {
+    redoFrame();
+    return;
+  }
+  if (annotationHistory.future.length) {
+    redoOutputAnnotations();
+  }
 }
 
 function scheduleCapture(reason) {
@@ -5435,7 +6021,7 @@ function buildPromptMarkdown() {
     `- Ask: ${state.board.goal || "Not specified"}`,
     `- Surface / medium: ${state.board.audience || "Not specified"}`,
     `- Mood: ${state.board.designMood || "Not specified"}`,
-    `- Canvax mode: ${state.workspaceMode === "simple" ? "Focus Pad" : "Advanced"}`,
+    `- Canvax mode: ${state.workspaceMode === "simple" ? "Workbench" : "Advanced"}`,
     `- Preferred screen generation: ${generationRecipe}`,
     "",
     "## How Codex should read this",
@@ -5443,7 +6029,7 @@ function buildPromptMarkdown() {
     "- Preserve the composition and hierarchy from the sketch, but refine clarity, polish, and accessibility where relevant.",
     "- Use the drawing plus notes to infer structure, behavior, asset direction, and platform adaptation.",
     "- When explicit flow links exist, treat them as the primary interaction map instead of guessing transitions from frame order alone.",
-    "- If the mode is Focus Pad, prioritize the active frame, latest capture, and voice notes as a quick edit instruction for the current design.",
+    "- If the mode is Workbench, prioritize the active frame, latest capture, and voice notes as a quick edit instruction for the current design.",
     "",
   ];
 
@@ -5477,6 +6063,11 @@ function buildPromptMarkdown() {
       `- Variant / platform notes: ${frame.mobile || "Not specified"}`,
     );
     lines.push(`- Captures saved: ${frame.captures.length}`);
+    if (frame.outputAnnotations?.length) {
+      lines.push(
+        `- Generated-output correction marks: ${frame.outputAnnotations.length} overlay stroke(s) on the connected output preview. Treat these as direct visual tweak instructions for this frame.`,
+      );
+    }
 
     const outgoingConnections = state.connections.filter(
       (connection) => connection.fromFrameId === frame.id,
@@ -5666,6 +6257,10 @@ async function buildExportPackage(frameSelection = state.frames) {
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
       captureCount: frame.captures.length,
+      outputAnnotationCount: frame.outputAnnotations?.length || 0,
+      outputAnnotations: (frame.outputAnnotations || []).map(
+        summarizeOutputAnnotation,
+      ),
       snapshotDataUrl: renderFrameToDataUrl(frame, {
         maxWidth: 1400,
         mime: "image/jpeg",
@@ -5709,7 +6304,7 @@ function checkpointReasonLabel(reason) {
     "autosnap-freeze": "Autosnap freeze",
     "dictation-stop": "Dictation stop",
     "voice-note": "Voice note",
-    "focus-apply": "Focus Pad apply",
+    "focus-apply": "Workbench apply",
     materialize: "Materialize",
     "generate-screen": "Generate screen",
     "publish-output": "Published output",
@@ -5731,7 +6326,29 @@ function summarizeFrameForCheckpoint(frame, index) {
     mobile: frame.mobile,
     updatedAt: frame.updatedAt,
     captureCount: frame.captures.length,
+    outputAnnotationCount: frame.outputAnnotations?.length || 0,
     latestCaptureAt: frame.captures[0]?.at || "",
+  };
+}
+
+function summarizeOutputAnnotation(annotation) {
+  return {
+    id: annotation.id,
+    type: annotation.type || "path",
+    points: Array.isArray(annotation.points)
+      ? annotation.points.map((point) => ({
+          x: point.x,
+          y: point.y,
+        }))
+      : [],
+    color: annotation.color || palette[0],
+    size: annotation.size || 8,
+    alpha: annotation.alpha ?? 1,
+    composite: annotation.composite || "source-over",
+    targetId: annotation.targetId || "",
+    targetLabel: annotation.targetLabel || "",
+    targetVersionTag: annotation.targetVersionTag || "",
+    createdAt: annotation.createdAt || "",
   };
 }
 
@@ -6465,6 +7082,10 @@ function buildLivePreviewPayload() {
           mobile: frame.mobile,
           updatedAt: frame.updatedAt,
           captureCount: frame.captures.length,
+          outputAnnotationCount: frame.outputAnnotations?.length || 0,
+          outputAnnotations: (frame.outputAnnotations || []).map(
+            summarizeOutputAnnotation,
+          ),
           liveThumbnailDataUrl:
             frame.thumbnail ||
             renderFrameToDataUrl(frame, {
@@ -6494,6 +7115,7 @@ function buildPersistedSnapshot(source) {
     voice: source.voice,
     viewMode: source.viewMode,
     workspaceMode: source.workspaceMode,
+    workbenchTrayCollapsed: Boolean(source.workbenchTrayCollapsed),
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -8019,6 +8641,10 @@ function escapeHtml(value) {
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function uid(prefix) {

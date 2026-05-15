@@ -28,10 +28,11 @@ Canvax is a visual handoff surface for Codex.
 The intended loop is:
 
 1. open the board
-2. stay in `Focus Pad` when you only need a quick sketch + spoken instruction
-3. press `Apply to Codex` to save the sketch, voice note, latest export, and checkpoint
-4. switch to `Advanced` only when you need frames, flows, captures, or manifest detail
-5. tell Codex to use the current Canvax
+2. stay in `Workbench` when you only need a quick sketch + spoken instruction
+3. optionally use `Make real` and draw correction marks over the generated output
+4. press `Apply to Codex` to save the sketch, voice note, correction marks, latest export, and checkpoint
+5. switch to `Advanced` only when you need frames, flows, captures, or manifest detail
+6. tell Codex to use the current Canvax
 
 When Codex Desktop has Browser Use / Atlas available, open the board and Preview in the in-app browser. That is the lowest-friction mode because Codex can inspect the same visual surfaces you are using while it edits code, runs checks, and publishes output context back into Canvax.
 
@@ -67,9 +68,9 @@ Canvax is intentionally generic. Use it for:
 
 It is not limited to a hero section or landing page flow.
 
-## Focus Pad
+## Workbench
 
-Use Focus Pad when Canvax should feel like a scratchpad beside this chat.
+Use Workbench when Canvax should feel like a scratchpad beside this chat.
 
 It hides advanced panels and keeps only:
 
@@ -79,23 +80,28 @@ It hides advanced panels and keeps only:
 - `Pen`, `Rect`, `Arrow`, and `Erase`
 - `Start talking` / `Stop talking`
 - a quick manual voice note field
-- `Make screen` for a local generated-screen preview
+- `Make real` for a local generated-screen preview
+- generated output beside the sketch when a preview target exists
+- correction marks drawn directly over generated output
+- a floating designer rail for the main tools and actions
+- `Hide tray` / `Show tray` for canvas-first designer focus
 - `Apply to Codex`
 - `Preview`
 
 ```text
-Focus Pad
+Workbench
 +--------------------------------------+
 | sketch rough placement on the canvas |
 | speak or paste the instruction        |
-| Apply to Codex                        |
+| optionally Make real                  |
+| mark corrections over generated output|
 +--------------------------------------+
           |
           v
  latest export + latest checkpoint
 ```
 
-`Apply to Codex` freezes the current frame, writes the live handoff, and saves a `Focus Pad apply` checkpoint. That gives Codex a single clean moment to read: the sketch image, the transcript/manual note, and the active frame context.
+`Apply to Codex` freezes the current frame, writes the live handoff, and saves a Workbench checkpoint. That gives Codex a single clean moment to read: the sketch image, the generated-output correction marks, the transcript/manual note, and the active frame context.
 
 `Free canvas` is a large spatial scratchpad preset. It is useful for laying out references, rough sections, and alternate directions on one surface. It is not yet a true infinite canvas with persistent spatial objects, branches, and pan/zoom project memory.
 
@@ -374,7 +380,7 @@ Canvax also writes checkpoints automatically for:
 
 - autosnap freeze
 - manual freeze
-- Focus Pad apply
+- Workbench apply
 - dictation stop
 - manual voice note capture
 - materialize

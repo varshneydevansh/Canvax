@@ -85,7 +85,8 @@ flowchart LR
 ## What It Does Today
 
 - Opens a browser-based canvas optimized for Mac trackpad, mouse, or stylus use.
-- Starts in `Focus Pad`, a simplified talk-and-draw mode that keeps sketch, surface choice, new frame/section creation, voice, local generation, apply, and preview actions visible.
+- Starts in `Workbench`, a simplified talk-and-draw mode that keeps sketch, surface choice, generated output, correction marks, voice, apply, and preview actions available without the full advanced UI.
+- Adds a floating designer rail in Workbench, so tools, undo/redo, dictation, Make, and Apply stay available even when the tray is hidden for canvas-first work.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
@@ -118,7 +119,7 @@ flowchart LR
 This commit line now includes the following major layers working together:
 
 - generic sketch board with Frame view and Flow view
-- Focus Pad mode for the low-friction sketch + voice + apply loop
+- Workbench mode for the low-friction sketch + voice + generated-output loop
 - Preview surface with compare modes and frame-aware output context
 - voice notes and dedicated voice handoff file
 - checkpoints and session event log
@@ -126,7 +127,7 @@ This commit line now includes the following major layers working together:
 - `Generate screen` with board-side recipe controls
 - `Materialize` with stable per-frame targets and refinement deltas
 - rewrite queue and frame-level output status badges
-- Focus Pad surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
+- Workbench surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
 - transport contract for current `local-companion` mode vs future `app-server` mode
 
 ```mermaid
@@ -349,7 +350,7 @@ Checkpoint mode now adds:
 1. Start Canvax with `./canvax`.
 2. Install the skill once with `node scripts/install-canvax-skill.mjs`.
 3. Invoke `/canvax` or `$canvax` in Codex.
-4. Stay in `Focus Pad` for quick work: draw rough placement, start dictation or paste a spoken note, then press `Apply to Codex`.
+4. Stay in `Workbench` for quick work: draw rough placement, start dictation or paste a spoken note, mark generated-output corrections if needed, then press `Apply to Codex`.
 5. Open `Preview` when you want to see the generated or implemented target beside the sketch.
 6. Switch to `Advanced` only when you need frames, flow links, captures, generation recipes, manifests, changed files, or debugging detail.
 7. In Advanced mode, use `Generate screen`, `Materialize`, `Push checkpoint`, or `Publish changes` for longer sessions.

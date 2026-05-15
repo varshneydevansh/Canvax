@@ -108,7 +108,7 @@
                     <div class="mode-strip">
                         <div>
                             <p class="eyebrow">Workspace mode</p>
-                            <strong id="workspace-mode-label">Focus Pad</strong>
+                            <strong id="workspace-mode-label">Workbench</strong>
                         </div>
                         <div
                             id="workspace-mode-buttons"
@@ -120,9 +120,9 @@
                                 class="segment active"
                                 data-workspace-mode="simple"
                                 aria-pressed="true"
-                                title="Hide advanced panels and focus on sketch, voice, and apply"
+                                title="Hide advanced panels and focus on sketch, voice, generated output, and corrections"
                             >
-                                Focus Pad
+                                Workbench
                             </button>
                             <button
                                 class="segment"
@@ -133,6 +133,15 @@
                                 Advanced
                             </button>
                         </div>
+                        <button
+                            id="workbench-tray-toggle"
+                            class="ghost-button designer-focus-toggle"
+                            type="button"
+                            aria-pressed="false"
+                            title="Collapse the workbench tray so the canvas becomes the primary surface"
+                        >
+                            Hide tray
+                        </button>
                     </div>
                     <div class="toolbar-main">
                         <div class="toolbar-group" data-view-scope="frame">
@@ -266,12 +275,13 @@
 
                 <section id="focus-pad" class="panel focus-pad">
                     <div class="focus-pad-copy">
-                        <p class="eyebrow">Talk + draw</p>
-                        <h2>Sketch the change. Say what you mean. Apply once.</h2>
+                        <p class="eyebrow">Codex Workbench</p>
+                        <h2>Draw the idea. Say the intent. Shape the output.</h2>
                         <p class="helper-text">
-                            Focus Pad keeps only the raw collaboration loop:
-                            simple marks, voice context, one checkpoint, and a
-                            preview target Codex can use.
+                            One designer-facing surface for rough sketching,
+                            dictation, generated screens, image directions,
+                            book spreads, and UI/UX edits without opening
+                            another app.
                         </p>
                     </div>
                     <div class="focus-pad-actions">
@@ -280,7 +290,7 @@
                                 Surface
                                 <select
                                     id="focus-viewport-select"
-                                    aria-label="Focus Pad surface"
+                                aria-label="Workbench surface"
                                 ></select>
                             </label>
                             <div class="focus-frame-meta">
@@ -291,7 +301,7 @@
                         <div
                             id="focus-tool-buttons"
                             class="focus-tool-grid"
-                            aria-label="Focus Pad tools"
+                            aria-label="Workbench tools"
                         >
                             <button
                                 class="tool-chip active"
@@ -332,8 +342,14 @@
                             <button id="focus-free-canvas" class="ghost-button">
                                 Free canvas
                             </button>
+                            <button id="focus-undo" class="ghost-button">
+                                Undo
+                            </button>
+                            <button id="focus-redo" class="ghost-button">
+                                Redo
+                            </button>
                             <button id="focus-generate" class="ghost-button">
-                                Make screen
+                                Make real
                             </button>
                             <button id="focus-voice-toggle" class="ghost-button">
                                 Start talking
@@ -343,6 +359,58 @@
                             </button>
                             <button id="focus-preview" class="ghost-button">
                                 Preview
+                            </button>
+                        </div>
+                    </div>
+                    <div
+                        id="workbench-output-card"
+                        class="workbench-output-card"
+                        aria-live="polite"
+                    >
+                        <div class="workbench-output-head">
+                            <div>
+                                <p class="eyebrow">Generated surface</p>
+                                <h3>Codex output</h3>
+                            </div>
+                            <span
+                                id="workbench-output-badge"
+                                class="workbench-output-badge"
+                                >No output</span
+                            >
+                        </div>
+                        <div
+                            id="workbench-output-surface"
+                            class="workbench-output-surface empty-state"
+                        >
+                            Draw a rough layout, add spoken context, then press
+                            <strong>Make real</strong>. The generated surface
+                            appears here so you can keep sketching corrections
+                            beside it.
+                        </div>
+                        <div class="workbench-output-footer">
+                            <p
+                                id="workbench-output-meta"
+                                class="helper-text"
+                            >
+                                Local-first: Codex can use the sketch, voice,
+                                and preview without a required image API key.
+                            </p>
+                            <a
+                                id="workbench-open-output"
+                                class="ghost-link-button"
+                                href="#"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                hidden
+                                >Open output</a
+                            >
+                            <button
+                                id="workbench-clear-marks"
+                                class="ghost-button compact"
+                                type="button"
+                                hidden
+                            >
+                                Clear marks
                             </button>
                         </div>
                     </div>
@@ -372,6 +440,94 @@
                         </button>
                     </div>
                 </section>
+
+                <nav
+                    id="workbench-rail"
+                    class="workbench-rail"
+                    aria-label="Designer quick actions"
+                >
+                    <button
+                        class="rail-button"
+                        data-rail-tool="select"
+                        type="button"
+                        title="Select, move, or resize"
+                    >
+                        Select
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-tool="pen"
+                        type="button"
+                        title="Draw freehand"
+                    >
+                        Pen
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-tool="rect"
+                        type="button"
+                        title="Draw a rectangle"
+                    >
+                        Rect
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-tool="arrow"
+                        type="button"
+                        title="Draw an arrow"
+                    >
+                        Arrow
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-tool="erase"
+                        type="button"
+                        title="Erase strokes"
+                    >
+                        Erase
+                    </button>
+                    <span class="rail-divider" aria-hidden="true"></span>
+                    <button
+                        class="rail-button"
+                        data-rail-action="undo"
+                        type="button"
+                        title="Undo: Cmd/Ctrl+Z"
+                    >
+                        Undo
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-action="redo"
+                        type="button"
+                        title="Redo: Shift+Cmd/Ctrl+Z or Cmd/Ctrl+Y"
+                    >
+                        Redo
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-action="voice"
+                        type="button"
+                        title="Start or stop dictation"
+                    >
+                        Talk
+                    </button>
+                    <button
+                        class="rail-button rail-button-strong"
+                        data-rail-action="generate"
+                        type="button"
+                        title="Make the current sketch real"
+                    >
+                        Make
+                    </button>
+                    <button
+                        class="rail-button rail-button-strong"
+                        data-rail-action="apply"
+                        type="button"
+                        title="Apply sketch and voice context to Codex"
+                    >
+                        Apply
+                    </button>
+                </nav>
 
                 <section class="panel stage-panel">
                     <div class="stage-header">
@@ -1055,6 +1211,14 @@
                             ><span>duplicate</span></span
                         >
                         <span class="shortcut-chip"
+                            ><kbd>Cmd/Ctrl</kbd><kbd>Z</kbd
+                            ><span>undo</span></span
+                        >
+                        <span class="shortcut-chip"
+                            ><kbd>Shift</kbd><kbd>Cmd/Ctrl</kbd><kbd>Z</kbd
+                            ><span>redo</span></span
+                        >
+                        <span class="shortcut-chip"
                             ><kbd>Cmd/Ctrl</kbd><kbd>]</kbd
                             ><span>bring front</span></span
                         >
@@ -1069,7 +1233,7 @@
                 </div>
                 <div class="help-grid">
                     <section class="help-card">
-                        <h3>Focus Pad</h3>
+                        <h3>Workbench</h3>
                         <ul class="help-list">
                             <li>
                                 Use <strong>Surface</strong> to choose desktop,
@@ -1082,8 +1246,24 @@
                                 creates a connected continuation frame.
                             </li>
                             <li>
-                                <strong>Make screen</strong> turns the current
-                                sketch into a local generated preview.
+                                <strong>Make real</strong> turns the current
+                                sketch into a local generated surface.
+                            </li>
+                            <li>
+                                <strong>Hide tray</strong> switches into
+                                designer focus so the canvas becomes the main
+                                surface. Use <strong>Show tray</strong> to
+                                bring the controls back.
+                            </li>
+                            <li>
+                                The floating designer rail keeps Select, Pen,
+                                Rect, Arrow, Erase, Undo, Redo, Talk, Make, and
+                                Apply available even when the tray is hidden.
+                            </li>
+                            <li>
+                                Draw over the generated surface to save visual
+                                correction marks that Codex can read with the
+                                frame.
                             </li>
                             <li>
                                 <strong>Apply to Codex</strong> saves one clear

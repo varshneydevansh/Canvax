@@ -40,7 +40,7 @@ flowchart LR
 Status: In progress
 
 - [x] Generic canvas direction instead of hero-section-specific framing
-- [x] Focus Pad simple mode for sketch + voice + apply without advanced panels
+- [x] Workbench simple mode for sketch + voice + generated-output correction marks without advanced panels
 - [x] Frame view and Flow view both exist
 - [x] Core drawing tools, labels, grouping, flow links, captures, help
 - [x] Separate preview button in the main board
@@ -186,7 +186,7 @@ These are now follow-on tasks, not blockers for the current repo-level prototype
 5. Use `docs/STITCH_GAP_ROADMAP.md` as the current product gap list for Stitch-style UX, Codex-built screens, image assets, prototype play, infinite canvas, and `DESIGN.md` work.
 6. Use `docs/CODEX_BROWSER_WORKFLOW.md` as the preferred operator path for testing Canvax inside Codex Browser Use / Atlas before building native embedding.
 7. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
-8. Treat the current Focus Pad as the working baseline, but move the next default experience toward the Workbench direction in `canvax-stitch-like-workbench-plan.md`.
+8. Treat Workbench as the working baseline: sketch, voice/manual notes, generated output, visual correction marks, and a floating designer rail before opening Advanced mode.
 9. Keep the core Canvax workflow local-first and Codex-first. Image generation should be exposed as host capability or optional adapter, not as a required API-key path.
 
 ```mermaid
@@ -214,7 +214,9 @@ This checkpoint captures the current local prototype before the deeper designer-
 current baseline
   + local Codex companion server
   + Codex Browser / Atlas first workflow
-  + Focus Pad simple mode
+  + Workbench simple mode
+  + floating designer rail
+  + generated-output correction marks
   + Advanced board and inspector
   + voice/manual dictation bridge
   + transcript forwarding bridge
@@ -265,4 +267,4 @@ Advanced mode remains valuable for manifests, captures, frame/flow diagnostics, 
 - Today the preview is no longer only export-driven, preview targets can persist through the manifest with richer artifact/change metadata, HTML preview artifacts can auto-resolve as generated targets, Codex-written output manifests can bind preview targets automatically, the preview has frame-aware compare modes for generated files, compare checkpoints can now be saved into the workspace, a first deterministic Materialize loop can now generate a styled local preview artifact from the active frame, board-side voice notes now flow into the live JSON export, prompt markdown, and a dedicated `exports/canvax-voice-latest.md` handoff file, Canvax now writes durable handoff checkpoints plus a checkpoint-oriented session event log, the board can auto-publish current workspace changes back into the Codex output manifest, the Codex workflow now has a matching `write-codex-output --from-git-status` helper for automatic manifest publishing after implementation work, preview-state polling overlays a transient live workspace-follow manifest from current git status, and board/Preview now keep a live output-activity feed keyed from a stable output digest that can be rebuilt from recent session events after refresh.
 - The current Materialize loop is intentionally local and deterministic. It now reuses a stable per-frame artifact path, silently refreshes existing materialized targets after freeze/autosnap, exposes refinement summaries plus changed-region metadata, lets Preview draw those changed regions directly over both the sketch and the generated output, forces same-target preview reloads when connected implementation context changes, surfaces frame-level stale/synced/materialized badges in both the board and Preview so long flows are easier to read, and writes an explicit rewrite queue into the live handoff/checkpoint state so Codex can see which frames need attention next. Browser self-test coverage includes a synthetic large-session fixture, the Preview window now has its own self-test path, and the regression scripts validate live `/api/preview-state` payload structure. There is now an explicit transport contract covering current local companion mode versus a future App Server client, plus upstream/demo docs that explain the migration path. There is still an experimental headless browser harness for the board and Preview, but it times out on this host often enough that strict browser validation is not marked complete yet. The richer “Codex rewrites the generated surface live while you keep sketching” loop is still the next layer, not the current state.
 - The preferred manual validation path is now Codex Browser Use / Atlas rather than a separate external browser: start `./canvax`, invoke `/canvax` to open `http://localhost:3210` in the in-app browser, open Preview, inspect generated routes, and publish output context back through the Codex output manifest. External browser use is explicit through `./canvax --open-external` or `./canvax --chrome`.
-- Focus Pad now surfaces the core choices that were previously too hidden: viewport/surface selection, new frame creation, connected section creation, free-canvas mode, and local screen generation. This is still not a true AI-native infinite canvas. It still cannot directly consume raw Codex chat microphone audio from the local web board, but Codex can now forward submitted chat transcripts through the local transcript bridge.
+- Workbench now surfaces the core choices that were previously too hidden: viewport/surface selection, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and a floating designer rail. This is still not a true AI-native infinite canvas. It still cannot directly consume raw Codex chat microphone audio from the local web board, but Codex can now forward submitted chat transcripts through the local transcript bridge.
