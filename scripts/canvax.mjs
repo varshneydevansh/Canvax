@@ -532,6 +532,9 @@ async function serveStatic(pathname, response) {
     response.writeHead(200, {
       "Content-Type":
         mimeTypes[extname(filePath)] || "application/octet-stream",
+      "Cache-Control": "no-store, max-age=0, must-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
     });
     response.end(body);
   } catch {

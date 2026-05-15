@@ -1,6 +1,7 @@
 const STORAGE_KEY = "canvax-studio-v1";
 const STORAGE_VERSION = 3;
 const HANDOFF_SCHEMA_VERSION = 1;
+const FRAME_RENDERER_VERSION = 4;
 const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
 const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
 const TRANSPORT_MODE = "local-companion";
@@ -10,6 +11,7 @@ const AUTO_CAPTURE_DELAY = 2000;
 const LIVE_PREVIEW_DEBOUNCE = 160;
 const MANIFEST_POLL_INTERVAL = 2500;
 const MAX_OUTPUT_ACTIVITY_ITEMS = 8;
+const ERASER_COLOR = "rgba(0, 0, 0, 0)";
 const FLOW_CARD_WIDTH = 256;
 const FLOW_CARD_HEIGHT = 180;
 const FLOW_SURFACE_PADDING = 120;
@@ -1222,6 +1224,8 @@ function normalizeOutputAnnotation(annotation, index = 0) {
   if (!points.length) {
     return null;
   }
+  const composite =
+    annotation.composite === "destination-out" ? "destination-out" : "source-over";
 
   return {
     id:
@@ -1230,17 +1234,17 @@ function normalizeOutputAnnotation(annotation, index = 0) {
         : `output-mark-${index + 1}`,
     type: "path",
     points,
-    color: normalizeColor(annotation.color, palette[0]),
+    color:
+      composite === "destination-out"
+        ? ERASER_COLOR
+        : normalizeColor(annotation.color, palette[0]),
     size: Number.isFinite(annotation.size)
       ? Math.max(1, Math.min(48, annotation.size))
       : 8,
     alpha: Number.isFinite(annotation.alpha)
       ? Math.max(0.05, Math.min(1, annotation.alpha))
       : 1,
-    composite:
-      annotation.composite === "destination-out"
-        ? "destination-out"
-        : "source-over",
+    composite,
     targetId:
       typeof annotation.targetId === "string" ? annotation.targetId.trim() : "",
     targetLabel:
@@ -1285,7 +1289,13 @@ function normalizeFrame(frame, index) {
     mobile: frame.mobile || "",
     backgroundImage: frame.backgroundImage || "",
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
-    elements: Array.isArray(frame.elements) ? frame.elements : [],
+    elements: Array.isArray(frame.elements)
+      ? frame.elements
+          .map((element, elementIndex) =>
+            normalizeFrameElement(element, elementIndex),
+          )
+          .filter(Boolean)
+      : [],
     outputAnnotations: Array.isArray(frame.outputAnnotations)
       ? frame.outputAnnotations
           .map((annotation, annotationIndex) =>
@@ -1299,6 +1309,28 @@ function normalizeFrame(frame, index) {
       : [],
     createdAt: frame.createdAt || new Date().toISOString(),
     updatedAt: frame.updatedAt || new Date().toISOString(),
+  };
+}
+
+function normalizeFrameElement(element, index = 0) {
+  if (!element || typeof element !== "object" || Array.isArray(element)) {
+    return null;
+  }
+  const composite =
+    element.composite === "destination-out" ? "destination-out" : "source-over";
+  return {
+    ...element,
+    id:
+      typeof element.id === "string" && element.id.trim()
+        ? element.id.trim()
+        : `element-${index + 1}`,
+    color:
+      composite === "destination-out"
+        ? ERASER_COLOR
+        : typeof element.color === "string" && element.color.trim()
+          ? element.color.trim()
+          : palette[0],
+    composite,
   };
 }
 
@@ -1866,7 +1898,7 @@ function onWorkbenchOutputPointerDown(event) {
     id: uid("output-mark"),
     type: "path",
     points: [point],
-    color: state.tool === "erase" ? "#000000" : normalizeColor(state.color),
+    color: state.tool === "erase" ? ERASER_COLOR : normalizeColor(state.color),
     size: state.size,
     alpha: state.tool === "marker" ? 0.42 : 1,
     composite: state.tool === "erase" ? "destination-out" : "source-over",
@@ -3940,6 +3972,9 @@ function hitSelectionHandleFromBounds(bounds, point) {
 function hitTestElement(frame, point) {
   for (let index = frame.elements.length - 1; index >= 0; index -= 1) {
     const element = frame.elements[index];
+    if (isEraserElement(element)) {
+      continue;
+    }
     if (isPointNearElement(element, point)) {
       return element;
     }
@@ -4322,7 +4357,7 @@ function onPointerDown(event) {
       id: uid("stroke"),
       type: "path",
       points: [point],
-      color: state.tool === "erase" ? "#000000" : state.color,
+      color: state.tool === "erase" ? ERASER_COLOR : state.color,
       size: state.size,
       alpha: state.tool === "marker" ? 0.42 : 1,
       composite: state.tool === "erase" ? "destination-out" : "source-over",
@@ -6453,7 +6488,10 @@ function currentFrameById(frameId) {
 function buildFrameComposition(frame) {
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const elements = (frame.elements || [])
-    .map((element, index) => summarizeCompositionElement(element, frame, viewport, index))
+    .filter((element) => !isEraserElement(element))
+    .map((element, index) =>
+      summarizeCompositionElement(element, frame, viewport, index),
+    )
     .filter(Boolean);
   return {
     viewport: {
@@ -6887,6 +6925,9 @@ function buildMaterializeElement(element, frame = currentFrame()) {
   if (!element || typeof element !== "object") {
     return null;
   }
+  if (isEraserElement(element)) {
+    return null;
+  }
 
   const base = {
     id: element.id || uid("element"),
@@ -7031,9 +7072,11 @@ function shouldRenderLiveFrameThumbnail(frame) {
 }
 
 function frameHasEraserStroke(frame) {
-  return (frame.elements || []).some(
-    (element) => element?.composite === "destination-out",
-  );
+  return (frame.elements || []).some((element) => isEraserElement(element));
+}
+
+function isEraserElement(element) {
+  return element?.composite === "destination-out";
 }
 
 function buildFrameRenderCacheKey(
@@ -7041,7 +7084,9 @@ function buildFrameRenderCacheKey(
   { maxWidth, mime = "image/png", quality = 0.92 } = {},
 ) {
   return [
+    FRAME_RENDERER_VERSION,
     frame.viewport,
+    state.grid ? "grid" : "nogrid",
     maxWidth || "full",
     mime,
     Number(quality).toFixed(2),
@@ -7050,9 +7095,28 @@ function buildFrameRenderCacheKey(
 
 function buildFrameRenderCacheToken(frame) {
   return [
+    FRAME_RENDERER_VERSION,
     frame.updatedAt || "",
     frame.backgroundImage || "",
     Array.isArray(frame.elements) ? frame.elements.length : 0,
+    Array.isArray(frame.elements)
+      ? frame.elements
+          .map((element) =>
+            [
+              element.id || "",
+              element.type || "",
+              element.composite || "",
+              element.color || "",
+              element.size || "",
+              element.points?.length || "",
+              element.start?.x || "",
+              element.start?.y || "",
+              element.end?.x || "",
+              element.end?.y || "",
+            ].join(":"),
+          )
+          .join(",")
+      : "",
     Array.isArray(frame.captures) ? frame.captures.length : 0,
     frame.thumbnail || "",
   ].join("|");
@@ -8284,6 +8348,14 @@ function exposeDebugHelpers() {
 
 async function runSelfTest() {
   const results = [];
+  const originalSnapshot = structuredClone(buildPersistedSnapshot(state));
+  const originalRuntime = {
+    serverStatus: structuredClone(state.serverStatus),
+    selectedConnectionId: state.selectedConnectionId,
+    pendingConnectionFromFrameId: state.pendingConnectionFromFrameId,
+    selectedElementIds: [...state.selectedElementIds],
+    selectedElementId: state.selectedElementId,
+  };
   const startedFrameCount = state.frames.length;
 
   try {
@@ -8379,10 +8451,14 @@ async function runSelfTest() {
       ellipseAfterMove?.id || null,
     );
     renderCanvas();
+    const ellipseResizeBounds = getElementBounds(ellipseAfterMove) || {
+      right: ellipseAfterMove.end.x,
+      bottom: ellipseAfterMove.end.y,
+    };
     await drawWithTool(
       "select",
-      [ellipseAfterMove.end.x, ellipseAfterMove.end.y],
-      [ellipseAfterMove.end.x + 64, ellipseAfterMove.end.y + 48],
+      [ellipseResizeBounds.right, ellipseResizeBounds.bottom],
+      [ellipseResizeBounds.right + 64, ellipseResizeBounds.bottom + 48],
     );
     const ellipseAfterResize = findElementByType("ellipse");
     results.push(
@@ -8407,6 +8483,8 @@ async function runSelfTest() {
         "eraser creates erase stroke",
       ),
     );
+    results.push(assertEraserPreservesPaperLayer());
+    results.push(assertWorkbenchRailSizeControls());
 
     const beforeUndo = currentFrame().elements.length;
     undoFrame();
@@ -8469,6 +8547,33 @@ async function runSelfTest() {
       assert(
         exportPackage.transport?.mode === TRANSPORT_MODE,
         "export package includes transport metadata",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.taskPack?.kind === "canvax-task-pack",
+        "export package includes Codex task pack",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.imagePromptPack?.kind === "canvax-image-prompt-pack" &&
+          exportPackage.imagePromptPack.requiresOpenAiApiKey === false,
+        "export package includes no-API image prompt pack",
+      ),
+    );
+    const eraserId = currentFrame().elements.find((element) =>
+      isEraserElement(element),
+    )?.id;
+    const imagePromptCompositionIds = new Set(
+      (exportPackage.imagePromptPack?.frames || []).flatMap((frame) =>
+        (frame.composition?.elements || []).map((element) => element.id),
+      ),
+    );
+    results.push(
+      assert(
+        !eraserId || !imagePromptCompositionIds.has(eraserId),
+        "image prompt pack excludes eraser strokes",
       ),
     );
     const checkpointPayload = buildCheckpointPayload("manual-push", {
@@ -8666,9 +8771,131 @@ async function runSelfTest() {
       detail:
         error instanceof Error ? error.message : "Unknown self-test error",
     });
+  } finally {
+    restoreStateAfterSelfTest(originalSnapshot, originalRuntime);
   }
 
   renderSelfTestResults(results);
+}
+
+function restoreStateAfterSelfTest(snapshot, runtime) {
+  state.board = structuredClone(snapshot.board);
+  state.frames = structuredClone(snapshot.frames);
+  state.voice = structuredClone(snapshot.voice);
+  state.viewMode = snapshot.viewMode;
+  state.workspaceMode = snapshot.workspaceMode;
+  state.workbenchTrayCollapsed = Boolean(snapshot.workbenchTrayCollapsed);
+  state.connections = structuredClone(snapshot.connections);
+  state.entryFrameId = snapshot.entryFrameId;
+  state.activeFrameId = snapshot.activeFrameId;
+  state.tool = snapshot.tool;
+  state.color = snapshot.color;
+  state.size = snapshot.size;
+  state.grid = snapshot.grid;
+  state.autoSnap = snapshot.autoSnap;
+  state.zoom = snapshot.zoom;
+  state.saveNotice = snapshot.saveNotice;
+  state.statusText = snapshot.statusText;
+  state.serverStatus = structuredClone(runtime.serverStatus);
+  state.selectedConnectionId = runtime.selectedConnectionId;
+  state.pendingConnectionFromFrameId = runtime.pendingConnectionFromFrameId;
+  state.selectedElementIds = [...runtime.selectedElementIds];
+  state.selectedElementId = runtime.selectedElementId;
+  state.outputAnnotationDraft = null;
+  state.draftElement = null;
+  state.isDrawing = false;
+  state.flowDrag = null;
+  state.flowConnectionDraft = null;
+  state.hoverElementId = null;
+  state.elementTransform = null;
+  state.labelDraft = null;
+  pruneFrameRenderCache(state.frames);
+  persistState();
+  renderAll();
+}
+
+function assertEraserPreservesPaperLayer() {
+  const previousGrid = state.grid;
+  const previousSelection = selectionIds();
+  const previousSelectedElementId = state.selectedElementId;
+  const samplePoint = { x: 216, y: 216 };
+  const eraserFrame = createFrame({
+    title: "Eraser render check",
+    viewport: "desktop",
+    elements: [
+      {
+        id: "selftest-eraser",
+        type: "path",
+        points: [
+          { x: samplePoint.x - 40, y: samplePoint.y - 40 },
+          { x: samplePoint.x, y: samplePoint.y },
+          { x: samplePoint.x + 40, y: samplePoint.y + 40 },
+        ],
+        color: ERASER_COLOR,
+        size: 42,
+        alpha: 1,
+        composite: "destination-out",
+      },
+    ],
+  });
+  const baselineFrame = createFrame({
+    title: "Eraser baseline",
+    viewport: "desktop",
+    elements: [],
+  });
+
+  state.grid = true;
+  clearElementSelection();
+  const baseline = sampleFramePixel(baselineFrame, samplePoint);
+  const actual = sampleFramePixel(eraserFrame, samplePoint);
+  state.grid = previousGrid;
+  setSelectedElements(previousSelection, previousSelectedElementId);
+
+  const distance = colorDistance(baseline, actual);
+  const blackish = actual[0] < 35 && actual[1] < 35 && actual[2] < 35;
+  return assert(
+    actual[3] > 240 && distance < 10 && !blackish,
+    "eraser preserves paper and grid layer",
+    `baseline=${baseline.join(",")} actual=${actual.join(",")}`,
+  );
+}
+
+function sampleFramePixel(frame, point) {
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const context = canvas.getContext("2d");
+  drawScene(context, frame, viewport.width, viewport.height, 1, null);
+  return Array.from(
+    context.getImageData(Math.round(point.x), Math.round(point.y), 1, 1).data,
+  );
+}
+
+function colorDistance(a, b) {
+  return Math.hypot(
+    (a?.[0] || 0) - (b?.[0] || 0),
+    (a?.[1] || 0) - (b?.[1] || 0),
+    (a?.[2] || 0) - (b?.[2] || 0),
+    (a?.[3] || 0) - (b?.[3] || 0),
+  );
+}
+
+function assertWorkbenchRailSizeControls() {
+  const previousSize = state.size;
+  handleWorkbenchRailAction("size-up");
+  const increased = state.size === Math.min(48, previousSize + 2);
+  handleWorkbenchRailAction("size-down");
+  const restored = state.size === previousSize;
+  state.size = previousSize;
+  persistState();
+  renderColors();
+  renderBrushPreview();
+  renderFocusPad();
+  return assert(
+    increased && restored,
+    "Workbench rail brush size controls update state",
+  );
 }
 
 function resetFrameForSelfTest() {

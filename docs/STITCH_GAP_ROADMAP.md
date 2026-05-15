@@ -1,6 +1,6 @@
 # Canvax Stitch Gap Roadmap
 
-Updated: April 28, 2026
+Updated: May 15, 2026
 
 This document compares the current Canvax repo against the Stitch-style design workflow and records what is done, what is missing, and what should improve next.
 
@@ -127,7 +127,10 @@ Canvax today
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
-- The Workbench rail now behaves like a bottom designer dock with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
+- The Workbench rail now behaves like the primary bottom designer dock with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
+- The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it focuses on brief, surface/context, voice, and generated output.
+- Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
+- Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
 
 ### Voice And Intent
 
@@ -163,6 +166,7 @@ Canvax today
 - Live JSON and Markdown exports exist under `exports/`.
 - `canvax-task-pack-latest.*` and `canvax-image-prompt-pack-latest.*` exist for Codex and host-side image generation.
 - The image prompt pack includes normalized coordinates and an HTML/CSS placement scaffold so ChatGPT/image generation can preserve layout intent without Canvax calling an API.
+- Self-test coverage now checks task-pack export, no-API image prompt pack export, Workbench dock brush sizing, and eraser rendering against black-mark/grid-damage regressions.
 - `artifacts/canvax/codex-output.json` is the canonical Codex output manifest.
 - The board can publish current git workspace changes into the output manifest.
 - Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
@@ -323,6 +327,12 @@ Needed:
 
 Syntax checks and regression helpers exist, but browser validation is still not hard enough for a tool that will be used continuously.
 
+Current coverage:
+
+- `npm run check` catches syntax/parser failures.
+- `npm run regression` validates export schema and server payload shape.
+- In-browser self-test covers drawing tools, selection, eraser layer behavior, rail sizing, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
+
 Needed:
 
 - Reliable browser regression on this host.
@@ -335,9 +345,10 @@ Needed:
 
 ### P0: Make Current Baseline Trustworthy
 
-- Fix any runtime bugs in `Generate screen`, `Materialize`, and preview manifest paths.
-- Make button feedback consistent across board and Preview.
-- Finish responsive clipping fixes for compact side panels and dense metadata rows.
+- Keep runtime bugs in `Generate screen`, `Materialize`, and preview manifest paths at zero-regression through self-test and `npm run check`.
+- Keep button feedback consistent across board, Workbench dock, and Preview.
+- Continue responsive clipping fixes for compact side panels and dense metadata rows.
+- Preserve eraser isolation so erase operations never appear as black output geometry or wipe the paper/grid base layer.
 - Make browser regression reliable enough to fail hard in CI.
 - Add service lifecycle diagnostics for stale ports.
 
@@ -402,6 +413,8 @@ flowchart TD
 Concrete next steps:
 
 - Add `Build real screen` beside `Generate screen`.
+- Add explicit action modes for `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`.
+- Add generated image candidate import/placement as first-class board assets.
 - Add a Browser Use / Atlas first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
 - Implement a task artifact under `artifacts/canvax/tasks/` that Codex can read and execute.
 - Extend `write-codex-output.mjs` so Codex can bind generated routes/components to frame ids in one command.

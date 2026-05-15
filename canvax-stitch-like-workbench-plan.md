@@ -47,9 +47,13 @@ Current completed baseline:
 - Workbench is the default simple mode.
 - Generated output can appear beside the sketch.
 - Correction marks over generated output are saved into frame handoff data.
-- The floating rail is now a bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
+- The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
+- The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
 - `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
 - `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
+- Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
+- Static Canvax assets are served with no-store headers to prevent stale browser UI after local service updates.
+- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, flow links, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Still open:
 
@@ -58,6 +62,8 @@ Still open:
 - host capability registry
 - first-class generated image candidate management
 - true infinite spatial canvas
+- direct `Build real screen with Codex` route/code generation and binding
+- native Codex microphone/image-generation host bridge
 
 ## Target UX
 
@@ -165,6 +171,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 1.1: Rename the Default Mode
 
+- **Status**: Shipped. `Workbench` is the default user-facing mode and Advanced remains available.
 - **Location**: `web/index.html`, `web/app.js`, `web/styles.css`, `docs/FEATURES.md`, `docs/USAGE.md`
 - **Description**: Rename user-facing `Focus Pad` to `Workbench`. Keep the internal mode id `simple` if that reduces migration risk.
 - **Complexity**: 2/10
@@ -179,6 +186,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 1.2: Collapse Project Form Into a Brief Card
 
+- **Status**: Shipped in the current Workbench tray. Further visual simplification remains a polish task.
 - **Location**: `web/index.html`, `web/styles.css`
 - **Description**: Replace the large default intro copy with a compact Codex brief card: current ask, latest transcript, selected surface, and one status line.
 - **Complexity**: 4/10
@@ -192,6 +200,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 1.3: Add a Bottom Command Composer
 
+- **Status**: Partially shipped as the bottom designer dock plus manual voice note/Apply controls. A full bottom text composer remains open.
 - **Location**: `web/index.html`, `web/styles.css`, `web/app.js`
 - **Description**: Add a bottom composer with manual dictation input, attach action placeholder, `Make real`, `Apply correction`, and `Preview`.
 - **Complexity**: 5/10
@@ -217,6 +226,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 2.1: Create Workbench Two-Up Surface
 
+- **Status**: Shipped initial version. The current frame stays primary and generated output appears as a sibling Workbench output card.
 - **Location**: `web/index.html`, `web/styles.css`
 - **Description**: In Workbench mode, render the current canvas as a `Sketch` card and reserve a `Generated output` card next to it.
 - **Complexity**: 6/10
@@ -230,6 +240,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 2.2: Mirror Preview Target Into the Output Card
 
+- **Status**: Shipped initial version. The Workbench output card mirrors connected preview/materialized/generated targets.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: When a generated HTML artifact or local preview URL exists, embed it in the Workbench output card using the same preview-state manifest logic.
 - **Complexity**: 7/10
@@ -244,6 +255,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 2.3: Add Sketch-Over-Output Correction Layer
 
+- **Status**: Shipped initial version. Output correction marks are saved as frame-level annotations.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Let the user draw annotation strokes over the output card without mutating the generated artifact. Save these as correction overlays linked to the active frame and output revision.
 - **Complexity**: 8/10
@@ -269,7 +281,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 3.1: Add `canvax-task-pack` Export
 
-- **Status**: Shipped initial version. Needs schema hardening and regression coverage.
+- **Status**: Shipped initial version with regression coverage for presence and no-API host-lane fields. Further schema cleanup remains open.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/ARCHITECTURE.md`
 - **Description**: Write a compact JSON and Markdown task pack containing sketch snapshot, geometry summary, labels, voice/transcript, surface type, output target, and requested action.
 - **Complexity**: 6/10
@@ -283,6 +295,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 3.2: Add Action Modes
 
+- **Status**: Open.
 - **Location**: `web/index.html`, `web/app.js`, `docs/FEATURES.md`
 - **Description**: Add explicit modes: `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, `Create variations`.
 - **Complexity**: 4/10
@@ -296,6 +309,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 3.3: Add `DESIGN.md` Awareness
 
+- **Status**: Open.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/USAGE.md`
 - **Description**: Allow project design rules to be imported/exported as `DESIGN.md`, then included in task packs.
 - **Complexity**: 6/10
@@ -333,6 +347,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 4.2: Add Host Capability Registry
 
+- **Status**: Open. The product rule is documented, but there is not yet a runtime host capability registry.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/ARCHITECTURE.md`
 - **Description**: Track whether the current host can provide Browser Use, image generation, ChatGPT App component embedding, or native transcript events.
 - **Complexity**: 5/10
@@ -346,6 +361,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 4.3: Plan ChatGPT Apps SDK / MCP Bridge
 
+- **Status**: Open documentation task.
 - **Location**: `docs/upstream-proposal.md`, new `docs/CHATGPT_APP_BRIDGE.md`
 - **Description**: Document how Canvax could become a ChatGPT App: MCP server tools for `get_latest_frame`, `create_task_pack`, `attach_generated_asset`, and optional iframe UI.
 - **Complexity**: 4/10
@@ -366,6 +382,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
+- **Status**: Open. `Free canvas` exists as a large viewport preset, not a true pan/zoom infinite workspace.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10
@@ -379,6 +396,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.2: Add Variants Lane
 
+- **Status**: Open.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Let Codex/Canvax create multiple generated directions from one sketch and show them as output cards.
 - **Complexity**: 7/10
@@ -400,6 +418,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 6.1: Responsive Fit Audit
 
+- **Status**: In progress. Current pass improves Workbench dock/tray layout and button feedback; broader Preview/device matrix remains open.
 - **Location**: `web/styles.css`, `web/preview.css`
 - **Description**: Fix overlap/clipping across Workbench, Preview, help, rails, artifact cards, and narrow windows.
 - **Complexity**: 5/10
@@ -413,6 +432,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 6.2: Browser Regression Matrix
 
+- **Status**: Partially shipped through in-browser self-test and regression helpers. Reliable host-level browser automation still needs hardening.
 - **Location**: `scripts/browser-regression.mjs`
 - **Description**: Add deterministic tests for Workbench mode, generated output card, prompt pack export, and host capability states.
 - **Complexity**: 6/10
@@ -466,17 +486,17 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ## Immediate Next Build
 
-The next implementation should be:
+The Workbench baseline has moved past the first Stitch-like shell. The next implementation should be:
 
 ```text
-Sprint 1 + Sprint 2.1
+Sprint 3.2 + Sprint 3.3 + Sprint 4.2
 ```
 
 That means:
 
-- rename Focus Pad to Workbench
-- reduce the top UI into a compact brief card
-- add a bottom command composer
-- reserve a generated output card beside the sketch
+- add explicit action modes: `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`
+- add `DESIGN.md` import/export awareness so Canvax can preserve a project style contract
+- add a host capability registry so the UI can say what the current Codex/ChatGPT host can actually do
+- add first-class generated image candidates after the prompt-pack lane is stable
 
-Do not start with image API integration. The first win is making the live collaboration loop visually obvious and less overwhelming.
+Do not add an API-key requirement. Canvax should keep exporting prompt packs and task packs locally, then let Codex/ChatGPT host capabilities use them when available.

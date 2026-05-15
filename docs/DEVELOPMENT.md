@@ -94,6 +94,8 @@ In-browser self-test:
 http://localhost:3210/?selftest=1
 ```
 
+The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, and large-session export consistency.
+
 Useful service commands:
 
 ```bash

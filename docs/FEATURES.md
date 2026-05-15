@@ -172,6 +172,7 @@ Behavior:
 - shows the connected generated output inside the Workbench tray when one exists
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
+- treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
 - `Hide tray` collapses the context tray so the canvas becomes the primary design surface
 - `Apply to Codex` freezes the frame, writes the live export, and saves a Workbench checkpoint
 - `Preview` remains available without exposing the rest of Advanced mode

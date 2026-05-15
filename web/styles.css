@@ -803,6 +803,9 @@ body:not([data-workspace-mode="simple"]) .designer-focus-toggle {
 }
 
 body[data-workspace-mode="simple"] .focus-pad {
+    grid-template-columns: minmax(18rem, 0.72fr) minmax(26rem, 1.28fr);
+    align-items: stretch;
+    gap: 0.85rem;
     background:
         linear-gradient(135deg, rgba(255, 93, 58, 0.14), transparent 28%),
         linear-gradient(225deg, rgba(35, 100, 170, 0.16), transparent 34%),
@@ -831,10 +834,20 @@ body[data-workspace-mode="simple"] .focus-pad-copy .helper-text {
     color: rgba(255, 248, 236, 0.72);
 }
 
+body[data-workspace-mode="simple"] .focus-pad-copy {
+    display: grid;
+    align-content: start;
+}
+
 .focus-pad-actions {
     display: grid;
     align-content: start;
     gap: 0.8rem;
+}
+
+body[data-workspace-mode="simple"] .focus-pad-actions {
+    grid-column: 1;
+    gap: 0.65rem;
 }
 
 .focus-pad-context {
@@ -892,6 +905,10 @@ body[data-workspace-mode="simple"] .focus-pad-voice .helper-text {
     gap: 0.55rem;
 }
 
+body[data-workspace-mode="simple"] .focus-tool-grid {
+    display: none;
+}
+
 .focus-tool-grid .tool-chip {
     min-height: 3.2rem;
     border-radius: 1.05rem;
@@ -912,6 +929,16 @@ body[data-workspace-mode="simple"] .focus-pad-voice .helper-text {
     border-radius: var(--radius-md);
     border: 0.0625rem solid rgba(24, 17, 14, 0.08);
     background: rgba(255, 252, 247, 0.76);
+}
+
+body[data-workspace-mode="simple"] .focus-pad-voice {
+    grid-column: 1 / -1;
+}
+
+body[data-workspace-mode="simple"] .workbench-output-card {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    min-height: clamp(19rem, 34vh, 30rem);
 }
 
 .workbench-output-card {
@@ -1121,6 +1148,12 @@ body[data-workspace-mode="simple"] .workbench-rail {
     font-size: 0.7rem;
     font-weight: 800;
     letter-spacing: -0.02em;
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        border-color 120ms ease,
+        background 120ms ease,
+        color 120ms ease;
 }
 
 .rail-button:hover {
@@ -1134,6 +1167,9 @@ body[data-workspace-mode="simple"] .workbench-rail {
     color: #fff8ec;
     border-color: rgba(255, 93, 58, 0.4);
     background: rgba(255, 93, 58, 0.78);
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.14),
+        0 0.55rem 1.15rem rgba(255, 93, 58, 0.2);
 }
 
 .rail-button-strong:hover {
@@ -1165,11 +1201,28 @@ body[data-workspace-mode="simple"] .workbench-rail {
     background: rgba(255, 248, 236, 0.08);
     font-size: 1rem;
     font-weight: 900;
+    transition:
+        transform 120ms ease,
+        box-shadow 120ms ease,
+        border-color 120ms ease,
+        background 120ms ease;
 }
 
 .rail-size-button:hover {
     background: rgba(255, 93, 58, 0.7);
     border-color: rgba(255, 93, 58, 0.42);
+}
+
+.rail-button:active,
+.rail-size-button:active,
+.rail-button.ux-press,
+.rail-size-button.ux-press,
+.rail-button.ux-flash,
+.rail-size-button.ux-flash {
+    transform: translateY(0.0625rem) scale(0.94);
+    box-shadow:
+        inset 0 0 0 0.1rem rgba(255, 248, 236, 0.18),
+        0 0 0 0.22rem rgba(255, 93, 58, 0.18);
 }
 
 .rail-size-value {
@@ -2281,6 +2334,13 @@ select,
     body[data-workspace-mode="simple"] .stage-panel {
         margin-right: 0;
         margin-bottom: 4.8rem;
+    }
+
+    body[data-workspace-mode="simple"] .workbench-output-card,
+    body[data-workspace-mode="simple"] .focus-pad-actions,
+    body[data-workspace-mode="simple"] .focus-pad-voice {
+        grid-column: 1;
+        grid-row: auto;
     }
 
     .workbench-rail {
