@@ -558,7 +558,7 @@ function bindEvents() {
   });
 
   dom.sizeRange.addEventListener("input", () => {
-    updateBrushSize(Number(dom.sizeRange.value));
+    setActiveSize(Number(dom.sizeRange.value));
   });
 
   dom.gridToggle.addEventListener("change", () => {
@@ -1519,12 +1519,14 @@ function setSelectedElements(ids, primaryId = ids.at(-1) || null) {
     primaryId && uniqueIds.includes(primaryId)
       ? primaryId
       : uniqueIds.at(-1) || null;
+  renderSizeControl();
 }
 
 function clearElementSelection() {
   state.selectedElementIds = [];
   state.selectedElementId = null;
   state.hoverElementId = null;
+  renderSizeControl();
 }
 
 function selectionIds() {
@@ -1668,11 +1670,11 @@ function toggleWorkbenchTray() {
 
 function handleWorkbenchRailAction(action) {
   if (action === "size-down") {
-    updateBrushSize(state.size - 2);
+    adjustActiveSize(-2);
     return;
   }
   if (action === "size-up") {
-    updateBrushSize(state.size + 2);
+    adjustActiveSize(2);
     return;
   }
   if (action === "undo") {
@@ -1711,6 +1713,83 @@ function updateBrushSize(nextSize) {
   renderBrushPreview();
   renderFocusPad();
   renderStatus(`Brush size ${state.size}px`);
+}
+
+function setActiveSize(nextSize) {
+  if (state.tool === "select" && selectionIds().length) {
+    setSelectedStrokeSize(nextSize);
+    return;
+  }
+  updateBrushSize(nextSize);
+}
+
+function adjustActiveSize(delta) {
+  if (state.tool === "select" && selectionIds().length) {
+    resizeSelectedStroke(delta);
+    return;
+  }
+  updateBrushSize(state.size + delta);
+}
+
+function resizeSelectedStroke(delta) {
+  const selected = currentSelectedElements(currentFrame());
+  const current =
+    selected.length === 1
+      ? Number(selected[0].size) || state.size
+      : currentSizeControlState().value;
+  setSelectedStrokeSize(current + delta);
+}
+
+function setSelectedStrokeSize(nextSize) {
+  const frame = currentFrame();
+  const selected = currentSelectedElements(frame);
+  if (!selected.length) {
+    updateBrushSize(nextSize);
+    return;
+  }
+
+  pushHistory(frame.id);
+  selected.forEach((element) => {
+    const minSize = element.type === "label" ? 8 : 1;
+    const maxSize = element.type === "label" ? 96 : 96;
+    element.size = Math.max(minSize, Math.min(maxSize, Math.round(nextSize)));
+    syncAttachedLabels(frame, element.id);
+  });
+  touchFrame(frame, {
+    capture: true,
+    status:
+      selected.length === 1
+        ? "Selected element size updated"
+        : "Selected element sizes updated",
+  });
+}
+
+function currentSizeControlState() {
+  if (state.tool === "select") {
+    const selected = currentSelectedElements(currentFrame());
+    if (selected.length) {
+      const sizes = selected.map((element) =>
+        Number(element.size) || (element.type === "label" ? 18 : state.size),
+      );
+      const average = Math.round(
+        sizes.reduce((total, size) => total + size, 0) / sizes.length,
+      );
+      const mixed = sizes.some((size) => size !== sizes[0]);
+      return {
+        mode: "selection",
+        value: average,
+        label: mixed ? `Selection ${average} px avg` : `Selection ${average} px`,
+        railLabel: mixed ? `${average}*` : String(average),
+      };
+    }
+  }
+
+  return {
+    mode: "brush",
+    value: state.size,
+    label: `${state.size} px`,
+    railLabel: String(state.size),
+  };
 }
 
 function setWorkspaceMode(mode) {
@@ -2248,10 +2327,22 @@ function renderColors() {
   dom.customColorPicker.value = normalizeColor(state.color);
   dom.colorHex.value = normalizeColor(state.color);
   delete dom.colorHex.dataset.invalid;
-  dom.sizeRange.value = String(state.size);
-  dom.sizeValue.textContent = `${state.size} px`;
-  dom.railSizeValue.textContent = String(state.size);
+  renderSizeControl();
   renderBrushSizeChip();
+}
+
+function renderSizeControl() {
+  if (!dom.sizeRange || !dom.sizeValue || !dom.railSizeValue) {
+    return;
+  }
+  const sizeControl = currentSizeControlState();
+  dom.sizeRange.value = String(clamp(sizeControl.value, 4, 48));
+  dom.sizeValue.textContent = sizeControl.label;
+  dom.railSizeValue.textContent = sizeControl.railLabel;
+  dom.railSizeValue.title =
+    sizeControl.mode === "selection"
+      ? "Selected element size"
+      : "Current brush size";
 }
 
 function renderFrameList() {
@@ -9205,18 +9296,45 @@ function colorDistance(a, b) {
 
 function assertWorkbenchRailSizeControls() {
   const previousSize = state.size;
+  const previousTool = state.tool;
+  const previousSelection = [...state.selectedElementIds];
+  const previousSelectedElementId = state.selectedElementId;
+  const frame = currentFrame();
+  const previousElements = structuredClone(frame.elements);
+
   handleWorkbenchRailAction("size-up");
   const increased = state.size === Math.min(48, previousSize + 2);
   handleWorkbenchRailAction("size-down");
   const restored = state.size === previousSize;
+
+  const selectedElement = {
+    id: "selftest-size-selection",
+    type: "rect",
+    start: { x: 40, y: 40 },
+    end: { x: 120, y: 120 },
+    color: palette[0],
+    size: 10,
+    alpha: 1,
+    composite: "source-over",
+  };
+  frame.elements = [selectedElement];
+  state.tool = "select";
+  setSelectedElements([selectedElement.id], selectedElement.id);
+  handleWorkbenchRailAction("size-up");
+  const selectedIncreased = frame.elements[0]?.size === 12;
+  const globalUnchanged = state.size === previousSize;
+
+  frame.elements = previousElements;
+  state.tool = previousTool;
+  setSelectedElements(previousSelection, previousSelectedElementId);
   state.size = previousSize;
   persistState();
   renderColors();
   renderBrushPreview();
   renderFocusPad();
   return assert(
-    increased && restored,
-    "Workbench rail brush size controls update state",
+    increased && restored && selectedIncreased && globalUnchanged,
+    "Workbench rail size controls update brush or selected element",
   );
 }
 
@@ -9556,8 +9674,12 @@ function assert(condition, name, detail = "") {
 }
 
 function renderSelfTestResults(results) {
+  document.querySelector("#selftest-results")?.remove();
   const pre = document.createElement("pre");
   pre.id = "selftest-results";
+  pre.hidden = true;
+  pre.setAttribute("aria-hidden", "true");
+  pre.style.display = "none";
   pre.textContent = JSON.stringify(results, null, 2);
   document.body.appendChild(pre);
   document.body.dataset.selftestPassed = String(

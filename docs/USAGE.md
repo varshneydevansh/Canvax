@@ -85,6 +85,7 @@ It hides advanced panels and keeps only:
 - generated output beside the sketch when a preview target exists
 - correction marks drawn directly over generated output
 - a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Make`, `Image`, and `Apply`
+- context-sensitive size controls: `-` / `+` resize selected elements in Select mode and otherwise update the current brush/eraser size
 - eraser behavior that only removes drawn ink, not the paper/grid base, and does not export as black prompt/materialize geometry
 - `Hide tray` / `Show tray` for canvas-first designer focus
 - `Apply to Codex`
