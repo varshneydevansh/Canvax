@@ -36,6 +36,11 @@ const serverLogPath = resolve(runtimeRoot, "server.log");
 const liveJsonPath = resolve(exportsRoot, "canvax-live-latest.json");
 const liveMarkdownPath = resolve(exportsRoot, "canvax-live-latest.md");
 const liveVoiceMarkdownPath = resolve(exportsRoot, "canvax-voice-latest.md");
+const transcriptBridgePath = resolve(exportsRoot, "canvax-transcript-bridge.json");
+const transcriptBridgeMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-transcript-bridge-latest.md",
+);
 const latestCheckpointPath = resolve(
   exportsRoot,
   "canvax-checkpoint-latest.json",
@@ -72,13 +77,18 @@ const mimeTypes = {
 
 const args = process.argv.slice(2);
 const requestedPort = readPort(args) ?? defaultPort;
-const shouldOpen = args.includes("--open");
+const externalOpenTarget = readExternalOpenTarget(args);
+const shouldOpenExternal = Boolean(externalOpenTarget);
 const wantsStop = args.includes("--stop");
 const wantsStatus = args.includes("--status");
 const wantsJson = args.includes("--json");
 const wantsRestart = args.includes("--restart");
 const wantsServe = args.includes("--serve");
 const wantsHelp = args.includes("--help") || args.includes("-h");
+const wantsTranscriptBridge =
+  args.includes("--transcript") ||
+  args.includes("--codex-transcript") ||
+  args.includes("--note");
 let workspaceFollowCache = null;
 
 function buildTransportDescriptor(overrides = {}) {
@@ -175,6 +185,10 @@ async function runCli() {
   await mkdir(exportsRoot, { recursive: true });
   await mkdir(runtimeRoot, { recursive: true });
 
+  if (wantsTranscriptBridge) {
+    return handleTranscriptBridgeCli();
+  }
+
   if (wantsStop) {
     const runtime = await getRunningRuntime();
     if (!runtime) {
@@ -187,6 +201,8 @@ async function runCli() {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          transcriptBridgePath,
+          transcriptBridgeMarkdownPath,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -205,6 +221,8 @@ async function runCli() {
         liveJsonPath,
         liveMarkdownPath,
         liveVoiceMarkdownPath,
+        transcriptBridgePath,
+        transcriptBridgeMarkdownPath,
         latestCheckpointPath,
         checkpointsIndexPath,
         sessionEventsPath,
@@ -224,6 +242,8 @@ async function runCli() {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          transcriptBridgePath,
+          transcriptBridgeMarkdownPath,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -251,8 +271,8 @@ async function runCli() {
 
   if (runtime) {
     if (readPort(args) !== null && runtime.port !== requestedPort) {
-      if (shouldOpen) {
-        openUrl(runtime.url);
+      if (shouldOpenExternal) {
+        openUrl(runtime.url, externalOpenTarget);
       }
       return printCliOutput(
         wantsJson,
@@ -261,15 +281,16 @@ async function runCli() {
           reused: true,
           requestedPort,
           portMismatch: true,
-          openedExternalBrowser: shouldOpen,
+          openedExternalBrowser: shouldOpenExternal,
+          externalBrowser: externalOpenTarget,
           ...runtime,
         },
         `Canvax is already running at ${runtime.url}. Requested port ${requestedPort} was ignored. Use --restart to move it.`,
       );
     }
 
-    if (shouldOpen) {
-      openUrl(runtime.url);
+    if (shouldOpenExternal) {
+      openUrl(runtime.url, externalOpenTarget);
     }
 
     return printCliOutput(
@@ -277,7 +298,8 @@ async function runCli() {
       {
         running: true,
         reused: true,
-        openedExternalBrowser: shouldOpen,
+        openedExternalBrowser: shouldOpenExternal,
+        externalBrowser: externalOpenTarget,
         ...runtime,
       },
       `Canvax is already running at ${runtime.url}`,
@@ -297,8 +319,8 @@ async function runCli() {
     return;
   }
 
-  if (shouldOpen) {
-    openUrl(runtime.url);
+  if (shouldOpenExternal) {
+    openUrl(runtime.url, externalOpenTarget);
   }
 
   return printCliOutput(
@@ -306,11 +328,52 @@ async function runCli() {
     {
       running: true,
       started: true,
-      openedExternalBrowser: shouldOpen,
+      openedExternalBrowser: shouldOpenExternal,
+      externalBrowser: externalOpenTarget,
       ...runtime,
     },
     `Canvax attached at ${runtime.url}`,
   );
+}
+
+async function handleTranscriptBridgeCli() {
+  const text = readTranscriptText(args);
+  const result = await appendTranscriptBridgeEntry({
+    text,
+    scope: readTranscriptScope(args),
+    source: "codex-chat",
+    provider: "codex-transcript-bridge",
+  });
+
+  if (!result) {
+    const payload = {
+      queued: false,
+      error: 'Transcript text is required. Use ./canvax --transcript "...".',
+      transcriptBridgePath,
+    };
+    if (wantsJson) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else {
+      console.error(payload.error);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  const payload = {
+    queued: true,
+    entry: result.entry,
+    transcriptBridgePath,
+    transcriptBridgeMarkdownPath,
+  };
+  if (wantsJson) {
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+  console.log(
+    `Codex transcript queued for Canvax (${result.entry.scope === "session" ? "whole board" : "current frame"}).`,
+  );
+  console.log(`Transcript bridge: ${transcriptBridgePath}`);
 }
 
 async function runServer(port) {
@@ -328,6 +391,8 @@ async function runServer(port) {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          transcriptBridgePath,
+          transcriptBridgeMarkdownPath,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -343,6 +408,13 @@ async function runServer(port) {
 
       if (request.method === "GET" && url.pathname === "/api/preview-state") {
         return handlePreviewState(response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/codex-transcript"
+      ) {
+        return handleCodexTranscript(request, response);
       }
 
       if (request.method === "POST" && url.pathname === "/api/save-export") {
@@ -547,6 +619,169 @@ async function handleSaveExport(request, response) {
   });
 }
 
+async function handleCodexTranscript(request, response) {
+  const payload = await readJson(request);
+  const result = await appendTranscriptBridgeEntry({
+    text: payload.text,
+    scope: payload.scope,
+    frameId: payload.frameId,
+    frameTitle: payload.frameTitle,
+    source: payload.source || "codex-chat",
+    provider: payload.provider || "codex-transcript-bridge",
+    at: payload.at,
+  });
+
+  if (!result) {
+    return writeJson(response, 400, {
+      error: "Transcript text is required.",
+    });
+  }
+
+  return writeJson(response, 200, {
+    queued: true,
+    entry: result.entry,
+    transcriptBridge: enhanceTranscriptBridge(result.bridge),
+    transcriptBridgePath,
+    transcriptBridgeMarkdownPath,
+  });
+}
+
+async function appendTranscriptBridgeEntry(input = {}) {
+  const text = cleanString(input.text).slice(0, 8000);
+  if (!text) {
+    return null;
+  }
+
+  const liveExport = await readOptionalJson(liveJsonPath);
+  const scope =
+    cleanString(input.scope).toLowerCase() === "session" ||
+    cleanString(input.scope).toLowerCase() === "board"
+      ? "session"
+      : "frame";
+  const activeFrameId = cleanString(liveExport?.activeFrameId);
+  const activeFrame =
+    Array.isArray(liveExport?.frames) && activeFrameId
+      ? liveExport.frames.find((frame) => cleanString(frame?.id) === activeFrameId)
+      : null;
+  const now = new Date().toISOString();
+  const entry = {
+    id: `codex-transcript-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    text,
+    scope,
+    source: cleanString(input.source) || "codex-chat",
+    provider: cleanString(input.provider) || "codex-transcript-bridge",
+    at: cleanString(input.at) || now,
+    frameId:
+      scope === "frame"
+        ? cleanString(input.frameId) || activeFrameId || ""
+        : "",
+    frameTitle:
+      scope === "frame"
+        ? cleanString(input.frameTitle) ||
+          cleanString(activeFrame?.title) ||
+          ""
+        : "Board context",
+  };
+
+  const existing = await readOptionalJson(transcriptBridgePath);
+  const existingEntries = Array.isArray(existing?.entries)
+    ? existing.entries
+    : [];
+  const bridge = {
+    schemaVersion: 1,
+    updatedAt: now,
+    entries: [entry, ...existingEntries].slice(0, 80),
+  };
+
+  await mkdir(exportsRoot, { recursive: true });
+  await writeFile(transcriptBridgePath, `${JSON.stringify(bridge, null, 2)}\n`);
+  await writeFile(
+    transcriptBridgeMarkdownPath,
+    buildTranscriptBridgeMarkdown(entry, bridge),
+  );
+  await appendFile(
+    sessionEventsPath,
+    `${JSON.stringify({
+      type: "codex-transcript",
+      id: entry.id,
+      at: entry.at,
+      scope: entry.scope,
+      source: entry.source,
+      frameId: entry.frameId,
+      frameTitle: entry.frameTitle,
+      text,
+    })}\n`,
+  );
+
+  return { entry, bridge };
+}
+
+function enhanceTranscriptBridge(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const entries = Array.isArray(source.entries)
+    ? source.entries
+        .map((entry, index) => normalizeTranscriptBridgeEntry(entry, index))
+        .filter(Boolean)
+        .slice(0, 80)
+    : [];
+  return {
+    schemaVersion: Number(source.schemaVersion) || 1,
+    updatedAt: cleanString(source.updatedAt),
+    entries,
+  };
+}
+
+function normalizeTranscriptBridgeEntry(entry, index = 0) {
+  const source =
+    entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
+  const text = cleanString(source.text);
+  if (!text) {
+    return null;
+  }
+  const scope =
+    cleanString(source.scope).toLowerCase() === "session" ? "session" : "frame";
+  return {
+    id: cleanString(source.id) || `codex-transcript-${index + 1}`,
+    text,
+    scope,
+    source: cleanString(source.source) || "codex-chat",
+    provider: cleanString(source.provider) || "codex-transcript-bridge",
+    at: cleanString(source.at) || new Date().toISOString(),
+    frameId: scope === "frame" ? cleanString(source.frameId) : "",
+    frameTitle:
+      scope === "frame"
+        ? cleanString(source.frameTitle)
+        : cleanString(source.frameTitle) || "Board context",
+  };
+}
+
+function buildTranscriptBridgeMarkdown(entry, bridge) {
+  const entries = Array.isArray(bridge.entries) ? bridge.entries : [];
+  return [
+    "# Canvax Codex Transcript Bridge",
+    "",
+    `Updated: ${bridge.updatedAt}`,
+    "",
+    "## Latest",
+    "",
+    `- Scope: ${entry.scope}`,
+    `- Frame: ${entry.frameTitle || entry.frameId || "Current frame"}`,
+    `- Source: ${entry.source}`,
+    "",
+    entry.text,
+    "",
+    "## Recent Entries",
+    "",
+    ...entries.slice(0, 10).flatMap((item) => [
+      `### ${item.frameTitle || item.scope || "Transcript"} (${item.at})`,
+      "",
+      item.text || "",
+      "",
+    ]),
+  ].join("\n");
+}
+
 async function handleSaveCheckpoint(request, response) {
   const payload = await readJson(request);
   const checkpoint = normalizeCheckpointPayload(payload?.checkpoint);
@@ -741,6 +976,9 @@ async function handlePreviewState(response) {
   const liveExport = enhanceLiveExport(await readOptionalJson(liveJsonPath));
   const liveMarkdown = await readOptionalText(liveMarkdownPath);
   const liveVoiceMarkdown = await readOptionalText(liveVoiceMarkdownPath);
+  const transcriptBridge = enhanceTranscriptBridge(
+    await readOptionalJson(transcriptBridgePath),
+  );
   const checkpointHistory = enhanceCheckpointHistory(
     await readOptionalJson(checkpointsIndexPath),
   );
@@ -770,6 +1008,7 @@ async function handlePreviewState(response) {
     liveExport,
     liveMarkdown,
     liveVoiceMarkdown,
+    transcriptBridge,
     checkpointHistory,
     sessionEvents,
     previewManifest: mergedPreviewManifest,
@@ -780,6 +1019,8 @@ async function handlePreviewState(response) {
       liveJsonPath,
       liveMarkdownPath,
       liveVoiceMarkdownPath,
+      transcriptBridgePath,
+      transcriptBridgeMarkdownPath,
       checkpointLatestPath: latestCheckpointPath,
       checkpointsIndexPath,
       sessionEventsPath,
@@ -3780,6 +4021,45 @@ function readPort(inputArgs) {
   return Number.isFinite(port) ? port : null;
 }
 
+function readExternalOpenTarget(inputArgs) {
+  if (inputArgs.includes("--chrome") || inputArgs.includes("--open-chrome")) {
+    return "chrome";
+  }
+  if (
+    inputArgs.includes("--open") ||
+    inputArgs.includes("--open-external") ||
+    inputArgs.includes("--open-default")
+  ) {
+    return "default";
+  }
+  return null;
+}
+
+function readArgValue(inputArgs, names) {
+  const candidates = Array.isArray(names) ? names : [names];
+  for (const name of candidates) {
+    const index = inputArgs.findIndex((arg) => arg === name);
+    if (index !== -1 && inputArgs[index + 1]) {
+      if (inputArgs[index + 1].startsWith("--")) {
+        continue;
+      }
+      return inputArgs[index + 1];
+    }
+  }
+  return "";
+}
+
+function readTranscriptText(inputArgs) {
+  return cleanString(
+    readArgValue(inputArgs, ["--text", "--transcript", "--codex-transcript", "--note"]),
+  );
+}
+
+function readTranscriptScope(inputArgs) {
+  const scope = cleanString(readArgValue(inputArgs, "--scope")).toLowerCase();
+  return scope === "session" || scope === "board" ? "session" : "frame";
+}
+
 function slugify(input) {
   return (
     String(input || "untitled")
@@ -3966,6 +4246,7 @@ function normalizeCheckpointPayload(value) {
     reason: cleanString(source.reason) || "manual-push",
     label: cleanString(source.label) || "Checkpoint",
     note: cleanString(source.note),
+    workspaceMode: cleanString(source.workspaceMode),
     frameId:
       cleanString(source.frameId) || cleanString(source.activeFrameId) || "",
     frameTitle:
@@ -4127,6 +4408,8 @@ function buildRuntime(port) {
     liveJsonPath,
     liveMarkdownPath,
     liveVoiceMarkdownPath,
+    transcriptBridgePath,
+    transcriptBridgeMarkdownPath,
     latestCheckpointPath,
     checkpointsIndexPath,
     sessionEventsPath,
@@ -4245,8 +4528,9 @@ function delay(ms) {
   });
 }
 
-function openUrl(url) {
-  spawn("open", [url], {
+function openUrl(url, target = "default") {
+  const openArgs = target === "chrome" ? ["-a", "Google Chrome", url] : [url];
+  spawn("open", openArgs, {
     stdio: "ignore",
     detached: true,
   }).unref();
@@ -4303,16 +4587,26 @@ function printCliOutput(asJson, payload, message) {
   console.log(message);
   if (payload.url) {
     console.log(`Board URL: ${payload.url}`);
-    console.log(`Preferred Codex path: open ${payload.url} in Browser Use.`);
+    console.log(
+      `Preferred Codex path: invoke /canvax so Codex opens ${payload.url} in the in-app Browser Use/Atlas tab.`,
+    );
+    console.log(
+      "External browser fallback: ./canvax --open-external or ./canvax --chrome.",
+    );
   }
   if (payload.openedExternalBrowser) {
+    const browserLabel =
+      payload.externalBrowser === "chrome"
+        ? "Google Chrome"
+        : "macOS default browser";
     console.log(
-      "Opened through macOS default browser because --open was explicitly provided.",
+      `Opened through ${browserLabel} because an external-open flag was explicitly provided.`,
     );
   }
   console.log(`Live export: ${liveJsonPath}`);
   console.log(`Live markdown: ${liveMarkdownPath}`);
   console.log(`Live voice markdown: ${liveVoiceMarkdownPath}`);
+  console.log(`Codex transcript bridge: ${transcriptBridgePath}`);
   console.log(`Latest checkpoint: ${latestCheckpointPath}`);
   console.log(`Codex output manifest: ${codexOutputManifestPath}`);
 }
@@ -4325,12 +4619,16 @@ Usage:
   ./canvax --status [--json]
   ./canvax --stop
   ./canvax --restart [--port 3210]
-  ./canvax --open
+  ./canvax --open-external
+  ./canvax --chrome
+  ./canvax --transcript "spoken Codex text" [--scope frame|session]
 
 Behavior:
   - Running without arguments ensures exactly one Canvax service is active.
-  - Preferred Codex Desktop flow: run ./canvax, then open http://localhost:3210 in Browser Use.
-  - --open is an explicit external-browser fallback and uses macOS open/default browser.
+  - Preferred Codex Desktop flow: invoke /canvax so Codex opens http://localhost:3210 in Browser Use/Atlas.
+  - --open-external and --open use macOS open/default browser.
+  - --chrome opens Google Chrome explicitly on macOS.
+  - --transcript queues Codex chat dictation text into Canvax voice context.
   - If Canvax is already running, the existing service is reused.
   - Passing a different --port while Canvax is already running does not start a second server.
   - Use --restart to move Canvax to a different port.

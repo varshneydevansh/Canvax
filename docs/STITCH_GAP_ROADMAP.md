@@ -16,6 +16,47 @@ local-first handoff, preview, code, docs, and artifacts
 Canvax as the visual collaboration layer for building real surfaces
 ```
 
+## Current Design Decision: Workbench First
+
+As of May 15, 2026, the next Canvax UI direction is **Workbench first**.
+
+The existing Advanced board is useful, but it is too dense as the default experience. The default surface should be a single creative workspace where the user can draw, speak/type, see generated output, and annotate corrections without opening several panels.
+
+```text
+before
+  left timeline + top toolbar + canvas + right inspector + separate preview
+
+after
+  Codex brief + sketch card + generated output card + bottom command composer
+  Advanced remains available for frames, flow, manifests, captures, and debugging.
+```
+
+```mermaid
+flowchart LR
+    S["Sketch card"] --> P["Codex task pack"]
+    V["Voice / transcript"] --> P
+    C["Files / images / DESIGN.md"] --> P
+    P --> O["Generated output card"]
+    O --> A["User annotates output"]
+    A --> P
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#18110e;
+    classDef codex fill:#eef3ff,stroke:#2364aa,color:#101828;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+
+    class S,V,C,A sketch;
+    class P codex;
+    class O output;
+```
+
+Product rules:
+
+- Canvax core stays local-first and must not require `OPENAI_API_KEY`.
+- Image generation is a host capability or optional adapter, not a baseline dependency.
+- The baseline UI should export prompt packs, task packs, sketches, transcripts, and previews that Codex can use in the current chat.
+- Direct ChatGPT/Codex microphone reuse requires a first-party bridge; the local board keeps browser speech, manual dictation, and transcript forwarding as the current bridge.
+- The repo-level plan for this redesign is `canvax-stitch-like-workbench-plan.md`.
+
 ## External Reference Points
 
 Current Stitch references show these major product ideas:
@@ -68,7 +109,7 @@ Canvax today
 |- Board: rough sketch, frames, flow, notes, tools, voice
 |- Preview: compare sketch vs output, artifacts, changed files, rewrite queue
 |- Service: local exports, manifests, checkpoints, materialized/generated HTML
-|- Codex Browser Use: preferred way to view/inspect board, Preview, and generated apps
+|- Codex Browser Use / Atlas: preferred way to view/inspect board, Preview, and generated apps
 |- Codex skill: tells Codex to read the live handoff files
 `- Docs: install, usage, architecture, development, proposal, status
 ```
@@ -85,6 +126,7 @@ Canvax today
 - Reference image underlays are supported through paste/drop/upload.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
+- Focus Pad now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, and local screen generation without requiring the user to open Advanced mode.
 
 ### Voice And Intent
 
@@ -92,6 +134,7 @@ Canvax today
 - Voice notes can be scoped to the current frame or the whole board.
 - Browser speech recognition is used when available.
 - Manual voice notes are available as a fallback.
+- Codex chat transcript forwarding exists through `./canvax --transcript "..." --scope frame|session`.
 - Voice is written into JSON, Markdown prompt output, and `exports/canvax-voice-latest.md`.
 
 ### Preview And Output Binding
@@ -121,7 +164,7 @@ Canvax today
 - The board can publish current git workspace changes into the output manifest.
 - Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
 - Rewrite queue tells Codex which frames need first output, a target, binding, or refresh.
-- Codex Browser Use can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
+- Codex Browser Use / Atlas can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
 
 ## What Is Still Missing
 
@@ -182,7 +225,7 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames and Flow view, but it is not yet an infinite design canvas with free spatial organization of references, generated outputs, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, and a large `Free canvas` viewport preset, but it is not yet an infinite design canvas with free spatial organization of references, generated outputs, branches, prompts, and code artifacts.
 
 Needed:
 
@@ -191,6 +234,16 @@ Needed:
 - Spatial groups for explorations, branches, reference boards, and generated variants.
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
+
+Current stepping stone:
+
+```text
+done
+  Focus Pad -> Free canvas preset -> large sketch surface
+
+next
+  true infinite canvas -> spatial objects + branches + generated variants + code artifacts
+```
 
 ### 4. Prototype Play Mode
 
@@ -288,7 +341,7 @@ Needed:
 - Codex writes a manifest that binds the generated code route back to the frame.
 - Preview reloads and highlights changed code/artifact context.
 - Sketch corrections become targeted rewrite tasks instead of generic prompts.
-- Browser Use opens and inspects the board, Preview, and generated app so Codex can fix visual issues from the same workspace loop.
+- Browser Use / Atlas opens and inspects the board, Preview, and generated app so Codex can fix visual issues from the same workspace loop.
 
 ### P3: Add Design System And Asset Intelligence
 
@@ -332,7 +385,7 @@ flowchart TD
 Concrete next steps:
 
 - Add `Build real screen` beside `Generate screen`.
-- Add a Browser Use first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
+- Add a Browser Use / Atlas first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
 - Implement a task artifact under `artifacts/canvax/tasks/` that Codex can read and execute.
 - Extend `write-codex-output.mjs` so Codex can bind generated routes/components to frame ids in one command.
 - Add Preview UI for "Codex is building/refining this frame" state.

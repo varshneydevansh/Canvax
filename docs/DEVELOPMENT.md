@@ -52,7 +52,7 @@ Start or reuse the service:
 ./canvax
 ```
 
-For manual UI work, open `http://localhost:3210` in Codex Browser Use when available. Use `./canvax --open` only when you intentionally want the default macOS browser.
+For manual UI work, invoke `/canvax` so `http://localhost:3210` opens in Codex Browser Use / Atlas when available. Use `./canvax --open-external` or `./canvax --chrome` only when you intentionally want an external browser.
 
 Basic syntax check:
 
@@ -231,7 +231,7 @@ Edit:
 After interaction changes, check these manually:
 
 - board opens at the expected local URL
-- board opens cleanly inside Codex Browser Use
+- board opens cleanly inside Codex Browser Use / Atlas
 - tools still switch correctly
 - brush size updates correctly
 - labels can be placed and edited
@@ -252,7 +252,7 @@ After interaction changes, check these manually:
 - output-context digest changes create `Output update` checkpoints without forcing a fresh export write
 - Preview shows refinement summaries and changed-region overlays after rematerialize
 - `?selftest=1` now covers both the small interaction path and a synthetic large-session fixture
-- Preview and any generated app target can be inspected inside Codex Browser Use
+- Preview and any generated app target can be inspected inside Codex Browser Use / Atlas
 
 ## Current Test Layers
 
@@ -286,7 +286,7 @@ The main next layers are:
 - richer live collaboration state
 - voice attached to canvas checkpoints
 - preview/artifact feedback loop
-- Codex Browser Use first validation for board, Preview, and generated routes
+- Codex Browser Use / Atlas first validation for board, Preview, and generated routes
 - better thread-to-canvas coordination with Codex
 
 ```text

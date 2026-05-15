@@ -9,7 +9,7 @@ preferred today
   ./canvax service
       |
       v
-  Codex Browser Use opens localhost:3210
+  /canvax opens localhost:3210 in Codex Browser Use / Atlas
       |
       +--> user sketches
       +--> Codex inspects board and Preview
@@ -19,10 +19,11 @@ preferred today
 
 ## Why This Is The Default
 
-Using Codex Browser Use keeps the collaboration loop in one place:
+Using Codex Browser Use / Atlas keeps the collaboration loop in one place:
 
 - the user sketches in Canvax
 - Codex reads the live export
+- Codex can forward chat microphone transcripts into Canvax voice notes with `./canvax --transcript "..." --scope frame`
 - Codex uses Browser Use to inspect the board, Preview, and generated app
 - Codex changes real files in the workspace
 - Codex publishes output context back to Canvax
@@ -38,16 +39,17 @@ Start or reuse the local service:
 ./canvax
 ```
 
-Then open this URL in Codex Browser Use:
+Then invoke `/canvax` or `$canvax` so Codex opens this URL in Browser Use / Atlas:
 
 ```text
 http://localhost:3210
 ```
 
-Use this only when you explicitly want a separate macOS browser window:
+Use these only when you explicitly want a separate macOS browser window:
 
 ```bash
-./canvax --open
+./canvax --open-external
+./canvax --chrome
 ```
 
 ## Working Loop
@@ -55,7 +57,7 @@ Use this only when you explicitly want a separate macOS browser window:
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant B as Codex Browser Use
+    participant B as Codex Browser Use / Atlas
     participant C as Codex
     participant S as Canvax service
     participant W as Workspace
@@ -71,7 +73,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A["Open board in Browser Use"] --> B["Draw / label / voice"]
+    A["Open board in Browser Use / Atlas"] --> B["Draw / label / voice"]
     B --> C["Generate screen"]
     C --> D["Inspect generated route"]
     D --> E{"Needs change?"}
@@ -95,7 +97,7 @@ flowchart TD
 
 ## What Codex Should Inspect
 
-In Browser Use, Codex should inspect:
+In Browser Use / Atlas, Codex should inspect:
 
 - the board at `http://localhost:3210`
 - the Preview window opened from the board
@@ -135,7 +137,7 @@ The next packaging step should be a Canvax plugin that bundles:
 
 - the existing skill instructions
 - MCP-style tools for reading the current frame/checkpoint
-- a tool to open the board in Browser Use
+- a tool to open the board in Browser Use / Atlas
 - a tool to create a `Build real screen` task
 - a tool to publish output manifests after Codex changes files
 

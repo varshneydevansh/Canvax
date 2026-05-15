@@ -28,22 +28,29 @@ Canvax is a visual handoff surface for Codex.
 The intended loop is:
 
 1. open the board
-2. draw, label, connect screens, and capture spoken notes when needed
-3. let autosnap or `Freeze frame` save the latest state
-4. tell Codex to use the current Canvax
-5. let Codex work from the saved visual export instead of re-explaining the idea in text
+2. stay in `Focus Pad` when you only need a quick sketch + spoken instruction
+3. press `Apply to Codex` to save the sketch, voice note, latest export, and checkpoint
+4. switch to `Advanced` only when you need frames, flows, captures, or manifest detail
+5. tell Codex to use the current Canvax
 
-When Codex Desktop has Browser Use available, open the board and Preview in the in-app browser. That is the lowest-friction mode because Codex can inspect the same visual surfaces you are using while it edits code, runs checks, and publishes output context back into Canvax.
+When Codex Desktop has Browser Use / Atlas available, open the board and Preview in the in-app browser. That is the lowest-friction mode because Codex can inspect the same visual surfaces you are using while it edits code, runs checks, and publishes output context back into Canvax.
 
 ```text
 Codex chat
    |
-   +--> Browser Use: Canvax board at localhost:3210
+   +--> Browser Use / Atlas: Canvax board at localhost:3210
    |
-   +--> Browser Use: Canvax Preview / generated app
+   +--> Browser Use / Atlas: Canvax Preview / generated app
    |
    `--> workspace edits + manifest publishing
 ```
+
+The intended open behavior is:
+
+- `/canvax` or `$canvax`: Codex-first path, open the board in the in-app browser.
+- `./canvax`: local service only, no external browser.
+- `./canvax --open-external`: default macOS browser fallback.
+- `./canvax --chrome`: Google Chrome fallback.
 
 ## What To Draw
 
@@ -59,6 +66,40 @@ Canvax is intentionally generic. Use it for:
 - rough interaction sequences
 
 It is not limited to a hero section or landing page flow.
+
+## Focus Pad
+
+Use Focus Pad when Canvax should feel like a scratchpad beside this chat.
+
+It hides advanced panels and keeps only:
+
+- visible surface selection for desktop, mobile, tablet, poster, square, or free canvas
+- `New frame` for another screen/state
+- `New section` for a connected continuation below the current section
+- `Pen`, `Rect`, `Arrow`, and `Erase`
+- `Start talking` / `Stop talking`
+- a quick manual voice note field
+- `Make screen` for a local generated-screen preview
+- `Apply to Codex`
+- `Preview`
+
+```text
+Focus Pad
++--------------------------------------+
+| sketch rough placement on the canvas |
+| speak or paste the instruction        |
+| Apply to Codex                        |
++--------------------------------------+
+          |
+          v
+ latest export + latest checkpoint
+```
+
+`Apply to Codex` freezes the current frame, writes the live handoff, and saves a `Focus Pad apply` checkpoint. That gives Codex a single clean moment to read: the sketch image, the transcript/manual note, and the active frame context.
+
+`Free canvas` is a large spatial scratchpad preset. It is useful for laying out references, rough sections, and alternate directions on one surface. It is not yet a true infinite canvas with persistent spatial objects, branches, and pan/zoom project memory.
+
+Switch to `Advanced` when you need multi-frame work, flow links, captures, output manifests, or generation/debugging controls.
 
 ## Frame View
 
@@ -111,6 +152,14 @@ It supports two capture modes:
 - `Whole board`: spoken notes apply across the whole session
 
 If browser speech recognition is available, `Start dictation` captures transcript segments live while you keep drawing. If it is not available in the current browser context, use `Manual voice note` and paste text from macOS dictation or your own notes.
+
+If you speak into the Codex chat microphone instead of the Canvax page, Codex can forward that submitted transcript into Canvax:
+
+```bash
+./canvax --transcript "Move the CTA above the image and make the hero mobile-first" --scope frame
+```
+
+That is a transcript bridge, not raw microphone sharing. The Codex composer microphone is not directly exposed to the localhost page, but the resulting chat transcript can still become Canvax voice context.
 
 Voice notes are included in:
 
@@ -197,6 +246,8 @@ Important files:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-transcript-bridge.json`
+- `exports/canvax-transcript-bridge-latest.md`
 - `exports/canvax-checkpoint-latest.json`
 - `exports/canvax-session-events.jsonl`
 - `exports/canvax-preview-manifest.json`
@@ -219,10 +270,14 @@ Today, Canvax is:
 Today, Canvax is not yet:
 
 - a native embedded drawing surface inside the Codex composer
+- able to directly reuse Codex chat microphone input from the local web board
 - a full live preview-and-artifact panel for Codex outputs
 - a finished voice-plus-sketch checkpoint/event-log surface
+- a full Stitch/Canva-style infinite canvas
 
 Those deeper integrations are part of the roadmap in `canvax-live-collaboration-plan.md`.
+
+The current voice path is browser speech recognition when available, or pasted macOS/Codex dictation text when it is not. A native Codex version could reuse the Codex microphone reader directly, but that requires first-party Codex client integration or an app/plugin bridge that exposes transcript events to Canvax.
 
 ## Preview Manifest Workflow
 
@@ -302,6 +357,8 @@ preview-state merge
 Canvax now writes a dedicated voice export:
 
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-transcript-bridge.json`
+- `exports/canvax-transcript-bridge-latest.md`
 
 That file is useful when you or Codex want only the spoken context without re-reading the full JSON or prompt. The live JSON export also includes a `voice` block with:
 
@@ -317,6 +374,7 @@ Canvax also writes checkpoints automatically for:
 
 - autosnap freeze
 - manual freeze
+- Focus Pad apply
 - dictation stop
 - manual voice note capture
 - materialize

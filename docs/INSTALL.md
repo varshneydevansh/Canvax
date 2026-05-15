@@ -25,7 +25,7 @@ use /canvax or $canvax
 flowchart TD
     A[Project root] --> B[./canvax]
     B --> C[Local service on localhost:3210]
-    C --> D[Open board in Codex Browser Use]
+    C --> D[Open board in Codex Browser Use / Atlas]
     A --> E[node scripts/install-canvax-skill.mjs]
     E --> F[Symlink into ~/.codex/skills/canvax]
     F --> G[Restart Codex]
@@ -58,19 +58,20 @@ http://localhost:3210
 
 ### Preferred Codex Desktop Setup
 
-If Codex Desktop has the Browser Use plugin available, open `http://localhost:3210` inside the Codex in-app browser.
+If Codex Desktop has the Browser Use / Atlas tab available, invoke `/canvax` or `$canvax` and keep `http://localhost:3210` inside the Codex in-app browser.
 
 That is the preferred mode because:
 
 - the sketch board stays next to the Codex chat
-- Codex can inspect the board, Preview, and generated app with Browser Use
+- Codex can inspect the board, Preview, and generated app with Browser Use / Atlas
 - the workflow avoids bouncing between Codex and a separate macOS browser
 - the local service and export files still work exactly the same
 
-Use this only when you explicitly want the board in your default macOS browser:
+Use these only when you explicitly want the board outside Codex:
 
-```text
-./canvax --open
+```bash
+./canvax --open-external
+./canvax --chrome
 ```
 
 ## Install the Codex Skill
@@ -118,8 +119,8 @@ Then open Codex and check that one of these works:
 
 This is the most important distinction:
 
-- `./canvax` is the local command that runs the browser board.
-- `/canvax` is the skill-backed slash entry inside Codex.
+- `./canvax` is the local command that runs the board service.
+- `/canvax` is the skill-backed slash entry inside Codex and should open the board in Browser Use / Atlas.
 - `$canvax` is the direct skill invocation form.
 
 So Canvax is not only a browser app and not only a skill. It is both.
@@ -127,7 +128,7 @@ So Canvax is not only a browser app and not only a skill. It is both.
 ```mermaid
 flowchart LR
     Cmd["./canvax command"] --> Service["Local service"]
-    Service --> Browser["Codex Browser Use"]
+    Service --> Browser["Codex Browser Use / Atlas"]
     Skill["/canvax or $canvax skill"] --> Handoff["Latest handoff files"]
     Browser --> Handoff
     Handoff --> Codex["Codex work in chat"]
@@ -165,7 +166,7 @@ or:
 $canvax
 ```
 
-Then open `http://localhost:3210` with Codex Browser Use when available, draw in the board, and continue the same Codex thread.
+Then use `/canvax` or `$canvax` so Codex opens `http://localhost:3210` with Browser Use / Atlas when available. Draw in the board and continue the same Codex thread.
 
 ## Startup Model
 
@@ -197,7 +198,8 @@ sequenceDiagram
 
 ```bash
 ./canvax
-./canvax --open
+./canvax --open-external
+./canvax --chrome
 ./canvax --status
 ./canvax --stop
 ./canvax --restart
@@ -208,6 +210,9 @@ Notes:
 - Canvax uses one running service at a time by default.
 - If Canvax is already running, it reuses the existing board instead of starting another copy.
 - `--restart` is the explicit way to move or recover the service.
+- `--open-external` opens the default macOS browser.
+- `--chrome` opens Google Chrome explicitly.
+- `--open` is kept as a legacy alias for `--open-external`.
 
 ## Common Install Problems
 
@@ -219,9 +224,9 @@ Notes:
 ### The board is not opening
 
 - run `./canvax --status`
-- confirm `http://localhost:3210` is reachable in Codex Browser Use or your browser
+- confirm `http://localhost:3210` is reachable in Codex Browser Use / Atlas or your browser
 - if needed, run `./canvax --restart`
-- use `./canvax --open` only if you want the default macOS browser opened automatically
+- use `./canvax --open-external` or `./canvax --chrome` only if you want an external browser opened automatically
 
 ### I see an older board state
 

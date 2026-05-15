@@ -119,7 +119,7 @@ flowchart TD
 ## Runtime Flow
 
 1. `./canvax` starts or reuses the local service.
-2. The board loads from that local service, preferably inside Codex Browser Use at `http://localhost:3210`.
+2. `/canvax` or `$canvax` opens the board from that local service inside Codex Browser Use / Atlas at `http://localhost:3210`.
 3. The user draws, annotates, or links frames.
 4. Canvax autosnaps after idle or stores a manual freeze.
 5. `web/app.js` sends the latest export package to `/api/save-export`.
@@ -132,7 +132,7 @@ flowchart TD
 12. Recent checkpoint/session events are also fed back through preview-state so clients can rebuild durable output activity after a refresh instead of relying only on in-memory polling state.
 13. When a frame is materialized again, the service computes a refinement delta, writes it into the materialize metadata, and exposes it through the preview manifest so Preview can show changed-region overlays.
 14. The board can now send a richer generation recipe into that same endpoint, which lets the local service produce a `generated-screen-preview` target instead of only the quicker materialized preview.
-15. Codex Browser Use is the preferred inspection surface for the board, Preview, and generated app routes while Codex edits and validates workspace files.
+15. Codex Browser Use / Atlas is the preferred inspection surface for the board, Preview, and generated app routes while Codex edits and validates workspace files.
 
 ```mermaid
 sequenceDiagram
@@ -318,6 +318,19 @@ flowchart LR
 
 The browser app keeps the working session in local browser storage and in memory.
 
+Workspace mode is part of the state model:
+
+```text
+workspaceMode: simple
+  -> Focus Pad UI
+  -> active frame only
+  -> sketch + voice + Apply checkpoint
+
+workspaceMode: advanced
+  -> full board UI
+  -> frames, flow, captures, manifests, diagnostics
+```
+
 Core state areas include:
 
 - board metadata
@@ -326,6 +339,7 @@ Core state areas include:
 - per-frame captures
 - flow connections
 - active frame and view mode
+- workspace mode
 - tool selection, color, size, grid, autosnap
 
 `web/app.js` is currently the main state owner.
@@ -403,7 +417,7 @@ Look in:
 
 ## Current Design Boundary
 
-Today, Canvax is a local browser companion for Codex. When Browser Use is available, that local browser surface should be the Codex in-app browser.
+Today, Canvax is a local browser companion for Codex. When Browser Use / Atlas is available, that local browser surface should be the Codex in-app browser. `./canvax --open-external`, `./canvax --open`, and `./canvax --chrome` are explicit escape hatches for users who want an external browser.
 
 It is not yet:
 

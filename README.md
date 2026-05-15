@@ -15,7 +15,7 @@ Canvax has two surfaces:
 
 That means Canvax is **a local command plus a Codex skill**. It is not currently a native first-party built-in Codex command.
 
-When the Codex app has the Browser Use plugin available, the preferred working mode is to open the local Canvax board inside Codex's in-app browser instead of a separate macOS browser. That keeps the sketch board, Preview, generated UI, and this chat in the same working loop while preserving the local service and file-based handoff.
+When the Codex app has Browser Use / Atlas available, the preferred working mode is to open the local Canvax board inside Codex's in-app browser instead of a separate macOS browser. That keeps the sketch board, Preview, generated UI, and this chat in the same working loop while preserving the local service and file-based handoff.
 
 ## System Snapshot
 
@@ -85,10 +85,12 @@ flowchart LR
 ## What It Does Today
 
 - Opens a browser-based canvas optimized for Mac trackpad, mouse, or stylus use.
+- Starts in `Focus Pad`, a simplified talk-and-draw mode that keeps sketch, surface choice, new frame/section creation, voice, local generation, apply, and preview actions visible.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
 - Captures board-scoped or frame-scoped voice notes, using browser speech recognition when available and manual pasted dictation when it is not.
+- Lets Codex forward submitted chat microphone transcripts into Canvax voice notes with `./canvax --transcript "..." --scope frame`.
 - Supports a preview manifest that can bind a live implementation target, changed files, and generated artifacts to the current sketch workflow.
 - Surfaces Codex output context directly in the Canvax inspector, including connected preview targets, generated artifacts, and changed files.
 - Lets the board auto-publish current git workspace changes back into the Codex output manifest with `Publish changes`.
@@ -116,6 +118,7 @@ flowchart LR
 This commit line now includes the following major layers working together:
 
 - generic sketch board with Frame view and Flow view
+- Focus Pad mode for the low-friction sketch + voice + apply loop
 - Preview surface with compare modes and frame-aware output context
 - voice notes and dedicated voice handoff file
 - checkpoints and session event log
@@ -123,6 +126,7 @@ This commit line now includes the following major layers working together:
 - `Generate screen` with board-side recipe controls
 - `Materialize` with stable per-frame targets and refinement deltas
 - rewrite queue and frame-level output status badges
+- Focus Pad surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
 - transport contract for current `local-companion` mode vs future `app-server` mode
 
 ```mermaid
@@ -161,7 +165,7 @@ Relevant docs:
 
 That ensures one Canvax service is running on `http://localhost:3210` by default.
 
-If you are using Codex Desktop with Browser Use, open that URL in the in-app browser. Use `./canvax --open` only when you explicitly want the board in your default macOS browser.
+If you are using Codex Desktop, invoke `/canvax` or `$canvax` after the service starts. The skill should open `http://localhost:3210` in Codex's in-app Browser Use / Atlas tab so the board stays in the same chat loop. Use `./canvax --open-external` only when you explicitly want the board in your default macOS browser, or `./canvax --chrome` when you explicitly want Google Chrome.
 
 ### 2. Install the Codex skill
 
@@ -180,7 +184,7 @@ In Codex:
 - invoke `/canvax` from the slash list if it appears there
 - or invoke `$canvax`
 
-Then sketch in the board, preferably opened through Codex Browser Use, and continue the same chat with prompts like:
+Then sketch in the board opened through Codex Browser Use / Atlas, and continue the same chat with prompts like:
 
 - `use my current Canvax`
 - `read the latest Canvax`
@@ -206,10 +210,10 @@ Then sketch in the board, preferably opened through Codex Browser Use, and conti
 
 | Area | Canvax today | Native Codex future |
 | --- | --- | --- |
-| Sketch input | Browser board served locally and preferably opened in Codex Browser Use | Embedded canvas panel inside a richer Codex client |
+| Sketch input | Browser board served locally and preferably opened in Codex Browser Use / Atlas | Embedded canvas panel inside a richer Codex client |
 | Live handoff | File exports under `exports/` | Thread-bound handoff items and live multimodal state |
 | Output binding | Preview manifest plus Codex-output manifest | First-party artifact, preview, and event wiring |
-| Live preview | Preview tab/window, ideally inside Codex Browser Use | Same-thread split canvas + output surface |
+| Live preview | Preview tab/window, ideally inside Codex Browser Use / Atlas | Same-thread split canvas + output surface |
 | Transport | Local companion via files, manifests, and browser session mirroring | App Server or equivalent JSON-RPC transport |
 
 The current repo is intentionally optimized for the first column while keeping the second column reachable instead of blocked by hardcoded assumptions.
@@ -245,7 +249,8 @@ Canvax/
 
 ```bash
 ./canvax
-./canvax --open
+./canvax --open-external
+./canvax --chrome
 ./canvax --status
 ./canvax --stop
 ./canvax --restart
@@ -254,10 +259,14 @@ Canvax/
 Behavior:
 
 - `./canvax` starts or reuses the existing service.
-- `./canvax --open` starts or reuses the service and opens the board in the default macOS browser. Prefer Codex Browser Use when available.
+- `/canvax` or `$canvax` is the Codex-first path: it attaches the thread and should open the board in Codex Browser Use / Atlas.
+- `./canvax --open-external` starts or reuses the service and opens the board in the default macOS browser.
+- `./canvax --chrome` starts or reuses the service and opens the board in Google Chrome.
+- `./canvax --open` remains a legacy alias for `--open-external`.
+- `./canvax --transcript "..." --scope frame` queues Codex chat dictation text into Canvax voice notes.
 - `./canvax --status` prints the current board URL and live export paths.
 - `./canvax --stop` stops the running service.
-- `./canvax --restart` restarts the service cleanly. Reopen the board in Codex Browser Use afterward.
+- `./canvax --restart` restarts the service cleanly. Reopen the board through `/canvax` in Codex Browser Use / Atlas afterward.
 
 Canvax is intentionally single-service. If one board is already running, it is reused instead of spawning another port by default.
 
@@ -340,18 +349,12 @@ Checkpoint mode now adds:
 1. Start Canvax with `./canvax`.
 2. Install the skill once with `node scripts/install-canvax-skill.mjs`.
 3. Invoke `/canvax` or `$canvax` in Codex.
-4. Sketch frames, label regions, and connect screens in Flow view.
-5. Capture spoken intent with `Voice notes` if you want Canvax to preserve what you are saying while drawing.
-6. Pause for autosnap or press `Freeze frame`.
-7. Use `Push checkpoint` if you want to preserve the current sketch + voice + output context as a durable handoff moment.
-8. Press `Generate screen` if you want a richer local website/app screen from the current frame before writing app code.
-9. Press `Materialize` if you want the quicker deterministic version instead.
-10. Open the board and Preview in Codex Browser Use when available, then keep sketching. Autosnap and freeze now refresh the live export, auto-publish the current workspace change list, and silently refresh frames that already have a generated target.
-11. Use `Publish changes` only when you want to force a manual refresh of the current workspace change list from the board.
-12. Even without that manual publish step, board and Preview polling now mirror current git workspace changes live while you keep sketching.
-13. When Codex changes files from chat, let it run `node scripts/write-codex-output.mjs --from-git-status` so the board and preview also keep the richer persisted manifest metadata.
-14. Ask Codex to use the current Canvax.
-15. Codex reads the latest live export or checkpoint and works from that visual handoff.
+4. Stay in `Focus Pad` for quick work: draw rough placement, start dictation or paste a spoken note, then press `Apply to Codex`.
+5. Open `Preview` when you want to see the generated or implemented target beside the sketch.
+6. Switch to `Advanced` only when you need frames, flow links, captures, generation recipes, manifests, changed files, or debugging detail.
+7. In Advanced mode, use `Generate screen`, `Materialize`, `Push checkpoint`, or `Publish changes` for longer sessions.
+8. Ask Codex to use the current Canvax.
+9. Codex reads the latest live export or checkpoint and works from that visual handoff.
 
 ## Current Limits
 

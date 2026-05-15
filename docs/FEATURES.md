@@ -126,13 +126,12 @@ Local service = router + persistence + materialize engine
 The intended daily loop is:
 
 1. run `./canvax`
-2. draw in the board
-3. add labels, notes, flow links, and voice notes if useful
-4. pause for autosnap or press `Freeze frame`
-5. ask Codex to use the current Canvax
-6. inspect the result in `Preview`
-7. sketch corrections or additions
-8. repeat
+2. use `Focus Pad` for quick sketch + voice + apply work
+3. switch to `Advanced` only when you need frames, flow, captures, manifests, or generation controls
+4. ask Codex to use the current Canvax
+5. inspect the result in `Preview`
+6. sketch corrections or additions
+7. repeat
 
 There are two implementation paths:
 
@@ -140,7 +139,7 @@ There are two implementation paths:
 - `Materialize`: quick local styled preview from the current frame
 - `Codex implementation`: actual code, specs, artifacts, and changed files in the workspace
 
-When Codex Browser Use is available, open `http://localhost:3210` there and keep both the board and Preview inside Codex. That lets Codex inspect the same UI surfaces the user is steering.
+When Codex Browser Use / Atlas is available, `/canvax` should open `http://localhost:3210` there and keep both the board and Preview inside Codex. That lets Codex inspect the same UI surfaces the user is steering. External browsers are fallback surfaces, not the primary Canvax experience.
 
 ```mermaid
 sequenceDiagram
@@ -155,6 +154,39 @@ sequenceDiagram
 ```
 
 ## Board Features
+
+### Focus Pad
+
+Focus Pad is the simple default workspace mode.
+
+Behavior:
+
+- hides the timeline, inspector, advanced toolbar, artifacts, rewrite queue, and transport details
+- keeps the active frame canvas as the main surface
+- shows a surface selector so mobile, tablet, desktop, poster, square, or free canvas can be chosen without opening Advanced mode
+- exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
+- exposes only four drawing tools: pen, rectangle, arrow, erase
+- exposes one voice action and one manual spoken-note field
+- exposes `Make screen` for the local generated-screen pass
+- `Apply to Codex` freezes the frame, writes the live export, and saves a `Focus Pad apply` checkpoint
+- `Preview` remains available without exposing the rest of Advanced mode
+
+```text
+simple mode
+  rough sketch
+  + voice note
+  + frame/surface controls
+  + Apply to Codex
+      -> live export
+      -> checkpoint
+      -> Codex reads one clear handoff
+```
+
+Boundary:
+
+- Focus Pad is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
+- `Free canvas` is a large board preset, not a finished infinite canvas.
+- Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 
 ### Frame View
 
@@ -303,6 +335,7 @@ Behavior:
 
 - browser speech recognition is used when available
 - manual voice notes are the fallback when live speech recognition is unavailable
+- Codex chat transcript forwarding is available through `./canvax --transcript "..." --scope frame|session`
 - voice segments are exported into JSON, Markdown prompt output, and `exports/canvax-voice-latest.md`
 
 Use voice notes when:
@@ -313,12 +346,13 @@ Use voice notes when:
 
 Current boundary:
 
-- this is Canvax-native voice capture, not a direct tap into the Codex chat mic stream
+- this is Canvax-native voice capture plus a transcript bridge, not a direct tap into raw Codex chat mic audio
 
 ```text
 voice note sources
   - browser speech recognition
   - manual pasted note
+  - Codex chat transcript bridge
 ```
 
 ## Output And Collaboration Features

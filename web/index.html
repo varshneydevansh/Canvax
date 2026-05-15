@@ -105,6 +105,35 @@
 
             <main class="studio">
                 <header class="panel toolbar">
+                    <div class="mode-strip">
+                        <div>
+                            <p class="eyebrow">Workspace mode</p>
+                            <strong id="workspace-mode-label">Focus Pad</strong>
+                        </div>
+                        <div
+                            id="workspace-mode-buttons"
+                            class="segmented-control workspace-mode-control"
+                            role="tablist"
+                            aria-label="Canvax workspace mode"
+                        >
+                            <button
+                                class="segment active"
+                                data-workspace-mode="simple"
+                                aria-pressed="true"
+                                title="Hide advanced panels and focus on sketch, voice, and apply"
+                            >
+                                Focus Pad
+                            </button>
+                            <button
+                                class="segment"
+                                data-workspace-mode="advanced"
+                                aria-pressed="false"
+                                title="Show frames, flow, captures, manifests, and debugging panels"
+                            >
+                                Advanced
+                            </button>
+                        </div>
+                    </div>
                     <div class="toolbar-main">
                         <div class="toolbar-group" data-view-scope="frame">
                             <span class="toolbar-label">Tools</span>
@@ -234,6 +263,115 @@
                     </div>
                     <p id="tool-hint" class="tool-hint helper-text"></p>
                 </header>
+
+                <section id="focus-pad" class="panel focus-pad">
+                    <div class="focus-pad-copy">
+                        <p class="eyebrow">Talk + draw</p>
+                        <h2>Sketch the change. Say what you mean. Apply once.</h2>
+                        <p class="helper-text">
+                            Focus Pad keeps only the raw collaboration loop:
+                            simple marks, voice context, one checkpoint, and a
+                            preview target Codex can use.
+                        </p>
+                    </div>
+                    <div class="focus-pad-actions">
+                        <div class="focus-pad-context">
+                            <label>
+                                Surface
+                                <select
+                                    id="focus-viewport-select"
+                                    aria-label="Focus Pad surface"
+                                ></select>
+                            </label>
+                            <div class="focus-frame-meta">
+                                <span id="focus-frame-chip">Frame 1</span>
+                                <span id="focus-surface-chip">Desktop</span>
+                            </div>
+                        </div>
+                        <div
+                            id="focus-tool-buttons"
+                            class="focus-tool-grid"
+                            aria-label="Focus Pad tools"
+                        >
+                            <button
+                                class="tool-chip active"
+                                data-focus-tool="pen"
+                                type="button"
+                            >
+                                Pen
+                            </button>
+                            <button
+                                class="tool-chip"
+                                data-focus-tool="rect"
+                                type="button"
+                            >
+                                Rect
+                            </button>
+                            <button
+                                class="tool-chip"
+                                data-focus-tool="arrow"
+                                type="button"
+                            >
+                                Arrow
+                            </button>
+                            <button
+                                class="tool-chip"
+                                data-focus-tool="erase"
+                                type="button"
+                            >
+                                Erase
+                            </button>
+                        </div>
+                        <div class="button-row focus-command-row">
+                            <button id="focus-add-frame" class="ghost-button">
+                                New frame
+                            </button>
+                            <button id="focus-add-section" class="ghost-button">
+                                New section
+                            </button>
+                            <button id="focus-free-canvas" class="ghost-button">
+                                Free canvas
+                            </button>
+                            <button id="focus-generate" class="ghost-button">
+                                Make screen
+                            </button>
+                            <button id="focus-voice-toggle" class="ghost-button">
+                                Start talking
+                            </button>
+                            <button id="focus-apply" class="accent-button">
+                                Apply to Codex
+                            </button>
+                            <button id="focus-preview" class="ghost-button">
+                                Preview
+                            </button>
+                        </div>
+                    </div>
+                    <div class="focus-pad-voice">
+                        <div>
+                            <p id="focus-status" class="helper-text">
+                                Draw rough placement, dictate or paste the
+                                instruction, then apply.
+                            </p>
+                            <div
+                                id="focus-transcript"
+                                class="voice-live empty-state"
+                            >
+                                No voice note yet.
+                            </div>
+                        </div>
+                        <label class="focus-manual-note">
+                            Quick spoken note
+                            <textarea
+                                id="focus-manual-input"
+                                rows="2"
+                                placeholder="Paste macOS dictation here if browser voice is unavailable."
+                            ></textarea>
+                        </label>
+                        <button id="focus-add-manual" class="ghost-button">
+                            Add note
+                        </button>
+                    </div>
+                </section>
 
                 <section class="panel stage-panel">
                     <div class="stage-header">
@@ -502,7 +640,7 @@
                         />
                     </label>
                     <label>
-                        Canvas size / viewport
+                        Surface
                         <select id="viewport-select"></select>
                     </label>
                     <label>
@@ -930,6 +1068,29 @@
                     </div>
                 </div>
                 <div class="help-grid">
+                    <section class="help-card">
+                        <h3>Focus Pad</h3>
+                        <ul class="help-list">
+                            <li>
+                                Use <strong>Surface</strong> to choose desktop,
+                                mobile, tablet, poster, square, or a large free
+                                canvas.
+                            </li>
+                            <li>
+                                <strong>New frame</strong> creates another
+                                screen or state. <strong>New section</strong>
+                                creates a connected continuation frame.
+                            </li>
+                            <li>
+                                <strong>Make screen</strong> turns the current
+                                sketch into a local generated preview.
+                            </li>
+                            <li>
+                                <strong>Apply to Codex</strong> saves one clear
+                                sketch + voice checkpoint for this chat.
+                            </li>
+                        </ul>
+                    </section>
                     <section class="help-card">
                         <h3>Canvas basics</h3>
                         <ul class="help-list">

@@ -22,6 +22,19 @@ const viewModes = [
   { id: "flow", label: "Flow view" },
 ];
 
+const workspaceModes = [
+  {
+    id: "simple",
+    label: "Focus Pad",
+    description: "Simple sketch + voice + apply mode",
+  },
+  {
+    id: "advanced",
+    label: "Advanced",
+    description: "Full frames, flow, manifests, and diagnostics",
+  },
+];
+
 const viewportPresets = {
   desktop: { label: "Desktop", width: 1440, height: 1024, columns: 12 },
   laptop: { label: "Laptop", width: 1366, height: 900, columns: 12 },
@@ -29,6 +42,7 @@ const viewportPresets = {
   mobile: { label: "Mobile", width: 430, height: 932, columns: 4 },
   square: { label: "Square", width: 1024, height: 1024, columns: 6 },
   poster: { label: "Poster", width: 900, height: 1400, columns: 6 },
+  free: { label: "Free canvas", width: 2400, height: 1600, columns: 16 },
 };
 
 const generationDirections = [
@@ -93,6 +107,24 @@ const dom = {
   boardGoal: document.querySelector("#board-goal"),
   boardAudience: document.querySelector("#board-audience"),
   boardMood: document.querySelector("#board-mood"),
+  workspaceModeButtons: document.querySelector("#workspace-mode-buttons"),
+  workspaceModeLabel: document.querySelector("#workspace-mode-label"),
+  focusPad: document.querySelector("#focus-pad"),
+  focusViewportSelect: document.querySelector("#focus-viewport-select"),
+  focusFrameChip: document.querySelector("#focus-frame-chip"),
+  focusSurfaceChip: document.querySelector("#focus-surface-chip"),
+  focusToolButtons: document.querySelector("#focus-tool-buttons"),
+  focusAddFrame: document.querySelector("#focus-add-frame"),
+  focusAddSection: document.querySelector("#focus-add-section"),
+  focusFreeCanvas: document.querySelector("#focus-free-canvas"),
+  focusGenerate: document.querySelector("#focus-generate"),
+  focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
+  focusApply: document.querySelector("#focus-apply"),
+  focusPreview: document.querySelector("#focus-preview"),
+  focusStatus: document.querySelector("#focus-status"),
+  focusTranscript: document.querySelector("#focus-transcript"),
+  focusManualInput: document.querySelector("#focus-manual-input"),
+  focusAddManual: document.querySelector("#focus-add-manual"),
   frameList: document.querySelector("#frame-list"),
   frameCount: document.querySelector("#frame-count"),
   toolButtons: document.querySelector("#tool-buttons"),
@@ -248,6 +280,65 @@ function bindEvents() {
   dom.boardMood.addEventListener("input", () =>
     updateBoard("designMood", dom.boardMood.value),
   );
+  dom.workspaceModeButtons.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-workspace-mode]");
+    if (!button) {
+      return;
+    }
+    setWorkspaceMode(button.dataset.workspaceMode);
+  });
+  dom.focusToolButtons.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-focus-tool]");
+    if (!button) {
+      return;
+    }
+    setActiveTool(button.dataset.focusTool);
+  });
+  dom.focusViewportSelect.addEventListener("change", () => {
+    updateFrameField("viewport", dom.focusViewportSelect.value, {
+      capture: true,
+    });
+  });
+  dom.focusAddFrame.addEventListener("click", () =>
+    addFrame({
+      status: "Focus Pad frame added",
+    }),
+  );
+  dom.focusAddSection.addEventListener("click", addSectionFrame);
+  dom.focusFreeCanvas.addEventListener("click", () => {
+    updateFrameField("viewport", "free", { capture: true });
+    setZoom(0.5);
+  });
+  dom.focusGenerate.addEventListener("click", () => {
+    void generateCurrentScreen();
+  });
+  dom.focusVoiceToggle.addEventListener("click", () => {
+    if (state.voice.status === "listening") {
+      stopVoiceDictation();
+    } else {
+      startVoiceDictation();
+    }
+  });
+  dom.focusApply.addEventListener("click", () => {
+    void applyFocusPadToCodex();
+  });
+  dom.focusPreview.addEventListener("click", openPreviewWindow);
+  dom.focusManualInput.addEventListener("input", () => {
+    state.voice.manualDraft = dom.focusManualInput.value;
+    state.focusLastAppliedText = "";
+    persistState();
+    renderVoicePanel();
+  });
+  dom.focusManualInput.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      dom.voiceManualInput.value = dom.focusManualInput.value;
+      addManualVoiceNote();
+    }
+  });
+  dom.focusAddManual.addEventListener("click", () => {
+    dom.voiceManualInput.value = dom.focusManualInput.value;
+    addManualVoiceNote();
+  });
 
   dom.addFrame.addEventListener("click", () => addFrame());
   dom.duplicateFrame.addEventListener("click", () => duplicateFrame());
@@ -331,15 +422,7 @@ function bindEvents() {
     if (!button) {
       return;
     }
-    if (state.labelDraft && button.dataset.tool !== "label") {
-      commitLabelEditor();
-    }
-    state.tool = button.dataset.tool;
-    state.hoverElementId = null;
-    renderTools();
-    renderColors();
-    renderBrushPreview();
-    renderCanvas();
+    setActiveTool(button.dataset.tool);
   });
 
   dom.colorButtons.addEventListener("click", (event) => {
@@ -731,6 +814,11 @@ function hydrateState() {
       viewMode: viewModes.some((mode) => mode.id === migrated.viewMode)
         ? migrated.viewMode
         : empty.viewMode,
+      workspaceMode: workspaceModes.some(
+        (mode) => mode.id === migrated.workspaceMode,
+      )
+        ? migrated.workspaceMode
+        : empty.workspaceMode,
       connections,
       entryFrameId,
       selectedConnectionId: null,
@@ -746,6 +834,7 @@ function hydrateState() {
         exportRoot: null,
         previewManifest: null,
         checkpointHistory: null,
+        transcriptBridge: null,
         workspaceFollow: null,
         transport: buildTransportDescriptor(),
         outputDigest: null,
@@ -962,6 +1051,7 @@ function createInitialState() {
     autoSnap: true,
     zoom: 1,
     viewMode: "frame",
+    workspaceMode: "simple",
     connections: [],
     entryFrameId: firstFrame.id,
     selectedConnectionId: null,
@@ -976,6 +1066,7 @@ function createInitialState() {
       exportRoot: null,
       previewManifest: null,
       checkpointHistory: null,
+      transcriptBridge: null,
       workspaceFollow: null,
       transport: buildTransportDescriptor(),
       outputDigest: null,
@@ -1207,15 +1298,18 @@ function normalizeConnection(connection) {
 }
 
 function populateViewportSelect() {
-  dom.viewportSelect.innerHTML = Object.entries(viewportPresets)
+  const markup = Object.entries(viewportPresets)
     .map(
       ([id, viewport]) =>
         `<option value="${id}">${viewport.label} · ${viewport.width}×${viewport.height}</option>`,
     )
     .join("");
+  dom.viewportSelect.innerHTML = markup;
+  dom.focusViewportSelect.innerHTML = markup;
 }
 
 function renderAll() {
+  renderWorkspaceMode();
   syncCanvasSize();
   renderBoardFields();
   renderTools();
@@ -1238,6 +1332,70 @@ function renderAll() {
   renderCheckpointPanel();
   renderUndoRedo();
   renderServerStatus();
+}
+
+function renderWorkspaceMode() {
+  const mode = workspaceModes.some((entry) => entry.id === state.workspaceMode)
+    ? state.workspaceMode
+    : "simple";
+  state.workspaceMode = mode;
+  if (mode === "simple" && state.viewMode !== "frame") {
+    state.viewMode = "frame";
+  }
+  if (mode === "simple" && state.voice.scope !== "frame") {
+    state.voice.scope = "frame";
+  }
+
+  document.body.dataset.workspaceMode = mode;
+  dom.workspaceModeLabel.textContent =
+    workspaceModes.find((entry) => entry.id === mode)?.label || "Focus Pad";
+  dom.focusPad.hidden = mode !== "simple";
+  dom.workspaceModeButtons
+    .querySelectorAll("[data-workspace-mode]")
+    .forEach((button) => {
+      const active = button.dataset.workspaceMode === mode;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  renderFocusPad();
+}
+
+function setWorkspaceMode(mode) {
+  const nextMode = mode === "advanced" ? "advanced" : "simple";
+  cancelLabelEditor();
+  state.workspaceMode = nextMode;
+  if (nextMode === "simple") {
+    state.viewMode = "frame";
+    state.voice.scope = "frame";
+    if (!["pen", "rect", "arrow", "erase"].includes(state.tool)) {
+      state.tool = "pen";
+    }
+  }
+  persistState();
+  renderAll();
+  renderStatus(
+    nextMode === "simple"
+      ? "Focus Pad ready: sketch, talk, then apply"
+      : "Advanced Canvax controls shown",
+  );
+}
+
+function setActiveTool(toolId) {
+  if (!toolDefinitions.some((tool) => tool.id === toolId)) {
+    return;
+  }
+  if (state.labelDraft && toolId !== "label") {
+    commitLabelEditor();
+  }
+  state.tool = toolId;
+  state.focusLastAppliedText = "";
+  state.hoverElementId = null;
+  persistState();
+  renderTools();
+  renderFocusPad();
+  renderColors();
+  renderBrushPreview();
+  renderCanvas();
 }
 
 function renderBoardFields() {
@@ -1265,6 +1423,84 @@ function renderTools() {
     .map(
       (tool) =>
         `<button class="tool-chip ${tool.id === state.tool ? "active" : ""}" data-tool="${tool.id}" title="${escapeHtml(toolMeta[tool.id] || tool.label)}">${tool.label}</button>`,
+    )
+    .join("");
+}
+
+function renderFocusPad() {
+  dom.focusToolButtons
+    .querySelectorAll("[data-focus-tool]")
+    .forEach((button) => {
+      const active = button.dataset.focusTool === state.tool;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+
+  const frame = currentFrame();
+  const frameIndex = Math.max(
+    0,
+    state.frames.findIndex((candidate) => candidate.id === frame.id),
+  );
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const relevantSegments = voiceSegmentsForCurrentScope();
+  const supportsVoice = supportsBrowserVoiceRecognition();
+  dom.focusViewportSelect.value = frame.viewport;
+  dom.focusFrameChip.textContent = `${frameIndex + 1}. ${frame.title}`;
+  dom.focusSurfaceChip.textContent = `${viewport.label} · ${viewport.width}×${viewport.height}`;
+  dom.focusFreeCanvas.classList.toggle("active", frame.viewport === "free");
+  dom.focusManualInput.value = state.voice.manualDraft;
+  dom.focusAddManual.disabled = !state.voice.manualDraft.trim();
+  dom.focusApply.disabled = Boolean(state.focusApplyInFlight);
+  dom.focusGenerate.disabled = Boolean(state.generationInFlight);
+  dom.focusVoiceToggle.textContent =
+    state.voice.status === "listening" ? "Stop talking" : "Start talking";
+  dom.focusVoiceToggle.classList.toggle(
+    "active",
+    state.voice.status === "listening",
+  );
+
+  if (state.focusApplyInFlight) {
+    dom.focusStatus.textContent =
+      "Saving the sketch, voice context, and checkpoint for Codex...";
+  } else if (state.voice.status === "listening") {
+    dom.focusStatus.textContent = `Listening for ${voiceScopeLabel("frame", frame)}. Keep drawing while you speak.`;
+  } else if (state.voice.error) {
+    dom.focusStatus.textContent = state.voice.error;
+  } else if (state.focusLastAppliedText) {
+    dom.focusStatus.textContent = state.focusLastAppliedText;
+  } else if (!supportsVoice) {
+    dom.focusStatus.textContent =
+      "Browser dictation is unavailable here. Paste macOS dictation below, then apply.";
+  } else {
+    dom.focusStatus.textContent =
+      "Draw rough placement, start talking or paste a note, then Apply to Codex.";
+  }
+
+  if (state.voice.interimText) {
+    dom.focusTranscript.className = "voice-live";
+    dom.focusTranscript.innerHTML = `
+      <strong>Live transcript</strong>
+      <p>${escapeHtml(state.voice.interimText)}</p>
+    `;
+    return;
+  }
+
+  if (!relevantSegments.length) {
+    dom.focusTranscript.className = "voice-live empty-state";
+    dom.focusTranscript.textContent = "No voice note yet.";
+    return;
+  }
+
+  dom.focusTranscript.className = "voice-live focus-transcript-list";
+  dom.focusTranscript.innerHTML = relevantSegments
+    .slice(0, 3)
+    .map(
+      (segment) => `
+        <p>
+          <strong>${escapeHtml(timeLabel(segment.at))}</strong>
+          ${escapeHtml(segment.text)}
+        </p>
+      `,
     )
     .join("");
 }
@@ -1459,6 +1695,7 @@ function renderVoicePanel() {
   if (!segments.length) {
     dom.voiceList.className = "voice-list empty-state";
     dom.voiceList.textContent = "No saved voice notes yet.";
+    renderFocusPad();
     return;
   }
 
@@ -1484,6 +1721,7 @@ function renderVoicePanel() {
         })
         .join("")
     : `<p class="helper-text">No voice notes match the current ${state.voice.scope === "frame" ? "frame" : "board"} scope yet.</p>`;
+  renderFocusPad();
 }
 
 function renderStatus(message = state.statusText) {
@@ -1642,6 +1880,47 @@ function stopVoiceDictation() {
   renderVoicePanel();
   renderStatus("Dictation stopped");
   void saveCheckpointToWorkspace("dictation-stop", { silent: true });
+}
+
+async function applyFocusPadToCodex() {
+  const frame = currentFrame();
+  if (state.focusApplyInFlight) {
+    return;
+  }
+  state.focusApplyInFlight = true;
+  state.suppressOutputCheckpointUntil = Date.now() + 7000;
+  renderFocusPad();
+  renderStatus("Saving Focus Pad handoff...");
+
+  try {
+    if (!frame.objective.trim()) {
+      frame.objective =
+        "Use this Focus Pad sketch and voice context to adjust the current design.";
+    }
+    if (!frame.layout.trim()) {
+      frame.layout =
+        "Interpret the rough boxes, lines, arrows, labels, and spoken notes as placement instructions.";
+    }
+    persistState();
+    const exportResult = await freezeFrame(true, {
+      reason: "focus-apply",
+      status: "Focus Pad checkpoint saved",
+    });
+    if (exportResult) {
+      state.focusLastAppliedText =
+        "Applied. The latest sketch + voice checkpoint is ready for Codex.";
+      dom.workspaceStatus.textContent =
+        "Focus Pad applied. Ask Codex to use the latest Canvax checkpoint.";
+      renderStatus("Focus Pad checkpoint ready for Codex");
+    } else {
+      state.focusLastAppliedText =
+        "Saved locally, but workspace sync did not finish. Try Apply again.";
+      renderStatus("Focus Pad saved locally, but workspace sync did not finish");
+    }
+  } finally {
+    state.focusApplyInFlight = false;
+    renderFocusPad();
+  }
 }
 
 function humanizeVoiceError(code) {
@@ -2193,7 +2472,8 @@ async function maybeCheckpointOutputUpdate(previousDigest, nextDigest) {
     !previousDigest ||
     !nextDigest ||
     previousDigest.digest === nextDigest.digest ||
-    state.outputCheckpointInFlight
+    state.outputCheckpointInFlight ||
+    Date.now() < (state.suppressOutputCheckpointUntil || 0)
   ) {
     return;
   }
@@ -4166,12 +4446,16 @@ function onWindowCopy(event) {
   }
 
   event.preventDefault();
+  const payload = JSON.stringify({
+    kind: "canvax-elements",
+    elements: selected,
+  });
+  event.clipboardData.setData("application/x-canvax-elements", payload);
   event.clipboardData.setData(
     "text/plain",
-    JSON.stringify({
-      kind: "canvax-elements",
-      elements: selected,
-    }),
+    selected.length > 1
+      ? `Canvax selection (${selected.length} elements)`
+      : `Canvax ${selected[0].type || "element"}`,
   );
   renderStatus(selected.length > 1 ? "Selection copied" : "Element copied");
 }
@@ -4382,13 +4666,15 @@ async function tryPasteElements(event) {
     return false;
   }
 
-  const text = event.clipboardData?.getData("text/plain");
-  if (!text) {
+  const rawPayload =
+    event.clipboardData?.getData("application/x-canvax-elements") ||
+    event.clipboardData?.getData("text/plain");
+  if (!rawPayload) {
     return false;
   }
 
   try {
-    const payload = JSON.parse(text);
+    const payload = JSON.parse(rawPayload);
     if (
       payload?.kind !== "canvax-elements" ||
       !Array.isArray(payload.elements) ||
@@ -4624,19 +4910,54 @@ function touchFrame(frame, { capture = true, status = "Frame updated" } = {}) {
   }
 }
 
-function addFrame() {
+function addFrame(options = {}) {
   const active = currentFrame();
   const frame = createFrame({
-    title: `Frame ${state.frames.length + 1}`,
-    viewport: active.viewport,
+    title: options.title || `Frame ${state.frames.length + 1}`,
+    viewport: options.viewport || active.viewport,
+    objective: options.objective || "",
+    layout: options.layout || "",
+    motion: options.motion || "",
+    assets: options.assets || "",
+    mobile: options.mobile || "",
     flowPosition: defaultFlowPosition(state.frames.length),
   });
   state.frames.push(frame);
   state.activeFrameId = frame.id;
+  if (options.connectFromActive) {
+    const connection = normalizeConnection({
+      fromFrameId: active.id,
+      toFrameId: frame.id,
+      label: options.connectionLabel || "next",
+      notes: options.connectionNotes || "",
+    });
+    state.connections.push(connection);
+    state.selectedConnectionId = connection.id;
+  }
   clearElementSelection();
   persistState();
   renderAll();
-  renderStatus("New frame added");
+  renderStatus(options.status || "New frame added");
+  return frame;
+}
+
+function addSectionFrame() {
+  const active = currentFrame();
+  const sectionNumber =
+    state.frames.filter((frame) => frame.viewport === active.viewport).length +
+    1;
+  return addFrame({
+    title: `Section ${sectionNumber}`,
+    viewport: active.viewport,
+    objective: `Continuation section after ${active.title}`,
+    layout:
+      "Use this as the next vertical section or screen state connected to the previous sketch.",
+    connectFromActive: true,
+    connectionLabel: "scroll / continue",
+    connectionNotes:
+      "Focus Pad section created as a connected continuation from the previous frame.",
+    status: "Connected section frame added",
+  });
 }
 
 function duplicateFrame() {
@@ -4774,7 +5095,7 @@ function scheduleCapture(reason) {
   );
 }
 
-function freezeFrame(manual = false) {
+function freezeFrame(manual = false, options = {}) {
   const frame = currentFrame();
   window.clearTimeout(state.captureTimer);
   const captureImage = renderFrameToDataUrl(frame, {
@@ -4793,13 +5114,19 @@ function freezeFrame(manual = false) {
   persistState();
   renderFrameList();
   renderCaptures();
-  renderStatus(manual ? "Manual freeze saved" : "Autosnap freeze saved");
+  renderStatus(
+    options.status || (manual ? "Manual freeze saved" : "Autosnap freeze saved"),
+  );
   scheduleLivePreviewSync();
-  void syncFreezeHandoff(manual);
+  const handoff = syncFreezeHandoff(manual, options.reason);
+  if (!options.awaitHandoff) {
+    void handoff;
+  }
+  return handoff;
 }
 
-async function syncFreezeHandoff(manual = false) {
-  const reason = manual ? "manual-freeze" : "autosnap-freeze";
+async function syncFreezeHandoff(manual = false, reasonOverride = "") {
+  const reason = reasonOverride || (manual ? "manual-freeze" : "autosnap-freeze");
   const exportResult = await saveExportToWorkspace({ silent: true });
   if (!exportResult) {
     return null;
@@ -4980,6 +5307,7 @@ async function refreshPreviewStateFromServer() {
       transport: buildTransportDescriptor(data.transport),
       outputDigest: nextOutputDigest,
       outputActivity: nextOutputActivity,
+      transcriptBridge: data.transcriptBridge || null,
       sessionEvents: Array.isArray(data.sessionEvents)
         ? data.sessionEvents
         : [],
@@ -4994,6 +5322,14 @@ async function refreshPreviewStateFromServer() {
       liveVoiceMarkdownPath:
         data.paths?.liveVoiceMarkdownPath ||
         state.serverStatus.liveVoiceMarkdownPath ||
+        "",
+      transcriptBridgePath:
+        data.paths?.transcriptBridgePath ||
+        state.serverStatus.transcriptBridgePath ||
+        "",
+      transcriptBridgeMarkdownPath:
+        data.paths?.transcriptBridgeMarkdownPath ||
+        state.serverStatus.transcriptBridgeMarkdownPath ||
         "",
       checkpointHistory:
         data.checkpointHistory || state.serverStatus.checkpointHistory || null,
@@ -5010,6 +5346,7 @@ async function refreshPreviewStateFromServer() {
         state.serverStatus.sessionEventsPath ||
         "",
     };
+    importTranscriptBridge(data.transcriptBridge);
     renderCheckpointPanel();
     renderCodexOutput();
     renderServerStatus();
@@ -5019,6 +5356,7 @@ async function refreshPreviewStateFromServer() {
       ...state.serverStatus,
       previewManifest: state.serverStatus.previewManifest || null,
       checkpointHistory: state.serverStatus.checkpointHistory || null,
+      transcriptBridge: state.serverStatus.transcriptBridge || null,
       workspaceFollow: state.serverStatus.workspaceFollow || null,
       transport: state.serverStatus.transport || buildTransportDescriptor(),
       outputDigest: state.serverStatus.outputDigest || null,
@@ -5033,6 +5371,61 @@ async function refreshPreviewStateFromServer() {
   }
 }
 
+function importTranscriptBridge(transcriptBridge) {
+  const entries = Array.isArray(transcriptBridge?.entries)
+    ? transcriptBridge.entries
+    : [];
+  if (!entries.length) {
+    return;
+  }
+
+  const existingIds = new Set(state.voice.segments.map((segment) => segment.id));
+  const frame = currentFrame();
+  const newSegments = entries
+    .filter((entry) => entry?.id && !existingIds.has(entry.id))
+    .map((entry) => {
+      const scope = entry.scope === "session" ? "session" : "frame";
+      const frameId =
+        scope === "frame" &&
+        state.frames.some((candidate) => candidate.id === entry.frameId)
+          ? entry.frameId
+          : scope === "frame"
+            ? frame.id
+            : "";
+      return normalizeVoiceSegment({
+        id: entry.id,
+        text: entry.text,
+        at: entry.at,
+        scope,
+        provider: entry.provider || "codex-transcript-bridge",
+        frameId,
+        frameTitle:
+          scope === "frame"
+            ? entry.frameTitle || frameTitleById(frameId) || frame.title
+            : "Board context",
+      });
+    })
+    .filter(Boolean);
+
+  if (!newSegments.length) {
+    return;
+  }
+
+  state.voice.segments = [...newSegments, ...state.voice.segments].slice(
+    0,
+    120,
+  );
+  state.voice.error = "";
+  state.voice.interimText = "";
+  persistState();
+  scheduleCapture("Codex transcript imported");
+  renderStatus(
+    newSegments.length === 1
+      ? "Codex chat transcript added to Canvax"
+      : `${newSegments.length} Codex chat transcripts added to Canvax`,
+  );
+}
+
 function buildPromptMarkdown() {
   const generationRecipe = generationSummaryText(state.board.generation);
   const lines = [
@@ -5042,6 +5435,7 @@ function buildPromptMarkdown() {
     `- Ask: ${state.board.goal || "Not specified"}`,
     `- Surface / medium: ${state.board.audience || "Not specified"}`,
     `- Mood: ${state.board.designMood || "Not specified"}`,
+    `- Canvax mode: ${state.workspaceMode === "simple" ? "Focus Pad" : "Advanced"}`,
     `- Preferred screen generation: ${generationRecipe}`,
     "",
     "## How Codex should read this",
@@ -5049,6 +5443,7 @@ function buildPromptMarkdown() {
     "- Preserve the composition and hierarchy from the sketch, but refine clarity, polish, and accessibility where relevant.",
     "- Use the drawing plus notes to infer structure, behavior, asset direction, and platform adaptation.",
     "- When explicit flow links exist, treat them as the primary interaction map instead of guessing transitions from frame order alone.",
+    "- If the mode is Focus Pad, prioritize the active frame, latest capture, and voice notes as a quick edit instruction for the current design.",
     "",
   ];
 
@@ -5291,6 +5686,7 @@ async function buildExportPackage(frameSelection = state.frames) {
     storageVersion: STORAGE_VERSION,
     generatedAt: new Date().toISOString(),
     transport: currentTransportDescriptor(),
+    workspaceMode: state.workspaceMode,
     board: state.board,
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
@@ -5313,6 +5709,7 @@ function checkpointReasonLabel(reason) {
     "autosnap-freeze": "Autosnap freeze",
     "dictation-stop": "Dictation stop",
     "voice-note": "Voice note",
+    "focus-apply": "Focus Pad apply",
     materialize: "Materialize",
     "generate-screen": "Generate screen",
     "publish-output": "Published output",
@@ -5378,6 +5775,7 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
       typeof options.note === "string" && options.note.trim()
         ? options.note.trim()
         : "",
+    workspaceMode: state.workspaceMode,
     board: structuredClone(state.board),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: frame?.title || "",
@@ -5786,16 +6184,20 @@ async function materializeCurrentFrame(options = {}) {
   const originalMaterializeLabel = dom.materializeFrame.textContent;
   const originalGeneratePanelLabel = dom.generateScreenPanel.textContent;
   const originalMaterializePanelLabel = dom.materializeFramePanel.textContent;
+  const originalFocusGenerateLabel = dom.focusGenerate.textContent;
+  state.generationInFlight = true;
   try {
     dom.generateScreen.disabled = true;
     dom.materializeFrame.disabled = true;
     dom.generateScreenPanel.disabled = true;
     dom.materializeFramePanel.disabled = true;
+    dom.focusGenerate.disabled = true;
     if (!silent) {
       dom.generateScreen.textContent = inFlightLabel;
       dom.materializeFrame.textContent = inFlightLabel;
       dom.generateScreenPanel.textContent = inFlightLabel;
       dom.materializeFramePanel.textContent = inFlightLabel;
+      dom.focusGenerate.textContent = inFlightLabel;
       dom.workspaceStatus.textContent = progressLabel;
     }
     if (announce) {
@@ -5856,14 +6258,17 @@ async function materializeCurrentFrame(options = {}) {
     }
     return null;
   } finally {
+    state.generationInFlight = false;
     dom.generateScreen.disabled = false;
     dom.materializeFrame.disabled = false;
     dom.generateScreenPanel.disabled = false;
     dom.materializeFramePanel.disabled = false;
+    dom.focusGenerate.disabled = false;
     dom.generateScreen.textContent = originalGenerateLabel;
     dom.materializeFrame.textContent = originalMaterializeLabel;
     dom.generateScreenPanel.textContent = originalGeneratePanelLabel;
     dom.materializeFramePanel.textContent = originalMaterializePanelLabel;
+    dom.focusGenerate.textContent = originalFocusGenerateLabel;
   }
 }
 
@@ -6024,6 +6429,7 @@ function buildLivePreviewPayload() {
     storageVersion: STORAGE_VERSION,
     updatedAt: new Date().toISOString(),
     transport: currentTransportDescriptor(),
+    workspaceMode: state.workspaceMode,
     liveMarkdown: buildPromptMarkdown(),
     liveVoiceMarkdown: buildVoiceMarkdown(),
     previewManifest: state.serverStatus.previewManifest || null,
@@ -6031,6 +6437,7 @@ function buildLivePreviewPayload() {
     liveExport: {
       generatedAt: new Date().toISOString(),
       transport: currentTransportDescriptor(),
+      workspaceMode: state.workspaceMode,
       board: structuredClone(state.board),
       activeFrameId: state.activeFrameId,
       entryFrameId: state.entryFrameId,
@@ -6086,6 +6493,7 @@ function buildPersistedSnapshot(source) {
     frames: source.frames,
     voice: source.voice,
     viewMode: source.viewMode,
+    workspaceMode: source.workspaceMode,
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -6794,10 +7202,17 @@ function normalizeHref(value) {
 }
 
 function timeLabel(dateString) {
+  return formatDateTime(dateString);
+}
+
+function formatDateTime(dateString) {
   if (!dateString) {
     return "";
   }
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
   return date.toLocaleString([], {
     month: "short",
     day: "numeric",

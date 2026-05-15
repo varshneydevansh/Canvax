@@ -87,6 +87,62 @@ body::before {
     min-height: 100vh;
 }
 
+body[data-workspace-mode="simple"] .shell {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 104rem;
+}
+
+body[data-workspace-mode="simple"] .timeline-panel,
+body[data-workspace-mode="simple"] .inspector-panel {
+    display: none;
+}
+
+body[data-workspace-mode="simple"] .studio {
+    grid-column: 1;
+}
+
+body[data-workspace-mode="simple"] .toolbar-main,
+body[data-workspace-mode="simple"] .tool-hint,
+body[data-workspace-mode="simple"] .canvas-note {
+    display: none;
+}
+
+body[data-workspace-mode="simple"] .stage-panel {
+    padding: clamp(0.85rem, 2vw, 1.25rem);
+}
+
+body[data-workspace-mode="simple"] .stage-header {
+    padding-inline: 0.25rem;
+}
+
+body[data-workspace-mode="simple"] .stage-actions {
+    display: none;
+}
+
+body[data-workspace-mode="simple"] .device-shell {
+    min-height: min(74vh, 58rem);
+    background:
+        radial-gradient(
+            circle at 14% 10%,
+            rgba(255, 255, 255, 0.8),
+            transparent 24%
+        ),
+        radial-gradient(
+            circle at 86% 88%,
+            rgba(12, 141, 123, 0.11),
+            transparent 28%
+        ),
+        linear-gradient(
+            180deg,
+            rgba(255, 250, 242, 0.9),
+            rgba(24, 17, 14, 0.07)
+        );
+}
+
+body[data-workspace-mode="simple"] .device-shell::before {
+    content: "focus pad: sketch + voice + apply";
+}
+
 .panel {
     position: relative;
     display: flex;
@@ -326,6 +382,11 @@ button:disabled {
     background: rgba(255, 249, 241, 0.7);
 }
 
+.ghost-button.active {
+    border-color: rgba(12, 141, 123, 0.36);
+    background: rgba(12, 141, 123, 0.14);
+}
+
 .ghost-link-button {
     display: inline-flex;
     align-items: center;
@@ -517,6 +578,31 @@ button:disabled {
     gap: 0.65rem;
 }
 
+.mode-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.55rem 0.65rem 0.65rem;
+    border-radius: calc(var(--radius-lg) - 0.65rem);
+    background:
+        linear-gradient(135deg, rgba(12, 141, 123, 0.1), transparent 48%),
+        rgba(255, 249, 241, 0.68);
+    border: 0.0625rem solid rgba(24, 17, 14, 0.07);
+}
+
+.mode-strip strong {
+    display: block;
+    margin-top: 0.2rem;
+    font-family: "Iowan Old Style", "Palatino Linotype", serif;
+    font-size: clamp(1.25rem, 2vw, 1.7rem);
+    letter-spacing: -0.04em;
+}
+
+.workspace-mode-control {
+    flex: 0 0 auto;
+}
+
 .toolbar-main {
     display: flex;
     flex-wrap: wrap;
@@ -582,6 +668,125 @@ button:disabled {
 .tool-chip.active {
     background: rgba(12, 141, 123, 0.16);
     border-color: rgba(12, 141, 123, 0.38);
+}
+
+.focus-pad {
+    display: grid;
+    grid-template-columns: minmax(16rem, 1.1fr) minmax(18rem, 1fr);
+    gap: 1rem;
+    padding: clamp(1rem, 2vw, 1.35rem);
+    background:
+        radial-gradient(
+            circle at top left,
+            rgba(12, 141, 123, 0.14),
+            transparent 30%
+        ),
+        radial-gradient(
+            circle at bottom right,
+            rgba(255, 93, 58, 0.12),
+            transparent 32%
+        ),
+        rgba(255, 249, 241, 0.88);
+}
+
+.focus-pad[hidden] {
+    display: none;
+}
+
+.focus-pad-copy h2 {
+    margin: 0.2rem 0 0.45rem;
+    max-width: 13ch;
+    font-family: "Iowan Old Style", "Palatino Linotype", serif;
+    font-size: clamp(2.15rem, 5vw, 4.25rem);
+    line-height: 0.92;
+    letter-spacing: -0.07em;
+}
+
+.focus-pad-actions {
+    display: grid;
+    align-content: start;
+    gap: 0.8rem;
+}
+
+.focus-pad-context {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 0.9fr);
+    gap: 0.7rem;
+    align-items: end;
+    padding: 0.8rem;
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+    border-radius: var(--radius-md);
+    background: rgba(255, 252, 247, 0.76);
+}
+
+.focus-pad-context select {
+    margin-top: 0.35rem;
+    width: 100%;
+}
+
+.focus-frame-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-content: end;
+}
+
+.focus-frame-meta span {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0.48rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(12, 141, 123, 0.1);
+    color: var(--ink);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.focus-tool-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.focus-tool-grid .tool-chip {
+    min-height: 3.2rem;
+    border-radius: 1.05rem;
+    font-weight: 700;
+}
+
+.focus-command-row > * {
+    flex: 1 1 9rem;
+}
+
+.focus-pad-voice {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(18rem, 1fr) minmax(16rem, 0.8fr) auto;
+    gap: 0.75rem;
+    align-items: end;
+    padding: 0.85rem;
+    border-radius: var(--radius-md);
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+    background: rgba(255, 252, 247, 0.76);
+}
+
+.focus-manual-note textarea {
+    min-height: 4rem;
+}
+
+.focus-transcript-list {
+    align-content: start;
+}
+
+.focus-transcript-list p {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.58);
 }
 
 .swatch {
@@ -1611,6 +1816,17 @@ select,
         width: 100%;
     }
 
+    .mode-strip,
+    .focus-pad-context,
+    .focus-pad,
+    .focus-pad-voice {
+        grid-template-columns: 1fr;
+    }
+
+    .mode-strip {
+        align-items: stretch;
+    }
+
     .canvas-note {
         grid-template-columns: 1fr;
     }
@@ -1647,8 +1863,21 @@ select,
         padding: 0.75rem;
     }
 
+    body[data-workspace-mode="simple"] .device-shell {
+        min-height: 58vh;
+    }
+
     #board-canvas {
         max-height: 52vh;
+    }
+
+    .focus-tool-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .focus-pad-copy h2 {
+        max-width: 100%;
+        font-size: clamp(2rem, 13vw, 3.1rem);
     }
 
     .range-label {

@@ -18,8 +18,10 @@ This skill is the Codex-side wrapper for the local Canvax board. In practice:
 From the repo root:
 
 - Run `./canvax` when the user invokes `/canvax` and the board should be available at `http://localhost:3210`.
-- Prefer opening `http://localhost:3210` in Codex Browser Use when that plugin is available, so the board, Preview, generated app, and chat stay in one Codex loop.
-- Run `./canvax --open` only when the user explicitly wants the board opened in the default macOS browser.
+- Treat Codex Browser Use / Atlas as the first-class viewer. When Browser Use is available, navigate the in-app browser to the board URL after the local service is running.
+- Do not run an external browser command by default. The shell launcher cannot directly control Codex's in-app browser; this skill is the Codex-side instruction that makes `/canvax` open the board inside Codex.
+- Run `./canvax --open-external` or `./canvax --open` only when the user explicitly wants the board opened in the default macOS browser.
+- Run `./canvax --chrome` only when the user explicitly wants Google Chrome.
 - Run `./canvax --status` to reuse the existing board URL instead of starting another port.
 
 Treat `./canvax` as an attach command, not a fresh launch every time:
@@ -30,6 +32,35 @@ Treat `./canvax` as an attach command, not a fresh launch every time:
 
 After `/canvax` is invoked in a thread, assume that thread is attached to the live canvas and use the latest Canvax export automatically until the user switches context.
 
+If the user says "open Canvax", "use /canvax", or "make Canvax available here", the expected behavior is:
+
+1. start or reuse the service with `./canvax`
+2. open `http://localhost:3210` in Codex Browser Use / Atlas
+3. keep reading `exports/canvax-checkpoint-latest.json` and `exports/canvax-live-latest.json` for that thread
+
+If the user says "open in Chrome", "external browser", or "outside Codex", use the explicit external flags instead.
+
+Canvax now has `Focus Pad` as the simple path:
+
+- the user chooses desktop, mobile, tablet, poster, square, or free canvas without opening Advanced mode
+- the user creates a new frame or connected section without leaving Focus Pad
+- the user draws rough placement
+- the user dictates or pastes a quick spoken note
+- the user can run the local `Make screen` generation pass
+- `Apply to Codex` freezes the frame and writes a `focus-apply` checkpoint
+
+When the user says they used Focus Pad, prefer the latest checkpoint over older advanced-board context because it represents the specific sketch + voice edit they meant Codex to act on.
+
+If the user asks about microphone integration, be precise: the local board can use browser speech recognition or pasted macOS/Codex dictation. It cannot directly read the Codex chat microphone stream unless Canvax becomes a native Codex client surface or gains a first-party transcript bridge.
+
+This repo now includes that practical transcript bridge. When `/canvax` is active and the user speaks design intent into the Codex chat instead of into the Canvax page, queue the transcript into Canvax with:
+
+```bash
+./canvax --transcript "spoken user text" --scope frame
+```
+
+Use `--scope session` when the spoken instruction applies to the whole board. The board imports queued transcript entries into its voice notes through preview-state polling, and Codex should also read `exports/canvax-transcript-bridge.json` if the board has not imported it yet.
+
 ## Use saved exports
 
 Prefer these files when they exist:
@@ -37,6 +68,8 @@ Prefer these files when they exist:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-transcript-bridge.json`
+- `exports/canvax-transcript-bridge-latest.md`
 - `exports/canvax-checkpoint-latest.json`
 - `exports/canvax-preview-manifest.json`
 - `artifacts/canvax/codex-output.json`
@@ -66,7 +99,7 @@ For a quick smoke demo of that path from the repo root:
 npm run demo:hero
 ```
 
-When Browser Use is available, use it as the preferred visual inspection path:
+When Browser Use / Atlas is available, use it as the preferred visual inspection path:
 
 - open the board at `http://localhost:3210`
 - open Preview from the board or at the preview route exposed by the service
