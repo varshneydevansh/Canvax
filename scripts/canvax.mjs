@@ -19,6 +19,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = resolve(__dirname, "..");
 const webRoot = resolve(projectRoot, "web");
+const designMdPath = resolve(projectRoot, "DESIGN.md");
 const exportsRoot = resolve(projectRoot, "exports");
 const artifactsPreviewRoot = resolve(projectRoot, "artifacts", "preview");
 const materializedPreviewRoot = resolve(artifactsPreviewRoot, "materialized");
@@ -173,6 +174,74 @@ function buildTransportDescriptor(overrides = {}) {
         : {}),
     },
   };
+}
+
+function buildHostCapabilities() {
+  return {
+    codexBrowser: {
+      available: true,
+      mode: "preferred-local-browser",
+      detail:
+        "Canvax is served locally and is intended to run inside the Codex in-app browser when that surface is available.",
+    },
+    codexWorkspace: {
+      available: true,
+      mode: "file-manifest-handoff",
+      detail:
+        "Codex can read exports, task packs, prompt packs, checkpoints, and output manifests from this workspace.",
+    },
+    hostImageGeneration: {
+      available: false,
+      mode: "prompt-pack-handoff",
+      detail:
+        "No direct host image-generation bridge is exposed to the local Canvax page. Use the exported image prompt pack with the current Codex/ChatGPT host when image generation is available there.",
+    },
+    nativeMicBridge: {
+      available: false,
+      mode: "browser-speech-or-transcript-bridge",
+      detail:
+        "The local board cannot directly read Codex/ChatGPT microphone input. Use browser speech, manual dictation paste, or the Codex transcript bridge.",
+    },
+    requiresOpenAiApiKey: false,
+  };
+}
+
+async function readDesignContext() {
+  try {
+    const fileStats = await stat(designMdPath);
+    if (!fileStats.isFile()) {
+      throw new Error("DESIGN.md is not a file.");
+    }
+    const content = await readFile(designMdPath, "utf8");
+    return {
+      exists: true,
+      path: designMdPath,
+      relativePath: "DESIGN.md",
+      updatedAt: fileStats.mtime.toISOString(),
+      size: fileStats.size,
+      summary: summarizeDesignContext(content),
+      content: content.slice(0, 24000),
+    };
+  } catch {
+    return {
+      exists: false,
+      path: designMdPath,
+      relativePath: "DESIGN.md",
+      summary:
+        "No DESIGN.md found. Canvax will use board mood, labels, frame notes, and generation recipe as the design contract.",
+      content: "",
+    };
+  }
+}
+
+function summarizeDesignContext(content) {
+  return String(content || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("```"))
+    .slice(0, 8)
+    .join(" ")
+    .slice(0, 1000);
 }
 
 function normalizeTransportDescriptor(value) {
@@ -414,6 +483,8 @@ async function runServer(port) {
           previewUrl: `http://localhost:${port}/preview.html`,
           runtimePath,
           transport: buildTransportDescriptor(),
+          hostCapabilities: buildHostCapabilities(),
+          designContext: await readDesignContext(),
           url: `http://localhost:${port}`,
         });
       }
@@ -445,6 +516,13 @@ async function runServer(port) {
         url.pathname === "/api/publish-workspace-output"
       ) {
         return handlePublishWorkspaceOutput(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/write-design-context"
+      ) {
+        return handleWriteDesignContext(request, response);
       }
 
       if (request.method === "POST" && url.pathname === "/api/install-skill") {
@@ -699,6 +777,43 @@ async function handleCodexTranscript(request, response) {
     transcriptBridge: enhanceTranscriptBridge(result.bridge),
     transcriptBridgePath,
     transcriptBridgeMarkdownPath,
+  });
+}
+
+async function handleWriteDesignContext(request, response) {
+  const payload = await readJson(request);
+  const content = String(payload.content || "").trim();
+  const overwrite = Boolean(payload.overwrite);
+
+  if (!content) {
+    return writeJson(response, 400, {
+      error: "DESIGN.md content is required.",
+    });
+  }
+
+  if (Buffer.byteLength(content, "utf8") > 120000) {
+    return writeJson(response, 413, {
+      error: "DESIGN.md content is too large.",
+    });
+  }
+
+  try {
+    const existing = await stat(designMdPath);
+    if (existing.isFile() && !overwrite) {
+      return writeJson(response, 409, {
+        error: "DESIGN.md already exists. Pass overwrite=true to replace it.",
+        designContext: await readDesignContext(),
+      });
+    }
+  } catch {
+    // Missing DESIGN.md is the normal create path.
+  }
+
+  await writeFile(designMdPath, `${content}\n`);
+
+  return writeJson(response, 200, {
+    written: true,
+    designContext: await readDesignContext(),
   });
 }
 
@@ -1061,6 +1176,8 @@ async function handlePreviewState(response) {
   return writeJson(response, 200, {
     updatedAt: new Date().toISOString(),
     transport: buildTransportDescriptor(),
+    hostCapabilities: buildHostCapabilities(),
+    designContext: await readDesignContext(),
     liveExport,
     liveMarkdown,
     liveVoiceMarkdown,

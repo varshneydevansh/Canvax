@@ -37,6 +37,34 @@ const workspaceModes = [
   },
 ];
 
+const actionModes = [
+  {
+    id: "build-ui",
+    label: "Build UI",
+    description: "Turn the current sketch into real UI or app-screen work.",
+  },
+  {
+    id: "refine-ui",
+    label: "Refine UI",
+    description: "Use sketch-over-output marks and notes to revise existing UI.",
+  },
+  {
+    id: "write-spec",
+    label: "Write spec",
+    description: "Convert the sketch, voice, and flow into an implementation spec.",
+  },
+  {
+    id: "image-prompt",
+    label: "Image prompt",
+    description: "Create a no-API prompt pack with coordinates and style intent.",
+  },
+  {
+    id: "variations",
+    label: "Variations",
+    description: "Request alternate visual directions from the same sketch.",
+  },
+];
+
 const viewportPresets = {
   desktop: { label: "Desktop", width: 1440, height: 1024, columns: 12 },
   laptop: { label: "Laptop", width: 1366, height: 900, columns: 12 },
@@ -115,8 +143,12 @@ const dom = {
   workbenchRail: document.querySelector("#workbench-rail"),
   focusPad: document.querySelector("#focus-pad"),
   focusViewportSelect: document.querySelector("#focus-viewport-select"),
+  focusActionModeSelect: document.querySelector("#focus-action-mode-select"),
   focusFrameChip: document.querySelector("#focus-frame-chip"),
   focusSurfaceChip: document.querySelector("#focus-surface-chip"),
+  focusActionChip: document.querySelector("#focus-action-chip"),
+  focusHostChip: document.querySelector("#focus-host-chip"),
+  focusDesignChip: document.querySelector("#focus-design-chip"),
   focusToolButtons: document.querySelector("#focus-tool-buttons"),
   focusAddFrame: document.querySelector("#focus-add-frame"),
   focusAddSection: document.querySelector("#focus-add-section"),
@@ -204,6 +236,7 @@ const dom = {
   generationSummary: document.querySelector("#generation-summary"),
   generateScreenPanel: document.querySelector("#generate-screen-panel"),
   materializeFramePanel: document.querySelector("#materialize-frame-panel"),
+  writeDesignContext: document.querySelector("#write-design-context"),
   voiceStatus: document.querySelector("#voice-status"),
   voiceSegmentCount: document.querySelector("#voice-segment-count"),
   voiceScopeButtons: document.querySelector("#voice-scope-buttons"),
@@ -326,6 +359,9 @@ function bindEvents() {
       capture: true,
     });
   });
+  dom.focusActionModeSelect.addEventListener("change", () => {
+    updateActionMode(dom.focusActionModeSelect.value);
+  });
   dom.focusAddFrame.addEventListener("click", () =>
     addFrame({
       status: "Workbench frame added",
@@ -430,6 +466,9 @@ function bindEvents() {
   });
   dom.materializeFramePanel.addEventListener("click", () => {
     void materializeCurrentFrame();
+  });
+  dom.writeDesignContext.addEventListener("click", () => {
+    void writeStarterDesignContext();
   });
   dom.helpButton.addEventListener("click", openHelpOverlay);
   dom.helpClose.addEventListener("click", closeHelpOverlay);
@@ -801,6 +840,18 @@ function generationLabelById(values, id, fallback) {
   return values.find((entry) => entry.id === id)?.label || fallback;
 }
 
+function normalizeActionMode(value) {
+  return (
+    actionModes.find((mode) => mode.id === value) ||
+    actionModes.find((mode) => mode.id === "build-ui") ||
+    actionModes[0]
+  );
+}
+
+function currentActionMode() {
+  return normalizeActionMode(state?.board?.actionMode);
+}
+
 function generationSummaryText(config = state?.board?.generation) {
   const recipe = normalizeGenerationConfig(config);
   return [
@@ -842,6 +893,7 @@ function hydrateState() {
       board: {
         ...empty.board,
         ...(migrated.board || {}),
+        actionMode: normalizeActionMode(migrated.board?.actionMode).id,
         generation: normalizeGenerationConfig(
           migrated.board?.generation,
           empty.board.generation,
@@ -888,6 +940,8 @@ function hydrateState() {
         transcriptBridge: null,
         workspaceFollow: null,
         transport: buildTransportDescriptor(),
+        hostCapabilities: null,
+        designContext: null,
         outputDigest: null,
         outputActivity: [],
         sessionEvents: [],
@@ -1086,6 +1140,67 @@ function describeTransportSummary(transport = currentTransportDescriptor()) {
   return `Transport: ${currentLabel} via live files, manifests, and browser session mirroring today. Future path: ${futureLabel}.`;
 }
 
+function describeHostCapabilities() {
+  const capabilities = state?.serverStatus?.hostCapabilities || {};
+  const codexBrowser = Boolean(capabilities.codexBrowser?.available);
+  const imageHost = Boolean(capabilities.hostImageGeneration?.available);
+  if (imageHost) {
+    return {
+      label: "Host image ready",
+      detail:
+        capabilities.hostImageGeneration?.detail ||
+        "The current host advertises image-generation handoff support.",
+    };
+  }
+  if (codexBrowser) {
+    return {
+      label: "Codex browser",
+      detail:
+        capabilities.codexBrowser?.detail ||
+        "Canvax is designed to run inside the Codex browser loop.",
+    };
+  }
+  return {
+    label: "Local no-API",
+    detail:
+      "Canvax will export task and prompt packs locally. No OpenAI API key is required.",
+  };
+}
+
+function describeDesignContext() {
+  const designContext = state?.serverStatus?.designContext;
+  if (designContext?.exists) {
+    return {
+      label: "DESIGN.md linked",
+      detail: `${designContext.relativePath || "DESIGN.md"} is included in task and image prompt packs.`,
+    };
+  }
+  return {
+    label: "DESIGN.md: none",
+    detail:
+      "No project DESIGN.md was found. Canvax will use board mood, labels, and notes as the design contract.",
+  };
+}
+
+function currentDesignContextForExport() {
+  const designContext = state?.serverStatus?.designContext;
+  if (!designContext?.exists) {
+    return {
+      exists: false,
+      relativePath: "DESIGN.md",
+      summary:
+        "No DESIGN.md found. Use board mood, labels, frame notes, and generated direction as the design contract.",
+    };
+  }
+  return {
+    exists: true,
+    relativePath: designContext.relativePath || "DESIGN.md",
+    path: designContext.path || "",
+    summary: designContext.summary || "",
+    content: designContext.content || "",
+  };
+}
+
 function createInitialState() {
   const firstFrame = createFrame({ title: "Frame 1", frameIndex: 0 });
   return {
@@ -1095,6 +1210,7 @@ function createInitialState() {
       audience:
         "web UI, mobile UI, Qt, image direction, or any other visual surface",
       designMood: "Fast, visual, iterative.",
+      actionMode: "build-ui",
       generation: createDefaultGenerationConfig(),
     },
     frames: [firstFrame],
@@ -1125,6 +1241,8 @@ function createInitialState() {
       transcriptBridge: null,
       workspaceFollow: null,
       transport: buildTransportDescriptor(),
+      hostCapabilities: null,
+      designContext: null,
       outputDigest: null,
       outputActivity: [],
       sessionEvents: [],
@@ -1465,6 +1583,12 @@ function populateViewportSelect() {
     .join("");
   dom.viewportSelect.innerHTML = markup;
   dom.focusViewportSelect.innerHTML = markup;
+  dom.focusActionModeSelect.innerHTML = actionModes
+    .map(
+      (mode) =>
+        `<option value="${mode.id}">${mode.label}</option>`,
+    )
+    .join("");
 }
 
 function renderAll() {
@@ -1628,10 +1752,12 @@ function setActiveTool(toolId) {
 }
 
 function renderBoardFields() {
+  state.board.actionMode = currentActionMode().id;
   dom.boardProject.value = state.board.project;
   dom.boardGoal.value = state.board.goal;
   dom.boardAudience.value = state.board.audience;
   dom.boardMood.value = state.board.designMood;
+  dom.focusActionModeSelect.value = state.board.actionMode;
   renderGenerationRecipe();
 }
 
@@ -1714,11 +1840,21 @@ function renderFocusPad() {
     state.frames.findIndex((candidate) => candidate.id === frame.id),
   );
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const actionMode = currentActionMode();
   const relevantSegments = voiceSegmentsForCurrentScope();
   const supportsVoice = supportsBrowserVoiceRecognition();
   dom.focusViewportSelect.value = frame.viewport;
+  dom.focusActionModeSelect.value = actionMode.id;
   dom.focusFrameChip.textContent = `${frameIndex + 1}. ${frame.title}`;
   dom.focusSurfaceChip.textContent = `${viewport.label} · ${viewport.width}×${viewport.height}`;
+  dom.focusActionChip.textContent = actionMode.label;
+  dom.focusActionChip.title = actionMode.description;
+  const hostSummary = describeHostCapabilities();
+  dom.focusHostChip.textContent = hostSummary.label;
+  dom.focusHostChip.title = hostSummary.detail;
+  const designSummary = describeDesignContext();
+  dom.focusDesignChip.textContent = designSummary.label;
+  dom.focusDesignChip.title = designSummary.detail;
   dom.focusFreeCanvas.classList.toggle("active", frame.viewport === "free");
   dom.focusManualInput.value = state.voice.manualDraft;
   dom.focusAddManual.disabled = !state.voice.manualDraft.trim();
@@ -1811,7 +1947,7 @@ function renderWorkbenchOutput() {
       "workbench-output-surface empty-state";
     dom.workbenchOutputSurface.innerHTML = `
       <span class="workbench-output-mark">Make real</span>
-      <p>Draw a rough layout, add spoken context, then generate a local surface here. Keep the sketch beside the output and use pen marks or notes for the next correction.</p>
+      <p>Draw a rough layout, add spoken context, then press Make. Output appears here for correction marks.</p>
     `;
     dom.workbenchOutputMeta.textContent = annotationCount
       ? `${annotationCount} output correction mark(s) are saved, but no generated surface is currently attached.`
@@ -5463,6 +5599,16 @@ function updateBoard(field, value) {
   renderSpec();
 }
 
+function updateActionMode(value) {
+  const actionMode = normalizeActionMode(value);
+  state.board.actionMode = actionMode.id;
+  persistState();
+  renderBoardFields();
+  renderFocusPad();
+  renderSpec();
+  renderStatus(`Workbench action mode: ${actionMode.label}`);
+}
+
 function updateGenerationField(field, value) {
   state.board.generation = {
     ...normalizeGenerationConfig(state.board.generation),
@@ -5943,6 +6089,8 @@ async function fetchServerStatus() {
     state.serverStatus = {
       ...data,
       transport: buildTransportDescriptor(data.transport),
+      hostCapabilities: data.hostCapabilities || null,
+      designContext: data.designContext || null,
     };
     renderServerStatus();
     if (data.exportRoot) {
@@ -5980,6 +6128,9 @@ async function refreshPreviewStateFromServer() {
       previewManifest: data.previewManifest || null,
       workspaceFollow: data.workspaceFollow || null,
       transport: buildTransportDescriptor(data.transport),
+      hostCapabilities:
+        data.hostCapabilities || state.serverStatus.hostCapabilities || null,
+      designContext: data.designContext || state.serverStatus.designContext || null,
       outputDigest: nextOutputDigest,
       outputActivity: nextOutputActivity,
       transcriptBridge: data.transcriptBridge || null,
@@ -6034,6 +6185,8 @@ async function refreshPreviewStateFromServer() {
       transcriptBridge: state.serverStatus.transcriptBridge || null,
       workspaceFollow: state.serverStatus.workspaceFollow || null,
       transport: state.serverStatus.transport || buildTransportDescriptor(),
+      hostCapabilities: state.serverStatus.hostCapabilities || null,
+      designContext: state.serverStatus.designContext || null,
       outputDigest: state.serverStatus.outputDigest || null,
       outputActivity: state.serverStatus.outputActivity || [],
       sessionEvents: state.serverStatus.sessionEvents || [],
@@ -6103,6 +6256,8 @@ function importTranscriptBridge(transcriptBridge) {
 
 function buildPromptMarkdown() {
   const generationRecipe = generationSummaryText(state.board.generation);
+  const actionMode = currentActionMode();
+  const designContext = currentDesignContextForExport();
   const lines = [
     `# ${state.board.project || "Canvax live canvas"}`,
     "",
@@ -6110,8 +6265,10 @@ function buildPromptMarkdown() {
     `- Ask: ${state.board.goal || "Not specified"}`,
     `- Surface / medium: ${state.board.audience || "Not specified"}`,
     `- Mood: ${state.board.designMood || "Not specified"}`,
+    `- Action mode: ${actionMode.label}`,
     `- Canvax mode: ${state.workspaceMode === "simple" ? "Workbench" : "Advanced"}`,
     `- Preferred screen generation: ${generationRecipe}`,
+    `- Design rules: ${designContext.exists ? designContext.relativePath : "No DESIGN.md found"}`,
     "",
     "## How Codex should read this",
     "- Treat frame order as sequence, alternate states, or visual variants depending on the notes.",
@@ -6130,6 +6287,15 @@ function buildPromptMarkdown() {
     );
     lines.push("");
     lines.push(...buildVoiceSectionLines(voiceExport, { includeEmpty: false }));
+    lines.push("");
+  }
+
+  if (designContext.exists && designContext.content) {
+    lines.push("## DESIGN.md context");
+    lines.push("");
+    lines.push("```markdown");
+    lines.push(designContext.content);
+    lines.push("```");
     lines.push("");
   }
 
@@ -6388,17 +6554,22 @@ async function buildExportPackage(frameSelection = state.frames) {
 
 function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
   const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
+  const actionMode = currentActionMode();
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-task-pack",
     generatedAt: new Date().toISOString(),
-    actionMode: "design-or-build",
+    actionMode: actionMode.id,
+    actionModeLabel: actionMode.label,
+    actionModeDescription: actionMode.description,
     hostLane: {
       mode: "codex-host-capability",
       requiresOpenAiApiKey: false,
+      capabilities: state.serverStatus.hostCapabilities || null,
       note:
         "Canvax prepares the task. Codex/ChatGPT host capabilities may generate images or code when available.",
     },
+    designContext: currentDesignContextForExport(),
     board: structuredClone(state.board),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
@@ -6427,6 +6598,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
 function buildImagePromptPack(frames) {
   const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
   const generationRecipe = generationSummaryText(state.board.generation);
+  const actionMode = currentActionMode();
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-image-prompt-pack",
@@ -6434,6 +6606,9 @@ function buildImagePromptPack(frames) {
     requiresOpenAiApiKey: false,
     intendedHost:
       "Codex/ChatGPT image generation host lane, if available in the current chat.",
+    actionMode: actionMode.id,
+    actionModeLabel: actionMode.label,
+    designContext: currentDesignContextForExport(),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
     board: {
@@ -6639,9 +6814,10 @@ function buildTaskPackMarkdown(taskPack) {
     "",
     `- Kind: ${taskPack.kind}`,
     `- Generated: ${taskPack.generatedAt}`,
-    `- Action mode: ${taskPack.actionMode}`,
+    `- Action mode: ${taskPack.actionModeLabel || taskPack.actionMode}`,
     `- Active frame: ${taskPack.activeFrameTitle}`,
     `- Requires OpenAI API key: ${taskPack.hostLane?.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Design context: ${taskPack.designContext?.exists ? taskPack.designContext.relativePath : "No DESIGN.md found"}`,
     "",
     "## Instruction",
     "Use this task pack with the live Canvax export to build, refine, write a spec, or generate image prompts. Prefer frame composition and voice notes over guessing.",
@@ -6664,6 +6840,8 @@ function buildImagePromptPackMarkdown(pack) {
     `- Requires OpenAI API key: ${pack.requiresOpenAiApiKey ? "yes" : "no"}`,
     `- Intended host: ${pack.intendedHost}`,
     `- Active frame: ${pack.activeFrameTitle}`,
+    `- Action mode: ${pack.actionModeLabel || pack.actionMode || "Image prompt"}`,
+    `- Design context: ${pack.designContext?.exists ? pack.designContext.relativePath : "No DESIGN.md found"}`,
     "",
     "## How To Use",
     "Use the prompt, composition map, and HTML/CSS scaffold as placement guidance for ChatGPT image generation. The scaffold is a spatial reference, not production code.",
@@ -6698,6 +6876,136 @@ async function saveImagePromptPackForHost() {
     "Image prompt pack ready. Ask Codex/ChatGPT image generation to use it.";
   renderFocusPad();
   renderStatus("Image prompt pack ready for host image generation");
+}
+
+async function writeStarterDesignContext() {
+  renderStatus("Creating starter DESIGN.md...");
+  const content = buildStarterDesignContextMarkdown();
+
+  try {
+    const response = await fetch("/api/write-design-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, overwrite: false }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 409) {
+      state.serverStatus = {
+        ...state.serverStatus,
+        designContext: data.designContext || state.serverStatus.designContext,
+      };
+      renderFocusPad();
+      renderStatus("DESIGN.md already exists; Canvax did not overwrite it");
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || "DESIGN.md write failed.");
+    }
+
+    state.serverStatus = {
+      ...state.serverStatus,
+      designContext: data.designContext || state.serverStatus.designContext,
+    };
+    await fetchServerStatus();
+    renderFocusPad();
+    renderPrompt();
+    renderStatus("Starter DESIGN.md written from current Canvax board");
+  } catch (error) {
+    renderStatus(
+      error instanceof Error
+        ? error.message
+        : "Starter DESIGN.md write failed",
+    );
+  }
+}
+
+function buildStarterDesignContextMarkdown() {
+  const actionMode = currentActionMode();
+  const generation = generationSummaryText(state.board.generation);
+  const active = currentFrame();
+  const date = new Date().toISOString();
+  const lines = [
+    "# Design Direction",
+    "",
+    `Generated by Canvax on ${date}.`,
+    "",
+    "## Project",
+    "",
+    `- Name: ${markdownInline(state.board.project, "Untitled Canvax project")}`,
+    `- Current ask: ${markdownInline(state.board.goal, "Not specified")}`,
+    `- Surface: ${markdownInline(state.board.audience, "Generic visual surface")}`,
+    `- Mood: ${markdownInline(state.board.designMood, "Not specified")}`,
+    `- Active action: ${actionMode.label}`,
+    `- Generation recipe: ${generation}`,
+    "",
+    "## Visual System",
+    "",
+    `- Palette: ${palette.join(", ")}`,
+    "- Typography: Use expressive display type for primary moments and a readable UI face for controls.",
+    "- Layout: Preserve the rough Canvax composition, then improve hierarchy, spacing, responsiveness, and accessibility.",
+    "- Motion: Prefer purposeful transitions tied to the sketch flow. Avoid decorative motion that hides meaning.",
+    "- Asset rule: Keep generated images and illustrations aligned to labeled regions and frame notes.",
+    "",
+    "## Active Frame",
+    "",
+    ...starterDesignFrameLines(active, state.frames.indexOf(active) + 1),
+    "",
+    "## Frame Notes",
+    "",
+  ];
+
+  state.frames.forEach((frame, index) => {
+    lines.push(...starterDesignFrameLines(frame, index + 1));
+    lines.push("");
+  });
+
+  lines.push(
+    "## Codex Usage Rules",
+    "",
+    "- Treat this file as the reusable design contract for future Canvax task packs.",
+    "- If a Canvax sketch conflicts with this file, ask whether the sketch is a one-off variation or an intentional design-system update.",
+    "- Do not require an OpenAI API key to use this design direction.",
+    "- For image generation, preserve the Canvax prompt-pack coordinates and safe zones.",
+    "- For UI implementation, preserve the frame hierarchy while improving production quality.",
+  );
+
+  return lines.join("\n");
+}
+
+function starterDesignFrameLines(frame, index) {
+  const composition = buildFrameComposition(frame);
+  const labelTexts = composition.labels
+    .map((label) => markdownInline(label.text))
+    .filter(Boolean)
+    .slice(0, 8);
+  const elementSummary = composition.elements
+    .slice(0, 8)
+    .map(
+      (element) =>
+        `${element.index}. ${element.type} as ${element.role} at ${element.placement}`,
+    );
+
+  return [
+    `### ${index}. ${markdownInline(frame.title, "Frame")}`,
+    "",
+    `- Viewport: ${composition.viewport.label} ${composition.viewport.width}x${composition.viewport.height}`,
+    `- Intent: ${markdownInline(frame.objective || state.board.goal, "Not specified")}`,
+    `- Structure: ${markdownInline(frame.layout, "Not specified")}`,
+    `- Behavior: ${markdownInline(frame.motion, "Not specified")}`,
+    `- Assets: ${markdownInline(frame.assets, "Not specified")}`,
+    `- Variants: ${markdownInline(frame.mobile, "Not specified")}`,
+    `- Labels: ${labelTexts.length ? labelTexts.join("; ") : "None"}`,
+    `- Elements: ${elementSummary.length ? elementSummary.join("; ") : "No drawn elements yet"}`,
+  ];
+}
+
+function markdownInline(value, fallback = "") {
+  return cleanString(value)
+    .replace(/\s+/g, " ")
+    .replaceAll("|", "\\|")
+    .slice(0, 1200) || fallback;
 }
 
 function roundNumber(value) {
@@ -8388,6 +8696,12 @@ async function runSelfTest() {
         "viewport presets render",
       ),
     );
+    results.push(
+      assert(
+        actionModes.length === dom.focusActionModeSelect.options.length,
+        "Workbench action modes render",
+      ),
+    );
 
     resetFrameForSelfTest();
     state.size = 22;
@@ -8553,6 +8867,14 @@ async function runSelfTest() {
       assert(
         exportPackage.taskPack?.kind === "canvax-task-pack",
         "export package includes Codex task pack",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.taskPack?.actionMode === currentActionMode().id &&
+          exportPackage.taskPack?.designContext &&
+          exportPackage.taskPack?.hostLane?.requiresOpenAiApiKey === false,
+        "task pack includes action mode, design context, and no-API host lane",
       ),
     );
     results.push(

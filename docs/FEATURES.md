@@ -164,6 +164,7 @@ Behavior:
 - hides the timeline, inspector, advanced toolbar, artifacts, rewrite queue, and transport details
 - keeps the active frame canvas as the main surface
 - shows a surface selector so mobile, tablet, desktop, poster, square, or free canvas can be chosen without opening Advanced mode
+- shows an action selector for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
 - exposes only four drawing tools: pen, rectangle, arrow, erase
 - exposes one voice action and one manual spoken-note field
@@ -195,6 +196,9 @@ Boundary:
 - `Free canvas` is a large board preset, not a finished infinite canvas.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.
+- The host capability chip is explicit about what Canvax can do locally today: Codex workspace/browser handoff is available, direct host image generation and native Codex microphone access require a future first-party bridge.
+- If `DESIGN.md` exists at the project root, Canvax includes it as design context in task packs and image prompt packs.
+- In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
 
 ### Task And Image Prompt Packs
 

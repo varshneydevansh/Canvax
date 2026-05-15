@@ -43,6 +43,7 @@ If the user says "open in Chrome", "external browser", or "outside Codex", use t
 Canvax now has `Workbench` as the simple path:
 
 - the user chooses desktop, mobile, tablet, poster, square, or free canvas without opening Advanced mode
+- the user chooses the current action: build UI, refine UI, write spec, image prompt, or variations
 - the user creates a new frame or connected section without leaving Workbench
 - the user draws rough placement
 - the user dictates or pastes a quick spoken note
@@ -53,6 +54,10 @@ Canvax now has `Workbench` as the simple path:
 - `Apply to Codex` freezes the frame and writes a `focus-apply` checkpoint
 
 When the user says they used Workbench, prefer the latest checkpoint over older advanced-board context because it represents the specific sketch + voice + output-correction edit they meant Codex to act on.
+
+If the repo root contains `DESIGN.md`, treat it as the reusable design contract for Canvax. It is exposed through the service and included in task/image prompt packs, so use it before inventing visual style from scratch.
+
+If the user wants Canvax to create that design contract, tell them to use `Create DESIGN.md` in Advanced mode. It generates a starter file from board mood, palette, labels, frame notes, and generation direction, and it does not overwrite an existing file.
 
 If the user asks about microphone integration, be precise: the local board can use browser speech recognition or pasted macOS/Codex dictation. It cannot directly read the Codex chat microphone stream unless Canvax becomes a native Codex client surface or gains a first-party transcript bridge.
 
@@ -84,6 +89,8 @@ Prefer these files when they exist:
 - `exports/canvax-storyboard-latest.md`
 
 The live JSON export is the primary source because it includes frame metadata and the saved image paths.
+
+The task pack and image prompt pack may include `actionMode`, `hostLane`, and `designContext`. Use those fields to decide whether the user is asking for implementation, refinement, specs, image prompting, or variations, and to avoid promising native host features that the current local board does not expose.
 
 If the user asks for image generation, illustration, poster composition, book spreads, or "where should the image model place things", read `exports/canvax-image-prompt-pack-latest.json` or `.md` after the live export. This pack is no-API by design: it gives Codex/ChatGPT host capabilities the prompt, coordinates, safe zones, and HTML/CSS placement scaffold without requiring Canvax to call a paid API.
 

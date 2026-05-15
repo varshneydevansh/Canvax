@@ -75,6 +75,7 @@ Use Workbench when Canvax should feel like a scratchpad beside this chat.
 It hides advanced panels and keeps only:
 
 - visible surface selection for desktop, mobile, tablet, poster, square, or free canvas
+- action selection for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, or `Variations`
 - `New frame` for another screen/state
 - `New section` for a connected continuation below the current section
 - `Pen`, `Rect`, `Arrow`, and `Erase`
@@ -105,6 +106,12 @@ Workbench
 `Apply to Codex` freezes the current frame, writes the live handoff, and saves a Workbench checkpoint. That gives Codex a single clean moment to read: the sketch image, the generated-output correction marks, the transcript/manual note, and the active frame context.
 
 `Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, and an HTML/CSS placement scaffold. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs.
+
+If the project root contains `DESIGN.md`, Canvax includes it in the task pack, image prompt pack, and prompt markdown. Use that file for reusable style rules, brand direction, illustration constraints, accessibility rules, product tone, or project-specific design system notes.
+
+Advanced mode includes `Create DESIGN.md` in the Generate screen section. That writes a starter file from the current board mood, palette, frame notes, labels, and generated direction. It will not overwrite an existing `DESIGN.md`.
+
+The host chip is intentionally explicit. Today it reports local Codex Browser / file-handoff capability and marks host image generation or native mic bridging as unavailable unless a future Codex client exposes those bridges directly. That prevents Canvax from pretending it can call ChatGPT image generation or the Codex microphone from a localhost page.
 
 `Free canvas` is a large spatial scratchpad preset. It is useful for laying out references, rough sections, and alternate directions on one surface. It is not yet a true infinite canvas with persistent spatial objects, branches, and pan/zoom project memory.
 
@@ -306,6 +313,7 @@ Use the image prompt pack when the output is a poster, children-book spread, ill
 - Codex/ChatGPT may use the pack with whatever image-generation capability the current host exposes.
 - The pack preserves placement through `x`, `y`, `w`, and `h` values normalized from `0` to `1`.
 - The HTML/CSS scaffold is a spatial guide for generation, not final frontend code.
+- `DESIGN.md` is included when present, so image or UI work can inherit a reusable style contract instead of relying only on the current sketch.
 
 Older compatibility files may also be written:
 

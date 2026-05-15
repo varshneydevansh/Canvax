@@ -88,10 +88,12 @@ flowchart LR
 - Starts in `Workbench`, a simplified talk-and-draw mode that keeps sketch, surface choice, generated output, correction marks, voice, apply, and preview actions available without the full advanced UI.
 - Adds a floating designer rail in Workbench, so tools, undo/redo, dictation, Make, and Apply stay available even when the tray is hidden for canvas-first work.
 - Keeps the Workbench rail as a bottom command dock with brush `-` / `+` controls and an `Image` action for spatial image-generation handoff.
+- Keeps the main Workbench tray compact, with surface selection, action selection, host capability status, and design-context status visible without pushing the canvas below the fold.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
-- Writes a Codex task pack and image prompt pack with normalized coordinates plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
+- Writes a Codex task pack and image prompt pack with normalized coordinates, selected action mode, optional `DESIGN.md` context, plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
+- Creates a starter `DESIGN.md` from the current board in Advanced mode, without overwriting an existing design contract.
 - Captures board-scoped or frame-scoped voice notes, using browser speech recognition when available and manual pasted dictation when it is not.
 - Lets Codex forward submitted chat microphone transcripts into Canvax voice notes with `./canvax --transcript "..." --scope frame`.
 - Supports a preview manifest that can bind a live implementation target, changed files, and generated artifacts to the current sketch workflow.
@@ -130,7 +132,10 @@ This commit line now includes the following major layers working together:
 - `Materialize` with stable per-frame targets and refinement deltas
 - rewrite queue and frame-level output status badges
 - Workbench surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
+- Workbench action modes for build, refinement, spec, image prompt, and variation workflows
 - task and image prompt packs for host-side code, spec, UI, and image-generation work without requiring `OPENAI_API_KEY`
+- host capability and root `DESIGN.md` design-context reporting
+- starter `DESIGN.md` generation from board mood, palette, labels, notes, frames, and generation direction
 - transport contract for current `local-companion` mode vs future `app-server` mode
 
 ```mermaid
@@ -354,11 +359,13 @@ Checkpoint mode now adds:
 2. Install the skill once with `node scripts/install-canvax-skill.mjs`.
 3. Invoke `/canvax` or `$canvax` in Codex.
 4. Stay in `Workbench` for quick work: draw rough placement, start dictation or paste a spoken note, mark generated-output corrections if needed, then press `Apply to Codex`.
-5. Open `Preview` when you want to see the generated or implemented target beside the sketch.
-6. Switch to `Advanced` only when you need frames, flow links, captures, generation recipes, manifests, changed files, or debugging detail.
-7. In Advanced mode, use `Generate screen`, `Materialize`, `Push checkpoint`, or `Publish changes` for longer sessions.
-8. Ask Codex to use the current Canvax.
-9. Codex reads the latest live export or checkpoint and works from that visual handoff.
+5. Pick the Workbench action that matches the current intent: build UI, refine UI, write spec, image prompt, or variations.
+6. Add a root `DESIGN.md` when the project needs reusable visual rules, brand constraints, or illustration direction.
+7. Open `Preview` when you want to see the generated or implemented target beside the sketch.
+8. Switch to `Advanced` only when you need frames, flow links, captures, generation recipes, manifests, changed files, or debugging detail.
+9. In Advanced mode, use `Generate screen`, `Materialize`, `Push checkpoint`, or `Publish changes` for longer sessions.
+10. Ask Codex to use the current Canvax.
+11. Codex reads the latest live export or checkpoint and works from that visual handoff.
 
 ## Current Limits
 

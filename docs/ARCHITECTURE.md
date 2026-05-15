@@ -133,7 +133,8 @@ flowchart TD
 12. Recent checkpoint/session events are also fed back through preview-state so clients can rebuild durable output activity after a refresh instead of relying only on in-memory polling state.
 13. When a frame is materialized again, the service computes a refinement delta, writes it into the materialize metadata, and exposes it through the preview manifest so Preview can show changed-region overlays.
 14. The board can now send a richer generation recipe into that same endpoint, which lets the local service produce a `generated-screen-preview` target instead of only the quicker materialized preview.
-15. Codex Browser Use / Atlas is the preferred inspection surface for the board, Preview, and generated app routes while Codex edits and validates workspace files.
+15. The service exposes host capabilities and optional root `DESIGN.md` context through status and preview-state, so the board can describe what the current Codex/browser host can and cannot do.
+16. Codex Browser Use / Atlas is the preferred inspection surface for the board, Preview, and generated app routes while Codex edits and validates workspace files.
 
 ```mermaid
 sequenceDiagram
@@ -209,6 +210,31 @@ Purpose:
 
 - replace the local companion split with a true same-thread Codex client later
 
+### 5. Host capability and design-context transport
+
+Current mechanism:
+
+- `/api/status`
+- `/api/preview-state`
+- optional project-root `DESIGN.md`
+
+Purpose:
+
+- tell the board whether it is running as a local no-API handoff, inside Codex Browser Use / Atlas, or a future richer host
+- avoid implying direct ChatGPT image-generation or Codex microphone access when the local page does not have that bridge
+- include reusable design rules in task/image prompt packs without manually pasting them into every sketch
+- write a starter `DESIGN.md` from board state through `/api/write-design-context` without overwriting an existing design contract
+
+```text
+project DESIGN.md
+      |
+      v
+local service status/preview-state
+      |
+      v
+board exports -> task pack + image prompt pack + Codex prompt
+```
+
 ## Current Transport Contract
 
 The runtime now emits a `transport` object through:
@@ -228,6 +254,15 @@ That contract declares:
 - live mirror: browser storage/channel transport
 - host task packs: local files for Codex/image-generation handoff without API calls
 - future mode: `app-server`
+
+The service also emits:
+
+- `hostCapabilities`: current browser/workspace/image/mic capability truth table
+- `designContext`: root `DESIGN.md` metadata and truncated content when present
+
+The service can write:
+
+- `DESIGN.md`: starter design direction generated from board mood, palette, frame notes, labels, and generation direction
 
 This is the main guardrail against accidentally hardcoding the current local-companion implementation as if it were the only possible runtime.
 
@@ -330,6 +365,9 @@ Workspace mode is part of the state model:
 workspaceMode: simple
   -> Workbench UI
   -> active frame only
+  -> compact command strip
+  -> action mode
+  -> host capability/design context chips
   -> sketch + voice + generated-output correction marks + Apply checkpoint
 
 workspaceMode: advanced
@@ -346,7 +384,10 @@ Core state areas include:
 - flow connections
 - active frame and view mode
 - workspace mode
+- Workbench action mode
 - tool selection, color, size, grid, autosnap
+- current host capabilities
+- current design context
 
 `web/app.js` is currently the main state owner.
 

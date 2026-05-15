@@ -127,8 +127,9 @@ Canvax today
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
+- Workbench now exposes action modes for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`.
 - The Workbench rail now behaves like the primary bottom designer dock with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
-- The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it focuses on brief, surface/context, voice, and generated output.
+- The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it is a compact command strip focused on brief, surface/action context, voice, and generated output.
 - Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
 - Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
 
@@ -166,6 +167,9 @@ Canvax today
 - Live JSON and Markdown exports exist under `exports/`.
 - `canvax-task-pack-latest.*` and `canvax-image-prompt-pack-latest.*` exist for Codex and host-side image generation.
 - The image prompt pack includes normalized coordinates and an HTML/CSS placement scaffold so ChatGPT/image generation can preserve layout intent without Canvax calling an API.
+- A host capability registry now reports local no-API handoff, Codex browser/workspace availability, host image generation boundary, and native microphone bridge boundary.
+- If a project `DESIGN.md` exists, Canvax includes it as design context in task and image prompt packs.
+- Advanced mode can write a starter `DESIGN.md` from the current board without overwriting an existing design contract.
 - Self-test coverage now checks task-pack export, no-API image prompt pack export, Workbench dock brush sizing, and eraser rendering against black-mark/grid-damage regressions.
 - `artifacts/canvax/codex-output.json` is the canonical Codex output manifest.
 - The board can publish current git workspace changes into the output manifest.
@@ -268,12 +272,11 @@ Needed:
 
 ### 5. Design System Extraction And `DESIGN.md`
 
-Canvax records mood, notes, color, and generated direction, but it does not yet produce a reusable design system document.
+Canvax records mood, notes, color, and generated direction, and it can now create a starter reusable design-system document.
 
 Needed:
 
-- `DESIGN.md` generation from board style, labels, notes, and generated output.
-- Import `DESIGN.md` into the board as project rules.
+- Richer `DESIGN.md` import controls inside the board UI.
 - Extract visual tokens from a URL, screenshot, or existing app.
 - Enforce those tokens when Codex generates or refines UI.
 
@@ -373,7 +376,7 @@ Needed:
 
 ### P3: Add Design System And Asset Intelligence
 
-- Generate/import/export `DESIGN.md`.
+- Import/export richer `DESIGN.md` revisions beyond the starter generator.
 - Extract design tokens from screenshots, URLs, existing repo CSS, or generated screens.
 - Add image asset lanes powered by Codex-accessible image generation when available.
 - Preserve image prompts, generated candidates, source sketches, and chosen assets as artifacts.

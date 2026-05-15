@@ -94,7 +94,7 @@ In-browser self-test:
 http://localhost:3210/?selftest=1
 ```
 
-The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, and large-session export consistency.
+The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, Workbench action modes, host/design-context handoff fields, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, and large-session export consistency.
 
 Useful service commands:
 
@@ -247,6 +247,10 @@ After interaction changes, check these manually:
 - Codex output manifest can be refreshed from git status with `node scripts/write-codex-output.mjs --from-git-status`
 - board and Preview show live workspace-follow status while git changes are present
 - board and Preview show the current transport as local companion with an App Server future path
+- Workbench action mode changes are visible in the UI and included in task/image prompt packs
+- root `DESIGN.md` is detected through `/api/status` and included in handoff packs when present
+- `Create DESIGN.md` writes a starter file only when no existing design contract is present
+- host capability chips stay honest about no direct native mic or image-generation bridge in local companion mode
 - board and Preview record live output activity when the connected output context changes
 - board and Preview frame cards show sensible output-status badges for stale/synced/materialized/global-target states
 - board and Preview rewrite queues show the right frames when output is stale, missing, or only globally bound

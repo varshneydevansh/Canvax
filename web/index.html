@@ -293,9 +293,19 @@
                                 aria-label="Workbench surface"
                                 ></select>
                             </label>
+                            <label>
+                                Action
+                                <select
+                                    id="focus-action-mode-select"
+                                    aria-label="Workbench action mode"
+                                ></select>
+                            </label>
                             <div class="focus-frame-meta">
                                 <span id="focus-frame-chip">Frame 1</span>
                                 <span id="focus-surface-chip">Desktop</span>
+                                <span id="focus-action-chip">Build UI</span>
+                                <span id="focus-host-chip">Local handoff</span>
+                                <span id="focus-design-chip">DESIGN.md: none</span>
                             </div>
                         </div>
                         <div
@@ -386,9 +396,8 @@
                             class="workbench-output-surface empty-state"
                         >
                             Draw a rough layout, add spoken context, then press
-                            <strong>Make real</strong>. The generated surface
-                            appears here so you can keep sketching corrections
-                            beside it.
+                            <strong>Make real</strong>. Output appears here for
+                            correction marks.
                         </div>
                         <div class="workbench-output-footer">
                             <p
@@ -931,6 +940,14 @@
                             title="Run the quicker deterministic Materialize pass for the current frame"
                         >
                             Quick materialize
+                        </button>
+                        <button
+                            id="write-design-context"
+                            class="ghost-button"
+                            type="button"
+                            title="Create a starter DESIGN.md from the current board without overwriting an existing file"
+                        >
+                            Create DESIGN.md
                         </button>
                     </div>
                 </div>

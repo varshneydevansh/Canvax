@@ -49,6 +49,11 @@ Current completed baseline:
 - Correction marks over generated output are saved into frame handoff data.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
+- The Workbench tray now uses a compact three-column command strip so the active canvas is visible in the first viewport instead of being pushed below the fold.
+- Action mode selection is available in Workbench and is exported into task/image prompt packs.
+- `DESIGN.md` is detected when present and included as project design context in handoffs.
+- Advanced mode can create a starter `DESIGN.md` from board mood, palette, labels, frames, and generation direction without overwriting an existing file.
+- A host capability registry tells the UI/export whether the current path is local no-API handoff, Codex browser, host image generation, or native microphone bridge.
 - `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
 - `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
 - Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
@@ -57,9 +62,6 @@ Current completed baseline:
 
 Still open:
 
-- explicit action-mode chooser
-- `DESIGN.md` import/export awareness
-- host capability registry
 - first-class generated image candidate management
 - true infinite spatial canvas
 - direct `Build real screen with Codex` route/code generation and binding
@@ -295,7 +297,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 3.2: Add Action Modes
 
-- **Status**: Open.
+- **Status**: Shipped initial version. Workbench exposes the action chooser and exports the selected mode.
 - **Location**: `web/index.html`, `web/app.js`, `docs/FEATURES.md`
 - **Description**: Add explicit modes: `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, `Create variations`.
 - **Complexity**: 4/10
@@ -309,7 +311,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 3.3: Add `DESIGN.md` Awareness
 
-- **Status**: Open.
+- **Status**: Shipped initial version. Canvax reads project `DESIGN.md`, includes it in handoffs, and can create a starter file from the current board without overwriting an existing one.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/USAGE.md`
 - **Description**: Allow project design rules to be imported/exported as `DESIGN.md`, then included in task packs.
 - **Complexity**: 6/10
@@ -347,7 +349,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 4.2: Add Host Capability Registry
 
-- **Status**: Open. The product rule is documented, but there is not yet a runtime host capability registry.
+- **Status**: Shipped initial version. `/api/status` and `/api/preview-state` report local/Codex/image/mic capability boundaries without introducing an API-key field.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/ARCHITECTURE.md`
 - **Description**: Track whether the current host can provide Browser Use, image generation, ChatGPT App component embedding, or native transcript events.
 - **Complexity**: 5/10
@@ -489,14 +491,12 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 The Workbench baseline has moved past the first Stitch-like shell. The next implementation should be:
 
 ```text
-Sprint 3.2 + Sprint 3.3 + Sprint 4.2
+Sprint 4.1 candidate assets + Sprint 5 planning slice
 ```
 
 That means:
 
-- add explicit action modes: `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`
-- add `DESIGN.md` import/export awareness so Canvax can preserve a project style contract
-- add a host capability registry so the UI can say what the current Codex/ChatGPT host can actually do
 - add first-class generated image candidates after the prompt-pack lane is stable
+- design the true spatial/infinite canvas without breaking the current frame export model
 
 Do not add an API-key requirement. Canvax should keep exporting prompt packs and task packs locally, then let Codex/ChatGPT host capabilities use them when available.
