@@ -45,8 +45,9 @@ Sources:
 Current completed baseline:
 
 - Workbench is the default simple mode.
-- Generated output can appear beside the sketch.
+- Generated output can appear beside the sketch as a compact correction/status card.
 - Correction marks over generated output are saved into frame handoff data.
+- Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language so it no longer feels like a separate product.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
@@ -63,6 +64,7 @@ Current completed baseline:
 
 Still open:
 
+- first-class output focus/split view so generated surfaces are large enough to inspect, annotate, and compare
 - first-class generated image candidate management
 - true infinite spatial canvas
 - direct `Build real screen with Codex` route/code generation and binding
@@ -229,7 +231,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 2.1: Create Workbench Two-Up Surface
 
-- **Status**: Shipped initial version. The current frame stays primary and generated output appears as a sibling Workbench output card.
+- **Status**: Shipped initial version. The current frame stays primary and generated output appears as a compact sibling Workbench output card. This is useful for status and correction marks, but it is not yet large enough to be the main design surface.
 - **Location**: `web/index.html`, `web/styles.css`
 - **Description**: In Workbench mode, render the current canvas as a `Sketch` card and reserve a `Generated output` card next to it.
 - **Complexity**: 6/10
@@ -271,6 +273,25 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - Draw correction overlay.
   - Save checkpoint.
   - Inspect `exports/canvax-live-latest.json`.
+
+### Task 2.4: Promote Output Into Focus And Split View
+
+- **Status**: Open and now highest-priority Workbench UX gap.
+- **Location**: `web/index.html`, `web/styles.css`, `web/app.js`
+- **Description**: Keep the current small `Codex output` card as a thumbnail/status/correction target, but add a larger designer-first surface for real inspection and editing. The user should be able to switch between `Sketch focus`, `Output focus`, and `Split` without leaving Workbench.
+- **Complexity**: 7/10
+- **Dependencies**: Tasks 2.1-2.3
+- **Acceptance Criteria**:
+  - `Output focus` makes the generated surface the primary large stage.
+  - `Split` shows sketch and output side by side with comparable usable sizes.
+  - The small output card remains in the tray only as a compact status/quick-correction preview.
+  - Correction marks work on both the compact card and the large output focus surface.
+  - No overlap or clipping at 1440px, 1024px, 768px, and narrow Codex browser widths.
+- **Validation**:
+  - Generate or attach a preview target.
+  - Toggle `Sketch`, `Split`, and `Output`.
+  - Draw correction marks on the large output surface.
+  - Run responsive screenshots/smoke checks.
 
 ## Sprint 3: Real Codex Task Pack
 
@@ -489,15 +510,17 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ## Immediate Next Build
 
-The Workbench baseline has moved past the first Stitch-like shell. The next implementation should be:
+The Workbench baseline has moved past the first Stitch-like shell, but the generated output is still visually underpowered. The next implementation should be:
 
 ```text
-Sprint 4.1 candidate assets + Sprint 5 planning slice
+Sprint 2.4 output focus/split view + responsive validation
 ```
 
 That means:
 
-- add first-class generated image candidates after the prompt-pack lane is stable
-- design the true spatial/infinite canvas without breaking the current frame export model
+- keep the tray output card as a compact thumbnail/status target
+- add large `Output focus` and usable `Split` layouts inside Workbench
+- keep annotation/correction data tied to the same frame/output revision
+- validate the layout in Codex Browser widths before adding more surface types
 
-Do not add an API-key requirement. Canvax should keep exporting prompt packs and task packs locally, then let Codex/ChatGPT host capabilities use them when available.
+After that is stable, continue into generated image candidates and true spatial/infinite canvas work. Do not add an API-key requirement. Canvax should keep exporting prompt packs and task packs locally, then let Codex/ChatGPT host capabilities use them when available.

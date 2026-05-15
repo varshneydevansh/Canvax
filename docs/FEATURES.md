@@ -201,6 +201,14 @@ Boundary:
 - If `DESIGN.md` exists at the project root, Canvax includes it as design context in task packs and image prompt packs.
 - In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
 
+### Advanced
+
+Advanced is the full inspector/debugging surface for frames, flow links, notes,
+captures, manifests, generated artifacts, and long-session diagnostics. It uses
+the same dark dotted Canvax visual language as Workbench, but keeps the denser
+left timeline, central stage, and right inspector because those controls are for
+technical handoff rather than quick sketching.
+
 ### Task And Image Prompt Packs
 
 Files:
