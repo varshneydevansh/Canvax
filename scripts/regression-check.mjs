@@ -208,10 +208,25 @@ async function validateExecuteBuildRequestDryRun() {
       "--json",
     ]);
     const payload = JSON.parse(stdout);
+    const implementationFilePaths = Array.isArray(payload?.implementationFiles)
+      ? payload.implementationFiles.map((file) => file?.path || "")
+      : [];
     const passed = Boolean(
       payload?.ok &&
         payload?.previewPath?.startsWith("artifacts/preview/codex-build/") &&
         payload?.contextPath?.startsWith("artifacts/preview/codex-build/") &&
+        implementationFilePaths.some((path) =>
+          path.endsWith("/implementation/index.html"),
+        ) &&
+        implementationFilePaths.some((path) =>
+          path.endsWith("/implementation/styles.css"),
+        ) &&
+        implementationFilePaths.some((path) =>
+          path.endsWith("/implementation/app.js"),
+        ) &&
+        implementationFilePaths.some((path) =>
+          path.endsWith("/implementation/README.md"),
+        ) &&
         payload?.published === false,
     );
     results.push({

@@ -627,16 +627,17 @@ What Generate screen is for:
 
 Build with Codex is the first real-code bridge.
 
-It writes a task artifact that Codex can execute in the current workspace. The board now also calls the local `execute-build-request` path after saving the request, so designers immediately get a frame-bound preview artifact and output manifest without opening a terminal or using a paid API.
+It writes a task artifact that Codex can execute in the current workspace. The board now also calls the local `execute-build-request` path after saving the request, so designers immediately get a frame-bound preview artifact, implementation starter files, and output manifest without opening a terminal or using a paid API.
 
-That automatic artifact is a smoke target. Codex should replace it with real app/page/component files when the user asks for production implementation.
+That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation.
 
 Outputs:
 
 - `exports/canvax-build-real-latest.json`
 - `exports/canvax-build-real-latest.md`
 - archived copies under `artifacts/canvax/build-requests/`
-- optional local smoke artifacts under `artifacts/preview/codex-build/frames/...`
+- optional local build artifacts under `artifacts/preview/codex-build/frames/...`
+- implementation starter files under `artifacts/preview/codex-build/frames/<frame-id>/implementation/`
 
 What the request includes:
 
@@ -653,7 +654,7 @@ Generate screen:
   local renderer -> HTML preview artifact
 
 Build with Codex:
-  frame request -> local smoke artifact -> output manifest -> Preview binding
+  frame request -> local preview + implementation bundle -> output manifest
   frame request -> Codex writes real files -> output manifest -> Preview binding
 
 Local smoke executor:

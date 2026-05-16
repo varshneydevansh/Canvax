@@ -308,8 +308,8 @@ Canvax/
 
 - `Materialize`: a geometry-preserving styled preview
 - `Generate screen`: a semantic renderer path for richer screen output
-- `Build with Codex`: a real-code handoff path that writes a build request and output contract for Codex to execute, then runs the local no-API executor so Workbench/Preview get an immediate frame-bound smoke target
-- `scripts/execute-build-request.mjs`: a deterministic local smoke executor that turns the latest build request into a frame-bound preview artifact and publishes `artifacts/canvax/codex-output.json`
+- `Build with Codex`: a real-code handoff path that writes a build request and output contract for Codex to execute, then runs the local no-API executor so Workbench/Preview get an immediate frame-bound preview plus implementation starter bundle
+- `scripts/execute-build-request.mjs`: a deterministic local executor that turns the latest build request into a frame-bound preview artifact, `implementation/` bundle, and published `artifacts/canvax/codex-output.json`
 - `scripts/execute-rewrite-request.mjs`: a deterministic local smoke executor that turns the latest rewrite request into a refreshed frame-bound preview artifact and publishes `artifacts/canvax/codex-output.json`
 - Workbench `Apply to Codex`: saves the checkpoint and calls `/api/execute-rewrite-request` so the deterministic rewrite artifact can refresh the attached output without a terminal command
 
@@ -322,7 +322,7 @@ same endpoint
 
 separate endpoint
   /api/save-build-request         -> Codex-readable real implementation request
-  /api/execute-build-request      -> local no-API build preview and output manifest binding
+  /api/execute-build-request      -> local no-API build preview, implementation bundle, and output manifest binding
   /api/execute-rewrite-request    -> local no-API rewrite preview and output manifest binding
 
 rewrite request executor

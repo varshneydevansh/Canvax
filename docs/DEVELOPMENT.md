@@ -181,9 +181,9 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 ## Build With Codex Development Path
 
-`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for smoke-testing the contract and publishing a frame-bound preview artifact when no app route has been built yet.
+`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet.
 
-The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a smoke preview is written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.
+The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.
 
 Runtime path:
 
@@ -202,6 +202,10 @@ scripts/canvax.mjs
   exports/canvax-build-real-latest.md
   artifacts/preview/codex-build/frames/<frame-id>/index.html
   artifacts/preview/codex-build/frames/<frame-id>/context.json
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/index.html
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/styles.css
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/app.js
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md
   artifacts/canvax/codex-output.json
 
 Codex implementation pass
@@ -213,6 +217,7 @@ Optional local executor
   node scripts/execute-build-request.mjs
   artifacts/preview/codex-build/frames/<frame-id>/index.html
   artifacts/preview/codex-build/frames/<frame-id>/context.json
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/
   artifacts/canvax/codex-output.json
 
 Rewrite local executor
@@ -247,7 +252,7 @@ sequenceDiagram
 
 Regression coverage:
 
-- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact
+- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle
 - Board self-test verifies the UI/server path executes and binds that artifact through the output manifest.
 - `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact
 - Board self-test verifies `POST /api/execute-rewrite-request` binds a refreshed preview artifact through the output manifest.

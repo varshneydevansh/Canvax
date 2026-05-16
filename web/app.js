@@ -12221,10 +12221,17 @@ async function runSelfTest() {
       assert(
         buildRealResult?.executeResult?.executed === true &&
           Boolean(buildRealResult.executeResult.previewPath) &&
-          Boolean(buildRealResult.executeResult.manifestPath),
-        "build real request executes and binds a frame preview manifest",
+          Boolean(buildRealResult.executeResult.manifestPath) &&
+          Array.isArray(buildRealResult.executeResult.implementationFiles) &&
+          buildRealResult.executeResult.implementationFiles.some((file) =>
+            file.path?.endsWith("/implementation/index.html"),
+          ) &&
+          buildRealResult.executeResult.implementationFiles.some((file) =>
+            file.path?.endsWith("/implementation/styles.css"),
+          ),
+        "build real request executes and binds a frame preview plus implementation bundle",
         buildRealResult?.executeResult?.error ||
-          "Build request did not execute into a bound preview artifact.",
+          "Build request did not execute into a bound preview artifact and implementation bundle.",
       ),
     );
     if (buildRealResult?.latestMarkdownPath) {

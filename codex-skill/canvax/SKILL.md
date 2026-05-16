@@ -48,7 +48,7 @@ Canvax now has `Workbench` as the simple path:
 - the user draws rough placement
 - the user dictates or pastes a quick spoken note
 - the user can run the local `Make real` generation pass
-- the user can run `Build code` / `Build with Codex`, which saves a Codex-readable implementation request and now immediately binds a local no-API smoke preview through the output manifest
+- the user can run `Build code` / `Build with Codex`, which saves a Codex-readable implementation request and now immediately binds a local no-API preview plus implementation starter bundle through the output manifest
 - the user can draw correction marks over the connected generated output
 - the user can select drawn elements and assign prototype hotspot targets for Preview Play
 - the user can hide the context tray and keep working from the floating designer rail
@@ -134,7 +134,7 @@ When Browser Use / Atlas is available, use it as the preferred visual inspection
 - inspect any generated local app preview Codex binds through the output manifest
 - fix visible layout issues in code, then publish output back with `write-codex-output.mjs`
 
-If the user presses `Build code` in Workbench, Canvax writes `exports/canvax-build-real-latest.*` and calls its local no-API executor so the output manifest has a frame-bound smoke preview. Treat that preview as a bound target for visual inspection, but do not mistake it for production implementation unless the user explicitly accepts it.
+If the user presses `Build code` in Workbench, Canvax writes `exports/canvax-build-real-latest.*` and calls its local no-API executor so the output manifest has a frame-bound preview plus `implementation/` starter files. Treat that bundle as a bound starter target for visual inspection and Codex porting, but do not mistake it for production implementation unless the user explicitly accepts it.
 
 If the user presses `Apply to Codex` in Workbench, Canvax writes the checkpoint and calls the local no-API rewrite executor so the output manifest can point at `artifacts/preview/codex-rewrite/frames/...`. Treat that as a refreshed bound preview artifact, not as final production code.
 

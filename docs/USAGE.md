@@ -584,8 +584,8 @@ This is different from `Generate screen`:
 - `Generate screen` writes a local HTML preview artifact from the sketch.
 - `Build with Codex` writes a Codex-readable implementation request for actual app/page/component files.
 - The request does not call a paid API and does not require `OPENAI_API_KEY`.
-- The board now immediately runs the no-API local build executor after the request is saved, so the Workbench and Preview get a frame-bound smoke artifact without requiring a terminal command.
-- `node scripts/execute-build-request.mjs` remains available when you want to re-run that executor manually. This is a deterministic smoke path, not a replacement for Codex editing real app files.
+- The board now immediately runs the no-API local build executor after the request is saved, so the Workbench and Preview get a frame-bound preview plus an implementation starter bundle without requiring a terminal command.
+- `node scripts/execute-build-request.mjs` remains available when you want to re-run that executor manually. This is a deterministic starter path, not a replacement for Codex editing real app files.
 
 Canvax writes the latest request to:
 
@@ -610,7 +610,7 @@ sketch + voice + labels
   -> Build with Codex
   -> exports/canvax-build-real-latest.md
   -> local no-API build executor
-  -> frame-bound preview manifest
+  -> frame-bound preview + implementation bundle
   -> Codex implements real files
   -> scripts/write-codex-output.mjs
   -> artifacts/canvax/codex-output.json
@@ -627,6 +627,10 @@ That writes:
 
 - `artifacts/preview/codex-build/frames/<frame-id>/index.html`
 - `artifacts/preview/codex-build/frames/<frame-id>/context.json`
+- `artifacts/preview/codex-build/frames/<frame-id>/implementation/index.html`
+- `artifacts/preview/codex-build/frames/<frame-id>/implementation/styles.css`
+- `artifacts/preview/codex-build/frames/<frame-id>/implementation/app.js`
+- `artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md`
 - `artifacts/canvax/codex-output.json`
 
 ```mermaid
@@ -634,7 +638,7 @@ flowchart LR
     A[Active frame] --> B[Build with Codex]
     B --> C[Build request JSON/MD]
     C --> D[Local no-API executor]
-    D --> E[Frame-bound smoke artifact]
+    D --> E[Frame-bound preview and implementation bundle]
     C --> F[Codex edits real app files]
     F --> G[write-codex-output]
     E --> H[Codex output manifest]
