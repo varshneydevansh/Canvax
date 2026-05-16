@@ -421,17 +421,17 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.2: Add Variants Lane
 
-- **Status**: Open.
-- **Location**: `web/app.js`, `web/styles.css`
-- **Description**: Let Codex/Canvax create multiple generated directions from one sketch and show them as output cards.
+- **Status**: Initial local version shipped.
+- **Location**: `web/app.js`, `web/index.html`
+- **Description**: Let Canvax create multiple editable directions from one sketch and show them as connected Flow branches.
 - **Complexity**: 7/10
 - **Dependencies**: Task 5.1
 - **Acceptance Criteria**:
-  - Variants have labels, notes, and lineage.
-  - User can choose one as primary.
-  - Chosen variant binds back to implementation/output manifest.
+  - Variants have labels, notes, and lineage. **Done for deterministic local branches.**
+  - User can choose one as primary. **Partially done by selecting any variant frame and continuing from it.**
+  - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the selected variant; direct "make primary" UI still pending.**
 - **Validation**:
-  - Generate three deterministic local variants.
+  - Generate three deterministic local variants. **Covered by board self-test.**
 
 ## Sprint 6: Polish, Responsiveness, And Regression
 

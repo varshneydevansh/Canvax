@@ -652,6 +652,44 @@ flowchart LR
 
 The Canvax handoff remains local-first: no `OPENAI_API_KEY` is required to create the request.
 
+## Editable Variant Branches
+
+`Create variants` turns the active frame into three editable branch frames:
+
+- `Structure`
+- `Visual`
+- `Adaptive`
+
+These are not static thumbnails. They are normal Canvax frames with copied sketch elements, a visible variant label, lineage metadata, and Flow connections back to the source frame.
+
+```text
+active frame
+  -> clone editable sketch
+  -> add variant label
+  -> attach lineage metadata
+  -> connect branch in Flow view
+```
+
+```mermaid
+flowchart TD
+    A[Active frame] --> B{Create variants}
+    B --> C[Structure frame]
+    B --> D[Visual frame]
+    B --> E[Adaptive frame]
+    C --> F[Sketch / Materialize / Build with Codex]
+    D --> F
+    E --> F
+
+    classDef source fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef branch fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef action fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    class A source;
+    class B,C,D,E branch;
+    class F action;
+```
+
+The first implementation is deterministic and local. It creates branchable design surfaces that Codex can later build from, rather than claiming to be a semantic AI variant generator.
+
 ```text
 Generate screen
   sketch geometry  -> placement hints

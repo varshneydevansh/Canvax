@@ -486,6 +486,8 @@ Real-code handoff files:
 - `exports/canvax-build-real-latest.md`
 - `artifacts/canvax/build-requests/...`
 
+Variant branches are stored as normal frames with `frame.variant` lineage metadata. They remain editable and are connected to their source frame in the same Flow graph as ordinary screen transitions.
+
 ## Current Design Boundary
 
 Today, Canvax is a local browser companion for Codex. When Browser Use / Atlas is available, that local browser surface should be the Codex in-app browser. `./canvax --open-external`, `./canvax --open`, and `./canvax --chrome` are explicit escape hatches for users who want an external browser.

@@ -248,7 +248,7 @@ Needed:
 
 - Zoomable infinite workspace.
 - Pan/zoom controls that feel stable on Mac trackpads.
-- Spatial groups for explorations, branches, reference boards, and generated variants.
+- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
 
@@ -366,7 +366,7 @@ Needed:
 
 - Infinite canvas with pan/zoom.
 - Prototype Play mode.
-- Multiple generated variants visible side by side.
+- Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
 - Voice-driven critique/refinement lane.
 - Branchable design explorations with a clear agent/output history.
 - Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant".

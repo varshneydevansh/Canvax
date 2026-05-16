@@ -546,6 +546,50 @@ flowchart LR
     class G preview;
 ```
 
+## Editable Variants
+
+Use `Variants` / `Create variants` when you want alternate directions from the same sketch without leaving Canvax.
+
+This creates three editable branch frames:
+
+- `Structure`: same idea, stronger hierarchy and spacing
+- `Visual`: same idea, stronger mood, palette, and art direction
+- `Adaptive`: alternate platform, breakpoint, or interaction state
+
+Each variant is a real Canvax frame:
+
+- it can be selected, drawn on, labeled, resized, connected, materialized, or built with Codex
+- it keeps lineage metadata pointing back to the source frame
+- it appears in Flow view as a connected branch
+- it remains local-first and does not require an API key
+
+```text
+source frame
+  -> Create variants
+      -> Structure branch
+      -> Visual branch
+      -> Adaptive branch
+  -> choose a branch
+  -> sketch more or Build with Codex
+```
+
+```mermaid
+flowchart LR
+    A[Source frame] --> B[Structure variant]
+    A --> C[Visual variant]
+    A --> D[Adaptive variant]
+    B --> E[Build with Codex]
+    C --> E
+    D --> E
+
+    classDef source fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef variant fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef build fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    class A source;
+    class B,C,D variant;
+    class E build;
+```
+
 For hero-like website frames, Generate screen now uses semantic screen inference:
 
 ```text

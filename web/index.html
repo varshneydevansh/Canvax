@@ -377,6 +377,9 @@
                             <button id="focus-build-real" class="ghost-button">
                                 Build code
                             </button>
+                            <button id="focus-create-variants" class="ghost-button">
+                                Variants
+                            </button>
                             <button id="focus-image-pack" class="ghost-button">
                                 Image pack
                             </button>
@@ -584,6 +587,14 @@
                         title="Create a Codex-ready real implementation request"
                     >
                         Build
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-action="create-variants"
+                        type="button"
+                        title="Create editable variant frames from this sketch"
+                    >
+                        Variants
                     </button>
                     <button
                         class="rail-button rail-button-strong"
@@ -1039,6 +1050,14 @@
                             title="Create a Codex-ready build request for real app/page code"
                         >
                             Build with Codex
+                        </button>
+                        <button
+                            id="create-variants-panel"
+                            class="ghost-button"
+                            type="button"
+                            title="Create editable variant frames from the current frame"
+                        >
+                            Create variants
                         </button>
                         <button
                             id="materialize-frame-panel"

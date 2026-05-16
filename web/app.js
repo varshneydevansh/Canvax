@@ -180,6 +180,7 @@ const dom = {
   focusRedo: document.querySelector("#focus-redo"),
   focusGenerate: document.querySelector("#focus-generate"),
   focusBuildReal: document.querySelector("#focus-build-real"),
+  focusCreateVariants: document.querySelector("#focus-create-variants"),
   focusImagePack: document.querySelector("#focus-image-pack"),
   focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
   focusApply: document.querySelector("#focus-apply"),
@@ -274,6 +275,7 @@ const dom = {
   generationSummary: document.querySelector("#generation-summary"),
   generateScreenPanel: document.querySelector("#generate-screen-panel"),
   buildRealScreenPanel: document.querySelector("#build-real-screen-panel"),
+  createVariantsPanel: document.querySelector("#create-variants-panel"),
   materializeFramePanel: document.querySelector("#materialize-frame-panel"),
   writeDesignContext: document.querySelector("#write-design-context"),
   voiceStatus: document.querySelector("#voice-status"),
@@ -426,6 +428,9 @@ function bindEvents() {
   dom.focusBuildReal.addEventListener("click", () => {
     void buildRealScreenWithCodex();
   });
+  dom.focusCreateVariants.addEventListener("click", () => {
+    createVariantFramesFromCurrent();
+  });
   dom.focusImagePack.addEventListener("click", () => {
     void saveImagePromptPackForHost();
   });
@@ -507,6 +512,9 @@ function bindEvents() {
   });
   dom.buildRealScreenPanel.addEventListener("click", () => {
     void buildRealScreenWithCodex();
+  });
+  dom.createVariantsPanel.addEventListener("click", () => {
+    createVariantFramesFromCurrent();
   });
   dom.materializeFramePanel.addEventListener("click", () => {
     void materializeCurrentFrame();
@@ -1447,6 +1455,32 @@ function normalizeOutputAnnotationPoint(point) {
   };
 }
 
+function normalizeFrameVariant(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const sourceFrameId =
+    typeof source.sourceFrameId === "string" ? source.sourceFrameId.trim() : "";
+  const label = typeof source.label === "string" ? source.label.trim() : "";
+  if (!sourceFrameId && !label) {
+    return null;
+  }
+  return {
+    sourceFrameId,
+    sourceFrameTitle:
+      typeof source.sourceFrameTitle === "string"
+        ? source.sourceFrameTitle.trim()
+        : "",
+    label,
+    direction:
+      typeof source.direction === "string" ? source.direction.trim() : "",
+    index: Math.max(1, Number(source.index) || 1),
+    createdAt:
+      typeof source.createdAt === "string" && source.createdAt.trim()
+        ? source.createdAt.trim()
+        : new Date().toISOString(),
+  };
+}
+
 function normalizeFrame(frame, index) {
   return {
     id: frame.id || uid("frame"),
@@ -1457,6 +1491,7 @@ function normalizeFrame(frame, index) {
     motion: frame.motion || "",
     assets: frame.assets || "",
     mobile: frame.mobile || "",
+    variant: normalizeFrameVariant(frame.variant),
     backgroundImage: frame.backgroundImage || "",
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
     elements: Array.isArray(frame.elements)
@@ -1520,6 +1555,7 @@ function createFrame(overrides = {}) {
       motion: overrides.motion || "",
       assets: overrides.assets || "",
       mobile: overrides.mobile || "",
+      variant: overrides.variant || null,
       backgroundImage: overrides.backgroundImage || "",
       flowPosition: overrides.flowPosition || defaultFlowPosition(index),
       elements: overrides.elements || [],
@@ -1767,6 +1803,10 @@ function handleWorkbenchRailAction(action) {
   }
   if (action === "build-real") {
     void buildRealScreenWithCodex();
+    return;
+  }
+  if (action === "create-variants") {
+    createVariantFramesFromCurrent();
     return;
   }
   if (action === "image-pack") {
@@ -2519,7 +2559,10 @@ function renderFrameList() {
       const outputStatus = describeFrameOutputStatus(frame, {
         includeGlobal: frame.id === state.activeFrameId,
       });
-      const subtitle = [viewport.label, timeLabel(frame.updatedAt)]
+      const variantLabel = frame.variant?.label
+        ? `Variant · ${frame.variant.label}`
+        : "";
+      const subtitle = [variantLabel || viewport.label, timeLabel(frame.updatedAt)]
         .filter(Boolean)
         .join(" • ");
       return `
@@ -2533,7 +2576,7 @@ function renderFrameList() {
               ${renderFrameOutputBadge(outputStatus)}
             </div>
             <span>${escapeHtml(subtitle)}</span>
-            <span>${frame.captures.length} capture${frame.captures.length === 1 ? "" : "s"}</span>
+            <span>${frame.captures.length} capture${frame.captures.length === 1 ? "" : "s"}${frame.variant?.sourceFrameTitle ? ` • from ${escapeHtml(frame.variant.sourceFrameTitle)}` : ""}</span>
           </div>
         </button>
       `;
@@ -2566,6 +2609,9 @@ function renderFrameForm() {
         ? "reference underlay loaded"
         : "blank sketch sheet",
     ];
+    if (frame.variant?.label) {
+      subtitleParts.push(`variant: ${frame.variant.label}`);
+    }
     if (outputStatus?.label) {
       subtitleParts.push(outputStatus.label.toLowerCase());
     }
@@ -3584,9 +3630,10 @@ function renderFlowBoard() {
           <div class="flow-card-header" data-flow-drag="${frame.id}">
             <div class="flow-card-title">
               <strong>${escapeHtml(frame.title)}</strong>
-              <span>${viewport.label} • ${frame.captures.length} capture${frame.captures.length === 1 ? "" : "s"}</span>
+              <span>${frame.variant?.label ? `Variant · ${escapeHtml(frame.variant.label)}` : escapeHtml(viewport.label)} • ${frame.captures.length} capture${frame.captures.length === 1 ? "" : "s"}</span>
             </div>
             ${frame.id === state.entryFrameId ? '<span class="flow-card-badge">Entry</span>' : ""}
+            ${frame.variant?.label ? '<span class="flow-card-badge">Variant</span>' : ""}
           </div>
           <div class="flow-card-preview">
             ${thumbnail ? `<img src="${thumbnail}" alt="" />` : ""}
@@ -6095,6 +6142,168 @@ function duplicateFrame() {
   renderStatus("Frame duplicated");
 }
 
+const variantFrameRecipes = [
+  {
+    label: "Structure",
+    direction: "Preserve the rough layout while strengthening hierarchy, spacing, and content grouping.",
+    connectionLabel: "variant: structure",
+  },
+  {
+    label: "Visual",
+    direction: "Keep the same intent but push the visual mood, palette, contrast, and art direction harder.",
+    connectionLabel: "variant: visual",
+  },
+  {
+    label: "Adaptive",
+    direction: "Explore an alternate platform, breakpoint, or interaction state from the same source sketch.",
+    connectionLabel: "variant: adaptive",
+  },
+];
+
+function cloneElementsForVariant(elements, recipe, index) {
+  const copies = structuredClone(elements || []);
+  const elementIdMap = new Map();
+  const groupIdMap = new Map();
+
+  copies.forEach((element) => {
+    const previousId = element.id;
+    const nextId = uid(element.type || "element");
+    if (previousId) {
+      elementIdMap.set(previousId, nextId);
+    }
+    element.id = nextId;
+    if (element.groupId) {
+      if (!groupIdMap.has(element.groupId)) {
+        groupIdMap.set(element.groupId, uid("group"));
+      }
+      element.groupId = groupIdMap.get(element.groupId);
+    }
+  });
+
+  copies.forEach((element) => {
+    if (element.attachedTo && elementIdMap.has(element.attachedTo)) {
+      element.attachedTo = elementIdMap.get(element.attachedTo);
+    }
+  });
+
+  copies.unshift({
+    id: uid("label"),
+    type: "label",
+    text: `Variant ${index + 1}: ${recipe.label}`,
+    x: 56,
+    y: 56 + index * 10,
+    color: palette[(index + 1) % palette.length],
+    size: 20,
+    alpha: 1,
+    composite: "source-over",
+    attachedTo: "",
+    anchor: null,
+  });
+
+  return copies;
+}
+
+function createVariantFramesFromCurrent(options = {}) {
+  const { silent = false, sync = true } = options;
+  const source = currentFrame();
+  if (!source) {
+    return [];
+  }
+  const hasVariantContext = Boolean(
+    source.elements.length ||
+      source.backgroundImage ||
+      source.objective.trim() ||
+      source.layout.trim() ||
+      source.assets.trim() ||
+      state.voice.segments.length,
+  );
+  if (!hasVariantContext) {
+    if (!silent) {
+      renderStatus("Add a sketch or notes before creating variants");
+      dom.workspaceStatus.textContent =
+        "Draw, label, speak, or add a note before creating variant frames.";
+    }
+    return [];
+  }
+
+  const sourceIndex = Math.max(0, state.frames.indexOf(source));
+  const createdAt = new Date().toISOString();
+  const createdFrames = variantFrameRecipes.map((recipe, index) =>
+    createFrame({
+      title: `${source.title} · ${recipe.label}`,
+      viewport: source.viewport,
+      objective: [
+        source.objective || state.board.goal,
+        `Variant direction: ${recipe.direction}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      layout: [
+        source.layout,
+        `Lineage: editable variant ${index + 1} of ${source.title}. Use this as a branch, not a replacement.`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      motion: source.motion,
+      assets: source.assets,
+      mobile: source.mobile,
+      backgroundImage: source.backgroundImage,
+      flowPosition: {
+        x: source.flowPosition.x + FLOW_CARD_WIDTH + 120,
+        y: source.flowPosition.y + index * (FLOW_CARD_HEIGHT + 72),
+      },
+      elements: cloneElementsForVariant(source.elements, recipe, index),
+      outputAnnotations: [],
+      thumbnail: source.thumbnail,
+      captures: [],
+      variant: {
+        sourceFrameId: source.id,
+        sourceFrameTitle: source.title,
+        label: recipe.label,
+        direction: recipe.direction,
+        index: index + 1,
+        createdAt,
+      },
+    }),
+  );
+
+  state.frames.splice(sourceIndex + 1, 0, ...createdFrames);
+  createdFrames.forEach((frame, index) => {
+    state.connections.push(
+      normalizeConnection({
+        fromFrameId: source.id,
+        toFrameId: frame.id,
+        label: variantFrameRecipes[index].connectionLabel,
+        notes: `Editable generated variant branch from ${source.title}.`,
+      }),
+    );
+  });
+  state.activeFrameId = createdFrames[0].id;
+  state.viewMode = "flow";
+  state.selectedConnectionId =
+    state.connections.find(
+      (connection) => connection.toFrameId === createdFrames[0].id,
+    )?.id || null;
+  clearElementSelection();
+  persistState();
+  renderAll();
+  const message = `Created ${createdFrames.length} editable variant frames`;
+  if (!silent) {
+    renderStatus(message);
+    dom.workspaceStatus.textContent =
+      `${message}. Select any variant, keep sketching, or use Build with Codex from that branch.`;
+  }
+  scheduleLivePreviewSync();
+  if (sync) {
+    void saveExportToWorkspace({ silent: true });
+    void saveCheckpointToWorkspace("create-variants", {
+      silent: true,
+      note: `${message} from ${source.title}.`,
+    });
+  }
+  return createdFrames;
+}
+
 function deleteFrame() {
   if (state.frames.length === 1) {
     const only = currentFrame();
@@ -6886,6 +7095,7 @@ async function buildExportPackage(frameSelection = state.frames) {
       motion: frame.motion,
       assets: frame.assets,
       mobile: frame.mobile,
+      variant: frame.variant,
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
       captureCount: frame.captures.length,
@@ -6965,6 +7175,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
       behavior: frame.motion,
       assets: frame.assets,
       variants: frame.mobile,
+      variant: frame.variant,
       snapshotPath: frame.snapshotPath || "",
       outputAnnotationCount: frame.outputAnnotationCount || 0,
       composition: buildFrameComposition(currentFrameById(frame.id) || frame),
@@ -7202,7 +7413,10 @@ function buildTaskPackMarkdown(taskPack) {
     "## Frames",
   ];
   taskPack.frames.forEach((frame) => {
-    lines.push(`- ${frame.index}. ${frame.title}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
+    const variantSuffix = frame.variant?.label
+      ? ` [variant: ${frame.variant.label} from ${frame.variant.sourceFrameTitle || frame.variant.sourceFrameId}]`
+      : "";
+    lines.push(`- ${frame.index}. ${frame.title}${variantSuffix}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
   });
   return lines.join("\n");
 }
@@ -7868,6 +8082,7 @@ async function buildMaterializePayloadWithMode(
       motion: frame.motion,
       assets: frame.assets,
       mobile: frame.mobile,
+      variant: frame.variant,
       updatedAt: frame.updatedAt,
       captureCount: frame.captures.length,
       backgroundImage: frame.backgroundImage || "",
@@ -9542,6 +9757,51 @@ async function runSelfTest() {
         ),
       );
     }
+    const variantSourceId = currentFrame().id;
+    const beforeVariantCount = state.frames.length;
+    const variantFrames = createVariantFramesFromCurrent({
+      silent: true,
+      sync: false,
+    });
+    const variantFrameIds = new Set(variantFrames.map((frame) => frame.id));
+    results.push(
+      assert(
+        variantFrames.length === 3 &&
+          state.frames.length === beforeVariantCount + 3 &&
+          variantFrames.every(
+            (frame) =>
+              frame.variant?.sourceFrameId === variantSourceId &&
+              frame.elements.some(
+                (element) =>
+                  element.type === "label" &&
+                  String(element.text || "").startsWith("Variant "),
+              ),
+          ),
+        "create variants produces editable lineage frames",
+      ),
+    );
+    results.push(
+      assert(
+        variantFrames.every((frame) =>
+          state.connections.some(
+            (connection) =>
+              connection.fromFrameId === variantSourceId &&
+              connection.toFrameId === frame.id &&
+              connection.label.startsWith("variant:"),
+          ),
+        ),
+        "create variants connects branches in flow view",
+      ),
+    );
+    state.frames = state.frames.filter((frame) => !variantFrameIds.has(frame.id));
+    state.connections = state.connections.filter(
+      (connection) => !variantFrameIds.has(connection.toFrameId),
+    );
+    state.activeFrameId = variantSourceId;
+    state.viewMode = "frame";
+    state.selectedConnectionId = null;
+    persistState();
+    renderAll();
     const outputActivityItems = updateOutputActivityHistory(
       [],
       null,

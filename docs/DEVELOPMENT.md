@@ -226,6 +226,35 @@ Regression coverage:
 - `scripts/regression-check.mjs` validates the latest build request schema when present.
 - Board self-test creates a synthetic build request and verifies the no-API frame-to-code contract.
 
+## Variant Branch Implementation
+
+`Create variants` lives in `web/app.js` and is intentionally local:
+
+```text
+createVariantFramesFromCurrent()
+  -> clone active frame sketch elements with fresh ids
+  -> add a visible variant label
+  -> attach frame.variant lineage metadata
+  -> insert three frames after the source frame
+  -> connect all variants from the source in Flow view
+  -> sync the live export/checkpoint
+```
+
+The current recipes are:
+
+- `Structure`
+- `Visual`
+- `Adaptive`
+
+The important behavior is that each variant remains a normal editable frame. Do not turn variants into read-only images or one-off prompt text.
+
+Self-test coverage verifies:
+
+- three variant frames are created
+- each has lineage pointing to the source frame
+- each has a visible label element
+- each is connected as a branch in Flow view
+
 ## Where To Change What
 
 ### Add or change a drawing tool
