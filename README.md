@@ -89,6 +89,7 @@ flowchart LR
 - Adds a floating designer rail in Workbench, so tools, undo/redo, dictation, Make, and Apply stay available even when the tray is hidden for canvas-first work.
 - Keeps the Workbench rail as a bottom command dock with brush `-` / `+` controls and an `Image` action for spatial image-generation handoff.
 - Keeps the main Workbench tray compact, with surface selection, action selection, host capability status, and design-context status visible without pushing the canvas below the fold.
+- Adds Workbench quick-prompt chips for common refinement directions like font, drama, mobile variant, spacing, and image candidates.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
@@ -138,6 +139,7 @@ This commit line now includes the following major layers working together:
 - Preview rewrite handoff lane for request/executor/manifest progress
 - Workbench surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
 - Workbench action modes for build, refinement, spec, image prompt, and variation workflows
+- Workbench quick-prompt chips for common designer refinement moves
 - task and image prompt packs for host-side code, spec, UI, and image-generation work without requiring `OPENAI_API_KEY`
 - host capability and root `DESIGN.md` design-context reporting
 - starter `DESIGN.md` generation from board mood, palette, labels, notes, frames, and generation direction

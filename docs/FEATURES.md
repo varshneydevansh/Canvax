@@ -168,6 +168,7 @@ Behavior:
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
 - exposes only four drawing tools: pen, rectangle, arrow, erase
 - exposes one voice action and one manual spoken-note field
+- exposes quick-prompt chips for common refinements such as `Try another font`, `Make it more dramatic`, `Show mobile variant`, `Tighten spacing`, and `Add image candidates`
 - exposes `Make real` for the local generated-screen pass
 - exposes `Image pack` for a no-API image-generation handoff with coordinates and an HTML/CSS scaffold
 - turns pasted or dropped images into editable frame elements for generated candidates, reference crops, storyboards, posters, or UI assets

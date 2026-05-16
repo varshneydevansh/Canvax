@@ -49,6 +49,7 @@ Status: In progress
 - [x] Formal versioned session schema for live exports/checkpoints/live preview payloads
 - [x] Cached frame render pipeline for live preview/export generation to reduce repeated long-session re-encoding
 - [x] Workbench bottom designer dock with brush `-` / `+`, Image handoff, and tactile primary actions
+- [x] Workbench quick-prompt chips add common refinement intent without opening Advanced mode
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
 - [x] Workbench `Map` supports manual note cards and reference file/image cards as draggable/removable spatial context

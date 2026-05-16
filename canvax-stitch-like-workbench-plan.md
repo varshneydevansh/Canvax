@@ -55,6 +55,7 @@ Current completed baseline:
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
 - The Workbench tray now uses a compact three-column command strip so the active canvas is visible in the first viewport instead of being pushed below the fold.
+- Workbench quick-prompt chips add common refinement intent such as font, drama, mobile variant, spacing, and image candidates without opening Advanced mode.
 - Action mode selection is available in Workbench and is exported into task/image prompt packs.
 - `DESIGN.md` is detected when present and included as project design context in handoffs.
 - Advanced mode can create a starter `DESIGN.md` from board mood, palette, labels, frames, and generation direction without overwriting an existing file.

@@ -1394,6 +1394,63 @@ body[data-workspace-mode="simple"] .workbench-output-stage {
     padding: clamp(0.85rem, 1.6vw, 1.15rem);
 }
 
+.workbench-prompt-chips {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: center;
+}
+
+body[data-workspace-mode="simple"] .workbench-prompt-chips {
+    grid-column: 1 / -1;
+    margin-top: -0.1rem;
+}
+
+.workbench-prompt-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.25rem;
+    padding: 0.42rem 0.7rem 0.42rem 0.48rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.16);
+    background: rgba(255, 248, 236, 0.08);
+    color: rgba(255, 248, 236, 0.82);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.04);
+    font-weight: 800;
+    cursor: pointer;
+    transition:
+        transform 140ms ease,
+        border-color 140ms ease,
+        background 140ms ease,
+        color 140ms ease;
+}
+
+.workbench-prompt-chip:hover,
+.workbench-prompt-chip:focus-visible {
+    transform: translateY(-0.06rem);
+    border-color: rgba(255, 248, 236, 0.32);
+    background: rgba(255, 248, 236, 0.14);
+    color: var(--paper);
+    outline: none;
+}
+
+.workbench-prompt-chip:active {
+    transform: translateY(0.04rem) scale(0.99);
+}
+
+.workbench-prompt-chip span {
+    display: inline-grid;
+    place-items: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    background: rgba(242, 90, 50, 0.18);
+    color: var(--rust);
+    font-size: 0.7rem;
+}
+
 .workbench-output-card {
     display: grid;
     gap: 0.62rem;

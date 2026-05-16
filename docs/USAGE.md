@@ -81,6 +81,7 @@ It hides advanced panels and keeps only:
 - `Pen`, `Rect`, `Arrow`, and `Erase`
 - `Start talking` / `Stop talking`
 - a quick manual voice note field
+- quick-prompt chips for common refinements like `Try another font`, `Make it more dramatic`, `Show mobile variant`, `Tighten spacing`, and `Add image candidates`
 - `Make real` for a local generated-screen preview
 - generated output beside the sketch when a preview target exists
 - `Sketch`, `Split`, `Output`, and `Map` focus modes for choosing whether the rough canvas, side-by-side comparison, generated surface, or spatial project map is primary

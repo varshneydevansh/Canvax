@@ -110,6 +110,39 @@ const actionModes = [
   },
 ];
 
+const workbenchPromptChips = [
+  {
+    id: "font",
+    label: "Try another font",
+    actionMode: "refine-ui",
+    note: "Try another headline/body font pairing while preserving the current layout hierarchy.",
+  },
+  {
+    id: "dramatic",
+    label: "Make it more dramatic",
+    actionMode: "refine-ui",
+    note: "Make the generated direction more dramatic with stronger contrast, bolder hierarchy, and more cinematic composition.",
+  },
+  {
+    id: "mobile",
+    label: "Show mobile variant",
+    actionMode: "variations",
+    note: "Create or refine a mobile variant of this frame while preserving the same intent and content hierarchy.",
+  },
+  {
+    id: "spacing",
+    label: "Tighten spacing",
+    actionMode: "refine-ui",
+    note: "Tighten spacing and alignment so the design feels intentional, readable, and less loose.",
+  },
+  {
+    id: "image",
+    label: "Add image candidates",
+    actionMode: "image-prompt",
+    note: "Identify image or illustration regions and prepare candidate prompts with placement coordinates.",
+  },
+];
+
 const viewportPresets = {
   desktop: { label: "Desktop", width: 1440, height: 1024, columns: 12 },
   laptop: { label: "Laptop", width: 1366, height: 900, columns: 12 },
@@ -200,6 +233,7 @@ const dom = {
   focusAddFrame: document.querySelector("#focus-add-frame"),
   focusAddSection: document.querySelector("#focus-add-section"),
   focusFreeCanvas: document.querySelector("#focus-free-canvas"),
+  focusPromptChips: document.querySelector("#focus-prompt-chips"),
   focusUndo: document.querySelector("#focus-undo"),
   focusRedo: document.querySelector("#focus-redo"),
   focusGenerate: document.querySelector("#focus-generate"),
@@ -482,6 +516,13 @@ function bindEvents() {
   });
   dom.focusPreview.addEventListener("click", openPreviewWindow);
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
+  dom.focusPromptChips.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-workbench-prompt]");
+    if (!button) {
+      return;
+    }
+    applyWorkbenchPromptChip(button.dataset.workbenchPrompt);
+  });
   dom.assetCandidateTray.addEventListener("click", (event) => {
     const button = event.target.closest("[data-asset-candidate-place]");
     if (!button) {
@@ -2173,6 +2214,7 @@ function renderFocusPad() {
     "active",
     state.voice.status === "listening",
   );
+  renderWorkbenchPromptChips();
 
   if (state.buildRealInFlight) {
     dom.focusStatus.textContent =
@@ -2224,6 +2266,41 @@ function renderFocusPad() {
       `,
     )
     .join("");
+}
+
+function renderWorkbenchPromptChips() {
+  dom.focusPromptChips.innerHTML = workbenchPromptChips
+    .map(
+      (chip, index) => `
+        <button
+          class="workbench-prompt-chip"
+          data-workbench-prompt="${escapeHtml(chip.id)}"
+          type="button"
+          title="${escapeHtml(chip.note)}"
+        >
+          <span>${index + 1}</span>
+          ${escapeHtml(chip.label)}
+        </button>
+      `,
+    )
+    .join("");
+}
+
+function applyWorkbenchPromptChip(chipId) {
+  const chip = workbenchPromptChips.find((item) => item.id === chipId);
+  if (!chip) {
+    return;
+  }
+  state.voice.scope = "frame";
+  state.board.actionMode = normalizeActionMode(chip.actionMode).id;
+  state.voice.manualDraft = "";
+  dom.focusManualInput.value = "";
+  dom.voiceManualInput.value = "";
+  addVoiceSegment(chip.note, { provider: "workbench-prompt-chip" });
+  state.focusLastAppliedText = `Quick prompt added: ${chip.label}`;
+  persistState();
+  renderAll();
+  void saveCheckpointToWorkspace("workbench-prompt-chip", { silent: true });
 }
 
 function normalizeAssetCandidatePack(pack) {
@@ -10887,6 +10964,15 @@ async function runSelfTest() {
           dom.workbenchFocusButtons.querySelectorAll("[data-workbench-focus]")
             .length,
         "Workbench focus modes render",
+      ),
+    );
+    renderWorkbenchPromptChips();
+    results.push(
+      assert(
+        workbenchPromptChips.length ===
+          dom.focusPromptChips.querySelectorAll("[data-workbench-prompt]")
+            .length,
+        "Workbench quick prompt chips render",
       ),
     );
 

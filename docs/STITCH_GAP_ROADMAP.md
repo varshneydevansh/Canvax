@@ -386,7 +386,7 @@ Needed:
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
 - Voice-driven critique/refinement lane.
 - Branchable design explorations with a clear agent/output history.
-- Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant".
+- Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant". **Initial Workbench quick-prompt chips shipped.**
 - Brand polish across board, Preview, generated routes, and docs.
 
 ### P2: Make Codex The Differentiator
