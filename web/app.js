@@ -2517,9 +2517,15 @@ function syncSpatialObjectsFromHandoffs() {
   );
   const candidates = state.assetCandidatePack?.candidates || [];
   const manifest = state.serverStatus?.previewManifest || null;
-  const targets = collectManifestTargets(manifest);
-  const artifacts = collectManifestArtifacts(manifest);
-  const changes = collectManifestChanges(manifest);
+  const targets = collectManifestTargets(manifest).filter(
+    manifestItemBelongsToCurrentBoard,
+  );
+  const artifacts = collectManifestArtifacts(manifest).filter(
+    manifestItemBelongsToCurrentBoard,
+  );
+  const changes = collectManifestChanges(manifest).filter(
+    manifestItemBelongsToCurrentBoard,
+  );
   const mapTargets = selectSpatialMapTargets(targets);
   const mapArtifacts = selectSpatialMapArtifacts(artifacts, mapTargets);
   const mapChanges = changes.slice(0, 6);
@@ -2729,19 +2735,20 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
 function selectSpatialMapTargets(targets) {
   const selected = new Map();
   [...targets].reverse().forEach((target) => {
-    const frameIds = frameIdsFromManifestItem(target);
-    const key =
-      frameIds[0] ||
-      cleanString(target.label) ||
-      cleanString(target.id) ||
-      cleanString(target.previewPath) ||
-      cleanString(target.resolvedUrl);
+    const key = spatialManifestGroupingKey(target, target.type || "preview");
     if (!key || selected.has(key)) {
       return;
     }
     selected.set(key, target);
   });
-  return [...selected.values()].reverse().slice(0, 6);
+  return [...selected.values()].reverse().slice(0, 8);
+}
+
+function manifestItemBelongsToCurrentBoard(item) {
+  const frameIds = frameIdsFromManifestItem(item);
+  return (
+    !frameIds.length || frameIds.some((frameId) => Boolean(frameById(frameId)))
+  );
 }
 
 function selectSpatialMapArtifacts(artifacts, selectedTargets) {
@@ -2758,9 +2765,10 @@ function selectSpatialMapArtifacts(artifacts, selectedTargets) {
       return artifact.kind !== "preview" || !targetPaths.has(path);
     })
     .forEach((artifact) => {
-      const frameIds = frameIdsFromManifestItem(artifact);
-      const key =
-        `${frameIds[0] || "global"}::${artifact.kind || "artifact"}::${cleanString(artifact.label) || cleanString(artifact.path)}`;
+      const key = spatialManifestGroupingKey(
+        artifact,
+        artifact.kind || "artifact",
+      );
       if (!key || selected.has(key)) {
         return;
       }
@@ -2785,6 +2793,16 @@ function selectSpatialMapCheckpoints(history) {
     selected.set(key, item);
   });
   return [...selected.values()].slice(0, 8);
+}
+
+function spatialManifestGroupingKey(item, kind = "item") {
+  const frameIds = frameIdsFromManifestItem(item);
+  const normalizedKind = spatialObjectKey(kind || "item");
+  if (frameIds[0]) {
+    return `frame:${frameIds[0]}:${normalizedKind}`;
+  }
+  const source = cleanString(item?.source || item?.type || item?.kind);
+  return `global:${normalizedKind}:${source || "output"}`;
 }
 
 function buildManifestSpatialObjectId(kind, item, index = 0) {
@@ -2900,7 +2918,27 @@ function spatialObjectKey(...values) {
 function frameIdsFromManifestItem(item) {
   const frameIds = Array.isArray(item?.frameIds) ? item.frameIds : [];
   const sourceFrameId = cleanString(item?.sourceFrameId);
-  return [...new Set([...frameIds, sourceFrameId].filter(Boolean))];
+  const inferredFrameId = inferFrameIdFromManifestPath(item);
+  return [
+    ...new Set([...frameIds, sourceFrameId, inferredFrameId].filter(Boolean)),
+  ];
+}
+
+function inferFrameIdFromManifestPath(item) {
+  const values = [
+    item?.previewPath,
+    item?.path,
+    item?.url,
+    item?.resolvedUrl,
+    item?.htmlPath,
+  ].map(cleanString);
+  for (const value of values) {
+    const match = value.match(/(?:^|\/)frames\/([^/?#]+)/);
+    if (match?.[1]) {
+      return decodeURIComponent(match[1]);
+    }
+  }
+  return "";
 }
 
 function defaultSpatialObjectPosition(index) {
@@ -5145,7 +5183,9 @@ function renderSpatialObjectNode(object) {
       ? frameTitleById(object.frameIds[0])
       : object.frameIds?.length
         ? `${object.frameIds.length} frames`
-        : "Board object";
+        : isManifestSpatialObject(object)
+          ? "Global output"
+          : "Board object";
   const thumbnail = cleanString(object.meta?.thumbnailDataUrl);
   const sourceLabel = spatialObjectSourceLabel(object);
   const bodyText = spatialObjectBodyText(object, frameTitle);
@@ -5191,15 +5231,15 @@ function renderSpatialObjectNode(object) {
 function spatialObjectSourceLabel(object) {
   switch (object?.sourceKind) {
     case "generated-target":
-      return "generated preview";
+      return "output preview";
     case "generated-artifact":
-      return "generated file";
+      return "output file";
     case "workspace-change":
-      return "changed file";
+      return "code change";
     case "checkpoint":
-      return "history";
+      return "checkpoint";
     case "asset-candidate":
-      return "image candidate";
+      return "image prompt";
     default:
       return object?.sourceKind || object?.type || "object";
   }
@@ -5209,9 +5249,10 @@ function spatialObjectBodyText(object, frameTitle = "") {
   if (object?.sourceKind === "generated-target") {
     return object.meta?.summary
       ? object.meta.summary
-      : frameTitle && frameTitle !== "Board object"
-        ? `Materialized or Codex-built preview connected to ${frameTitle}`
-        : "Materialized or Codex-built preview target. Remove it if it is stale.";
+      : frameTitle &&
+          !["Board object", "Global output"].includes(frameTitle)
+        ? `Generated surface connected to ${frameTitle}. Draw corrections on the frame or output surface, then apply another pass.`
+        : "Generated surface target. It is a removable Map card, not an extra frame.";
   }
 
   if (object?.sourceKind === "generated-artifact") {

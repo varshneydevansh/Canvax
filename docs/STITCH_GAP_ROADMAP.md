@@ -388,7 +388,7 @@ Needed:
 
 ### P1: Reach Stitch-Style Core UX
 
-- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; richer nested editing remains open.**
+- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, and collapse repeated outputs to the latest useful per-frame/per-kind card. Richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames and export as explicit editable spatial branch records.**
 - Voice-driven critique/refinement lane.

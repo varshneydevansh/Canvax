@@ -216,7 +216,7 @@ Workbench
 Boundary:
 
 - Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
-- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, labeled group regions, manual notes, reference file/image cards, asset candidate objects, generated output targets, artifacts, changed files, and checkpoint history cards. Spatial objects can be moved/resized and group regions export containment, but Map is not yet a finished infinite canvas with advanced nested object editing.
+- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, labeled group regions, manual notes, reference file/image cards, asset candidate objects, generated output targets, artifacts, changed files, and checkpoint history cards. Generated outputs are now labeled as designer-facing output references, frame binding is inferred from generated artifact paths when possible, outputs bound only to deleted frames are hidden, and repeated outputs collapse to the latest useful per-frame/per-kind card. Spatial objects can be moved/resized and group regions export containment, but Map is not yet a finished infinite canvas with advanced nested object editing.
 - Pasted/dropped image assets are editable canvas elements. `Reference underlay` remains the explicit path for a non-editable tracing/background image.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.
@@ -248,7 +248,9 @@ left timeline, central stage, and right inspector because those controls are for
 technical handoff rather than quick sketching. The mode switch describes the
 active role, and Advanced labels its frame stack, frame workspace/flow map, and
 handoff inspector so the density reads as an inspector deck instead of a
-different app.
+different app. The sticky Advanced command deck is intentionally solid instead
+of glassy, so canvas/grid content does not visually bleed through while
+scrolling.
 
 ### Task, Rewrite, And Image Prompt Packs
 
