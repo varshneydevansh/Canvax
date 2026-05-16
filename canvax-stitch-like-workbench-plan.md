@@ -47,8 +47,9 @@ Current completed baseline:
 - Workbench is the default simple mode.
 - Generated output can appear beside the sketch as a compact correction/status card.
 - Correction marks over generated output are saved into frame handoff data.
-- Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product.
+- Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product.
 - Workbench now has `Sketch`, `Split`, and `Output` focus modes so generated surfaces can become a large correction target instead of staying trapped in the compact tray card.
+- Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
@@ -61,7 +62,7 @@ Current completed baseline:
 - `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
 - Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
 - Static Canvax assets are served with no-store headers to prevent stale browser UI after local service updates.
-- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, flow links, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
+- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, opt-in materialized review aids, flow links, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Still open:
 

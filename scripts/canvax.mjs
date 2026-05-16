@@ -2526,6 +2526,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
 
       body[data-show-blueprint="false"] .blueprint-layer {
         opacity: 0;
+        visibility: hidden;
       }
 
       body[data-show-notes="false"] .note-layer {
@@ -2581,11 +2582,11 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         object-fit: cover;
         width: 100%;
         height: 100%;
-        opacity: 0.1;
+        opacity: 0.12;
         mix-blend-mode: multiply;
         filter: saturate(0.74) contrast(1.08);
         pointer-events: none;
-        transition: opacity 180ms ease;
+        transition: opacity 180ms ease, visibility 180ms ease;
       }
 
       .context-chip,
@@ -2642,6 +2643,16 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
       .toolbar {
         right: 1rem;
         bottom: 1rem;
+        padding: 0.52rem;
+        gap: 0.35rem;
+      }
+
+      .toolbar-kicker {
+        padding: 0 0.55rem;
+        color: var(--muted);
+        font-size: 0.68rem;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
       }
 
       .toolbar button {
@@ -2657,9 +2668,19 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         transition: transform 140ms ease, background 140ms ease;
       }
 
+      .toolbar button[aria-pressed="true"] {
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        box-shadow: 0 0.55rem 1.2rem var(--accent-glow);
+      }
+
       .toolbar button:hover {
         transform: translateY(-1px);
         background: rgba(255, 255, 255, 0.96);
+      }
+
+      .toolbar button[aria-pressed="true"]:hover {
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
       }
 
       .material-node {
@@ -3349,7 +3370,7 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
       }
     </style>
   </head>
-  <body data-show-blueprint="${sketchSrc ? "true" : "false"}" data-show-notes="${noteMarkup && !semanticScreenMarkup ? "true" : "false"}" data-generation-mode="${escapeAttribute(generation.mode)}" data-generation-direction="${escapeAttribute(generation.direction)}" data-semantic-screen="${semanticScreenMarkup ? "true" : "false"}">
+  <body data-show-blueprint="false" data-show-notes="false" data-generation-mode="${escapeAttribute(generation.mode)}" data-generation-direction="${escapeAttribute(generation.direction)}" data-semantic-screen="${semanticScreenMarkup ? "true" : "false"}">
     <main class="preview-wrap">
       <section class="preview-stage" aria-label="${generation.mode === "generate-screen" ? "Generated" : "Materialized"} ${escapeHtml(frame.title)}">
         <div class="stage-grid" aria-hidden="true"></div>
@@ -3388,14 +3409,15 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
           ${noteMarkup}
         </div>
         <div class="toolbar">
+          <span class="toolbar-kicker">Review aids</span>
           ${
             sketchSrc
-              ? '<button type="button" data-action="toggle-blueprint">Sketch overlay</button>'
+              ? '<button type="button" data-action="toggle-blueprint" data-on-label="Hide original sketch" data-off-label="Show original sketch" aria-pressed="false" title="Toggle the transparent original Canvax sketch. This is a review overlay, not part of the generated output.">Show original sketch</button>'
               : ""
           }
           ${
             noteMarkup
-              ? '<button type="button" data-action="toggle-notes">Notes</button>'
+              ? '<button type="button" data-action="toggle-notes" data-on-label="Hide design notes" data-off-label="Show design notes" aria-pressed="false" title="Toggle free labels and design notes captured from the sketch. These notes guide Codex but are not product UI.">Show design notes</button>'
               : ""
           }
         </div>
@@ -3422,11 +3444,26 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
           node.classList.toggle("is-active");
         });
       });
-      document.querySelector("[data-action='toggle-blueprint']")?.addEventListener("click", () => {
-        body.dataset.showBlueprint = body.dataset.showBlueprint === "true" ? "false" : "true";
+      function syncReviewButton(button, active) {
+        if (!button) {
+          return;
+        }
+        button.setAttribute("aria-pressed", String(active));
+        button.textContent = active ? button.dataset.onLabel : button.dataset.offLabel;
+      }
+      const sketchToggle = document.querySelector("[data-action='toggle-blueprint']");
+      const noteToggle = document.querySelector("[data-action='toggle-notes']");
+      syncReviewButton(sketchToggle, body.dataset.showBlueprint === "true");
+      syncReviewButton(noteToggle, body.dataset.showNotes === "true");
+      sketchToggle?.addEventListener("click", () => {
+        const active = body.dataset.showBlueprint !== "true";
+        body.dataset.showBlueprint = String(active);
+        syncReviewButton(sketchToggle, active);
       });
-      document.querySelector("[data-action='toggle-notes']")?.addEventListener("click", () => {
-        body.dataset.showNotes = body.dataset.showNotes === "true" ? "false" : "true";
+      noteToggle?.addEventListener("click", () => {
+        const active = body.dataset.showNotes !== "true";
+        body.dataset.showNotes = String(active);
+        syncReviewButton(noteToggle, active);
       });
     </script>
   </body>

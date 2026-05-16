@@ -9177,6 +9177,21 @@ async function runSelfTest() {
           "Materialize returned no preview path.",
       ),
     );
+    if (materializeResult?.previewPath) {
+      const materializedHtml = await fetch(
+        `/workspace/${materializeResult.previewPath}`,
+        { cache: "no-store" },
+      ).then((response) => (response.ok ? response.text() : ""));
+      results.push(
+        assert(
+          materializedHtml.includes('data-show-blueprint="false"') &&
+            materializedHtml.includes('data-show-notes="false"') &&
+            materializedHtml.includes("Show original sketch") &&
+            materializedHtml.includes("Show design notes"),
+          "materialized output keeps sketch and notes as opt-in review aids",
+        ),
+      );
+    }
     const outputActivityItems = updateOutputActivityHistory(
       [],
       null,

@@ -596,6 +596,7 @@ Behavior:
   - focus
 - uses a semantic hero renderer for hero-like website frames, so the output is no longer just a literal absolute-positioned wireframe
 - infers brand, nav, headline, body copy, CTAs, proof chips, preview card, and edit/refinement note from labels and frame notes
+- keeps original sketch and free-note overlays hidden by default in generated outputs; `Show original sketch` and `Show design notes` are explicit review aids
 - writes back into the same Preview loop as Materialize
 - reuses the same per-frame target so Preview stays attached across refreshes
 

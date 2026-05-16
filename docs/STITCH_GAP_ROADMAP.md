@@ -240,7 +240,7 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, and a large `Free canvas` viewport preset, but it is not yet an infinite design canvas with free spatial organization of references, generated outputs, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, and cleaner generated-output review aids, but it is not yet an infinite design canvas with free spatial organization of references, generated outputs, branches, prompts, and code artifacts.
 
 Needed:
 
@@ -257,6 +257,7 @@ done
   Workbench -> Free canvas preset -> large sketch surface
   Workbench rail -> canvas-first controls without reopening the tray
   generated output overlay -> saved correction marks for Codex
+  generated preview review aids -> opt-in original sketch and design notes
 
 next
   true infinite canvas -> spatial objects + branches + generated variants + code artifacts
