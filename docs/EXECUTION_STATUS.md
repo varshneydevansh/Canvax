@@ -145,6 +145,7 @@ Status: In progress
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
 - [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects`
+- [x] Asset candidate tray now shows attached thumbnails, select, and accept review state for generated image choices without calling an image API
 - [x] Workbench `Map` renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Workbench bottom command composer now lets users type/paste dictation, Talk, Note, Make, and Apply without reopening the top tray
 - [x] Variant branches can now be promoted to primary, which sets the variant as the entry frame and preserves lineage for Codex handoff

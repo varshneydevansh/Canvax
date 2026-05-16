@@ -126,6 +126,7 @@ Canvax today
 - Reference image underlays are supported through the explicit `Reference underlay` upload.
 - Pasted or dropped images can now become editable image elements, so generated candidates or reference crops can be placed back on a frame instead of only sitting behind the sketch.
 - Saved asset candidates now appear in a compact Workbench tray. Designers can place a candidate as an editable image slot on its source frame/region or attach a generated file back into that slot while preserving `assetCandidateId`.
+- Asset candidate cards now show attached-image thumbnails, review status, selection, and an accept action so generated image choices become explicit no-API handoff state.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.

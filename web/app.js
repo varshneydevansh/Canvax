@@ -563,6 +563,16 @@ function bindEvents() {
     applyWorkbenchPromptChip(button.dataset.workbenchPrompt);
   });
   dom.assetCandidateTray.addEventListener("click", (event) => {
+    const acceptButton = event.target.closest("[data-asset-candidate-accept]");
+    if (acceptButton) {
+      acceptAssetCandidate(acceptButton.dataset.assetCandidateAccept);
+      return;
+    }
+    const selectButton = event.target.closest("[data-asset-candidate-select]");
+    if (selectButton) {
+      selectAssetCandidateElement(selectButton.dataset.assetCandidateSelect);
+      return;
+    }
     const button = event.target.closest("[data-asset-candidate-place]");
     if (!button) {
       return;
@@ -2754,6 +2764,58 @@ function assetCandidateById(candidateId) {
   return candidates.find((candidate) => candidate.id === candidateId) || null;
 }
 
+function assetCandidateElements(candidateId) {
+  return state.frames.flatMap((frame) =>
+    frame.elements
+      .filter(
+        (element) =>
+          element.type === "image" && element.assetCandidateId === candidateId,
+      )
+      .map((element) => ({ frame, element })),
+  );
+}
+
+function latestAssetCandidateElement(candidateId, { preferImage = false } = {}) {
+  const entries = assetCandidateElements(candidateId);
+  if (!entries.length) {
+    return null;
+  }
+  if (preferImage) {
+    const imageEntry = entries
+      .slice()
+      .reverse()
+      .find((entry) => Boolean(entry.element.imageDataUrl));
+    if (imageEntry) {
+      return imageEntry;
+    }
+  }
+  return entries.at(-1) || null;
+}
+
+function assetCandidateReviewState(candidate) {
+  const slots = Array.isArray(candidate?.outputSlots)
+    ? candidate.outputSlots
+    : [];
+  const accepted = slots.some((slot) => slot?.accepted);
+  const attached = latestAssetCandidateElement(candidate?.id, {
+    preferImage: true,
+  });
+  if (accepted) {
+    return { label: "Accepted", tone: "accepted", attached };
+  }
+  if (attached?.element?.imageDataUrl) {
+    return { label: "Attached", tone: "attached", attached };
+  }
+  if (latestAssetCandidateElement(candidate?.id)) {
+    return { label: "Slot placed", tone: "placed", attached };
+  }
+  return {
+    label: candidate?.status === "accepted" ? "Accepted" : "Prompt-ready",
+    tone: candidate?.status === "accepted" ? "accepted" : "ready",
+    attached: null,
+  };
+}
+
 function renderAssetCandidateTray() {
   if (!dom.assetCandidateTray) {
     return;
@@ -2781,20 +2843,36 @@ function renderAssetCandidateTray() {
           const sameFrame = candidate.sourceFrameId === activeFrameId;
           const title = candidate.title || "Untitled candidate";
           const placement = candidate.placement || "whole frame";
+          const review = assetCandidateReviewState(candidate);
+          const previewImage = review.attached?.element?.imageDataUrl || "";
           const typeLabel =
             candidate.type === "frame-composite" ? "frame" : "region";
           return `
-            <article class="asset-candidate-card ${sameFrame ? "active-frame" : ""}">
+            <article class="asset-candidate-card ${sameFrame ? "active-frame" : ""} ${review.tone === "accepted" ? "accepted" : ""}">
               <div class="asset-candidate-card-head">
                 <span class="asset-kind">${escapeHtml(typeLabel)}</span>
                 <span>${sameFrame ? "This frame" : escapeHtml(candidate.sourceFrameTitle || "Other frame")}</span>
               </div>
+              <div class="asset-candidate-review-row">
+                <span class="asset-candidate-status" data-tone="${escapeHtml(review.tone)}">${escapeHtml(review.label)}</span>
+                ${review.attached ? `<button class="ghost-button compact" type="button" data-asset-candidate-select="${escapeHtml(candidate.id)}">Select</button>` : ""}
+              </div>
+              ${
+                previewImage
+                  ? `<div class="asset-candidate-preview"><img src="${escapeHtml(previewImage)}" alt="" /></div>`
+                  : ""
+              }
               <strong title="${escapeHtml(title)}">${escapeHtml(compactDisplayText(title, 42))}</strong>
               <p title="${escapeHtml(candidate.prompt || "")}">${escapeHtml(placement)}</p>
               <div class="asset-candidate-actions">
                 <button class="ghost-button compact" type="button" data-asset-candidate-place="${escapeHtml(candidate.id)}">
                   Place slot
                 </button>
+                ${
+                  review.attached?.element?.imageDataUrl && review.tone !== "accepted"
+                    ? `<button class="ghost-button compact" type="button" data-asset-candidate-accept="${escapeHtml(candidate.id)}">Accept</button>`
+                    : ""
+                }
                 <label class="ghost-link-button compact asset-upload-button">
                   Attach image
                   <input data-asset-candidate-upload="${escapeHtml(candidate.id)}" type="file" accept="image/*" />
@@ -2877,6 +2955,10 @@ function addAssetCandidateElement(candidate, options = {}) {
 
   pushHistory(frame.id);
   frame.elements.push(element);
+  updateAssetCandidateSlot(candidate, element, {
+    attached: Boolean(options.imageDataUrl),
+    sourceName: options.sourceName || candidate.title || "Asset candidate",
+  });
   setSelectedElements([element.id], element.id);
   touchFrame(frame, {
     capture: true,
@@ -2886,6 +2968,75 @@ function addAssetCandidateElement(candidate, options = {}) {
   });
   renderAll();
   return element;
+}
+
+function updateAssetCandidateSlot(
+  candidate,
+  element,
+  { attached = false, accepted = false, sourceName = "" } = {},
+) {
+  if (!candidate || !element) {
+    return;
+  }
+  const previousSlot = Array.isArray(candidate.outputSlots)
+    ? candidate.outputSlots[0] || {}
+    : {};
+  candidate.status = accepted ? "accepted" : attached ? "attached" : "placed";
+  candidate.outputSlots = [
+    {
+      ...previousSlot,
+      label: previousSlot.label || "Generated image",
+      imagePath: sourceName || previousSlot.imagePath || "",
+      imageElementId: element.id,
+      frameId: currentFrame()?.id || candidate.sourceFrameId || "",
+      accepted: Boolean(accepted),
+      attached: Boolean(attached || previousSlot.attached),
+      attachedAt: attached ? new Date().toISOString() : previousSlot.attachedAt || "",
+      acceptedAt: accepted ? new Date().toISOString() : "",
+      notes:
+        previousSlot.notes ||
+        "Generated candidate was placed back onto the Canvax frame.",
+    },
+  ];
+}
+
+function selectAssetCandidateElement(candidateId) {
+  const entry = latestAssetCandidateElement(candidateId, { preferImage: true });
+  if (!entry) {
+    renderStatus("No placed asset candidate to select");
+    return false;
+  }
+  state.activeFrameId = entry.frame.id;
+  state.viewMode = "frame";
+  setSelectedElements([entry.element.id], entry.element.id);
+  persistState();
+  renderAll();
+  renderStatus("Asset candidate selected on its frame");
+  return true;
+}
+
+function acceptAssetCandidate(candidateId, { sync = true } = {}) {
+  const candidate = assetCandidateById(candidateId);
+  const entry = latestAssetCandidateElement(candidateId, { preferImage: true });
+  if (!candidate || !entry?.element?.imageDataUrl) {
+    renderStatus("Attach a generated image before accepting this candidate");
+    return false;
+  }
+  updateAssetCandidateSlot(candidate, entry.element, {
+    attached: true,
+    accepted: true,
+    sourceName: entry.element.sourceName || candidate.title,
+  });
+  state.activeFrameId = entry.frame.id;
+  state.viewMode = "frame";
+  setSelectedElements([entry.element.id], entry.element.id);
+  persistState();
+  renderAll();
+  renderStatus("Asset candidate accepted and bound to this frame");
+  if (sync) {
+    void saveExportToWorkspace({ silent: true });
+  }
+  return true;
 }
 
 function placeAssetCandidatePlaceholder(candidateId) {
@@ -8746,6 +8897,12 @@ function buildAssetCandidatePack(imagePromptPack) {
   const frames = Array.isArray(imagePromptPack?.frames)
     ? imagePromptPack.frames
     : [];
+  const existingById = new Map(
+    (state.assetCandidatePack?.candidates || []).map((candidate) => [
+      candidate.id,
+      candidate,
+    ]),
+  );
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-asset-candidates",
@@ -8759,7 +8916,25 @@ function buildAssetCandidatePack(imagePromptPack) {
       imagePromptPack?.designContext || currentDesignContextForExport(),
     usage:
       "Use these prompt-ready records as image generation candidates. Paste or attach generated outputs back to the matching frame/region when available.",
-    candidates: frames.flatMap((frame) => buildFrameAssetCandidates(frame)),
+    candidates: frames
+      .flatMap((frame) => buildFrameAssetCandidates(frame))
+      .map((candidate) =>
+        mergeAssetCandidateReview(candidate, existingById.get(candidate.id)),
+      ),
+  };
+}
+
+function mergeAssetCandidateReview(candidate, existing) {
+  if (!existing) {
+    return candidate;
+  }
+  const outputSlots = Array.isArray(existing.outputSlots)
+    ? structuredClone(existing.outputSlots)
+    : candidate.outputSlots;
+  return {
+    ...candidate,
+    status: existing.status || candidate.status,
+    outputSlots,
   };
 }
 
@@ -9313,6 +9488,16 @@ function buildAssetCandidatePackMarkdown(pack) {
     lines.push(`- Placement: ${candidate.placement}`);
     lines.push(`- Bounds: ${candidate.bounds ? JSON.stringify(candidate.bounds) : "whole frame"}`);
     lines.push(`- Aspect ratio: ${candidate.aspectRatio || "not specified"}`);
+    const slots = Array.isArray(candidate.outputSlots)
+      ? candidate.outputSlots
+      : [];
+    if (slots.length) {
+      slots.forEach((slot, slotIndex) => {
+        lines.push(
+          `- Output slot ${slotIndex + 1}: ${slot.accepted ? "accepted" : slot.attached ? "attached" : "empty"}${slot.imageElementId ? ` (${slot.imageElementId})` : ""}`,
+        );
+      });
+    }
     lines.push("");
     lines.push(candidate.prompt || "No prompt provided.");
   });
@@ -11356,7 +11541,7 @@ async function runSelfTest() {
     results.push(assertWorkbenchRailSizeControls());
     setSelfTestProgress("image and asset candidates");
     results.push(await assertImageAssetPlacement());
-    results.push(assertAssetCandidateTrayPlacement());
+    results.push(await assertAssetCandidateTrayPlacement());
     results.push(assertWorkbenchSpatialMap());
     results.push(assertSpatialObjectsFromOutputManifest());
     results.push(assertManualSpatialObjectControls());
@@ -12383,7 +12568,7 @@ async function assertImageAssetPlacement() {
   return assert(placed, "image assets paste/drop as editable elements");
 }
 
-function assertAssetCandidateTrayPlacement() {
+async function assertAssetCandidateTrayPlacement() {
   const frame = currentFrame();
   const previousElements = structuredClone(frame.elements);
   const previousSelection = selectionIds();
@@ -12419,6 +12604,11 @@ function assertAssetCandidateTrayPlacement() {
   };
   renderAssetCandidateTray();
   const element = placeAssetCandidatePlaceholder(candidateId);
+  const file = await createSelfTestImageFile();
+  const imageElement = await placeAssetCandidateImage(candidateId, file);
+  const accepted = acceptAssetCandidate(candidateId, { sync: false });
+  const acceptedCandidate = assetCandidateById(candidateId);
+  const acceptedSlot = acceptedCandidate?.outputSlots?.[0] || null;
   const bounds = element ? getElementBounds(element, frame) : null;
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const placed =
@@ -12429,7 +12619,13 @@ function assertAssetCandidateTrayPlacement() {
     bounds?.width > viewport.width * 0.2 &&
     bounds?.height > viewport.height * 0.14 &&
     Math.abs((element.start?.x || 0) - viewport.width * 0.2) < 4 &&
-    Math.abs((element.start?.y || 0) - viewport.height * 0.22) < 4;
+    Math.abs((element.start?.y || 0) - viewport.height * 0.22) < 4 &&
+    imageElement?.assetCandidateId === candidateId &&
+    Boolean(imageElement?.imageDataUrl) &&
+    accepted &&
+    acceptedCandidate?.status === "accepted" &&
+    acceptedSlot?.accepted === true &&
+    acceptedSlot?.imageElementId === imageElement.id;
 
   window.clearTimeout(state.captureTimer);
   state.captureTimer = null;
@@ -12441,7 +12637,10 @@ function assertAssetCandidateTrayPlacement() {
   persistState();
   renderAll();
 
-  return assert(placed, "asset candidate tray places editable image slots");
+  return assert(
+    placed,
+    "asset candidate tray places, attaches, and accepts editable image slots",
+  );
 }
 
 async function createSelfTestImageFile() {

@@ -69,14 +69,14 @@ Current completed baseline:
 - `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
 - `canvax-asset-candidates-latest.*` is exported as a prompt-ready image/asset candidate format with source frame, bounds, prompts, and output slots.
 - Pasted or dropped image outputs now become editable image elements on the frame, so generated candidates can be moved, resized, labeled, exported, and materialized without becoming a background-only underlay.
-- Workbench now shows saved asset candidates as compact cards; each candidate can place an editable image slot on its source frame/region or attach a generated image file back to that slot while preserving `assetCandidateId`.
+- Workbench now shows saved asset candidates as compact cards; each candidate can place an editable image slot on its source frame/region, attach a generated image file back to that slot, preview attached candidates, select the placed image, and accept one as the chosen output while preserving `assetCandidateId`.
 - Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
 - Static Canvax assets are served with no-store headers to prevent stale browser UI after local service updates.
 - Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, Workbench spatial map rendering/export for frames, group regions, manual notes, asset candidates, generated targets, artifacts, and changed files, opt-in materialized review aids, flow links, task/rewrite/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Still open:
 
-- automatic host image generation and multi-candidate review. Initial candidate tray placement plus attach-image import is shipped.
+- automatic host image generation remains open. Multi-candidate review now has local attached-image thumbnails, select, and accept state in the candidate tray.
 - true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially nested groups and richer object editing
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
 - deterministic `execute-build-request` smoke path is shipped for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.

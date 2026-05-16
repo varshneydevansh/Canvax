@@ -765,6 +765,9 @@ Workbench now reads the latest candidate pack and renders a compact `Asset candi
 
 - place an editable image placeholder on the source frame or candidate bounds
 - attach a generated image file into that same region
+- show attached image previews and prompt-ready / attached / accepted review status
+- select the placed image element on its source frame
+- accept an attached generated image as the chosen candidate for that frame or region
 - preserve the candidate id on the image element for later export, materialize, and Codex handoff
 
 ```mermaid

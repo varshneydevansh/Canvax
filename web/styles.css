@@ -1738,6 +1738,64 @@ body[data-workspace-mode="simple"] .workbench-output-footer .ghost-link-button {
         rgba(255, 248, 236, 0.08);
 }
 
+.asset-candidate-card.accepted {
+    border-color: rgba(12, 141, 123, 0.52);
+    background:
+        linear-gradient(135deg, rgba(12, 141, 123, 0.18), transparent),
+        rgba(255, 248, 236, 0.08);
+}
+
+.asset-candidate-review-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.asset-candidate-status {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 1.55rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.1);
+    color: rgba(255, 248, 236, 0.72);
+    background: rgba(255, 248, 236, 0.06);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.asset-candidate-status[data-tone="attached"],
+.asset-candidate-status[data-tone="placed"] {
+    border-color: rgba(240, 162, 2, 0.28);
+    color: #ffe3a3;
+    background: rgba(240, 162, 2, 0.14);
+}
+
+.asset-candidate-status[data-tone="accepted"] {
+    border-color: rgba(12, 141, 123, 0.32);
+    color: #c9f5ef;
+    background: rgba(12, 141, 123, 0.2);
+}
+
+.asset-candidate-preview {
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    border-radius: 0.8rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.1);
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.asset-candidate-preview img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .asset-candidate-card strong,
 .asset-candidate-card p {
     min-width: 0;
