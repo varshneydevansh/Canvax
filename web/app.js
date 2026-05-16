@@ -1140,6 +1140,13 @@ function hydrateState() {
       ? migrated.entryFrameId
       : frames[0].id;
 
+    const spatialObjects = normalizeSpatialObjects(migrated.spatialObjects);
+    const selectedSpatialObjectId = spatialObjects.some(
+      (object) => object.id === migrated.selectedSpatialObjectId,
+    )
+      ? migrated.selectedSpatialObjectId
+      : null;
+
     return {
       ...empty,
       board: {
@@ -1186,10 +1193,11 @@ function hydrateState() {
       assetCandidatePack: normalizeAssetCandidatePack(
         migrated.assetCandidatePack,
       ),
-      spatialObjects: normalizeSpatialObjects(migrated.spatialObjects),
+      spatialObjects,
       hiddenSpatialObjectIds: normalizeStringArray(
         migrated.hiddenSpatialObjectIds,
       ),
+      selectedSpatialObjectId,
       connections,
       entryFrameId,
       selectedConnectionId: null,
@@ -1502,6 +1510,7 @@ function createInitialState() {
     assetCandidatePack: null,
     spatialObjects: [],
     hiddenSpatialObjectIds: [],
+    selectedSpatialObjectId: null,
     connections: [],
     entryFrameId: firstFrame.id,
     selectedConnectionId: null,
@@ -2709,6 +2718,12 @@ function syncSpatialObjectsFromHandoffs() {
   });
 
   state.spatialObjects = nextObjects;
+  if (
+    state.selectedSpatialObjectId &&
+    !nextObjects.some((object) => object.id === state.selectedSpatialObjectId)
+  ) {
+    state.selectedSpatialObjectId = null;
+  }
 }
 
 function upsertSpatialObject(objects, existingIds, nextObject) {
@@ -3055,6 +3070,8 @@ function addSpatialObject(partial) {
     ...state.spatialObjects,
     object,
   ]);
+  state.selectedSpatialObjectId = object.id;
+  state.selectedConnectionId = null;
   persistState();
   renderFlowBoard();
   renderSpec();
@@ -3070,10 +3087,131 @@ function removeSpatialObject(objectId) {
   state.spatialObjects = state.spatialObjects.filter(
     (candidate) => candidate.id !== objectId,
   );
+  if (state.selectedSpatialObjectId === objectId) {
+    state.selectedSpatialObjectId = null;
+  }
   persistState();
   renderFlowBoard();
   renderSpec();
   renderStatus(`Removed ${object.title} from the spatial map`);
+}
+
+function selectedSpatialObject() {
+  return spatialObjectById(state.selectedSpatialObjectId);
+}
+
+function selectSpatialObject(objectId, options = {}) {
+  const { render = true, announce = false } = options;
+  const object = spatialObjectById(objectId);
+  if (!object) {
+    return null;
+  }
+  state.selectedSpatialObjectId = object.id;
+  state.selectedConnectionId = null;
+  state.pendingConnectionFromFrameId = null;
+  if (render) {
+    renderFlowInspector();
+    renderFlowBoard();
+    renderSpec();
+  }
+  if (announce) {
+    renderStatus(`Selected ${object.title} on the spatial map`);
+  }
+  return object;
+}
+
+function clearSpatialObjectSelection(options = {}) {
+  const { render = false } = options;
+  if (!state.selectedSpatialObjectId) {
+    return;
+  }
+  state.selectedSpatialObjectId = null;
+  if (render) {
+    renderFlowBoard();
+    renderSpec();
+  }
+}
+
+function moveSpatialObjectByDelta(object, deltaX, deltaY) {
+  if (!object) {
+    return null;
+  }
+  const memberOrigins =
+    object.type === "map-group"
+      ? buildSpatialGroupDragMemberOrigins(object)
+      : null;
+  const originX = object.x;
+  const originY = object.y;
+  object.x = Math.max(32, object.x + deltaX);
+  object.y = Math.max(32, object.y + deltaY);
+  if (object.type === "map-group") {
+    moveSpatialGroupMembers(
+      memberOrigins,
+      object.x - originX,
+      object.y - originY,
+    );
+  }
+  return object;
+}
+
+function nudgeSelectedSpatialObject(deltaX, deltaY) {
+  const object = selectedSpatialObject();
+  if (!object) {
+    return false;
+  }
+  moveSpatialObjectByDelta(object, deltaX, deltaY);
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(`Moved ${object.title}`);
+  return true;
+}
+
+function duplicateSelectedSpatialObject() {
+  const object = selectedSpatialObject();
+  if (!object) {
+    return null;
+  }
+  const duplicate = normalizeSpatialObjects([
+    {
+      ...structuredClone(object),
+      id: uid("spatial"),
+      title: `${object.title || "Spatial object"} copy`,
+      sourceId: "",
+      sourceKind: `${object.sourceKind || object.type || "manual"}-copy`,
+      x: object.x + 36,
+      y: object.y + 36,
+      meta: cloneSpatialObjectMetaForManualCopy(object),
+    },
+  ])[0];
+  if (!duplicate) {
+    return null;
+  }
+  state.spatialObjects = normalizeSpatialObjects([
+    ...state.spatialObjects,
+    duplicate,
+  ]);
+  state.selectedSpatialObjectId = duplicate.id;
+  state.selectedConnectionId = null;
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(`Duplicated ${object.title}`);
+  return duplicate;
+}
+
+function cloneSpatialObjectMetaForManualCopy(object) {
+  const meta = structuredClone(object?.meta || {});
+  meta.copiedFrom = object?.id || "";
+  meta.originalSourceKind = object?.sourceKind || object?.type || "";
+  if (isManifestSpatialObject(object)) {
+    delete meta.path;
+    delete meta.url;
+    delete meta.previewPath;
+  }
+  return meta;
 }
 
 function assetCandidateById(candidateId) {
@@ -5190,14 +5328,16 @@ function renderSpatialObjectNode(object) {
   const sourceLabel = spatialObjectSourceLabel(object);
   const bodyText = spatialObjectBodyText(object, frameTitle);
   const footerStatus = spatialObjectFooterStatus(object);
+  const isSelected = state.selectedSpatialObjectId === object.id;
   return `
     <article
-      class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""}"
+      class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
       title="${escapeHtml(object.meta?.prompt || object.subtitle || object.title)}"
       role="button"
       tabindex="0"
+      aria-selected="${String(isSelected)}"
     >
       <button
         class="spatial-object-remove"
@@ -7120,18 +7260,25 @@ function onFlowBoardClick(event) {
     if (state.flowDrag?.objectId === object?.id && state.flowDrag.didMove) {
       return;
     }
+    selectSpatialObject(object?.id, { render: false });
     const frameId = object?.frameIds?.[0];
     if (frameId && frameById(frameId)) {
       state.activeFrameId = frameId;
       clearElementSelection();
       renderAll();
       renderStatus(`Selected spatial object for ${frameTitleById(frameId)}`);
+    } else if (object) {
+      renderFlowInspector();
+      renderFlowBoard();
+      renderSpec();
+      renderStatus(`Selected ${object.title} on the spatial map`);
     }
     return;
   }
 
   const node = event.target.closest("[data-flow-frame-id]");
   if (!node) {
+    clearSpatialObjectSelection({ render: true });
     return;
   }
 
@@ -7157,6 +7304,7 @@ function onFlowBoardClick(event) {
 
   state.activeFrameId = frameId;
   clearElementSelection();
+  clearSpatialObjectSelection();
   renderAll();
 }
 
@@ -7197,6 +7345,7 @@ function onFlowBoardPointerDown(event) {
     if (!object) {
       return;
     }
+    selectSpatialObject(objectId, { render: false });
     state.flowDrag = {
       kind: "spatial-object-resize",
       objectId,
@@ -7217,6 +7366,7 @@ function onFlowBoardPointerDown(event) {
     if (!object) {
       return;
     }
+    selectSpatialObject(objectId, { render: false });
     state.flowDrag = {
       kind: "spatial-object",
       objectId,
@@ -7244,6 +7394,7 @@ function onFlowBoardPointerDown(event) {
   if (!frame) {
     return;
   }
+  clearSpatialObjectSelection();
 
   state.flowDrag = {
     kind: "frame",
@@ -7485,8 +7636,42 @@ function onWindowKeyDown(event) {
     }
   }
 
+  if (state.viewMode === "flow" && !shouldIgnoreDeleteShortcut(event.target)) {
+    const selectedMapObject = selectedSpatialObject();
+    if (selectedMapObject) {
+      if (isMeta && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        duplicateSelectedSpatialObject();
+        return;
+      }
+
+      const arrowDeltas = {
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+      };
+      const direction = arrowDeltas[event.key];
+      if (direction && !isMeta) {
+        event.preventDefault();
+        const distance = event.shiftKey ? 32 : 8;
+        nudgeSelectedSpatialObject(
+          direction[0] * distance,
+          direction[1] * distance,
+        );
+        return;
+      }
+    }
+  }
+
   const isDeleteKey = event.key === "Delete" || event.key === "Backspace";
   if (!isDeleteKey || shouldIgnoreDeleteShortcut(event.target)) {
+    return;
+  }
+
+  if (state.viewMode === "flow" && state.selectedSpatialObjectId) {
+    event.preventDefault();
+    removeSpatialObject(state.selectedSpatialObjectId);
     return;
   }
 
@@ -9585,6 +9770,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     surface: bounds,
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
+    selectedObjectId: state.selectedSpatialObjectId || "",
     cards: frameSelection.map((frame, index) => {
       const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
       const status = describeFrameOutputStatus(frame, {
@@ -11653,6 +11839,7 @@ function buildPersistedSnapshot(source) {
     assetCandidatePack: source.assetCandidatePack || null,
     spatialObjects: source.spatialObjects || [],
     hiddenSpatialObjectIds: source.hiddenSpatialObjectIds || [],
+    selectedSpatialObjectId: source.selectedSpatialObjectId || null,
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -13776,6 +13963,7 @@ function assertManualSpatialObjectControls() {
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
     spatialObjects: structuredClone(state.spatialObjects),
+    selectedSpatialObjectId: state.selectedSpatialObjectId,
     activeFramePosition: structuredClone(currentFrame().flowPosition),
   };
 
@@ -13821,6 +14009,66 @@ function assertManualSpatialObjectControls() {
         `[data-spatial-object-id='${group.id}'].map-group`,
       ),
   );
+  selectSpatialObject(object?.id, { render: true });
+  const selectedRendered = Boolean(
+    object &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${object.id}'].selected`,
+      ),
+  );
+  const objectXBeforeNudge = objectRecord?.x || 0;
+  let nudgePrevented = false;
+  onWindowKeyDown({
+    key: "ArrowRight",
+    shiftKey: true,
+    metaKey: false,
+    ctrlKey: false,
+    target: document.body,
+    preventDefault() {
+      nudgePrevented = true;
+    },
+  });
+  const nudged =
+    Boolean(objectRecord) &&
+    nudgePrevented &&
+    objectRecord.x === objectXBeforeNudge + 32;
+  let duplicatePrevented = false;
+  onWindowKeyDown({
+    key: "d",
+    shiftKey: false,
+    metaKey: true,
+    ctrlKey: false,
+    target: document.body,
+    preventDefault() {
+      duplicatePrevented = true;
+    },
+  });
+  const duplicateObject = selectedSpatialObject();
+  const duplicated =
+    Boolean(object && duplicateObject) &&
+    duplicatePrevented &&
+    duplicateObject.id !== object.id &&
+    duplicateObject.title.includes("copy") &&
+    duplicateObject.x === objectRecord.x + 36;
+  let deletePrevented = false;
+  onWindowKeyDown({
+    key: "Delete",
+    shiftKey: false,
+    metaKey: false,
+    ctrlKey: false,
+    target: document.body,
+    preventDefault() {
+      deletePrevented = true;
+    },
+  });
+  const duplicateDeleted =
+    Boolean(duplicateObject) &&
+    deletePrevented &&
+    !spatialObjectById(duplicateObject.id) &&
+    !state.selectedSpatialObjectId;
+  if (object) {
+    selectSpatialObject(object.id, { render: false });
+  }
   const objectBeforeGroupDrag = objectRecord
     ? { x: objectRecord.x, y: objectRecord.y }
     : null;
@@ -13907,15 +14155,28 @@ function assertManualSpatialObjectControls() {
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
   state.spatialObjects = previous.spatialObjects;
+  state.selectedSpatialObjectId = previous.selectedSpatialObjectId;
   activeFrame.flowPosition = previous.activeFramePosition;
   persistState();
   renderAll();
 
   return assert(
-    added && groupDragMovedMembers && resized && exported && removed,
-    "Manual spatial map note and group can be added, moved with members, resized, exported, and removed",
+    added &&
+      selectedRendered &&
+      nudged &&
+      duplicated &&
+      duplicateDeleted &&
+      groupDragMovedMembers &&
+      resized &&
+      exported &&
+      removed,
+    "Manual spatial map note and group can be selected, nudged, duplicated, deleted, moved with members, resized, exported, and removed",
     JSON.stringify({
       added,
+      selectedRendered,
+      nudged,
+      duplicated,
+      duplicateDeleted,
       groupDragMovedMembers,
       resized,
       exported,

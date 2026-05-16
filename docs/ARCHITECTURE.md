@@ -519,12 +519,14 @@ preview / Codex output manifest
 manual Map controls
   -> labeled group regions, note cards, and reference file/image cards
   -> state.spatialObjects
+  -> state.selectedSpatialObjectId for the currently pointed-at Map object
   -> Workbench Map context object cards
   -> live export spatialWorkspace.objects
+  -> live export spatialWorkspace.selectedObjectId
   -> live export spatialWorkspace.groups with member card/object ids
 ```
 
-The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards, moving/resizing spatial objects, panning the background, or drawing connection drafts, so saved positions and sizes remain stable regardless of the current zoom level. Pinch / `Ctrl` / `Cmd` wheel zoom is cursor-centered by adjusting the scroll offset after each zoom step.
+The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards, moving/resizing spatial objects, panning the background, or drawing connection drafts, so saved positions and sizes remain stable regardless of the current zoom level. Pinch / `Ctrl` / `Cmd` wheel zoom is cursor-centered by adjusting the scroll offset after each zoom step. Selected spatial objects are edited through the same model: arrow keys nudge the saved `x/y`, `Shift` increases the nudge step, `Cmd/Ctrl+D` creates an offset manual copy, and `Delete`/`Backspace` removes the selected object.
 
 Group containment is computed at export time from each group region's bounds and the center point of cards/objects. The live export adds:
 

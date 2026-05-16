@@ -2716,6 +2716,30 @@ select,
         0 2rem 3.5rem rgba(24, 17, 14, 0.16);
 }
 
+.spatial-object-node.selected {
+    border-color: rgba(12, 141, 123, 0.68);
+    box-shadow:
+        0 0 0 0.18rem rgba(12, 141, 123, 0.16),
+        0 0.85rem 1.8rem rgba(24, 17, 14, 0.11),
+        0 1.8rem 3.2rem rgba(12, 141, 123, 0.12);
+}
+
+.spatial-object-node.selected::after {
+    content: "Selected";
+    position: absolute;
+    top: -0.78rem;
+    left: 1rem;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    background: #0c8d7b;
+    color: #fffaf2;
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
 .spatial-object-node.image-frame {
     border-color: rgba(35, 100, 170, 0.28);
 }
