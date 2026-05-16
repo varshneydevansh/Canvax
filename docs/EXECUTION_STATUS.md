@@ -52,6 +52,7 @@ Status: In progress
 - [x] Workbench quick-prompt chips add common refinement intent without opening Advanced mode
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
+- [x] Workbench `Map` styles generated variants as branch cards with visible lineage and primary state
 - [x] Workbench `Map` supports manual note cards and reference file/image cards as draggable/removable spatial context
 - [x] Workbench `Map` supports movable/resizable labeled group regions for explorations/reference boards
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds` and `spatialWorkspace.groups` records member frames/objects

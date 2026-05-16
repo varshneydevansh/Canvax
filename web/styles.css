@@ -2625,6 +2625,20 @@ select,
     border-color: rgba(255, 93, 58, 0.42);
 }
 
+.flow-card-node.variant {
+    border-color: rgba(181, 71, 179, 0.34);
+    background:
+        linear-gradient(135deg, rgba(181, 71, 179, 0.12), transparent 38%),
+        rgba(255, 251, 245, 0.96);
+}
+
+.flow-card-node.primary-variant {
+    border-color: rgba(255, 93, 58, 0.48);
+    box-shadow:
+        0 0 0 0.16rem rgba(255, 93, 58, 0.14),
+        0 1.25rem 2.6rem rgba(24, 17, 14, 0.12);
+}
+
 .flow-card-node.pending {
     box-shadow:
         0 0 0 0.2rem rgba(255, 93, 58, 0.18),
@@ -2843,6 +2857,33 @@ select,
 .flow-card-title span {
     color: var(--ink-soft);
     font-size: 0.82rem;
+}
+
+.flow-card-lineage {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 0.42rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(181, 71, 179, 0.08);
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+}
+
+.flow-card-lineage span {
+    font-family: "Menlo", "SF Mono", monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.flow-card-lineage strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ink);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .flow-card-badge {

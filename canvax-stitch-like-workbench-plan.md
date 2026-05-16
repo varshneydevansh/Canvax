@@ -437,17 +437,17 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.2: Add Variants Lane
 
-- **Status**: Expanded initial local version shipped. Variant frames can now be promoted to the primary branch and export as explicit editable spatial branch records.
+- **Status**: Expanded initial local version shipped. Variant frames now render as branch cards with visible lineage, can be promoted to the primary branch, and export as explicit editable spatial branch records.
 - **Location**: `web/app.js`, `web/index.html`
 - **Description**: Let Canvax create multiple editable directions from one sketch and show them as connected Flow branches.
 - **Complexity**: 7/10
 - **Dependencies**: Task 5.1
 - **Acceptance Criteria**:
   - Variants have labels, notes, and lineage. **Done for deterministic local branches and `spatialWorkspace.variantBranches`.**
-  - User can choose one as primary. **Done with `Use variant`, which marks the selected variant as primary and makes it the entry frame.**
+  - User can choose one as primary. **Done with `Use variant`, which marks the selected variant as primary, makes it the entry frame, and renders it with primary branch styling.**
   - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the promoted variant; automatic route/component binding still depends on the Codex build pass.**
 - **Validation**:
-  - Generate three deterministic local variants. **Covered by board self-test, including spatial branch export and primary promotion export.**
+  - Generate three deterministic local variants. **Covered by board self-test, including visible branch cards, spatial branch export, and primary promotion export.**
 
 ## Sprint 6: Polish, Responsiveness, And Regression
 

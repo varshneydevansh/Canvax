@@ -4830,6 +4830,8 @@ function renderFlowBoard() {
         "flow-card-node",
         frame.id === state.activeFrameId ? "active" : "",
         frame.id === state.entryFrameId ? "entry" : "",
+        frame.variant?.label ? "variant" : "",
+        isPromotedVariant(frame) ? "primary-variant" : "",
         frame.id === state.pendingConnectionFromFrameId ? "pending" : "",
         state.flowDrag?.frameId === frame.id ? "dragging" : "",
       ]
@@ -4850,6 +4852,11 @@ function renderFlowBoard() {
             ${frame.id === state.entryFrameId ? '<span class="flow-card-badge">Entry</span>' : ""}
             ${frame.variant?.label ? `<span class="flow-card-badge">${isPromotedVariant(frame) ? "Primary" : "Variant"}</span>` : ""}
           </div>
+          ${
+            frame.variant?.sourceFrameId
+              ? `<div class="flow-card-lineage"><span>From</span><strong>${escapeHtml(frame.variant.sourceFrameTitle || frameTitleById(frame.variant.sourceFrameId))}</strong></div>`
+              : ""
+          }
           <div class="flow-card-preview">
             ${thumbnail ? `<img src="${thumbnail}" alt="" />` : ""}
           </div>
@@ -12467,6 +12474,23 @@ async function runSelfTest() {
         "create variants connects branches in flow view",
       ),
     );
+    renderFlowBoard();
+    results.push(
+      assert(
+        variantFrames.every((frame) => {
+          const card = dom.flowBoard.querySelector(
+            `[data-flow-frame-id='${frame.id}'].variant`,
+          );
+          return (
+            card &&
+            card.querySelector(".flow-card-lineage")?.textContent.includes(
+              currentFrameById(variantSourceId)?.title || "",
+            )
+          );
+        }),
+        "variant frames render as visible branch cards",
+      ),
+    );
     const variantSpatialExport = buildSpatialWorkspaceExport();
     results.push(
       assert(
@@ -12497,6 +12521,7 @@ async function runSelfTest() {
       ),
     );
     const promotedVariantExport = buildSpatialWorkspaceExport();
+    renderFlowBoard();
     results.push(
       assert(
         promotedVariantExport.variantBranches.some(
@@ -12506,6 +12531,16 @@ async function runSelfTest() {
             Boolean(branch.promotedAt),
         ),
         "primary variant state exports through spatial branches",
+      ),
+    );
+    results.push(
+      assert(
+        Boolean(
+          dom.flowBoard.querySelector(
+            `[data-flow-frame-id='${variantFrames[1].id}'].primary-variant`,
+          ),
+        ),
+        "primary variant renders as a promoted branch card",
       ),
     );
     state.frames = state.frames.filter((frame) => !variantFrameIds.has(frame.id));
