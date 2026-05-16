@@ -657,6 +657,13 @@ sketch changes + voice + correction marks
 
 This executor is deterministic and local. It is not a paid image/model call, and it does not replace a real Codex implementation pass. Its job is to prove that the request, affected-region context, preview artifact, and manifest binding are wired end to end.
 
+In Preview, the `Rewrite handoff` panel shows this loop explicitly:
+
+- latest request exported
+- executor artifact published or still pending
+- output manifest binding state
+- links to the request, refreshed output, and context artifact when available
+
 ## Editable Variants
 
 Use `Variants` / `Create variants` when you want alternate directions from the same sketch without leaving Canvax.

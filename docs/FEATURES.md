@@ -690,6 +690,8 @@ latest sketch / voice / correction marks
 
 The generated context includes the selected rewrite queue item, affected regions, connected output targets, and the original request. This keeps the rough-sketch-to-refined-output path testable without an API key while leaving real app/code rewrites to Codex.
 
+Preview now has a `Rewrite handoff` lane beside the rewrite queue. It shows whether the latest request exists, whether a local executor artifact has been published, the frame-bound manifest state, and quick links to the request/output/context files.
+
 ## Editable Variant Branches
 
 `Create variants` turns the active frame into three editable branch frames:

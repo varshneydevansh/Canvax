@@ -245,7 +245,7 @@ Needed:
 - A deterministic local executor for that request. **Initial `execute-rewrite-request` shipped.**
 - A frame revision to output revision dependency graph.
 - A "changed sketch region -> affected generated component" map.
-- A visible rewrite progress lane in Preview.
+- A visible rewrite progress lane in Preview. **Initial `Rewrite handoff` lane shipped for request/executor/manifest state.**
 - Conflict handling when the user sketches while Codex is still rewriting.
 
 ### 3. Infinite Canvas And Spatial Project Memory

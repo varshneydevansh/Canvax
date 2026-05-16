@@ -51,6 +51,8 @@ const dom = {
   outputActivityList: document.querySelector("#output-activity-list"),
   rewriteQueueCount: document.querySelector("#rewrite-queue-count"),
   rewriteQueueList: document.querySelector("#rewrite-queue-list"),
+  rewriteHandoffState: document.querySelector("#rewrite-handoff-state"),
+  rewriteHandoff: document.querySelector("#rewrite-handoff"),
   snapshotCount: document.querySelector("#snapshot-count"),
   snapshotList: document.querySelector("#snapshot-list"),
   selectedFrameTitle: document.querySelector("#selected-frame-title"),
@@ -293,6 +295,7 @@ function renderAll() {
   renderManifestContext();
   renderOutputActivity();
   renderRewriteQueue();
+  renderRewriteHandoff();
   renderSnapshots();
   renderSelectedFrame();
   renderImplementationPreview();
@@ -840,6 +843,115 @@ function renderRewriteQueue() {
     .join("");
 }
 
+function renderRewriteHandoff() {
+  const payload = currentPayload();
+  const liveExport = currentLiveExport();
+  const request = liveExport?.rewriteRequest || null;
+  const manifest = payload?.previewManifest || null;
+  const frame = currentFrame();
+  const frameId = frame?.id || state.selectedFrameId || liveExport?.activeFrameId || "";
+  const targets = collectManifestTargets(manifest);
+  const executorTarget = targets.find(
+    (target) =>
+      itemMatchesFrame(target, frameId) &&
+      (target.source === "canvax-rewrite-request-executor" ||
+        target.type === "refined-preview"),
+  );
+  const queue = Array.isArray(request?.rewriteQueue)
+    ? request.rewriteQueue
+    : buildRewriteQueue(liveExport?.frames || [], manifest, frameId);
+  const relevantQueue = frameId
+    ? queue.filter((item) => item.frameId === frameId)
+    : queue;
+  const requestHref = workspaceHrefForPath(
+    payload?.paths?.rewriteRequestMarkdownPath ||
+      payload?.paths?.rewriteRequestJsonPath ||
+      request?.handoff?.liveJsonPath,
+  );
+  const outputHref =
+    executorTarget?.resolvedUrl ||
+    executorTarget?.url ||
+    workspaceHrefForPath(executorTarget?.previewPath);
+  const contextArtifact = collectManifestArtifacts(manifest).find(
+    (artifact) =>
+      itemMatchesFrame(artifact, frameId) &&
+      /rewrite request context/i.test(
+        `${artifact.label || ""} ${artifact.description || ""}`,
+      ),
+  );
+  const contextHref =
+    contextArtifact?.resolvedUrl || workspaceHrefForPath(contextArtifact?.path);
+
+  if (!request) {
+    dom.rewriteHandoffState.textContent = "Waiting";
+    dom.rewriteHandoff.className = "rewrite-handoff empty-state";
+    dom.rewriteHandoff.textContent =
+      "No rewrite request has been exported yet. Save or autosnap the board after sketching corrections.";
+    return;
+  }
+
+  const status = executorTarget
+    ? {
+        label: "Executed",
+        tone: "synced",
+        detail:
+          "A refreshed frame-bound output target has been published from the latest rewrite request.",
+      }
+    : relevantQueue.length
+      ? {
+          label: "Ready",
+          tone: "warning",
+          detail:
+            "This frame has rewrite attention. Run npm run execute-rewrite or let Codex implement the request.",
+        }
+      : {
+          label: "Watching",
+          tone: "subtle",
+          detail:
+            "Rewrite handoff exists. No selected-frame queue item is currently active.",
+        };
+
+  dom.rewriteHandoffState.textContent = status.label;
+  dom.rewriteHandoff.className = "rewrite-handoff";
+  dom.rewriteHandoff.innerHTML = `
+    <article class="rewrite-handoff-card">
+      <div class="rewrite-handoff-head">
+        <strong>${escapeHtml(request.activeFrameTitle || frame?.title || "Current frame")}</strong>
+        <span class="target-badge ${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
+      </div>
+      <p class="manifest-copy">${escapeHtml(status.detail)}</p>
+      <div class="rewrite-steps" aria-label="Rewrite handoff progress">
+        ${renderRewriteStep("Request exported", true, compactPath(payload?.paths?.rewriteRequestJsonPath || "exports/canvax-rewrite-request-latest.json"))}
+        ${renderRewriteStep("Executor artifact", Boolean(executorTarget), executorTarget?.label || "npm run execute-rewrite")}
+        ${renderRewriteStep("Manifest binding", Boolean(executorTarget), executorTarget?.previewPath || executorTarget?.url || "artifacts/canvax/codex-output.json")}
+      </div>
+      <div class="rewrite-handoff-actions">
+        <code>npm run execute-rewrite</code>
+        ${requestHref ? `<a class="ghost-link" href="${escapeHtml(requestHref)}" target="_blank" rel="noopener noreferrer">Open request</a>` : ""}
+        ${outputHref ? `<a class="ghost-link" href="${escapeHtml(outputHref)}" target="_blank" rel="noopener noreferrer">Open output</a>` : ""}
+        ${contextHref ? `<a class="ghost-link" href="${escapeHtml(contextHref)}" target="_blank" rel="noopener noreferrer">Open context</a>` : ""}
+      </div>
+      ${
+        relevantQueue.length
+          ? `<p class="manifest-copy subtle">${escapeHtml(relevantQueue[0]?.detail || relevantQueue[0]?.label || "Rewrite queued.")}</p>`
+          : ""
+      }
+    </article>
+  `;
+}
+
+function renderRewriteStep(label, done, detail) {
+  return `
+    <div class="rewrite-step${done ? " done" : ""}">
+      <span>${done ? "ok" : "--"}</span>
+      <div>
+        <strong>${escapeHtml(label)}</strong>
+        <small>${escapeHtml(compactPath(detail || ""))}</small>
+      </div>
+    </div>
+  `;
+}
+
 function renderWorkspaceFollowNote(workspaceFollow) {
   const message = describeWorkspaceFollow(workspaceFollow);
   dom.workspaceFollowNote.hidden = !message;
@@ -1380,6 +1492,13 @@ async function runPreviewSelfTest() {
         rewriteQueueItems.length === 1 &&
           rewriteQueueItems[0]?.label === "Needs refresh",
         "preview rewrite queue flags stale frame output",
+      ),
+    );
+    results.push(
+      assert(
+        dom.rewriteHandoff.textContent.trim().length > 0 &&
+          dom.rewriteHandoffState.textContent.trim().length > 0,
+        "preview rewrite handoff lane renders",
       ),
     );
   } catch (error) {
@@ -2468,6 +2587,47 @@ function itemMatchesFrame(item, frameId) {
     return true;
   }
   return item.frameIds.includes(frameId);
+}
+
+function workspaceHrefForPath(value) {
+  const text = String(value || "").trim().replaceAll("\\", "/");
+  if (!text) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(text) || text.startsWith("/workspace/")) {
+    return text;
+  }
+  const projectMarker = "/Canvax/";
+  const projectIndex = text.indexOf(projectMarker);
+  const relative =
+    projectIndex >= 0 ? text.slice(projectIndex + projectMarker.length) : text;
+  if (
+    relative.startsWith("exports/") ||
+    relative.startsWith("artifacts/") ||
+    relative.startsWith("docs/")
+  ) {
+    return `/workspace/${relative}`;
+  }
+  return "";
+}
+
+function compactPath(value) {
+  const text = String(value || "").trim().replaceAll("\\", "/");
+  if (!text) {
+    return "";
+  }
+  const projectMarker = "/Canvax/";
+  const projectIndex = text.indexOf(projectMarker);
+  if (projectIndex >= 0) {
+    return text.slice(projectIndex + projectMarker.length);
+  }
+  if (text.length <= 80) {
+    return text;
+  }
+  const parts = text.split("/").filter(Boolean);
+  return parts.length > 3
+    ? `.../${parts.slice(-3).join("/")}`
+    : `${text.slice(0, 77)}...`;
 }
 
 function hasFrameBinding(item) {
