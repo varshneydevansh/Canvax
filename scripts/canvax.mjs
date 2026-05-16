@@ -33,7 +33,9 @@ const checkpointsRoot = resolve(codexOutputRoot, "checkpoints");
 const checkpointsIndexPath = resolve(checkpointsRoot, "checkpoints.json");
 const buildRequestsRoot = resolve(codexOutputRoot, "build-requests");
 const assetCandidatesRoot = resolve(codexOutputRoot, "asset-candidates");
-const runtimeRoot = resolve(projectRoot, ".canvax");
+const runtimeRoot = resolve(
+  process.env.CANVAX_RUNTIME_ROOT || resolve(projectRoot, ".canvax"),
+);
 const runtimePath = resolve(runtimeRoot, "runtime.json");
 const serverLogPath = resolve(runtimeRoot, "server.log");
 const liveJsonPath = resolve(exportsRoot, "canvax-live-latest.json");
@@ -335,6 +337,9 @@ async function runCli() {
       {
         running: false,
         stopped: true,
+        pid: runtime.pid,
+        port: runtime.port,
+        url: runtime.url,
         defaultPort,
         liveJsonPath,
         liveMarkdownPath,
@@ -5146,6 +5151,8 @@ function buildRuntime(port) {
     port,
     url,
     projectRoot,
+    runtimePath,
+    serverLogPath,
     exportRoot: exportsRoot,
     liveJsonPath,
     liveMarkdownPath,

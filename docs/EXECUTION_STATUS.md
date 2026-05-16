@@ -66,16 +66,17 @@ Status: In progress
 - [x] Browser regression includes headless board/Preview responsive smoke at 1440, 1024, 768, and 430 pixel widths
 - [x] Browser self-test includes a dense long-session Map fixture with captured frames, voice notes, generated outputs, artifacts, changed files, checkpoints, and asset candidates
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service
+- [x] Isolated service lifecycle regression covers start, reuse, port mismatch, restart, status, and stop on throwaway ports without disrupting the default board
 - [x] Optional `Live rewrite` mode runs the local no-API rewrite executor after autosnap/freeze handoff saves
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays
-- [ ] Full stop/start/reuse lifecycle matrix across stale occupied ports
+- [ ] Stale occupied-port recovery where another non-Canvax process owns the requested port
 - [ ] Remaining rough edges in true infinite-canvas object editing
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, long-session browser stress, runtime health validation
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, long-session browser stress, runtime health validation, isolated lifecycle regression
 still open:
-  occupied-port lifecycle validation, arbitrary-object infinite canvas, and richer nested object editing
+  non-Canvax occupied-port recovery, arbitrary-object infinite canvas, and richer nested object editing
 ```
 
 ### Sprint 2: Add voice as a native Canvax input

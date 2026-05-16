@@ -475,7 +475,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 6.2: Browser Regression Matrix
 
-- **Status**: Expanded browser matrix shipped. Board self-test now includes a long-session Map stress fixture with many captured frames, voice notes, asset candidates, generated preview targets, artifacts, changed files, and checkpoint cards; responsive board/Preview smoke runs at 1440, 1024, 768, and 430 widths; runtime status validation checks PID/workspace/runtime identity before reuse. CI fail-hard occupied-port lifecycle coverage remains open.
+- **Status**: Expanded browser and lifecycle matrix shipped. Board self-test now includes a long-session Map stress fixture with many captured frames, voice notes, asset candidates, generated preview targets, artifacts, changed files, and checkpoint cards; responsive board/Preview smoke runs at 1440, 1024, 768, and 430 widths; runtime status validation checks PID/workspace/runtime identity before reuse; isolated lifecycle regression covers start/reuse/port-mismatch/restart/stop on throwaway ports. Non-Canvax occupied-port recovery remains open.
 - **Location**: `scripts/browser-regression.mjs`
 - **Description**: Add deterministic tests for Workbench mode, generated output card, prompt pack export, and host capability states.
 - **Complexity**: 6/10
@@ -484,6 +484,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - Regression catches stale output cards and layout collapse. **Initial coverage shipped through board/Preview self-tests plus responsive smoke checks.**
   - Dense long-session Map state remains navigable and renders all expected object categories. **Covered by board browser self-test.**
   - CLI status identifies the live Canvax runtime before reuse. **Covered by regression status payload check.**
+  - Service lifecycle validates start, reuse, restart, and stop without disrupting the default board. **Covered by `npm run service-lifecycle`.**
   - Tests skip cleanly only when no live service exists.
 - **Validation**:
   - `npm run regression`

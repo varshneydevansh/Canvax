@@ -123,6 +123,8 @@ Local service = router + persistence + materialize engine
 
 Runtime reuse is guarded by `/api/status`. The CLI only trusts an existing runtime file when the PID is alive and the status endpoint matches the same workspace root, runtime path, and local transport contract.
 
+`npm run service-lifecycle` validates the local companion without touching the default board: it starts a temporary service on a throwaway port, checks reuse and port mismatch behavior, restarts on another throwaway port, and stops it.
+
 ## Main Workflow
 
 The intended daily loop is:
