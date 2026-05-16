@@ -949,4 +949,5 @@ not finished yet:
 - `docs/USAGE.md` for operator workflow
 - `docs/ARCHITECTURE.md` for system design
 - `docs/EXECUTION_STATUS.md` for implementation status
+- `docs/CANVAX_PARITY_AUDIT.md` for objective-to-evidence parity tracking
 - `canvax-live-collaboration-plan.md` for future roadmap

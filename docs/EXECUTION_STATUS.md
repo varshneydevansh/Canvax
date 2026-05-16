@@ -2,7 +2,7 @@
 
 Updated: May 15, 2026
 
-This file tracks what is actually implemented from `canvax-live-collaboration-plan.md` so work does not drift between chat turns.
+This file tracks what is actually implemented from `canvax-live-collaboration-plan.md` so work does not drift between chat turns. For the stricter objective-to-evidence audit, see `docs/CANVAX_PARITY_AUDIT.md`.
 
 ## Sprint Map
 
@@ -239,9 +239,10 @@ These are now follow-on tasks, not blockers for the current repo-level prototype
 2. Keep reducing rough edges in larger sessions and long-running boards.
 3. Explore the richer App Server client path without discarding the local companion workflow that already works today.
 4. Use `docs/STITCH_GAP_ROADMAP.md` as the current product gap list for Stitch-style UX, Codex-built screens, image assets, prototype play, infinite canvas, and `DESIGN.md` work.
-5. Use `docs/CODEX_BROWSER_WORKFLOW.md` as the preferred operator path for testing Canvax inside Codex Browser Use / Atlas before building native embedding.
-6. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
-7. Treat Workbench as the working baseline: sketch, voice/manual notes, generated output, visual correction marks, and a floating designer rail before opening Advanced mode.
+5. Use `docs/CANVAX_PARITY_AUDIT.md` before claiming that Canvax has reached the active better-than-Stitch goal.
+6. Use `docs/CODEX_BROWSER_WORKFLOW.md` as the preferred operator path for testing Canvax inside Codex Browser Use / Atlas before building native embedding.
+7. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
+8. Treat Workbench as the working baseline: sketch, voice/manual notes, generated output, visual correction marks, and a floating designer rail before opening Advanced mode.
 8. Keep the core Canvax workflow local-first and Codex-first. Image generation should be exposed as host capability or optional adapter, not as a required API-key path.
 
 ```mermaid

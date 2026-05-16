@@ -234,6 +234,7 @@ Then sketch in the board opened through Codex Browser Use / Atlas, and continue 
 - [Demo script](docs/canvax-demo-script.md)
 - [Execution status](docs/EXECUTION_STATUS.md)
 - [Stitch gap roadmap](docs/STITCH_GAP_ROADMAP.md)
+- [Parity audit](docs/CANVAX_PARITY_AUDIT.md)
 - [Live collaboration plan](canvax-live-collaboration-plan.md)
 
 ## Feature Matrix
