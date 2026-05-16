@@ -261,6 +261,7 @@ const dom = {
   focusCreateVariants: document.querySelector("#focus-create-variants"),
   focusPromoteVariant: document.querySelector("#focus-promote-variant"),
   focusImagePack: document.querySelector("#focus-image-pack"),
+  focusAutoRewrite: document.querySelector("#focus-auto-rewrite"),
   focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
   focusApply: document.querySelector("#focus-apply"),
   focusPreview: document.querySelector("#focus-preview"),
@@ -301,6 +302,7 @@ const dom = {
   toolHint: document.querySelector("#tool-hint"),
   gridToggle: document.querySelector("#grid-toggle"),
   autosnapToggle: document.querySelector("#autosnap-toggle"),
+  liveRewriteToggle: document.querySelector("#live-rewrite-toggle"),
   statusPill: document.querySelector("#status-pill"),
   openPreview: document.querySelector("#open-preview"),
   generateScreen: document.querySelector("#generate-screen"),
@@ -560,6 +562,9 @@ function bindEvents() {
   dom.focusImagePack.addEventListener("click", () => {
     void saveImagePromptPackForHost();
   });
+  dom.focusAutoRewrite.addEventListener("click", () => {
+    setAutoRewriteEnabled(!state.autoRewrite);
+  });
   dom.focusVoiceToggle.addEventListener("click", () => {
     if (state.voice.status === "listening") {
       stopVoiceDictation();
@@ -797,6 +802,10 @@ function bindEvents() {
     state.autoSnap = dom.autosnapToggle.checked;
     persistState();
     renderStatus(state.autoSnap ? "Autosnap armed" : "Autosnap paused");
+  });
+
+  dom.liveRewriteToggle.addEventListener("change", () => {
+    setAutoRewriteEnabled(dom.liveRewriteToggle.checked);
   });
 
   dom.undoButton.addEventListener("click", undoFrame);
@@ -1149,6 +1158,7 @@ function hydrateState() {
       size: Number.isFinite(migrated.size) ? migrated.size : empty.size,
       grid: migrated.grid ?? empty.grid,
       autoSnap: migrated.autoSnap ?? empty.autoSnap,
+      autoRewrite: Boolean(migrated.autoRewrite ?? empty.autoRewrite),
       zoom: Number.isFinite(migrated.zoom)
         ? Math.max(0.5, Math.min(3, migrated.zoom))
         : empty.zoom,
@@ -1199,6 +1209,8 @@ function hydrateState() {
       },
       captureTimer: null,
       previewStateTimer: null,
+      liveRewriteInFlight: false,
+      lastAutoRewriteSignature: "",
       buildRealInFlight: false,
       outputCheckpointInFlight: false,
       outputAnnotationDraft: null,
@@ -1473,6 +1485,7 @@ function createInitialState() {
     size: 14,
     grid: true,
     autoSnap: true,
+    autoRewrite: false,
     zoom: 1,
     flowZoom: 1,
     viewMode: "frame",
@@ -1506,6 +1519,8 @@ function createInitialState() {
     },
     captureTimer: null,
     previewStateTimer: null,
+    liveRewriteInFlight: false,
+    lastAutoRewriteSignature: "",
     buildRealInFlight: false,
     outputCheckpointInFlight: false,
     outputAnnotationDraft: null,
@@ -1925,6 +1940,7 @@ function renderAll() {
   renderSelectionActions();
   renderViewMode();
   renderColors();
+  renderAutomationControls();
   renderFrameList();
   renderFrameForm();
   renderVoicePanel();
@@ -2321,6 +2337,7 @@ function renderFocusPad() {
     ? "Primary variant"
     : "Use variant";
   dom.focusImagePack.disabled = Boolean(state.focusApplyInFlight);
+  renderAutomationControls();
   dom.focusVoiceToggle.textContent =
     state.voice.status === "listening" ? "Stop talking" : "Start talking";
   dom.focusVoiceToggle.classList.toggle(
@@ -2353,6 +2370,9 @@ function renderFocusPad() {
     dom.focusStatus.textContent = state.voice.error;
   } else if (state.focusLastAppliedText) {
     dom.focusStatus.textContent = state.focusLastAppliedText;
+  } else if (state.autoRewrite) {
+    dom.focusStatus.textContent =
+      "Live rewrite is on. Autosnap/freeze will refresh the local no-API preview after saving.";
   } else if (!supportsVoice) {
     dom.focusStatus.textContent =
       "Browser dictation is unavailable here. Paste macOS dictation below, then apply.";
@@ -3620,6 +3640,37 @@ function renderSizeControl() {
     sizeControl.mode === "selection"
       ? "Selected element size"
       : "Current brush size";
+}
+
+function renderAutomationControls() {
+  if (dom.liveRewriteToggle) {
+    dom.liveRewriteToggle.checked = Boolean(state.autoRewrite);
+  }
+  if (dom.focusAutoRewrite) {
+    dom.focusAutoRewrite.classList.toggle("active", Boolean(state.autoRewrite));
+    dom.focusAutoRewrite.setAttribute(
+      "aria-pressed",
+      String(Boolean(state.autoRewrite)),
+    );
+    dom.focusAutoRewrite.textContent = state.autoRewrite
+      ? state.liveRewriteInFlight
+        ? "Rewriting..."
+        : "Live rewrite on"
+      : "Live rewrite";
+    dom.focusAutoRewrite.disabled = Boolean(state.liveRewriteInFlight);
+  }
+}
+
+function setAutoRewriteEnabled(enabled) {
+  state.autoRewrite = Boolean(enabled);
+  persistState();
+  renderAutomationControls();
+  renderFocusPad();
+  renderStatus(
+    state.autoRewrite
+      ? "Live rewrite armed for autosnap/freeze"
+      : "Live rewrite paused",
+  );
 }
 
 function isPromotedVariant(frame) {
@@ -8299,6 +8350,7 @@ async function syncFreezeHandoff(manual = false, reasonOverride = "") {
     return null;
   }
   await refreshMaterializedFrameFromFreeze(exportResult);
+  await maybeExecuteLiveRewriteFromFreeze(exportResult, reason);
   await saveCheckpointToWorkspace(reason, {
     silent: true,
     exportResult,
@@ -8342,6 +8394,85 @@ async function refreshMaterializedFrameFromFreeze(exportResult = null) {
     exportResult,
     mode: refreshMode,
   });
+}
+
+async function maybeExecuteLiveRewriteFromFreeze(exportResult = null, reason = "") {
+  const frame = currentFrame();
+  if (
+    !state.autoRewrite ||
+    !exportResult ||
+    !frame ||
+    state.liveRewriteInFlight ||
+    state.focusApplyInFlight ||
+    state.buildRealInFlight
+  ) {
+    return null;
+  }
+
+  const signature = buildLiveRewriteSignature(frame, reason);
+  if (signature && signature === state.lastAutoRewriteSignature) {
+    return null;
+  }
+
+  state.liveRewriteInFlight = true;
+  renderAutomationControls();
+  renderFocusPad();
+  renderStatus("Live rewrite refreshing output from latest handoff...");
+  try {
+    const executeResult = await executeLatestRewriteRequest({
+      exportResult,
+      frameId: frame.id,
+    });
+    state.lastAutoRewriteSignature = signature;
+    state.serverStatus = {
+      ...state.serverStatus,
+      rewriteExecution: {
+        ...executeResult,
+        trigger: "live-rewrite",
+        freezeReason: reason,
+      },
+    };
+    state.focusLastAppliedText =
+      "Live rewrite refreshed the output from the latest sketch and voice handoff.";
+    await refreshPreviewStateFromServer();
+    renderServerStatus();
+    scheduleLivePreviewSync();
+    renderStatus("Live rewrite preview refreshed");
+    return executeResult;
+  } catch (error) {
+    state.serverStatus = {
+      ...state.serverStatus,
+      rewriteExecution: {
+        executed: false,
+        trigger: "live-rewrite",
+        freezeReason: reason,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Live rewrite execution failed.",
+      },
+    };
+    renderStatus("Live rewrite skipped after save");
+    return null;
+  } finally {
+    state.liveRewriteInFlight = false;
+    renderAutomationControls();
+    renderFocusPad();
+  }
+}
+
+function buildLiveRewriteSignature(frame, reason = "") {
+  const frameVoiceCount = state.voice.segments.filter(
+    (segment) => !segment.frameId || segment.frameId === frame.id,
+  ).length;
+  return [
+    frame.id,
+    frame.updatedAt,
+    reason,
+    frame.elements.length,
+    frame.outputAnnotations?.length || 0,
+    frameVoiceCount,
+  ].join(":");
 }
 
 async function applyBackgroundFile(file) {
@@ -11186,6 +11317,7 @@ function buildPersistedSnapshot(source) {
     size: source.size,
     grid: source.grid,
     autoSnap: source.autoSnap,
+    autoRewrite: Boolean(source.autoRewrite),
     zoom: source.zoom,
     flowZoom: source.flowZoom,
     saveNotice: source.saveNotice,
@@ -12356,6 +12488,22 @@ async function runSelfTest() {
         "rewrite request executes and binds a refined preview artifact",
         rewriteExecutionResult?.error ||
           "Rewrite request did not execute into a bound preview artifact.",
+      ),
+    );
+    setSelfTestProgress("live rewrite automation");
+    state.autoRewrite = true;
+    renderAutomationControls();
+    const liveRewriteResult = await maybeExecuteLiveRewriteFromFreeze(
+      exportResult,
+      "selftest-live-rewrite",
+    );
+    state.autoRewrite = false;
+    renderAutomationControls();
+    results.push(
+      assert(
+        liveRewriteResult?.executed === true &&
+          state.serverStatus.rewriteExecution?.trigger === "live-rewrite",
+        "live rewrite executes from saved handoff when armed",
       ),
     );
     setSelfTestProgress("materialize");

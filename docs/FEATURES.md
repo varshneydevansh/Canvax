@@ -188,6 +188,7 @@ Behavior:
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
 - `Hide tray` collapses the context tray so the canvas becomes the primary design surface
 - `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
+- `Live rewrite` is an opt-in mode that runs the same local no-API rewrite executor after autosnap/freeze saves the latest handoff
 - `Preview` remains available without exposing the rest of Advanced mode
 
 ```text
@@ -196,7 +197,7 @@ Workbench
   + voice note
   + generated output
   + visual correction marks
-  + Apply to Codex
+  + Apply to Codex / Live rewrite
       -> live export
       -> checkpoint
       -> rewrite request
