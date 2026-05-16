@@ -181,6 +181,7 @@ Behavior:
 - exports group containment from `Map`, so frames and spatial objects carry `groupIds` and `spatialWorkspace.groups` lists member frames/objects for Codex-readable exploration boards
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
 - renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
+- provides `Clear outputs` in `Map` to hide generated preview/artifact/change cards when the exploration board gets cluttered
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching

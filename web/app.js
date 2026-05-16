@@ -335,6 +335,7 @@ const dom = {
   addSpatialNote: document.querySelector("#add-spatial-note"),
   addSpatialFile: document.querySelector("#add-spatial-file"),
   addSpatialGroup: document.querySelector("#add-spatial-group"),
+  clearSpatialGenerated: document.querySelector("#clear-spatial-generated"),
   spatialFileInput: document.querySelector("#spatial-file-input"),
   setEntryFrame: document.querySelector("#set-entry-frame"),
   autoLayoutFlow: document.querySelector("#auto-layout-flow"),
@@ -668,6 +669,9 @@ function bindEvents() {
     dom.spatialFileInput.click();
   });
   dom.addSpatialGroup.addEventListener("click", addSpatialGroupObject);
+  dom.clearSpatialGenerated.addEventListener("click", () => {
+    void clearGeneratedSpatialObjects();
+  });
   dom.spatialFileInput.addEventListener("change", () => {
     const file = dom.spatialFileInput.files?.[0];
     if (file) {
@@ -1183,6 +1187,9 @@ function hydrateState() {
         migrated.assetCandidatePack,
       ),
       spatialObjects: normalizeSpatialObjects(migrated.spatialObjects),
+      hiddenSpatialObjectIds: normalizeStringArray(
+        migrated.hiddenSpatialObjectIds,
+      ),
       connections,
       entryFrameId,
       selectedConnectionId: null,
@@ -1494,6 +1501,7 @@ function createInitialState() {
     workbenchTrayCollapsed: false,
     assetCandidatePack: null,
     spatialObjects: [],
+    hiddenSpatialObjectIds: [],
     connections: [],
     entryFrameId: firstFrame.id,
     selectedConnectionId: null,
@@ -2494,8 +2502,18 @@ function normalizeSpatialObjects(objects) {
     }));
 }
 
+function normalizeStringArray(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return [...new Set(values.map(cleanString).filter(Boolean))];
+}
+
 function syncSpatialObjectsFromHandoffs() {
   const currentObjects = normalizeSpatialObjects(state.spatialObjects);
+  const hiddenObjectIds = new Set(
+    normalizeStringArray(state.hiddenSpatialObjectIds),
+  );
   const candidates = state.assetCandidatePack?.candidates || [];
   const manifest = state.serverStatus?.previewManifest || null;
   const targets = collectManifestTargets(manifest);
@@ -2517,7 +2535,7 @@ function syncSpatialObjectsFromHandoffs() {
       .map((change, index) =>
         buildManifestSpatialObjectId("change", change, index),
       ),
-  ]);
+  ].filter((id) => !hiddenObjectIds.has(id)));
   const nextObjects = currentObjects.filter(
     (object) =>
       !isManifestSpatialObject(object) || activeManifestObjectIds.has(object.id),
@@ -2552,6 +2570,9 @@ function syncSpatialObjectsFromHandoffs() {
 
   mapTargets.forEach((target, index) => {
     const id = buildManifestSpatialObjectId("target", target, index);
+    if (hiddenObjectIds.has(id)) {
+      return;
+    }
     const position = defaultSpatialObjectPosition(nextObjects.length);
     upsertSpatialObject(nextObjects, existingIds, {
       id,
@@ -2581,6 +2602,9 @@ function syncSpatialObjectsFromHandoffs() {
 
   mapArtifacts.forEach((artifact, index) => {
     const id = buildManifestSpatialObjectId("artifact", artifact, index);
+    if (hiddenObjectIds.has(id)) {
+      return;
+    }
     const position = defaultSpatialObjectPosition(nextObjects.length);
     upsertSpatialObject(nextObjects, existingIds, {
       id,
@@ -2611,6 +2635,9 @@ function syncSpatialObjectsFromHandoffs() {
 
   mapChanges.forEach((change, index) => {
     const id = buildManifestSpatialObjectId("change", change, index);
+    if (hiddenObjectIds.has(id)) {
+      return;
+    }
     const position = defaultSpatialObjectPosition(nextObjects.length);
     upsertSpatialObject(nextObjects, existingIds, {
       id,
@@ -2745,6 +2772,40 @@ function isManifestSpatialObject(object) {
       object?.type,
     ) && Boolean(object?.sourceId || object?.meta?.path || object?.meta?.url)
   );
+}
+
+function clearGeneratedSpatialObjects(options = {}) {
+  const { silent = false } = options;
+  const generatedObjects = state.spatialObjects.filter(isManifestSpatialObject);
+  if (!generatedObjects.length) {
+    if (!silent) {
+      renderStatus("No generated Map objects to clear");
+      dom.workspaceStatus.textContent = "No generated Map objects to clear.";
+    }
+    return 0;
+  }
+
+  const generatedIds = generatedObjects.map((object) => object.id);
+  state.hiddenSpatialObjectIds = normalizeStringArray([
+    ...(state.hiddenSpatialObjectIds || []),
+    ...generatedIds,
+  ]);
+  state.spatialObjects = state.spatialObjects.filter(
+    (object) => !generatedIds.includes(object.id),
+  );
+  persistState();
+  renderFlowBoard();
+  renderFlowInspector();
+  scheduleLivePreviewSync();
+  if (!silent) {
+    const count = generatedIds.length;
+    renderStatus(
+      `Cleared ${count} generated Map object${count === 1 ? "" : "s"}`,
+    );
+    dom.workspaceStatus.textContent =
+      `Cleared ${count} generated Map object${count === 1 ? "" : "s"} from the spatial map. New output will appear again when generated.`;
+  }
+  return generatedIds.length;
 }
 
 function spatialObjectKey(...values) {
@@ -11309,6 +11370,7 @@ function buildPersistedSnapshot(source) {
     workbenchTrayCollapsed: Boolean(source.workbenchTrayCollapsed),
     assetCandidatePack: source.assetCandidatePack || null,
     spatialObjects: source.spatialObjects || [],
+    hiddenSpatialObjectIds: source.hiddenSpatialObjectIds || [],
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -13245,6 +13307,7 @@ function assertSpatialObjectsFromOutputManifest() {
     flowZoom: state.flowZoom,
     tool: state.tool,
     spatialObjects: structuredClone(state.spatialObjects),
+    hiddenSpatialObjectIds: structuredClone(state.hiddenSpatialObjectIds),
     assetCandidatePack: structuredClone(state.assetCandidatePack),
     previewManifest: structuredClone(state.serverStatus.previewManifest),
   };
@@ -13325,6 +13388,12 @@ function assertSpatialObjectsFromOutputManifest() {
   const legacyCleaned = !spatialExport.objects.some(
     (object) => object.id === "target-object-legacy-materialized-preview",
   );
+  const clearedCount = clearGeneratedSpatialObjects({ silent: true });
+  const clearedExport = buildSpatialWorkspaceExport();
+  syncSpatialObjectsFromHandoffs();
+  const hiddenObjectsStayHidden = !buildSpatialWorkspaceExport().objects.some(
+    isManifestSpatialObject,
+  );
 
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
@@ -13332,6 +13401,7 @@ function assertSpatialObjectsFromOutputManifest() {
   state.flowZoom = previous.flowZoom;
   state.tool = previous.tool;
   state.spatialObjects = previous.spatialObjects;
+  state.hiddenSpatialObjectIds = previous.hiddenSpatialObjectIds;
   state.assetCandidatePack = previous.assetCandidatePack;
   state.serverStatus = {
     ...state.serverStatus,
@@ -13341,8 +13411,14 @@ function assertSpatialObjectsFromOutputManifest() {
   renderAll();
 
   return assert(
-    exported && rendered && frameBound && legacyCleaned,
-    "Output manifest reconciles spatial objects for targets, artifacts, and changed files",
+    exported &&
+      rendered &&
+      frameBound &&
+      legacyCleaned &&
+      clearedCount >= 3 &&
+      !clearedExport.objects.some(isManifestSpatialObject) &&
+      hiddenObjectsStayHidden,
+    "Output manifest reconciles and clears generated spatial objects",
   );
 }
 
