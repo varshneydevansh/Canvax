@@ -271,6 +271,8 @@ Important files:
 - `exports/canvax-voice-latest.md`
 - `exports/canvax-task-pack-latest.json`
 - `exports/canvax-task-pack-latest.md`
+- `exports/canvax-rewrite-request-latest.json`
+- `exports/canvax-rewrite-request-latest.md`
 - `exports/canvax-image-prompt-pack-latest.json`
 - `exports/canvax-image-prompt-pack-latest.md`
 - `exports/canvax-transcript-bridge.json`
@@ -297,9 +299,9 @@ The live JSON also includes `spatialWorkspace`, which records:
 - active frame
 - spatial links between frames
 
-## Task And Image Prompt Packs
+## Task, Rewrite, And Image Prompt Packs
 
-Canvax writes two compact host-facing packs whenever the board saves a live export.
+Canvax writes compact host-facing packs whenever the board saves a live export.
 
 ```text
 Canvax frame
@@ -307,9 +309,19 @@ Canvax frame
   +--> task pack
   |     use for Codex build/spec/app work
   |
+  +--> rewrite request
+  |     use for live refinement of connected outputs
+  |
   `--> image prompt pack
         use for ChatGPT/image generation placement
 ```
+
+Use the rewrite request when you have already generated or built something and want Codex to refine it from the latest sketch, voice note, correction mark, stale-output badge, or frame-bound output manifest:
+
+- `exports/canvax-rewrite-request-latest.json`
+- `exports/canvax-rewrite-request-latest.md`
+
+That file is local-first and does not require an API key. It exists so Codex can read one focused "what needs to change next" handoff instead of piecing the rewrite intent together from the live export, task pack, preview manifest, voice notes, and output annotations separately.
 
 ```mermaid
 flowchart LR

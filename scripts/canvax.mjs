@@ -41,6 +41,14 @@ const liveMarkdownPath = resolve(exportsRoot, "canvax-live-latest.md");
 const liveVoiceMarkdownPath = resolve(exportsRoot, "canvax-voice-latest.md");
 const taskPackJsonPath = resolve(exportsRoot, "canvax-task-pack-latest.json");
 const taskPackMarkdownPath = resolve(exportsRoot, "canvax-task-pack-latest.md");
+const rewriteRequestJsonPath = resolve(
+  exportsRoot,
+  "canvax-rewrite-request-latest.json",
+);
+const rewriteRequestMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-rewrite-request-latest.md",
+);
 const buildRealRequestJsonPath = resolve(
   exportsRoot,
   "canvax-build-real-latest.json",
@@ -133,6 +141,7 @@ function buildTransportDescriptor(overrides = {}) {
       voice: "exports/canvax-voice-latest.md",
       checkpoint: "exports/canvax-checkpoint-latest.json",
       taskPack: "exports/canvax-task-pack-latest.json",
+      rewriteRequest: "exports/canvax-rewrite-request-latest.json",
       buildRealRequest: "exports/canvax-build-real-latest.json",
       imagePromptPack: "exports/canvax-image-prompt-pack-latest.json",
       assetCandidates: "exports/canvax-asset-candidates-latest.json",
@@ -302,6 +311,8 @@ async function runCli() {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          rewriteRequestJsonPath,
+          rewriteRequestMarkdownPath,
           transcriptBridgePath,
           transcriptBridgeMarkdownPath,
           buildRealRequestJsonPath,
@@ -328,6 +339,8 @@ async function runCli() {
         liveJsonPath,
         liveMarkdownPath,
         liveVoiceMarkdownPath,
+        rewriteRequestJsonPath,
+        rewriteRequestMarkdownPath,
         transcriptBridgePath,
         transcriptBridgeMarkdownPath,
         buildRealRequestJsonPath,
@@ -355,6 +368,8 @@ async function runCli() {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          rewriteRequestJsonPath,
+          rewriteRequestMarkdownPath,
           transcriptBridgePath,
           transcriptBridgeMarkdownPath,
           buildRealRequestJsonPath,
@@ -510,6 +525,8 @@ async function runServer(port) {
           liveJsonPath,
           liveMarkdownPath,
           liveVoiceMarkdownPath,
+          rewriteRequestJsonPath,
+          rewriteRequestMarkdownPath,
           transcriptBridgePath,
           transcriptBridgeMarkdownPath,
           buildRealRequestJsonPath,
@@ -750,6 +767,14 @@ async function handleSaveExport(request, response) {
   const archiveVoiceMarkdownPath = resolve(archiveRoot, "voice-notes.md");
   const archiveTaskPackJsonPath = resolve(archiveRoot, "task-pack.json");
   const archiveTaskPackMarkdownPath = resolve(archiveRoot, "task-pack.md");
+  const archiveRewriteRequestJsonPath = resolve(
+    archiveRoot,
+    "rewrite-request.json",
+  );
+  const archiveRewriteRequestMarkdownPath = resolve(
+    archiveRoot,
+    "rewrite-request.md",
+  );
   const archiveImagePromptPackJsonPath = resolve(
     archiveRoot,
     "image-prompt-pack.json",
@@ -765,6 +790,10 @@ async function handleSaveExport(request, response) {
     ? `${JSON.stringify(payload.package.taskPack, null, 2)}\n`
     : "";
   const taskPackMarkdownBody = payload.taskPackMarkdown || "";
+  const rewriteRequestBody = payload.package.rewriteRequest
+    ? `${JSON.stringify(payload.package.rewriteRequest, null, 2)}\n`
+    : "";
+  const rewriteRequestMarkdownBody = payload.rewriteRequestMarkdown || "";
   const imagePromptPackBody = payload.package.imagePromptPack
     ? `${JSON.stringify(payload.package.imagePromptPack, null, 2)}\n`
     : "";
@@ -786,6 +815,17 @@ async function handleSaveExport(request, response) {
     await writeFile(taskPackMarkdownPath, taskPackMarkdownBody);
     await writeFile(archiveTaskPackMarkdownPath, taskPackMarkdownBody);
   }
+  if (rewriteRequestBody) {
+    await writeFile(rewriteRequestJsonPath, rewriteRequestBody);
+    await writeFile(archiveRewriteRequestJsonPath, rewriteRequestBody);
+  }
+  if (rewriteRequestMarkdownBody) {
+    await writeFile(rewriteRequestMarkdownPath, rewriteRequestMarkdownBody);
+    await writeFile(
+      archiveRewriteRequestMarkdownPath,
+      rewriteRequestMarkdownBody,
+    );
+  }
   if (imagePromptPackBody) {
     await writeFile(imagePromptPackJsonPath, imagePromptPackBody);
     await writeFile(archiveImagePromptPackJsonPath, imagePromptPackBody);
@@ -805,6 +845,8 @@ async function handleSaveExport(request, response) {
     voiceMarkdownPath: liveVoiceMarkdownPath,
     taskPackJsonPath,
     taskPackMarkdownPath,
+    rewriteRequestJsonPath,
+    rewriteRequestMarkdownPath,
     imagePromptPackJsonPath,
     imagePromptPackMarkdownPath,
     transport: buildTransportDescriptor(),
@@ -1491,6 +1533,8 @@ async function handlePreviewState(response) {
       liveJsonPath,
       liveMarkdownPath,
       liveVoiceMarkdownPath,
+      rewriteRequestJsonPath,
+      rewriteRequestMarkdownPath,
       buildRealRequestJsonPath,
       buildRealRequestMarkdownPath,
       assetCandidatesJsonPath,
@@ -4988,6 +5032,8 @@ function buildRuntime(port) {
     liveJsonPath,
     liveMarkdownPath,
     liveVoiceMarkdownPath,
+    rewriteRequestJsonPath,
+    rewriteRequestMarkdownPath,
     transcriptBridgePath,
     transcriptBridgeMarkdownPath,
     buildRealRequestJsonPath,
@@ -5192,6 +5238,7 @@ function printCliOutput(asJson, payload, message) {
   console.log(`Live export: ${liveJsonPath}`);
   console.log(`Live markdown: ${liveMarkdownPath}`);
   console.log(`Live voice markdown: ${liveVoiceMarkdownPath}`);
+  console.log(`Rewrite request: ${rewriteRequestJsonPath}`);
   console.log(`Codex transcript bridge: ${transcriptBridgePath}`);
   console.log(`Latest checkpoint: ${latestCheckpointPath}`);
   console.log(`Codex output manifest: ${codexOutputManifestPath}`);

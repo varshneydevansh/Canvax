@@ -183,6 +183,7 @@ Canvax today
 - The board can publish current git workspace changes into the output manifest.
 - Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
 - Rewrite queue tells Codex which frames need first output, a target, binding, or refresh.
+- `canvax-rewrite-request-latest.*` packages queued frames, stale output context, correction marks, voice notes, and output manifest bindings into one Codex-readable refinement handoff.
 - Codex Browser Use / Atlas can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
 
 ## What Is Still Missing
@@ -234,11 +235,12 @@ flowchart LR
 
 ### 2. Live Two-Way Rewrite Loop
 
-Today Canvax can detect stale output and changed regions. It does not yet run a continuous loop where Codex rewrites the generated surface while the user keeps drawing.
+Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes. It does not yet run a continuous loop where Codex rewrites the generated surface while the user keeps drawing.
 
 Needed:
 
 - A live task queue for frames needing rewrite attention.
+- A focused rewrite request artifact. **Initial `canvax-rewrite-request-latest.*` shipped.**
 - A frame revision to output revision dependency graph.
 - A "changed sketch region -> affected generated component" map.
 - A visible rewrite progress lane in Preview.

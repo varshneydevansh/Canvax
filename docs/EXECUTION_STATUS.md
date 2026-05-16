@@ -103,6 +103,7 @@ Status: In progress
 - [x] Output-digest changes now write `Output update` checkpoints so Codex-side implementation progress lands in the Canvax timeline too
 - [x] Output activity now rebuilds from recent session events, so refreshes do not wipe the visible collaboration history
 - [x] Board/checkpoint/live export now surface a rewrite queue that tells Codex which frames need first output, a frame binding, a target, or a refresh
+- [x] Board saves `canvax-rewrite-request-latest.*` so Codex gets one focused refinement handoff for sketch, voice, correction marks, queued frames, and connected outputs
 - [x] Board exports now include task and image prompt packs with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
 - [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
 - [x] Canvas image elements now carry pasted/generated assets through selection, composition summaries, Materialize payloads, and live exports
@@ -134,6 +135,7 @@ Status: In progress
 - [x] `Generate screen` mode above quick Materialize, with board-side recipe controls and generated-screen target labeling
 - [x] `Generate screen` now has a semantic hero/page renderer for polished website-style output instead of only literal sketch geometry
 - [x] `Build with Codex` writes a no-API real implementation request plus frame-to-code output contract for Codex to execute
+- [x] `canvax-rewrite-request-latest.*` writes the live output-refinement request alongside the task pack and image prompt pack
 - [x] `execute-build-request` provides a deterministic local smoke path from latest build request to frame-bound preview artifact and Codex output manifest
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack

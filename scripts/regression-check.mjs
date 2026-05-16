@@ -11,6 +11,11 @@ const taskPackJsonPath = resolve(
   "exports",
   "canvax-task-pack-latest.json",
 );
+const rewriteRequestJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-rewrite-request-latest.json",
+);
 const buildRealRequestJsonPath = resolve(
   projectRoot,
   "exports",
@@ -79,6 +84,17 @@ await validateOptionalJsonSchema(
     value.schemaVersion >= 1 &&
     Array.isArray(value?.frames),
   "task pack schema is valid",
+);
+await validateOptionalJsonSchema(
+  rewriteRequestJsonPath,
+  (value) =>
+    value?.kind === "canvax-rewrite-request" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.rewriteQueue) &&
+    Array.isArray(value?.frames),
+  "rewrite request schema is valid",
 );
 await validateOptionalJsonSchema(
   buildRealRequestJsonPath,

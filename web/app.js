@@ -8137,6 +8137,7 @@ async function buildExportPackage(frameSelection = state.frames) {
   const imagePromptPack = buildImagePromptPack(selectedFrames);
   const assetCandidatePack = buildAssetCandidatePack(imagePromptPack);
   const spatialWorkspace = buildSpatialWorkspaceExport();
+  const rewriteRequest = buildRewriteRequest(selectedFrames, rewriteQueue);
 
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -8160,6 +8161,69 @@ async function buildExportPackage(frameSelection = state.frames) {
     taskPack,
     imagePromptPack,
     assetCandidatePack,
+    rewriteRequest,
+  };
+}
+
+function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
+  const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
+  const queuedFrameIds = new Set(rewriteQueue.map((item) => item.frameId));
+  const relevantFrames = frames.filter(
+    (frame) => frame.id === state.activeFrameId || queuedFrameIds.has(frame.id),
+  );
+  const manifest = state.serverStatus.previewManifest || null;
+  return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-rewrite-request",
+    generatedAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    source: "canvax-live-workbench",
+    activeFrameId: state.activeFrameId,
+    activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
+    board: {
+      project: state.board.project,
+      goal: state.board.goal,
+      audience: state.board.audience,
+      designMood: state.board.designMood,
+      actionMode: state.board.actionMode,
+    },
+    handoff: {
+      liveJsonPath: "exports/canvax-live-latest.json",
+      liveMarkdownPath: "exports/canvax-live-latest.md",
+      taskPackJsonPath: "exports/canvax-task-pack-latest.json",
+      previewManifestPath: "exports/canvax-preview-manifest.json",
+      codexOutputManifestPath: "artifacts/canvax/codex-output.json",
+    },
+    rewriteQueue,
+    outputManifest: manifest
+      ? {
+          targets: collectManifestTargets(manifest),
+          artifacts: collectManifestArtifacts(manifest),
+          changes: collectManifestChanges(manifest),
+        }
+      : null,
+    voice: buildVoiceExport(state.frames),
+    frames: relevantFrames.map((frame) => ({
+      id: frame.id,
+      index: frame.index,
+      title: frame.title,
+      viewport: frame.viewport,
+      viewportWidth: frame.viewportWidth,
+      viewportHeight: frame.viewportHeight,
+      updatedAt: frame.updatedAt,
+      intent: frame.objective,
+      layout: frame.layout,
+      motion: frame.motion,
+      assets: frame.assets,
+      mobile: frame.mobile,
+      captureCount: frame.captureCount,
+      outputAnnotationCount: frame.outputAnnotationCount,
+      outputAnnotations: frame.outputAnnotations || [],
+      snapshotPath: frame.snapshotPath || "",
+      thumbnailPath: frame.thumbnailPath || "",
+    })),
+    instruction:
+      "Use this request with the live Canvax export. Prioritize queued frames, correction marks, voice notes, and frame-bound output targets. Update real files or generated artifacts, then publish artifacts through artifacts/canvax/codex-output.json.",
   };
 }
 
@@ -8629,6 +8693,48 @@ function buildTaskPackMarkdown(taskPack) {
       ? ` [variant: ${frame.variant.label} from ${frame.variant.sourceFrameTitle || frame.variant.sourceFrameId}]`
       : "";
     lines.push(`- ${frame.index}. ${frame.title}${variantSuffix}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
+  });
+  return lines.join("\n");
+}
+
+function buildRewriteRequestMarkdown(request) {
+  if (!request) {
+    return "";
+  }
+  const lines = [
+    `# ${(request.board?.project || "Canvax").trim()} rewrite request`,
+    "",
+    `- Kind: ${request.kind}`,
+    `- Generated: ${request.generatedAt}`,
+    `- Active frame: ${request.activeFrameTitle || request.activeFrameId}`,
+    `- Requires OpenAI API key: ${request.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Queued frames: ${request.rewriteQueue?.length || 0}`,
+    "",
+    "## Codex Instruction",
+    request.instruction,
+    "",
+    "## Handoff Files",
+    `- Live JSON: ${request.handoff?.liveJsonPath}`,
+    `- Task pack: ${request.handoff?.taskPackJsonPath}`,
+    `- Preview manifest: ${request.handoff?.previewManifestPath}`,
+    `- Codex output manifest: ${request.handoff?.codexOutputManifestPath}`,
+    "",
+    "## Rewrite Queue",
+  ];
+  if (request.rewriteQueue?.length) {
+    request.rewriteQueue.forEach((item) => {
+      lines.push(
+        `- ${item.index}. ${item.title}: ${item.label} (${item.reason}) - ${item.detail || "No detail"}`,
+      );
+    });
+  } else {
+    lines.push("- No queued frames. Use the active frame and latest notes.");
+  }
+  lines.push("", "## Relevant Frames");
+  request.frames?.forEach((frame) => {
+    lines.push(
+      `- ${frame.title}: ${frame.intent || "No intent"}; output marks: ${frame.outputAnnotationCount || 0}; captures: ${frame.captureCount || 0}`,
+    );
   });
   return lines.join("\n");
 }
@@ -9546,6 +9652,9 @@ async function saveExportToWorkspace(options = {}) {
         markdown: dom.specOutput.value,
         voiceMarkdown: buildVoiceMarkdown(),
         taskPackMarkdown: buildTaskPackMarkdown(exportPackage.taskPack),
+        rewriteRequestMarkdown: buildRewriteRequestMarkdown(
+          exportPackage.rewriteRequest,
+        ),
         imagePromptPackMarkdown: buildImagePromptPackMarkdown(
           exportPackage.imagePromptPack,
         ),
@@ -10963,6 +11072,15 @@ async function runSelfTest() {
           exportPackage.taskPack?.designContext &&
           exportPackage.taskPack?.hostLane?.requiresOpenAiApiKey === false,
         "task pack includes action mode, design context, and no-API host lane",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.rewriteRequest?.kind === "canvax-rewrite-request" &&
+          exportPackage.rewriteRequest.requiresOpenAiApiKey === false &&
+          Array.isArray(exportPackage.rewriteRequest.frames) &&
+          Array.isArray(exportPackage.rewriteRequest.rewriteQueue),
+        "export package includes no-API rewrite request",
       ),
     );
     results.push(

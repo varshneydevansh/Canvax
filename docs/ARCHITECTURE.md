@@ -429,17 +429,20 @@ The JSON export currently contains:
 - saved snapshot paths
 - flow connections
 - generated prompt text
-- task pack and image prompt pack summaries
+- task pack, rewrite request, and image prompt pack summaries
 
-The dedicated task and image prompt pack files are narrower than the full live export:
+The dedicated task, rewrite, and image prompt pack files are narrower than the full live export:
 
 - `canvax-task-pack-latest.*` is for Codex build/spec/app work.
+- `canvax-rewrite-request-latest.*` is for live refinement of queued frames, stale outputs, voice notes, correction marks, and frame-bound output targets.
 - `canvax-image-prompt-pack-latest.*` is for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
 
 ```text
 full live export
   |
   +--> task pack: build/spec/action summary
+  |
+  +--> rewrite request: queued output refinement
   |
   `--> image prompt pack: prompt + coordinates + scaffold
 ```

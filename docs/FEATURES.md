@@ -219,18 +219,21 @@ active role, and Advanced labels its frame stack, frame workspace/flow map, and
 handoff inspector so the density reads as an inspector deck instead of a
 different app.
 
-### Task And Image Prompt Packs
+### Task, Rewrite, And Image Prompt Packs
 
 Files:
 
 - `exports/canvax-task-pack-latest.json`
 - `exports/canvax-task-pack-latest.md`
+- `exports/canvax-rewrite-request-latest.json`
+- `exports/canvax-rewrite-request-latest.md`
 - `exports/canvax-image-prompt-pack-latest.json`
 - `exports/canvax-image-prompt-pack-latest.md`
 
 Purpose:
 
 - give Codex a compact build/spec work order
+- give Codex a focused rewrite request for connected outputs, queued frames, correction marks, and voice notes
 - give image-generation hosts a composition-preserving prompt pack
 - keep sketch, labels, notes, voice, output annotations, viewport, safe zones, and normalized coordinates together
 
