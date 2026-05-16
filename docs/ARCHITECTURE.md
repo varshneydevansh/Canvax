@@ -520,9 +520,18 @@ manual Map controls
   -> state.spatialObjects
   -> Workbench Map context object cards
   -> live export spatialWorkspace.objects
+  -> live export spatialWorkspace.groups with member card/object ids
 ```
 
 The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards, moving/resizing spatial objects, panning the background, or drawing connection drafts, so saved positions and sizes remain stable regardless of the current zoom level. Pinch / `Ctrl` / `Cmd` wheel zoom is cursor-centered by adjusting the scroll offset after each zoom step.
+
+Group containment is computed at export time from each group region's bounds and the center point of cards/objects. The live export adds:
+
+- `spatialWorkspace.groups[].memberCardIds`
+- `spatialWorkspace.groups[].memberObjectIds`
+- `spatialWorkspace.groups[].memberGroupIds`
+- `spatialWorkspace.cards[].groupIds`
+- `spatialWorkspace.objects[].groupIds`
 
 Selected frame elements can also carry `element.prototype` metadata. That metadata is exported through frame composition, and Preview Play converts the selected element bounds into clickable prototype hotspots.
 

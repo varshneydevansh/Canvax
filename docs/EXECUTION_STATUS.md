@@ -54,6 +54,7 @@ Status: In progress
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
 - [x] Workbench `Map` supports manual note cards and reference file/image cards as draggable/removable spatial context
 - [x] Workbench `Map` supports movable/resizable labeled group regions for explorations/reference boards
+- [x] Workbench `Map` exports group containment so cards/objects include `groupIds` and `spatialWorkspace.groups` records member frames/objects
 - [x] Workbench `Map` supports background drag-pan plus cursor-centered pinch/ctrl-wheel zoom
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays

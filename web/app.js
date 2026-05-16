@@ -9128,6 +9128,10 @@ function summarizeOutputChange(change) {
 function buildSpatialWorkspaceExport(frameSelection = state.frames) {
   const frameIds = new Set(frameSelection.map((frame) => frame.id));
   const bounds = computeFlowSurfaceSize(frameSelection);
+  const spatialGrouping = computeSpatialGroupMembership(
+    frameSelection,
+    state.spatialObjects,
+  );
   return {
     kind: "canvax-spatial-workspace",
     coordinateSystem:
@@ -9156,8 +9160,10 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         variant: frame.variant || null,
         outputStatus: status?.label || "No output",
         linkedCount: countFrameConnections(frame.id),
+        groupIds: spatialGrouping.cardGroupIds.get(frame.id) || [],
       };
     }),
+    groups: spatialGrouping.groups,
     objects: state.spatialObjects.map((object) => ({
       id: object.id,
       type: object.type,
@@ -9167,6 +9173,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
       sourceId: object.sourceId,
       status: object.status,
       frameIds: object.frameIds || [],
+      groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
       position: { x: object.x, y: object.y },
       size: {
         width: object.width || SPATIAL_OBJECT_WIDTH,
@@ -9185,6 +9192,106 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         toTitle: frameTitleById(connection.toFrameId),
       })),
   };
+}
+
+function computeSpatialGroupMembership(frameSelection, spatialObjects) {
+  const groups = spatialObjects.filter((object) => object.type === "map-group");
+  const cardGroupIds = new Map();
+  const objectGroupIds = new Map();
+
+  const cardItems = frameSelection.map((frame) => ({
+    id: frame.id,
+    rect: {
+      x: frame.flowPosition.x,
+      y: frame.flowPosition.y,
+      width: FLOW_CARD_WIDTH,
+      height: FLOW_CARD_HEIGHT,
+    },
+  }));
+  const objectItems = spatialObjects.map((object) => ({
+    id: object.id,
+    type: object.type,
+    rect: spatialObjectRect(object),
+  }));
+
+  const exportedGroups = groups.map((group) => {
+    const groupRect = spatialObjectRect(group);
+    const memberCardIds = cardItems
+      .filter((item) => rectContainsRectCenter(groupRect, item.rect))
+      .map((item) => item.id);
+    const memberObjectIds = objectItems
+      .filter(
+        (item) =>
+          item.id !== group.id &&
+          item.type !== "map-group" &&
+          rectContainsRectCenter(groupRect, item.rect),
+      )
+      .map((item) => item.id);
+    const memberGroupIds = objectItems
+      .filter(
+        (item) =>
+          item.id !== group.id &&
+          item.type === "map-group" &&
+          rectContainsRectCenter(groupRect, item.rect),
+      )
+      .map((item) => item.id);
+
+    memberCardIds.forEach((cardId) => {
+      appendMapArrayValue(cardGroupIds, cardId, group.id);
+    });
+    [...memberObjectIds, ...memberGroupIds].forEach((objectId) => {
+      appendMapArrayValue(objectGroupIds, objectId, group.id);
+    });
+
+    return {
+      id: group.id,
+      title: group.title,
+      subtitle: group.subtitle,
+      status: group.status,
+      position: { x: groupRect.x, y: groupRect.y },
+      size: { width: groupRect.width, height: groupRect.height },
+      memberCardIds,
+      memberObjectIds,
+      memberGroupIds,
+      meta: group.meta || {},
+    };
+  });
+
+  return {
+    groups: exportedGroups,
+    cardGroupIds,
+    objectGroupIds,
+  };
+}
+
+function appendMapArrayValue(map, key, value) {
+  const existing = map.get(key) || [];
+  if (!existing.includes(value)) {
+    existing.push(value);
+  }
+  map.set(key, existing);
+}
+
+function spatialObjectRect(object) {
+  return {
+    x: Number(object.x) || 0,
+    y: Number(object.y) || 0,
+    width: Number(object.width) || SPATIAL_OBJECT_WIDTH,
+    height: Number(object.height) || SPATIAL_OBJECT_HEIGHT,
+  };
+}
+
+function rectContainsRectCenter(container, child) {
+  const center = {
+    x: child.x + child.width / 2,
+    y: child.y + child.height / 2,
+  };
+  return (
+    center.x >= container.x &&
+    center.x <= container.x + container.width &&
+    center.y >= container.y &&
+    center.y <= container.y + container.height
+  );
 }
 
 function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
@@ -12714,6 +12821,21 @@ function assertWorkbenchSpatialMap() {
 
   state.spatialObjects = [
     {
+      id: "spatial-selftest-group",
+      type: "map-group",
+      title: "Self-test group",
+      subtitle: "Reference group",
+      sourceKind: "manual-group",
+      sourceId: "group-selftest",
+      frameIds: [],
+      x: 360,
+      y: 460,
+      width: 420,
+      height: 260,
+      status: "group",
+      meta: { text: "Self-test group region" },
+    },
+    {
       id: "spatial-selftest-asset",
       type: "image-region",
       title: "Self-test asset object",
@@ -12785,13 +12907,25 @@ function assertWorkbenchSpatialMap() {
   const exportValid =
     spatialExport.kind === "canvax-spatial-workspace" &&
     spatialExport.cards.length === state.frames.length &&
-    spatialExport.objects.length === 1 &&
-    spatialExport.objects[0]?.sourceKind === "asset-candidate" &&
+    spatialExport.objects.length === 2 &&
+    spatialExport.objects.some(
+      (object) => object.sourceKind === "asset-candidate",
+    ) &&
     spatialExport.zoom === state.flowZoom;
   const objectRendered = Boolean(
     dom.flowBoard.querySelector(
       "[data-spatial-object-id='spatial-selftest-asset']",
     ),
+  );
+  const groupExported = spatialExport.groups.some(
+    (group) =>
+      group.id === "spatial-selftest-group" &&
+      group.memberObjectIds.includes("spatial-selftest-asset"),
+  );
+  const groupedObject = spatialExport.objects.some(
+    (object) =>
+      object.id === "spatial-selftest-asset" &&
+      object.groupIds.includes("spatial-selftest-group"),
   );
 
   state.workspaceMode = previous.workspaceMode;
@@ -12810,8 +12944,10 @@ function assertWorkbenchSpatialMap() {
       panned &&
       panEnded &&
       exportValid &&
-      objectRendered,
-    "Workbench spatial map renders and exports frames plus objects",
+      objectRendered &&
+      groupExported &&
+      groupedObject,
+    "Workbench spatial map renders and exports frames, objects, and group containment",
   );
 }
 

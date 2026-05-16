@@ -131,7 +131,7 @@ The host chip is intentionally explicit. Today it reports local Codex Browser / 
 
 `Map` opens the frame graph as a designer-facing spatial workbench inside Workbench. Use it to arrange frames, variants, generated directions, labeled group regions, manual note cards, reference file/image cards, asset candidate objects, generated preview targets, output artifacts, changed files, and connected sections without switching to Advanced. The map has its own zoom controls and its positions are exported as `spatialWorkspace` so Codex can read project layout, branches, screen relationships, prompt-ready assets, references, and implementation outputs. Generated output cards are reconciled to the latest useful frame-bound objects, including legacy/stale card cleanup, so repeated materialize/generate passes should not create a wall of stale output cards.
 
-`Free canvas` is still a large single-frame scratchpad preset. `Map` is the first persistent spatial project layer. Drag empty background to pan, use pinch or `Ctrl`/`Cmd` wheel to zoom around the cursor, and use the zoom buttons when you want explicit control. Spatial cards and group regions can be moved and resized. It is not yet a full infinite canvas with nested groups, but it now gives Canvax a spatial memory for frames, variant branches, group regions, manual notes, reference files/images, asset candidates, generated outputs, artifacts, and workspace changes.
+`Free canvas` is still a large single-frame scratchpad preset. `Map` is the first persistent spatial project layer. Drag empty background to pan, use pinch or `Ctrl`/`Cmd` wheel to zoom around the cursor, and use the zoom buttons when you want explicit control. Spatial cards and group regions can be moved and resized. Group regions now export containment, so Codex can tell which frames, notes, references, asset candidates, generated outputs, artifacts, or changes sit inside an exploration/reference group. It is not yet a full infinite canvas with advanced nested editing, but it now gives Canvax spatial memory for grouped project context.
 
 Switch to `Advanced` when you need multi-frame work, flow links, captures, output manifests, or generation/debugging controls. Advanced uses the same Canvax dark workspace language as Workbench, but it intentionally keeps the denser timeline/stage/inspector layout because it is the technical handoff deck. The mode description and deck labels clarify whether you are editing the frame workspace, mapping flow, or inspecting handoff details.
 
@@ -303,6 +303,7 @@ The live JSON also includes `spatialWorkspace`, which records:
 - map zoom
 - frame/variant card positions
 - spatial group region positions
+- spatial group containment through `groups`, card `groupIds`, and object `groupIds`
 - manual note card positions
 - reference file/image card positions
 - asset candidate spatial object positions
