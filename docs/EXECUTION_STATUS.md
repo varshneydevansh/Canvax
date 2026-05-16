@@ -50,14 +50,16 @@ Status: In progress
 - [x] Cached frame render pipeline for live preview/export generation to reduce repeated long-session re-encoding
 - [x] Workbench bottom designer dock with brush `-` / `+`, Image handoff, and tactile primary actions
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
+- [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
+- [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, active/entry frame ids, and links
 - [ ] Full interaction regression pass with browser validation
 - [ ] Remaining rough edges in large-session behavior
 
 ```text
 done now:
-  focus pad, board, tools, selection, flow, preview button, cached frame renders
+  focus pad, board, tools, selection, flow, Workbench Map, preview button, cached frame renders
 still open:
-  stricter browser validation and long-session polish
+  stricter browser validation, arbitrary-object infinite canvas, and long-session polish
 ```
 
 ### Sprint 2: Add voice as a native Canvax input
@@ -98,6 +100,7 @@ Status: In progress
 - [x] Output activity now rebuilds from recent session events, so refreshes do not wipe the visible collaboration history
 - [x] Board/checkpoint/live export now surface a rewrite queue that tells Codex which frames need first output, a frame binding, a target, or a refresh
 - [x] Board exports now include task and image prompt packs with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
+- [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
 
 ```mermaid
 flowchart TD

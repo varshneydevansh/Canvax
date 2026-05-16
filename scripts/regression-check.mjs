@@ -65,7 +65,8 @@ await validateOptionalJsonSchema(
   (value) =>
     Number.isInteger(value?.schemaVersion) &&
     value.schemaVersion >= 1 &&
-    Array.isArray(value?.frames),
+    Array.isArray(value?.frames) &&
+    validateSpatialWorkspaceWhenPresent(value?.spatialWorkspace),
   "live export schema is valid",
   { allowLegacyWithoutSchema: true },
 );
@@ -175,6 +176,21 @@ async function validateCodexOutputDryRun() {
       detail: error instanceof Error ? error.message : "Unknown error",
     });
   }
+}
+
+function validateSpatialWorkspaceWhenPresent(value) {
+  if (!value) {
+    return true;
+  }
+  return Boolean(
+    value?.kind === "canvax-spatial-workspace" &&
+      Number.isFinite(value?.zoom) &&
+      value?.surface &&
+      Number.isFinite(value.surface.width) &&
+      Number.isFinite(value.surface.height) &&
+      Array.isArray(value?.cards) &&
+      Array.isArray(value?.links),
+  );
 }
 
 async function validateRunningPreviewState() {

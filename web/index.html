@@ -645,6 +645,13 @@
                                 >
                                     Output
                                 </button>
+                                <button
+                                    class="segment"
+                                    data-workbench-focus="map"
+                                    aria-pressed="false"
+                                >
+                                    Map
+                                </button>
                             </div>
                             <div
                                 id="view-mode-buttons"
@@ -873,7 +880,7 @@
                             </div>
                         </div>
 
-                        <div id="flow-workspace" class="workspace-panel" hidden>
+                            <div id="flow-workspace" class="workspace-panel" hidden>
                             <div class="flow-toolbar">
                                 <p id="flow-status" class="helper-text">
                                     Drag cards to arrange screens. Pull from the
@@ -881,6 +888,40 @@
                                     lightweight prototype map.
                                 </p>
                                 <div class="button-row right-align tight">
+                                    <div
+                                        class="flow-zoom-controls"
+                                        aria-label="Spatial map zoom"
+                                    >
+                                        <button
+                                            id="flow-zoom-out"
+                                            class="ghost-button"
+                                            type="button"
+                                            title="Zoom spatial map out"
+                                        >
+                                            -
+                                        </button>
+                                        <span
+                                            id="flow-zoom-value"
+                                            class="zoom-value"
+                                            >100%</span
+                                        >
+                                        <button
+                                            id="flow-zoom-in"
+                                            class="ghost-button"
+                                            type="button"
+                                            title="Zoom spatial map in"
+                                        >
+                                            +
+                                        </button>
+                                        <button
+                                            id="flow-zoom-reset"
+                                            class="ghost-button"
+                                            type="button"
+                                            title="Reset spatial map zoom"
+                                        >
+                                            Reset
+                                        </button>
+                                    </div>
                                     <button
                                         id="set-entry-frame"
                                         class="ghost-button"

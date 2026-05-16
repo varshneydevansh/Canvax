@@ -83,7 +83,7 @@ It hides advanced panels and keeps only:
 - a quick manual voice note field
 - `Make real` for a local generated-screen preview
 - generated output beside the sketch when a preview target exists
-- `Sketch`, `Split`, and `Output` focus modes for choosing whether the rough canvas, side-by-side comparison, or generated surface is primary
+- `Sketch`, `Split`, `Output`, and `Map` focus modes for choosing whether the rough canvas, side-by-side comparison, generated surface, or spatial project map is primary
 - correction marks drawn directly over generated output
 - a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Make`, `Image`, and `Apply`
 - context-sensitive size controls: `-` / `+` resize selected elements in Select mode and otherwise update the current brush/eraser size
@@ -115,7 +115,9 @@ Advanced mode includes `Create DESIGN.md` in the Generate screen section. That w
 
 The host chip is intentionally explicit. Today it reports local Codex Browser / file-handoff capability and marks host image generation or native mic bridging as unavailable unless a future Codex client exposes those bridges directly. That prevents Canvax from pretending it can call ChatGPT image generation or the Codex microphone from a localhost page.
 
-`Free canvas` is a large spatial scratchpad preset. It is useful for laying out references, rough sections, and alternate directions on one surface. It is not yet a true infinite canvas with persistent spatial objects, branches, and pan/zoom project memory.
+`Map` opens the frame graph as a designer-facing spatial workbench inside Workbench. Use it to arrange frames, variants, generated directions, and connected sections without switching to Advanced. The map has its own zoom controls and its positions are exported as `spatialWorkspace` so Codex can read project layout, branches, and screen relationships.
+
+`Free canvas` is still a large single-frame scratchpad preset. `Map` is the first persistent spatial project layer. It is not yet a full infinite canvas for arbitrary files/images/code cards, but it now gives Canvax a zoomable spatial memory for frames and variant branches.
 
 Switch to `Advanced` when you need multi-frame work, flow links, captures, output manifests, or generation/debugging controls. Advanced uses the same Canvax dark workspace language as Workbench, but it intentionally keeps the denser timeline/stage/inspector layout because it is the technical handoff deck. The mode description and deck labels clarify whether you are editing the frame workspace, mapping flow, or inspecting handoff details.
 
@@ -275,6 +277,15 @@ Important files:
 - `exports/canvax-preview-manifest.json`
 - `artifacts/canvax/codex-output.json`
 - `artifacts/canvax/checkpoints/`
+
+The live JSON also includes `spatialWorkspace`, which records:
+
+- map zoom
+- frame/variant card positions
+- card sizes
+- entry frame
+- active frame
+- spatial links between frames
 
 ## Task And Image Prompt Packs
 

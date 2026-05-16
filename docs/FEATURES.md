@@ -171,7 +171,8 @@ Behavior:
 - exposes `Make real` for the local generated-screen pass
 - exposes `Image pack` for a no-API image-generation handoff with coordinates and an HTML/CSS scaffold
 - shows the connected generated output inside the Workbench tray when one exists
-- provides `Sketch`, `Split`, and `Output` focus modes so the user can either draw on the sketch, inspect sketch and output together, or make generated output the primary correction surface
+- provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
+- exposes the Flow graph as a Workbench `Map` with pan/scroll, zoom controls, draggable frame/variant cards, and link handles
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
@@ -195,7 +196,7 @@ Workbench
 Boundary:
 
 - Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
-- `Free canvas` is a large board preset, not a finished infinite canvas.
+- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, but it is not yet a finished infinite canvas for arbitrary file/image/code objects.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.
 - The host capability chip is explicit about what Canvax can do locally today: Codex workspace/browser handoff is available, direct host image generation and native Codex microphone access require a future first-party bridge.

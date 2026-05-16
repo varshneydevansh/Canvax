@@ -48,7 +48,7 @@ Current completed baseline:
 - Generated output can appear beside the sketch as a compact correction/status card.
 - Correction marks over generated output are saved into frame handoff data.
 - Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product.
-- Workbench now has `Sketch`, `Split`, and `Output` focus modes so generated surfaces can become a large correction target instead of staying trapped in the compact tray card.
+- Workbench now has `Sketch`, `Split`, `Output`, and `Map` focus modes so generated surfaces can become a large correction target and the frame/variant graph can become a spatial project canvas instead of staying trapped in Advanced Flow view.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
@@ -63,12 +63,12 @@ Current completed baseline:
 - `canvax-asset-candidates-latest.*` is exported as a prompt-ready image/asset candidate format with source frame, bounds, prompts, and output slots.
 - Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
 - Static Canvax assets are served with no-store headers to prevent stale browser UI after local service updates.
-- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, opt-in materialized review aids, flow links, task/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
+- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, Workbench spatial map rendering/export, opt-in materialized review aids, flow links, task/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Still open:
 
 - final generated image candidate import and placement
-- true infinite spatial canvas
+- true infinite spatial canvas beyond the initial Workbench Map frame/variant layer
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
 - native Codex microphone/image-generation host bridge
 
@@ -409,17 +409,18 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
-- **Status**: Open. `Free canvas` exists as a large viewport preset, not a true pan/zoom infinite workspace.
+- **Status**: Initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph as a zoomable spatial project map and exports it as `spatialWorkspace`. This is not yet a true arbitrary-object infinite canvas.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10
 - **Dependencies**: Sprint 2
 - **Acceptance Criteria**:
-  - Trackpad pan/zoom feels stable on macOS.
-  - Cards can be moved without breaking frame snapshots.
-  - Workbench state exports spatial positions.
+  - Trackpad pan/zoom feels stable on macOS. **Open for native trackpad infinite-canvas gestures; button zoom shipped.**
+  - Cards can be moved without breaking frame snapshots. **Done for frame/variant cards through shared Flow positions.**
+  - Workbench state exports spatial positions. **Done through `spatialWorkspace`.**
 - **Validation**:
   - Large-session browser regression with many cards.
+  - Board self-test verifies Workbench Map renders, zooms, and exports.
 
 ### Task 5.2: Add Variants Lane
 

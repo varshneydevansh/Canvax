@@ -285,6 +285,63 @@ body[data-workspace-mode="simple"][data-workbench-focus="output"]
     min-height: min(84vh, 68rem);
 }
 
+body[data-workspace-mode="simple"][data-workbench-focus="map"] .stage-panel {
+    min-height: min(86vh, 72rem);
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="map"] .flow-shell {
+    min-height: min(78vh, 64rem);
+    border-color: rgba(255, 248, 236, 0.14);
+    background:
+        radial-gradient(
+            circle at 12% 12%,
+            rgba(255, 93, 58, 0.18),
+            transparent 26%
+        ),
+        radial-gradient(
+            circle at 82% 20%,
+            rgba(35, 100, 170, 0.16),
+            transparent 28%
+        ),
+        radial-gradient(
+            circle at 70% 86%,
+            rgba(12, 141, 123, 0.14),
+            transparent 30%
+        ),
+        #171412;
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="map"] .flow-surface {
+    background-image:
+        radial-gradient(rgba(255, 248, 236, 0.2) 1px, transparent 1px),
+        radial-gradient(rgba(255, 248, 236, 0.1) 1px, transparent 1px);
+    background-position:
+        0 0,
+        13px 13px;
+    background-size:
+        26px 26px,
+        26px 26px;
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="map"] .flow-toolbar {
+    color: #fff8ec;
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="map"]
+    .flow-toolbar
+    .helper-text {
+    color: rgba(255, 248, 236, 0.72);
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="map"]
+    .flow-card-node {
+    border-color: rgba(255, 248, 236, 0.2);
+    background: rgba(255, 251, 245, 0.96);
+    box-shadow:
+        0 0.65rem 1.4rem rgba(0, 0, 0, 0.24),
+        0 2.6rem 4.5rem rgba(0, 0, 0, 0.28);
+}
+
 body[data-workspace-mode="simple"] .device-shell::before {
     content: "workbench: sketch + voice + generated output";
 }
@@ -1889,7 +1946,22 @@ input.color-hex-input[data-invalid="true"] {
     border: 0.0625rem solid rgba(24, 17, 14, 0.08);
 }
 
+.flow-zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem;
+    border-radius: 999px;
+    background: rgba(255, 249, 241, 0.8);
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+}
+
 .zoom-controls button {
+    min-height: 2.3rem;
+    min-width: 2.3rem;
+}
+
+.flow-zoom-controls button {
     min-height: 2.3rem;
     min-width: 2.3rem;
 }
@@ -2134,6 +2206,7 @@ select,
 .flow-board {
     position: absolute;
     inset: 0;
+    transform-origin: top left;
 }
 
 .flow-svg {

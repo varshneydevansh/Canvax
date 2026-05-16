@@ -56,6 +56,11 @@ const workbenchFocusModes = [
     label: "Output",
     description: "Make the generated surface primary for corrections.",
   },
+  {
+    id: "map",
+    label: "Map",
+    description: "Arrange frames, variants, and generated directions spatially.",
+  },
 ];
 
 const actionModes = [
@@ -246,6 +251,10 @@ const dom = {
   flowSurface: document.querySelector("#flow-surface"),
   flowSvg: document.querySelector("#flow-svg"),
   flowBoard: document.querySelector("#flow-board"),
+  flowZoomOut: document.querySelector("#flow-zoom-out"),
+  flowZoomIn: document.querySelector("#flow-zoom-in"),
+  flowZoomReset: document.querySelector("#flow-zoom-reset"),
+  flowZoomValue: document.querySelector("#flow-zoom-value"),
   setEntryFrame: document.querySelector("#set-entry-frame"),
   autoLayoutFlow: document.querySelector("#auto-layout-flow"),
   backgroundUpload: document.querySelector("#background-upload"),
@@ -497,6 +506,9 @@ function bindEvents() {
   dom.zoomOut.addEventListener("click", () => updateZoom(-0.1));
   dom.zoomIn.addEventListener("click", () => updateZoom(0.1));
   dom.zoomReset.addEventListener("click", () => setZoom(1));
+  dom.flowZoomOut.addEventListener("click", () => updateFlowZoom(-0.1));
+  dom.flowZoomIn.addEventListener("click", () => updateFlowZoom(0.1));
+  dom.flowZoomReset.addEventListener("click", () => setFlowZoom(1));
   dom.openPreview.addEventListener("click", openPreviewWindow);
   dom.generateScreen.addEventListener("click", () => {
     void generateCurrentScreen();
@@ -860,10 +872,6 @@ function normalizeColor(input, fallback = palette[0]) {
 }
 
 function createDefaultGenerationConfig() {
-  const taskPack = buildTaskPack(selectedFrames, rewriteQueue);
-  const imagePromptPack = buildImagePromptPack(selectedFrames);
-  const assetCandidatePack = buildAssetCandidatePack(imagePromptPack);
-
   return {
     direction: "product",
     style: "studio",
@@ -969,6 +977,9 @@ function hydrateState() {
       zoom: Number.isFinite(migrated.zoom)
         ? Math.max(0.5, Math.min(3, migrated.zoom))
         : empty.zoom,
+      flowZoom: Number.isFinite(migrated.flowZoom)
+        ? Math.max(0.35, Math.min(2.25, migrated.flowZoom))
+        : empty.flowZoom,
       viewMode: viewModes.some((mode) => mode.id === migrated.viewMode)
         ? migrated.viewMode
         : empty.viewMode,
@@ -1283,6 +1294,7 @@ function createInitialState() {
     grid: true,
     autoSnap: true,
     zoom: 1,
+    flowZoom: 1,
     viewMode: "frame",
     workspaceMode: "simple",
     workbenchFocus: "sketch",
@@ -1716,7 +1728,9 @@ function renderWorkspaceMode() {
     ? state.workspaceMode
     : "simple";
   state.workspaceMode = mode;
-  if (mode === "simple" && state.viewMode !== "frame") {
+  if (mode === "simple" && state.workbenchFocus === "map") {
+    state.viewMode = "flow";
+  } else if (mode === "simple" && state.viewMode !== "frame") {
     state.viewMode = "frame";
   }
   if (mode === "simple" && state.voice.scope !== "frame") {
@@ -1913,7 +1927,7 @@ function setWorkspaceMode(mode) {
   cancelLabelEditor();
   state.workspaceMode = nextMode;
   if (nextMode === "simple") {
-    state.viewMode = "frame";
+    state.viewMode = state.workbenchFocus === "map" ? "flow" : "frame";
     state.voice.scope = "frame";
     if (!["pen", "rect", "arrow", "erase"].includes(state.tool)) {
       state.tool = "pen";
@@ -1933,11 +1947,12 @@ function setWorkbenchFocus(focusMode) {
     ? focusMode
     : "sketch";
   state.workbenchFocus = nextFocus;
-  state.viewMode = "frame";
+  state.viewMode = nextFocus === "map" ? "flow" : "frame";
   persistState();
   renderWorkspaceMode();
   renderViewMode();
   renderCanvas();
+  renderFlowBoard();
   renderWorkbenchOutput();
   renderStatus(
     workbenchFocusModes.find((mode) => mode.id === nextFocus)?.description ||
@@ -2466,6 +2481,9 @@ function renderZoom() {
   dom.zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
   dom.zoomOut.disabled = state.zoom <= 0.5;
   dom.zoomIn.disabled = state.zoom >= 3;
+  dom.flowZoomValue.textContent = `${Math.round(state.flowZoom * 100)}%`;
+  dom.flowZoomOut.disabled = state.flowZoom <= 0.35;
+  dom.flowZoomIn.disabled = state.flowZoom >= 2.25;
 }
 
 function setZoom(nextZoom) {
@@ -2477,6 +2495,20 @@ function setZoom(nextZoom) {
 
 function updateZoom(delta) {
   setZoom(state.zoom + delta);
+}
+
+function setFlowZoom(nextZoom) {
+  state.flowZoom = Math.max(
+    0.35,
+    Math.min(2.25, Number(nextZoom.toFixed(2))),
+  );
+  persistState();
+  renderZoom();
+  renderFlowBoard();
+}
+
+function updateFlowZoom(delta) {
+  setFlowZoom(state.flowZoom + delta);
 }
 
 function renderSelectionActions() {
@@ -3599,10 +3631,16 @@ async function maybeCheckpointOutputUpdate(previousDigest, nextDigest) {
 
 function renderFlowBoard() {
   const layout = computeFlowSurfaceSize();
-  dom.flowSurface.style.width = `${layout.width}px`;
-  dom.flowSurface.style.height = `${layout.height}px`;
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
+  dom.flowSurface.style.width = `${Math.round(layout.width * zoom)}px`;
+  dom.flowSurface.style.height = `${Math.round(layout.height * zoom)}px`;
+  dom.flowSurface.style.setProperty("--flow-zoom", String(zoom));
   dom.flowBoard.style.width = `${layout.width}px`;
   dom.flowBoard.style.height = `${layout.height}px`;
+  dom.flowBoard.style.transform = `scale(${zoom})`;
+  dom.flowBoard.style.transformOrigin = "top left";
+  dom.flowSvg.style.transform = `scale(${zoom})`;
+  dom.flowSvg.style.transformOrigin = "top left";
   dom.flowSvg.setAttribute("viewBox", `0 0 ${layout.width} ${layout.height}`);
   dom.flowSvg.setAttribute("width", String(layout.width));
   dom.flowSvg.setAttribute("height", String(layout.height));
@@ -3660,9 +3698,13 @@ function renderFlowBoard() {
     .join("");
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
+  const defaultStatus =
+    state.workspaceMode === "simple"
+      ? "Spatial map: arrange frames, variants, generated directions, and branches. Drag cards, zoom the map, or pull from + to connect screens."
+      : "Drag cards to arrange screens. Pull from the dot on a frame to connect screens like a lightweight prototype map.";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
-    : "Drag cards to arrange screens. Pull from the dot on a frame to connect screens like a lightweight prototype map.";
+    : defaultStatus;
 }
 
 function renderFlowInspector() {
@@ -3765,8 +3807,8 @@ function renderBrushPreview() {
   );
 }
 
-function computeFlowSurfaceSize() {
-  const bounds = state.frames.reduce(
+function computeFlowSurfaceSize(frames = state.frames) {
+  const bounds = frames.reduce(
     (accumulator, frame) => {
       return {
         width: Math.max(
@@ -5449,8 +5491,8 @@ function onWindowPointerMove(event) {
   }
 
   frame.flowPosition = {
-    x: Math.max(32, state.flowDrag.originX + deltaX),
-    y: Math.max(32, state.flowDrag.originY + deltaY),
+    x: Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom),
+    y: Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom),
   };
   renderFlowBoard();
 }
@@ -5624,9 +5666,10 @@ function shouldIgnoreDeleteShortcut(target) {
 
 function pointFromFlowEvent(event) {
   const rect = dom.flowSurface.getBoundingClientRect();
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
   return {
-    x: event.clientX - rect.left + dom.flowShell.scrollLeft,
-    y: event.clientY - rect.top + dom.flowShell.scrollTop,
+    x: (event.clientX - rect.left + dom.flowShell.scrollLeft) / zoom,
+    y: (event.clientY - rect.top + dom.flowShell.scrollTop) / zoom,
   };
 }
 
@@ -6927,6 +6970,12 @@ function buildPromptMarkdown() {
   lines.push("");
   lines.push("## Flow graph");
   lines.push(`- Entry frame: ${frameTitleById(state.entryFrameId)}`);
+  lines.push(
+    `- Spatial map zoom: ${Math.round((state.flowZoom || 1) * 100)}%`,
+  );
+  lines.push(
+    `- Spatial positions: ${state.frames.map((frame) => `${frame.title} at ${Math.round(frame.flowPosition.x)},${Math.round(frame.flowPosition.y)}`).join("; ")}`,
+  );
   if (state.connections.length) {
     state.connections.forEach((connection) => {
       const noteSuffix = connection.notes ? ` (${connection.notes})` : "";
@@ -7120,6 +7169,11 @@ async function buildExportPackage(frameSelection = state.frames) {
     });
   }
 
+  const taskPack = buildTaskPack(selectedFrames, rewriteQueue);
+  const imagePromptPack = buildImagePromptPack(selectedFrames);
+  const assetCandidatePack = buildAssetCandidatePack(imagePromptPack);
+  const spatialWorkspace = buildSpatialWorkspaceExport();
+
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     storageVersion: STORAGE_VERSION,
@@ -7129,6 +7183,7 @@ async function buildExportPackage(frameSelection = state.frames) {
     board: state.board,
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
+    spatialWorkspace,
     connections: state.connections.map((connection) => ({
       ...connection,
       fromTitle: frameTitleById(connection.fromFrameId),
@@ -7141,6 +7196,52 @@ async function buildExportPackage(frameSelection = state.frames) {
     taskPack,
     imagePromptPack,
     assetCandidatePack,
+  };
+}
+
+function buildSpatialWorkspaceExport(frameSelection = state.frames) {
+  const frameIds = new Set(frameSelection.map((frame) => frame.id));
+  const bounds = computeFlowSurfaceSize(frameSelection);
+  return {
+    kind: "canvax-spatial-workspace",
+    coordinateSystem:
+      "Unbounded project map coordinates in CSS pixels. Frame cards can be panned, zoomed, dragged, linked, and treated as spatial design objects.",
+    zoom: Number.isFinite(state.flowZoom) ? state.flowZoom : 1,
+    surface: bounds,
+    activeFrameId: state.activeFrameId,
+    entryFrameId: state.entryFrameId,
+    cards: frameSelection.map((frame, index) => {
+      const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+      const status = describeFrameOutputStatus(frame, {
+        includeGlobal: frame.id === state.activeFrameId,
+      });
+      return {
+        id: frame.id,
+        index: index + 1,
+        title: frame.title,
+        type: frame.variant?.label ? "variant-frame" : "frame",
+        viewport: frame.viewport,
+        viewportLabel: viewport.label,
+        position: structuredClone(frame.flowPosition),
+        size: {
+          width: FLOW_CARD_WIDTH,
+          height: FLOW_CARD_HEIGHT,
+        },
+        variant: frame.variant || null,
+        outputStatus: status?.label || "No output",
+        linkedCount: countFrameConnections(frame.id),
+      };
+    }),
+    links: state.connections
+      .filter(
+        (connection) =>
+          frameIds.has(connection.fromFrameId) && frameIds.has(connection.toFrameId),
+      )
+      .map((connection) => ({
+        ...structuredClone(connection),
+        fromTitle: frameTitleById(connection.fromFrameId),
+        toTitle: frameTitleById(connection.toFrameId),
+      })),
   };
 }
 
@@ -8770,6 +8871,7 @@ function buildLivePreviewPayload() {
       activeFrameId: state.activeFrameId,
       entryFrameId: state.entryFrameId,
       rewriteQueue,
+      spatialWorkspace: buildSpatialWorkspaceExport(),
       voice: buildVoiceExport(),
       connections: state.connections.map((connection) => ({
         ...structuredClone(connection),
@@ -8835,6 +8937,7 @@ function buildPersistedSnapshot(source) {
     grid: source.grid,
     autoSnap: source.autoSnap,
     zoom: source.zoom,
+    flowZoom: source.flowZoom,
     saveNotice: source.saveNotice,
     statusText: source.statusText,
   };
@@ -9754,6 +9857,7 @@ async function runSelfTest() {
     results.push(assertEraserPreservesPaperLayer());
     results.push(assertEraserRemovesInk());
     results.push(assertWorkbenchRailSizeControls());
+    results.push(assertWorkbenchSpatialMap());
 
     const beforeUndo = currentFrame().elements.length;
     undoFrame();
@@ -10195,6 +10299,7 @@ function restoreStateAfterSelfTest(snapshot, runtime) {
   state.grid = snapshot.grid;
   state.autoSnap = snapshot.autoSnap;
   state.zoom = snapshot.zoom;
+  state.flowZoom = Number.isFinite(snapshot.flowZoom) ? snapshot.flowZoom : 1;
   state.saveNotice = snapshot.saveNotice;
   state.statusText = snapshot.statusText;
   state.serverStatus = structuredClone(runtime.serverStatus);
@@ -10396,6 +10501,48 @@ function assertWorkbenchRailSizeControls() {
   return assert(
     increased && restored && selectedIncreased && globalUnchanged,
     "Workbench rail size controls update brush or selected element",
+  );
+}
+
+function assertWorkbenchSpatialMap() {
+  const previous = {
+    workspaceMode: state.workspaceMode,
+    workbenchFocus: state.workbenchFocus,
+    viewMode: state.viewMode,
+    flowZoom: state.flowZoom,
+    tool: state.tool,
+  };
+
+  setWorkspaceMode("simple");
+  setWorkbenchFocus("map");
+  const mapVisible =
+    document.body.dataset.workbenchFocus === "map" &&
+    state.viewMode === "flow" &&
+    dom.frameWorkspace.hidden &&
+    !dom.flowWorkspace.hidden;
+
+  const zoomBefore = state.flowZoom;
+  updateFlowZoom(-0.1);
+  const zoomChanged =
+    state.flowZoom === Math.max(0.35, Number((zoomBefore - 0.1).toFixed(2))) &&
+    dom.flowZoomValue.textContent === `${Math.round(state.flowZoom * 100)}%`;
+  const spatialExport = buildSpatialWorkspaceExport();
+  const exportValid =
+    spatialExport.kind === "canvax-spatial-workspace" &&
+    spatialExport.cards.length === state.frames.length &&
+    spatialExport.zoom === state.flowZoom;
+
+  state.workspaceMode = previous.workspaceMode;
+  state.workbenchFocus = previous.workbenchFocus;
+  state.viewMode = previous.viewMode;
+  state.flowZoom = previous.flowZoom;
+  state.tool = previous.tool;
+  persistState();
+  renderAll();
+
+  return assert(
+    mapVisible && zoomChanged && exportValid,
+    "Workbench spatial map renders and exports",
   );
 }
 

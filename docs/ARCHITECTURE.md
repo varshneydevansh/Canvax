@@ -67,6 +67,7 @@ web/index.html + web/styles.css + web/app.js
     |
     +--> tools and drawing
     +--> frame and flow state
+    +--> Workbench spatial map state
     +--> voice notes
     +--> live export payloads
     +--> task/image prompt packs
@@ -186,6 +187,7 @@ Purpose:
 
 - give Codex a stable, path-based handoff surface
 - preserve collaboration moments outside volatile browser memory
+- include `spatialWorkspace` so Codex can read frame/variant map positions, active/entry frames, and links as project memory
 
 ### 3. Output binding transport
 
@@ -471,6 +473,19 @@ Look in `web/app.js` for:
 - connection creation
 - entry frame handling
 - auto layout logic
+
+### Workbench spatial map
+
+The Workbench `Map` focus uses the same Flow graph data instead of creating a second spatial model.
+
+```text
+frame.flowPosition
+  -> Flow view cards
+  -> Workbench Map cards
+  -> live export spatialWorkspace.cards
+```
+
+The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards or drawing connection drafts, so saved positions remain stable regardless of the current zoom level.
 
 ### Export and persistence
 
