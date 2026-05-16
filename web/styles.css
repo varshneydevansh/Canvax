@@ -2877,6 +2877,60 @@ select,
     white-space: nowrap;
 }
 
+.map-selection-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.5rem 0 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border: 0.0625rem solid rgba(12, 141, 123, 0.22);
+    border-radius: 1rem;
+    background:
+        radial-gradient(
+            circle at top left,
+            rgba(12, 141, 123, 0.12),
+            transparent 44%
+        ),
+        rgba(255, 251, 245, 0.72);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.22);
+}
+
+.map-selection-actions[hidden] {
+    display: none;
+}
+
+.map-selection-meta {
+    display: grid;
+    min-width: 0;
+    gap: 0.12rem;
+}
+
+.map-selection-meta span {
+    color: var(--accent-deep);
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.map-selection-meta strong,
+.map-selection-meta small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.map-selection-meta strong {
+    font-size: 0.95rem;
+}
+
+.map-selection-meta small {
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+}
+
 .flow-card-header {
     display: flex;
     align-items: flex-start;

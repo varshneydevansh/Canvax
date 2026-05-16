@@ -337,6 +337,12 @@ const dom = {
   addSpatialGroup: document.querySelector("#add-spatial-group"),
   clearSpatialGenerated: document.querySelector("#clear-spatial-generated"),
   spatialFileInput: document.querySelector("#spatial-file-input"),
+  mapSelectionActions: document.querySelector("#map-selection-actions"),
+  mapSelectedObjectTitle: document.querySelector("#map-selected-object-title"),
+  mapSelectedObjectDetail: document.querySelector("#map-selected-object-detail"),
+  mapDuplicateObject: document.querySelector("#map-duplicate-object"),
+  mapDeleteObject: document.querySelector("#map-delete-object"),
+  mapClearSelection: document.querySelector("#map-clear-selection"),
   setEntryFrame: document.querySelector("#set-entry-frame"),
   autoLayoutFlow: document.querySelector("#auto-layout-flow"),
   backgroundUpload: document.querySelector("#background-upload"),
@@ -671,6 +677,15 @@ function bindEvents() {
   dom.addSpatialGroup.addEventListener("click", addSpatialGroupObject);
   dom.clearSpatialGenerated.addEventListener("click", () => {
     void clearGeneratedSpatialObjects();
+  });
+  dom.mapDuplicateObject.addEventListener("click", duplicateSelectedSpatialObject);
+  dom.mapDeleteObject.addEventListener("click", () => {
+    if (state.selectedSpatialObjectId) {
+      removeSpatialObject(state.selectedSpatialObjectId);
+    }
+  });
+  dom.mapClearSelection.addEventListener("click", () => {
+    clearSpatialObjectSelection({ render: true });
   });
   dom.spatialFileInput.addEventListener("change", () => {
     const file = dom.spatialFileInput.files?.[0];
@@ -5366,6 +5381,7 @@ function renderFlowBoard() {
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
+  renderMapSelectionActions();
 }
 
 function renderSpatialObjectNode(object) {
@@ -5419,6 +5435,44 @@ function renderSpatialObjectNode(object) {
       </div>
     </article>
   `;
+}
+
+function renderMapSelectionActions() {
+  if (!dom.mapSelectionActions) {
+    return;
+  }
+  const object = state.viewMode === "flow" ? selectedSpatialObject() : null;
+  const hasSelection = Boolean(object);
+  dom.mapSelectionActions.hidden = !hasSelection;
+  dom.mapDuplicateObject.disabled = !hasSelection;
+  dom.mapDeleteObject.disabled = !hasSelection;
+  dom.mapClearSelection.disabled = !hasSelection;
+  if (!object) {
+    dom.mapSelectedObjectTitle.textContent = "No object selected";
+    dom.mapSelectedObjectDetail.textContent = "Click a Map card to edit it.";
+    return;
+  }
+
+  const frameLabel =
+    object.frameIds?.length === 1
+      ? frameTitleById(object.frameIds[0])
+      : object.frameIds?.length
+        ? `${object.frameIds.length} frames`
+        : "Board object";
+  const details = [
+    spatialObjectSourceLabel(object),
+    spatialObjectFooterStatus(object),
+    frameLabel,
+  ];
+  if (object.type === "map-group") {
+    const containedCount = spatialObjectsInsideGroup(object).length;
+    details.push(
+      `${containedCount} contained Map object${containedCount === 1 ? "" : "s"}`,
+    );
+  }
+
+  dom.mapSelectedObjectTitle.textContent = object.title || "Spatial object";
+  dom.mapSelectedObjectDetail.textContent = details.filter(Boolean).join(" • ");
 }
 
 function spatialObjectSourceLabel(object) {
@@ -14069,6 +14123,12 @@ function assertManualSpatialObjectControls() {
         `[data-spatial-object-id='${object.id}'].selected`,
       ),
   );
+  const selectionActionsVisible =
+    Boolean(object) &&
+    !dom.mapSelectionActions.hidden &&
+    dom.mapSelectedObjectTitle.textContent === object.title &&
+    !dom.mapDuplicateObject.disabled &&
+    !dom.mapDeleteObject.disabled;
   const objectXBeforeNudge = objectRecord?.x || 0;
   let nudgePrevented = false;
   onWindowKeyDown({
@@ -14230,6 +14290,7 @@ function assertManualSpatialObjectControls() {
   return assert(
     added &&
       selectedRendered &&
+      selectionActionsVisible &&
       nudged &&
       duplicated &&
       duplicateDeleted &&
@@ -14242,6 +14303,7 @@ function assertManualSpatialObjectControls() {
     JSON.stringify({
       added,
       selectedRendered,
+      selectionActionsVisible,
       nudged,
       duplicated,
       duplicateDeleted,

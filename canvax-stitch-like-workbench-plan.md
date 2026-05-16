@@ -422,7 +422,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
-- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus explicit editable variant branch exports, movable/resizable labeled group regions that move contained frame cards/spatial objects, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports object selection, arrow-key nudging, `Cmd/Ctrl+D` duplication, group duplication with contained Map-object copies, `Delete`/`Backspace` removal, selected-object export, background drag-pan, button zoom, cursor-centered pinch/ctrl-wheel zoom, and export-time group containment. This is not yet a true arbitrary-object infinite canvas with richer nested object editing.
+- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus explicit editable variant branch exports, movable/resizable labeled group regions that move contained frame cards/spatial objects, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports object selection, a visible selected-object action strip, arrow-key nudging, `Cmd/Ctrl+D` duplication, group duplication with contained Map-object copies, `Delete`/`Backspace` removal, selected-object export, background drag-pan, button zoom, cursor-centered pinch/ctrl-wheel zoom, and export-time group containment. This is not yet a true arbitrary-object infinite canvas with richer nested object editing.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10
@@ -433,7 +433,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - Workbench state exports spatial positions. **Done through `spatialWorkspace.cards`, `spatialWorkspace.variantBranches`, `spatialWorkspace.objects`, `spatialWorkspace.selectedObjectId`, and `spatialWorkspace.groups`.**
 - **Validation**:
   - Large-session browser regression with many cards.
-  - Board self-test verifies Workbench Map renders, zooms, selects/nudges/duplicates/deletes Map objects, duplicates group regions with contained Map-object copies, moves group regions with contained cards/objects, and exports frames, group regions, group containment, manual notes, asset candidates, generated targets, artifacts, and changed-file spatial objects.
+  - Board self-test verifies Workbench Map renders, zooms, shows selected-object actions, selects/nudges/duplicates/deletes Map objects, duplicates group regions with contained Map-object copies, moves group regions with contained cards/objects, and exports frames, group regions, group containment, manual notes, asset candidates, generated targets, artifacts, and changed-file spatial objects.
 
 ### Task 5.2: Add Variants Lane
 
