@@ -1393,39 +1393,108 @@ function buildPrototypeHotspotsForFrame(frame) {
 }
 
 function buildPrototypeHotspots({ frame, frames, connections }) {
-  if (!frame || !Array.isArray(connections)) {
+  if (!frame) {
     return [];
   }
 
-  const outgoing = connections.filter(
-    (connection) => connection.fromFrameId === frame.id,
+  const explicitHotspots = buildElementPrototypeHotspots(frame, frames);
+  const explicitTargetIds = new Set(
+    explicitHotspots.map((hotspot) => hotspot.targetFrameId).filter(Boolean),
   );
+  const outgoing = Array.isArray(connections)
+    ? connections.filter(
+        (connection) => connection.fromFrameId === frame.id,
+      )
+    : [];
   if (!outgoing.length) {
-    return [];
+    return explicitHotspots;
   }
 
-  return outgoing.map((connection, index) => {
-    const target = Array.isArray(frames)
-      ? frames.find((candidate) => candidate.id === connection.toFrameId)
-      : null;
-    const column = index % 2;
-    const row = Math.floor(index / 2);
-    const width = 0.25;
-    const height = 0.1;
-    const x = Math.min(0.72, 0.42 + column * 0.28);
-    const y = Math.min(0.86, 0.58 + row * 0.13);
+  const generatedHotspots = outgoing
+    .filter((connection) => !explicitTargetIds.has(connection.toFrameId))
+    .map((connection, index) => {
+      const target = Array.isArray(frames)
+        ? frames.find((candidate) => candidate.id === connection.toFrameId)
+        : null;
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      const width = 0.25;
+      const height = 0.1;
+      const x = Math.min(0.72, 0.42 + column * 0.28);
+      const y = Math.min(0.86, 0.58 + row * 0.13);
 
-    return {
-      id: connection.id || `${frame.id}-${connection.toFrameId}-${index}`,
-      targetFrameId: connection.toFrameId,
-      label: connection.label || "Continue",
-      targetTitle: target?.title || connection.toTitle || connection.toFrameId,
-      x,
-      y,
-      width,
-      height,
-    };
-  });
+      return {
+        id: connection.id || `${frame.id}-${connection.toFrameId}-${index}`,
+        targetFrameId: connection.toFrameId,
+        label: connection.label || "Continue",
+        targetTitle:
+          target?.title || connection.toTitle || connection.toFrameId,
+        x,
+        y,
+        width,
+        height,
+      };
+    });
+  return [...explicitHotspots, ...generatedHotspots];
+}
+
+function buildElementPrototypeHotspots(frame, frames = []) {
+  const elements = Array.isArray(frame?.composition?.elements)
+    ? frame.composition.elements
+    : [];
+  return elements
+    .map((element, index) => {
+      const prototype = normalizeElementPrototype(element.prototype);
+      const bounds = element.bounds || {};
+      if (!prototype?.toFrameId || !Number.isFinite(Number(bounds.w))) {
+        return null;
+      }
+      const target = Array.isArray(frames)
+        ? frames.find((candidate) => candidate.id === prototype.toFrameId)
+        : null;
+      return {
+        id: `element-hotspot-${element.id || index}`,
+        targetFrameId: prototype.toFrameId,
+        label: prototype.label || "Continue",
+        targetTitle: target?.title || prototype.toFrameId,
+        x: clampNumber(bounds.x, 0, 0.96),
+        y: clampNumber(bounds.y, 0, 0.96),
+        width: clampNumber(bounds.w, 0.06, 0.5),
+        height: clampNumber(bounds.h, 0.05, 0.32),
+        sourceElementId: element.id || "",
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeElementPrototype(prototype) {
+  if (
+    !prototype ||
+    typeof prototype !== "object" ||
+    Array.isArray(prototype)
+  ) {
+    return null;
+  }
+  const toFrameId =
+    typeof prototype.toFrameId === "string" ? prototype.toFrameId.trim() : "";
+  if (!toFrameId) {
+    return null;
+  }
+  return {
+    toFrameId,
+    label:
+      typeof prototype.label === "string" && prototype.label.trim()
+        ? prototype.label.trim()
+        : "continue",
+  };
+}
+
+function clampNumber(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, number));
 }
 
 function buildPrototypeHotspotMarkup(hotspots, viewport, scale) {
@@ -1772,6 +1841,30 @@ async function runPreviewSelfTest() {
           syntheticHotspots[0]?.targetFrameId === "frame-next" &&
           syntheticHotspots[0]?.label === "Continue",
         "preview prototype hotspots derive from flow links",
+      ),
+    );
+    const elementHotspots = buildPrototypeHotspots({
+      frame: {
+        id: "frame-preview-selftest",
+        composition: {
+          elements: [
+            {
+              id: "cta-selftest",
+              bounds: { x: 0.12, y: 0.72, w: 0.18, h: 0.08 },
+              prototype: { toFrameId: "frame-next", label: "Tap CTA" },
+            },
+          ],
+        },
+      },
+      frames: [{ id: "frame-next", title: "Next frame" }],
+      connections: [],
+    });
+    results.push(
+      assert(
+        elementHotspots.length === 1 &&
+          elementHotspots[0]?.sourceElementId === "cta-selftest" &&
+          elementHotspots[0]?.label === "Tap CTA",
+        "preview prototype hotspots use selected element regions",
       ),
     );
   } catch (error) {

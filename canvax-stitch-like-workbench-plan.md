@@ -47,10 +47,10 @@ Current completed baseline:
 - Workbench is the default simple mode.
 - Generated output can appear beside the sketch as a compact correction/status card.
 - Correction marks over generated output are saved into frame handoff data.
-- Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product.
+- Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product. The sticky command deck now uses a more opaque surface so scrolled canvas content does not visually bleed through it.
 - Workbench now has `Sketch`, `Split`, `Output`, and `Map` focus modes so generated surfaces can become a large correction target and the frame/variant graph can become a spatial project canvas instead of staying trapped in Advanced Flow view.
 - Workbench `Map` now includes a spatial object layer: labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files become draggable object cards and export through `spatialWorkspace.objects`.
-- Preview now has `Play flow` playback for connected frames, starting from the entry frame and stepping through outgoing transition labels, with generated clickable hotspots over the sketch/output viewport.
+- Preview now has `Play flow` playback for connected frames, starting from the entry frame and stepping through outgoing transition labels, with generated clickable hotspots over the sketch/output viewport. Selected frame elements can also be linked to target frames, turning their actual drawn bounds into persistent Play-mode hotspots.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - Workbench now has a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply so the user can keep sketching without returning to the top tray.
@@ -72,12 +72,12 @@ Current completed baseline:
 - Workbench now shows saved asset candidates as compact cards; each candidate can place an editable image slot on its source frame/region, attach a generated image file back to that slot, preview attached candidates, select the placed image, and accept one as the chosen output while preserving `assetCandidateId`.
 - Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
 - Static Canvax assets are served with no-store headers to prevent stale browser UI after local service updates.
-- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, Workbench spatial map rendering/export for frames, group regions, manual notes, asset candidates, generated targets, artifacts, and changed files, opt-in materialized review aids, flow links, task/rewrite/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
+- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, Workbench spatial map rendering/export for frames, group regions, manual notes, asset candidates, generated targets, artifacts, and changed files, opt-in materialized review aids, flow links, selected-element prototype hotspots, task/rewrite/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Still open:
 
 - automatic host image generation remains open. Multi-candidate review now has local attached-image thumbnails, select, and accept state in the candidate tray.
-- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially nested groups and richer object editing
+- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially nested groups and richer object editing. Generated output objects are now deduped to reduce stale materialized clutter, but full history lanes remain open.
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API smoke path immediately for manifest binding; Codex still has to execute the real implementation pass for production route/component files.
 - deterministic `execute-build-request` smoke path is shipped and reachable from the board for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
 - deterministic `execute-rewrite-request` smoke path and Preview `Rewrite handoff` lane are shipped for turning the latest rewrite request into a refreshed frame-bound local HTML artifact; a continuous autonomous Codex rewrite loop remains the real target.

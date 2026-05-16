@@ -1471,9 +1471,31 @@
                             placeholder="Anything special about this transition or branch?"
                         ></textarea>
                     </label>
+                    <label>
+                        Selected element hotspot
+                        <select
+                            id="element-prototype-target"
+                            title="Turn the selected drawn element into a clickable prototype region"
+                        ></select>
+                    </label>
+                    <label>
+                        Hotspot label
+                        <input
+                            id="element-prototype-label"
+                            type="text"
+                            placeholder="tap CTA, open details, next..."
+                        />
+                    </label>
                     <div class="button-row">
                         <button id="delete-connection" class="ghost-button">
                             Delete selected link
+                        </button>
+                        <button
+                            id="clear-element-prototype"
+                            class="ghost-button"
+                            type="button"
+                        >
+                            Clear element hotspot
                         </button>
                     </div>
                     <div id="flow-list" class="flow-list"></div>

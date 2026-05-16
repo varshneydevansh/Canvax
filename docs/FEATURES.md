@@ -531,12 +531,13 @@ Behavior:
 - `Output` focuses on the generated or connected implementation side
 - `Play flow` starts from the entry frame and lets connected frames be clicked through as a lightweight storyboard prototype
 - In Play mode, outgoing Flow links become clickable hotspot overlays on both the sketch preview and connected output viewport
+- In Frame view, select a drawn element and assign a target frame in the Prototype flow inspector to make that exact element bounds a persistent clickable hotspot in Preview Play.
 
 ```text
 Split  = sketch + output
 Sketch = sketch only
 Output = implementation only
-Play   = clickable storyboard hotspots from Flow links
+Play   = clickable storyboard hotspots from Flow links and selected elements
 ```
 
 ### Connected Output

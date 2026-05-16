@@ -136,9 +136,9 @@ Canvax today
 - The rail and slider size controls now resize selected elements in Select mode and only act globally when no element is selected.
 - The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it is a compact command strip focused on brief, surface/action context, voice, and generated output.
 - The generated output card remains a compact thumbnail/status/correction target, and Workbench adds a larger output stage through `Split` and `Output` focus modes for comfortable inspection and correction marks.
-- Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench. The mode switch and deck labels make it read as a technical inspector layer for the same workbench rather than a different app.
+- Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench. The mode switch and deck labels make it read as a technical inspector layer for the same workbench rather than a different app, and its sticky command deck is now more opaque so scroll content does not blur through the controls.
 - Workbench now supports `Sketch`, `Split`, `Output`, and `Map` focus modes. The compact output card remains a status/quick-correction target, the large output stage can become the primary correction surface, and Map exposes the frame/variant graph as a zoomable spatial workbench without opening Advanced.
-- Live exports now include a `spatialWorkspace` object with map zoom, card positions, entry/active frame ids, links, manual note/reference objects, asset candidate objects, generated preview targets, generated artifacts, and changed-file objects, so Codex can treat frame layout, references, and implementation outputs as project memory rather than just a linear list.
+- Live exports now include a `spatialWorkspace` object with map zoom, card positions, entry/active frame ids, links, manual note/reference objects, asset candidate objects, generated preview targets, generated artifacts, and changed-file objects, so Codex can treat frame layout, references, and implementation outputs as project memory rather than just a linear list. Map rendering now dedupes generated preview/artifact objects so old materialized outputs do not flood the spatial canvas.
 - Variant branches can now be promoted with `Use variant`, which marks the selected branch as primary and makes it the entry frame while preserving lineage.
 - Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
 - Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
@@ -284,12 +284,12 @@ next
 
 ### 4. Prototype Play Mode
 
-Flow links exist, and Preview now has `Play flow` mode that starts from the entry frame, lets the user click outgoing transition labels, and overlays initial clickable hotspots directly on the sketch/output viewport. It is not yet a full component-level prototype authoring system because users cannot draw persistent custom hotspot regions yet.
+Flow links exist, and Preview now has `Play flow` mode that starts from the entry frame, lets the user click outgoing transition labels, and overlays clickable hotspots directly on the sketch/output viewport. Users can also select a drawn element and assign it a target frame, which turns that exact region into a persistent prototype hotspot. It is still not a full prototype authoring system because automatic next-screen suggestions and component-level state mapping are open.
 
 Needed:
 
 - Play button for connected frames. **Initial Preview `Play flow` shipped.**
-- Click targets or hotspot regions on the frame canvas. **Initial generated hotspots from Flow links shipped in Preview Play mode.**
+- Click targets or hotspot regions on the frame canvas. **Initial generated hotspots from Flow links shipped, and selected drawn elements can now become persistent prototype hotspots.**
 - Transition labels that become interactive prototype behavior. **Initial transition labels now drive side-panel steps and viewport hotspot labels.**
 - Automatic next-screen suggestions when a user links or clicks a component.
 - Preview playback that can switch between sketch prototype and generated implementation. **Initial hotspots render on both sketch and connected output surfaces.**
@@ -386,7 +386,7 @@ Needed:
 ### P1: Reach Stitch-Style Core UX
 
 - Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; nested groups and richer object editing are still open.**
-- Prototype Play mode. **Initial Preview frame-link playback shipped.**
+- Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
 - Voice-driven critique/refinement lane.
 - Branchable design explorations with a clear agent/output history.

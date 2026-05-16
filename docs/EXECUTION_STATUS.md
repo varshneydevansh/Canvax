@@ -158,6 +158,9 @@ Status: In progress
 - [x] Board and Preview now surface frame-level output status badges so stale/synced/materialized states are visible while sketching continues
 - [x] Preview includes initial `Play flow` frame-link playback from the entry frame through outgoing transitions
 - [x] Preview Play mode now overlays generated clickable hotspots on sketch/output viewports from outgoing Flow links
+- [x] Selected frame elements can now become persistent prototype hotspots that Preview Play uses as real click regions
+- [x] Workbench/Advanced Map now dedupes generated output/artifact spatial cards so stale materialized targets do not flood the canvas
+- [x] Advanced sticky command deck is more opaque/readable over scroll content
 
 ```text
 Preview today:

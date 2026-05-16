@@ -50,6 +50,7 @@ Canvax now has `Workbench` as the simple path:
 - the user can run the local `Make real` generation pass
 - the user can run `Build code` / `Build with Codex`, which saves a Codex-readable implementation request and now immediately binds a local no-API smoke preview through the output manifest
 - the user can draw correction marks over the connected generated output
+- the user can select drawn elements and assign prototype hotspot targets for Preview Play
 - the user can hide the context tray and keep working from the floating designer rail
 - the user can save an `Image pack` with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
 - `Apply to Codex` freezes the frame and writes a `focus-apply` checkpoint

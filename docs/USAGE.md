@@ -120,7 +120,7 @@ Advanced mode includes `Create DESIGN.md` in the Generate screen section. That w
 
 The host chip is intentionally explicit. Today it reports local Codex Browser / file-handoff capability and marks host image generation or native mic bridging as unavailable unless a future Codex client exposes those bridges directly. That prevents Canvax from pretending it can call ChatGPT image generation or the Codex microphone from a localhost page.
 
-`Map` opens the frame graph as a designer-facing spatial workbench inside Workbench. Use it to arrange frames, variants, generated directions, labeled group regions, manual note cards, reference file/image cards, asset candidate objects, generated preview targets, output artifacts, changed files, and connected sections without switching to Advanced. The map has its own zoom controls and its positions are exported as `spatialWorkspace` so Codex can read project layout, branches, screen relationships, prompt-ready assets, references, and implementation outputs.
+`Map` opens the frame graph as a designer-facing spatial workbench inside Workbench. Use it to arrange frames, variants, generated directions, labeled group regions, manual note cards, reference file/image cards, asset candidate objects, generated preview targets, output artifacts, changed files, and connected sections without switching to Advanced. The map has its own zoom controls and its positions are exported as `spatialWorkspace` so Codex can read project layout, branches, screen relationships, prompt-ready assets, references, and implementation outputs. Generated output cards are deduped to the latest useful frame-bound objects, so repeated materialize/generate passes should not create a wall of stale output cards.
 
 `Free canvas` is still a large single-frame scratchpad preset. `Map` is the first persistent spatial project layer. Drag empty background to pan, use pinch or `Ctrl`/`Cmd` wheel to zoom around the cursor, and use the zoom buttons when you want explicit control. Spatial cards and group regions can be moved and resized. It is not yet a full infinite canvas with nested groups, but it now gives Canvax a spatial memory for frames, variant branches, group regions, manual notes, reference files/images, asset candidates, generated outputs, artifacts, and workspace changes.
 
@@ -160,6 +160,8 @@ Use it to:
 Codex should read both the frame sketches and the flow graph.
 
 Preview also has `Play flow` for these links. It starts from the entry frame and shows outgoing transitions as clickable steps so a connected storyboard can be reviewed without returning to Advanced mode. When Play mode is active, Preview also places generated hotspot buttons over the sketch and connected output viewport so the storyboard can be clicked directly like a lightweight prototype.
+
+For a more precise click target, select a drawn element in Frame view, then use `Selected element hotspot` in the Prototype flow inspector. Choose a target frame and label. Preview Play will use that element's actual bounds as the clickable region instead of placing a generated hotspot automatically.
 
 ```mermaid
 flowchart LR

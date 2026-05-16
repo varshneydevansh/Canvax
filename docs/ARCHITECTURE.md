@@ -510,6 +510,7 @@ preview / Codex output manifest
   -> targets, artifacts, changes
   -> state.spatialObjects
   -> Workbench Map implementation object cards
+  -> deduped latest frame-bound generated output cards
   -> live export spatialWorkspace.objects
 
 manual Map controls
@@ -520,6 +521,8 @@ manual Map controls
 ```
 
 The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards, moving/resizing spatial objects, panning the background, or drawing connection drafts, so saved positions and sizes remain stable regardless of the current zoom level. Pinch / `Ctrl` / `Cmd` wheel zoom is cursor-centered by adjusting the scroll offset after each zoom step.
+
+Selected frame elements can also carry `element.prototype` metadata. That metadata is exported through frame composition, and Preview Play converts the selected element bounds into clickable prototype hotspots.
 
 ### Export and persistence
 

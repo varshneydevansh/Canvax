@@ -393,6 +393,9 @@ const dom = {
   connectionLabel: document.querySelector("#connection-label"),
   connectionNotes: document.querySelector("#connection-notes"),
   deleteConnection: document.querySelector("#delete-connection"),
+  elementPrototypeTarget: document.querySelector("#element-prototype-target"),
+  elementPrototypeLabel: document.querySelector("#element-prototype-label"),
+  clearElementPrototype: document.querySelector("#clear-element-prototype"),
   flowList: document.querySelector("#flow-list"),
   helpOverlay: document.querySelector("#help-overlay"),
   helpClose: document.querySelector("#help-close"),
@@ -871,7 +874,17 @@ function bindEvents() {
   dom.connectionNotes.addEventListener("input", () =>
     updateSelectedConnection("notes", dom.connectionNotes.value),
   );
+  dom.elementPrototypeTarget.addEventListener("change", () => {
+    updateSelectedElementPrototypeTarget(dom.elementPrototypeTarget.value);
+  });
+  dom.elementPrototypeLabel.addEventListener("input", () => {
+    updateSelectedElementPrototypeLabel(dom.elementPrototypeLabel.value);
+  });
   dom.deleteConnection.addEventListener("click", deleteSelectedConnection);
+  dom.clearElementPrototype.addEventListener(
+    "click",
+    clearSelectedElementPrototype,
+  );
   dom.clearCaptures.addEventListener("click", clearCaptures);
   dom.captureList.addEventListener("click", (event) => {
     const removeButton = event.target.closest("[data-remove-capture-id]");
@@ -1708,6 +1721,39 @@ function normalizeFrameElement(element, index = 0) {
           ? element.color.trim()
           : palette[0],
     composite,
+    prototype: normalizeElementPrototype(element.prototype),
+  };
+}
+
+function normalizeElementPrototype(prototype) {
+  if (
+    !prototype ||
+    typeof prototype !== "object" ||
+    Array.isArray(prototype)
+  ) {
+    return null;
+  }
+  const toFrameId =
+    typeof prototype.toFrameId === "string" ? prototype.toFrameId.trim() : "";
+  if (!toFrameId) {
+    return null;
+  }
+  return {
+    toFrameId,
+    label:
+      typeof prototype.label === "string" && prototype.label.trim()
+        ? prototype.label.trim()
+        : "continue",
+    notes:
+      typeof prototype.notes === "string" ? prototype.notes.trim() : "",
+    createdAt:
+      typeof prototype.createdAt === "string" && prototype.createdAt.trim()
+        ? prototype.createdAt.trim()
+        : new Date().toISOString(),
+    updatedAt:
+      typeof prototype.updatedAt === "string" && prototype.updatedAt.trim()
+        ? prototype.updatedAt.trim()
+        : new Date().toISOString(),
   };
 }
 
@@ -1780,6 +1826,7 @@ function setSelectedElements(ids, primaryId = ids.at(-1) || null) {
       ? primaryId
       : uniqueIds.at(-1) || null;
   renderSizeControl();
+  renderElementPrototypeControls();
 }
 
 function clearElementSelection() {
@@ -1787,6 +1834,7 @@ function clearElementSelection() {
   state.selectedElementId = null;
   state.hoverElementId = null;
   renderSizeControl();
+  renderElementPrototypeControls();
 }
 
 function selectionIds() {
@@ -2419,19 +2467,19 @@ function syncSpatialObjectsFromHandoffs() {
   const targets = collectManifestTargets(manifest);
   const artifacts = collectManifestArtifacts(manifest);
   const changes = collectManifestChanges(manifest);
+  const mapTargets = selectSpatialMapTargets(targets);
+  const mapArtifacts = selectSpatialMapArtifacts(artifacts, mapTargets);
+  const mapChanges = changes.slice(0, 6);
   const activeManifestObjectIds = new Set([
-    ...targets
-      .slice(0, 8)
+    ...mapTargets
       .map((target, index) =>
         buildManifestSpatialObjectId("target", target, index),
       ),
-    ...artifacts
-      .slice(0, 10)
+    ...mapArtifacts
       .map((artifact, index) =>
         buildManifestSpatialObjectId("artifact", artifact, index),
       ),
-    ...changes
-      .slice(0, 10)
+    ...mapChanges
       .map((change, index) =>
         buildManifestSpatialObjectId("change", change, index),
       ),
@@ -2468,7 +2516,7 @@ function syncSpatialObjectsFromHandoffs() {
     });
   });
 
-  targets.slice(0, 8).forEach((target, index) => {
+  mapTargets.forEach((target, index) => {
     const id = buildManifestSpatialObjectId("target", target, index);
     const position = defaultSpatialObjectPosition(nextObjects.length);
     upsertSpatialObject(nextObjects, existingIds, {
@@ -2497,7 +2545,7 @@ function syncSpatialObjectsFromHandoffs() {
     });
   });
 
-  artifacts.slice(0, 10).forEach((artifact, index) => {
+  mapArtifacts.forEach((artifact, index) => {
     const id = buildManifestSpatialObjectId("artifact", artifact, index);
     const position = defaultSpatialObjectPosition(nextObjects.length);
     upsertSpatialObject(nextObjects, existingIds, {
@@ -2527,7 +2575,7 @@ function syncSpatialObjectsFromHandoffs() {
     });
   });
 
-  changes.slice(0, 10).forEach((change, index) => {
+  mapChanges.forEach((change, index) => {
     const id = buildManifestSpatialObjectId("change", change, index);
     const position = defaultSpatialObjectPosition(nextObjects.length);
     upsertSpatialObject(nextObjects, existingIds, {
@@ -2573,6 +2621,49 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
     height: existing.height || nextObject.height,
   };
   existingIds.add(nextObject.id);
+}
+
+function selectSpatialMapTargets(targets) {
+  const selected = new Map();
+  [...targets].reverse().forEach((target) => {
+    const frameIds = frameIdsFromManifestItem(target);
+    const key =
+      frameIds[0] ||
+      cleanString(target.label) ||
+      cleanString(target.id) ||
+      cleanString(target.previewPath) ||
+      cleanString(target.resolvedUrl);
+    if (!key || selected.has(key)) {
+      return;
+    }
+    selected.set(key, target);
+  });
+  return [...selected.values()].reverse().slice(0, 6);
+}
+
+function selectSpatialMapArtifacts(artifacts, selectedTargets) {
+  const targetPaths = new Set(
+    selectedTargets
+      .map((target) => cleanString(target.previewPath || target.path))
+      .filter(Boolean),
+  );
+  const selected = new Map();
+  [...artifacts]
+    .reverse()
+    .filter((artifact) => {
+      const path = cleanString(artifact.path || artifact.previewPath);
+      return artifact.kind !== "preview" || !targetPaths.has(path);
+    })
+    .forEach((artifact) => {
+      const frameIds = frameIdsFromManifestItem(artifact);
+      const key =
+        `${frameIds[0] || "global"}::${artifact.kind || "artifact"}::${cleanString(artifact.label) || cleanString(artifact.path)}`;
+      if (!key || selected.has(key)) {
+        return;
+      }
+      selected.set(key, artifact);
+    });
+  return [...selected.values()].reverse().slice(0, 4);
 }
 
 function buildManifestSpatialObjectId(kind, item, index = 0) {
@@ -3438,6 +3529,7 @@ function renderSelectionActions() {
   dom.deleteSelection.disabled = !canEditSelection || selected.length === 0;
   dom.sendBackward.disabled = !canEditSelection || selected.length === 0;
   dom.bringForward.disabled = !canEditSelection || selected.length === 0;
+  renderElementPrototypeControls();
 }
 
 function renderViewMode() {
@@ -4728,6 +4820,7 @@ function renderSpatialObjectNode(object) {
         ? `${object.frameIds.length} frames`
         : "Board object";
   const thumbnail = cleanString(object.meta?.thumbnailDataUrl);
+  const sourceLabel = spatialObjectSourceLabel(object);
   return `
     <article
       class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""}"
@@ -4753,7 +4846,7 @@ function renderSpatialObjectNode(object) {
         aria-hidden="true"
       ></span>
       <div class="spatial-object-header" data-spatial-object-drag="${escapeHtml(object.id)}">
-        <span>${escapeHtml(object.sourceKind || object.type || "object")}</span>
+        <span>${escapeHtml(sourceLabel)}</span>
         <strong>${escapeHtml(compactDisplayText(object.title, 46))}</strong>
       </div>
       ${thumbnail ? `<img class="spatial-object-thumbnail" src="${escapeHtml(thumbnail)}" alt="" />` : ""}
@@ -4764,6 +4857,21 @@ function renderSpatialObjectNode(object) {
       </div>
     </article>
   `;
+}
+
+function spatialObjectSourceLabel(object) {
+  switch (object?.sourceKind) {
+    case "generated-target":
+      return "generated output";
+    case "generated-artifact":
+      return "artifact";
+    case "workspace-change":
+      return "changed file";
+    case "asset-candidate":
+      return "image candidate";
+    default:
+      return object?.sourceKind || object?.type || "object";
+  }
 }
 
 function renderFlowInspector() {
@@ -4817,6 +4925,48 @@ function renderFlowInspector() {
         })
         .join("")
     : `<p class="helper-text">No links yet. Switch to Flow view, then pull from the dot on a card to connect frames.</p>`;
+  renderElementPrototypeControls();
+}
+
+function renderElementPrototypeControls() {
+  const frame = currentFrame();
+  const element = currentSelectedElement(frame);
+  const selectableFrames = state.frames.filter(
+    (candidate) => candidate.id !== frame.id,
+  );
+  const canEdit =
+    state.viewMode === "frame" &&
+    Boolean(element) &&
+    selectableFrames.length > 0;
+  const prototype = normalizeElementPrototype(element?.prototype);
+  const currentTarget =
+    prototype?.toFrameId &&
+    state.frames.some((item) => item.id === prototype.toFrameId)
+      ? prototype.toFrameId
+      : "";
+
+  if (
+    !dom.elementPrototypeTarget ||
+    !dom.elementPrototypeLabel ||
+    !dom.clearElementPrototype
+  ) {
+    return;
+  }
+
+  dom.elementPrototypeTarget.disabled = !canEdit;
+  dom.elementPrototypeLabel.disabled = !canEdit || !currentTarget;
+  dom.clearElementPrototype.disabled = !element || !prototype;
+  dom.elementPrototypeTarget.innerHTML = [
+    `<option value="">${element ? "No element hotspot" : "Select one element"}</option>`,
+    ...selectableFrames.map((candidate) => {
+      const selected = candidate.id === currentTarget ? "selected" : "";
+      return `<option value="${escapeHtml(candidate.id)}" ${selected}>${escapeHtml(candidate.title || candidate.id)}</option>`;
+    }),
+  ].join("");
+  dom.elementPrototypeLabel.value = prototype?.label || "";
+  dom.elementPrototypeLabel.placeholder = element
+    ? "tap CTA, open details, next..."
+    : "Select an element first";
 }
 
 function renderBrushSizeChip() {
@@ -5149,6 +5299,7 @@ function drawScene(ctx, frame, width, height, scale = 1, draftElement = null) {
   }
 
   drawFrameInkLayer(ctx, frame, width, height, scale, draftElement);
+  drawPrototypeBadges(ctx, frame, scale);
 
   if (state.elementTransform?.mode === "lasso") {
     drawLassoOverlay(ctx, state.elementTransform, scale);
@@ -5367,6 +5518,36 @@ function drawSelectionOverlay(ctx, element, scale = 1, showHandles = true) {
       ctx.stroke();
     });
   }
+  ctx.restore();
+}
+
+function drawPrototypeBadges(ctx, frame, scale = 1) {
+  const linkedElements = (frame.elements || []).filter(
+    (element) => normalizeElementPrototype(element.prototype) && !isEraserElement(element),
+  );
+  if (!linkedElements.length) {
+    return;
+  }
+
+  ctx.save();
+  linkedElements.forEach((element) => {
+    const bounds = getElementBounds(element, frame);
+    const prototype = normalizeElementPrototype(element.prototype);
+    if (!bounds || !prototype) {
+      return;
+    }
+    const label = prototype.label || "link";
+    const x = Math.max(8, bounds.right * scale - 70 * scale);
+    const y = Math.max(8, bounds.top * scale - 18 * scale);
+    const width = Math.max(54, Math.min(120, label.length * 7 + 22)) * scale;
+    const height = 24 * scale;
+    ctx.fillStyle = "rgba(255, 93, 58, 0.94)";
+    roundRect(ctx, x, y, width, height, 999);
+    ctx.fill();
+    ctx.fillStyle = "#fff8f0";
+    ctx.font = `800 ${Math.max(10, 11 * scale)}px "Avenir Next", sans-serif`;
+    ctx.fillText("LINK", x + 10 * scale, y + 16 * scale);
+  });
   ctx.restore();
 }
 
@@ -6983,6 +7164,74 @@ function updateSelectedConnection(field, value) {
   renderSpec();
 }
 
+function updateSelectedElementPrototypeTarget(toFrameId) {
+  const frame = currentFrame();
+  const element = currentSelectedElement(frame);
+  if (!element) {
+    return;
+  }
+
+  const target = state.frames.find((candidate) => candidate.id === toFrameId);
+  if (!target || target.id === frame.id) {
+    delete element.prototype;
+  } else {
+    const existing = normalizeElementPrototype(element.prototype);
+    element.prototype = {
+      toFrameId: target.id,
+      label:
+        existing?.label ||
+        `go to ${target.title || `Frame ${state.frames.indexOf(target) + 1}`}`,
+      notes: existing?.notes || "",
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  frame.updatedAt = new Date().toISOString();
+  persistState();
+  renderElementPrototypeControls();
+  renderCanvas();
+  renderSpec();
+  renderStatus(
+    element.prototype
+      ? `Prototype hotspot linked to ${frameTitleById(element.prototype.toFrameId)}`
+      : "Element prototype hotspot cleared",
+  );
+}
+
+function updateSelectedElementPrototypeLabel(label) {
+  const frame = currentFrame();
+  const element = currentSelectedElement(frame);
+  const prototype = normalizeElementPrototype(element?.prototype);
+  if (!element || !prototype) {
+    return;
+  }
+
+  element.prototype = {
+    ...prototype,
+    label: label.trim() || "continue",
+    updatedAt: new Date().toISOString(),
+  };
+  frame.updatedAt = new Date().toISOString();
+  persistState();
+  renderSpec();
+}
+
+function clearSelectedElementPrototype() {
+  const frame = currentFrame();
+  const element = currentSelectedElement(frame);
+  if (!element?.prototype) {
+    return;
+  }
+  delete element.prototype;
+  frame.updatedAt = new Date().toISOString();
+  persistState();
+  renderElementPrototypeControls();
+  renderCanvas();
+  renderSpec();
+  renderStatus("Element prototype hotspot cleared");
+}
+
 function deleteSelectedConnection() {
   if (!state.selectedConnectionId) {
     return;
@@ -7707,6 +7956,7 @@ function deleteFrame() {
   );
   const deletedFrameId = state.activeFrameId;
   removeConnectionsForFrame(state.activeFrameId);
+  removeElementPrototypeTargetsForFrame(deletedFrameId);
   state.frames = state.frames.filter(
     (frame) => frame.id !== state.activeFrameId,
   );
@@ -7722,6 +7972,17 @@ function deleteFrame() {
   persistState();
   renderAll();
   renderStatus("Frame deleted");
+}
+
+function removeElementPrototypeTargetsForFrame(frameId) {
+  state.frames.forEach((frame) => {
+    frame.elements.forEach((element) => {
+      if (element.prototype?.toFrameId === frameId) {
+        delete element.prototype;
+        frame.updatedAt = new Date().toISOString();
+      }
+    });
+  });
 }
 
 function clearCurrentFrame() {
@@ -8356,6 +8617,17 @@ function buildPromptMarkdown() {
         `- Outgoing links: ${outgoingConnections.map((connection) => `${connection.label || "continue"} -> ${frameTitleById(connection.toFrameId)}`).join("; ")}`,
       );
     }
+    const prototypeLinks = frame.elements
+      .map((element) => ({
+        element,
+        prototype: normalizeElementPrototype(element.prototype),
+      }))
+      .filter((entry) => entry.prototype);
+    if (prototypeLinks.length) {
+      lines.push(
+        `- Element hotspots: ${prototypeLinks.map(({ element, prototype }) => `${element.type || "element"} ${element.id} "${prototype.label}" -> ${frameTitleById(prototype.toFrameId)}`).join("; ")}`,
+      );
+    }
   });
 
   lines.push("");
@@ -8552,6 +8824,7 @@ async function buildExportPackage(frameSelection = state.frames) {
       outputAnnotations: (frame.outputAnnotations || []).map(
         summarizeOutputAnnotation,
       ),
+      composition: buildFrameComposition(frame),
       snapshotDataUrl: renderFrameToDataUrl(frame, {
         maxWidth: 1400,
         mime: "image/jpeg",
@@ -9128,6 +9401,7 @@ function summarizeCompositionElement(element, frame, viewport, index) {
     color: element.color || "",
     strokeSize: element.size || 0,
     assetCandidateId: element.assetCandidateId || "",
+    prototype: normalizeElementPrototype(element.prototype),
     hasEmbeddedImage: element.type === "image" && Boolean(element.imageDataUrl),
     bounds: normalizedBounds,
     placement: describeBounds(normalizedBounds),
@@ -11627,6 +11901,30 @@ async function runSelfTest() {
     results.push(
       assert(state.connections.length === 1, "flow link creation works"),
     );
+    const prototypeSourceFrame = state.frames[0];
+    const prototypeTargetFrame = state.frames[1];
+    const prototypeElement = prototypeSourceFrame.elements.find(
+      (element) => !isEraserElement(element),
+    );
+    state.activeFrameId = prototypeSourceFrame.id;
+    if (prototypeElement) {
+      setSelectedElements([prototypeElement.id], prototypeElement.id);
+      updateSelectedElementPrototypeTarget(prototypeTargetFrame.id);
+      updateSelectedElementPrototypeLabel("Tap self-test");
+    }
+    const prototypeComposition = buildFrameComposition(prototypeSourceFrame);
+    results.push(
+      assert(
+        Boolean(prototypeElement?.prototype?.toFrameId) &&
+          prototypeComposition.elements.some(
+            (element) =>
+              element.id === prototypeElement.id &&
+              element.prototype?.toFrameId === prototypeTargetFrame.id,
+          ),
+        "selected element can become a prototype hotspot",
+      ),
+    );
+    state.activeFrameId = prototypeTargetFrame.id;
     deleteSelectedConnection();
     results.push(
       assert(state.connections.length === 0, "flow link deletion works"),

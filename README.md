@@ -94,6 +94,7 @@ flowchart LR
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Promotes an editable variant branch into the primary direction with `Use variant`, while keeping lineage visible for Codex.
 - Adds Preview `Play flow` so connected frames can be clicked through from the entry frame as a lightweight storyboard prototype, including generated hotspot overlays on sketch and output surfaces.
+- Lets selected drawn elements become persistent prototype hotspots, so a button/image/region you sketch can navigate to a target frame in Preview Play.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
 - Writes a Codex task pack and image prompt pack with normalized coordinates, selected action mode, optional `DESIGN.md` context, plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
@@ -136,6 +137,7 @@ This commit line now includes the following major layers working together:
 - Workbench mode for the low-friction sketch + voice + generated-output loop
 - Preview surface with compare modes and frame-aware output context
 - Preview Play flow for linked frame storyboards
+- selected-element prototype hotspots for precise click regions
 - voice notes and dedicated voice handoff file
 - checkpoints and session event log
 - output manifests, workspace-follow, and output activity feed
