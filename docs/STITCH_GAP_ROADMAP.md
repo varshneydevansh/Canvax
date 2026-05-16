@@ -364,11 +364,12 @@ Current coverage:
 - `npm run check` catches syntax/parser failures.
 - `npm run regression` validates export schema, server payload shape, and the board/Preview browser self-test routes when the local service and Chrome are available.
 - In-browser self-test covers drawing tools, selection, eraser layer behavior, rail sizing, Workbench focus modes, Workbench spatial map rendering/export, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
+- Headless responsive smoke now opens the board and Preview at 1440, 1024, 768, and 430 pixel widths to catch collapsed core panels before manual review.
 
 Needed:
 
 - Large-session tests with many frames, captures, voice notes, and generated artifacts.
-- Visual layout checks for board and Preview at multiple viewport sizes.
+- Visual screenshot review for board and Preview at multiple viewport sizes.
 - Service lifecycle tests for stop/restart/reuse behavior.
 - Stale-port recovery when a listener exists but runtime files disagree.
 

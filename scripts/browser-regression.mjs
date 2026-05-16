@@ -21,6 +21,16 @@ const previewSelfTestTimeoutMs = parsePositiveInteger(
   process.env.CANVAX_PREVIEW_SELFTEST_TIMEOUT_MS,
   30000,
 );
+const responsiveSmokeTimeoutMs = parsePositiveInteger(
+  process.env.CANVAX_RESPONSIVE_SMOKE_TIMEOUT_MS,
+  20000,
+);
+const responsiveSmokeViewports = [
+  { label: "desktop", width: 1440, height: 1024 },
+  { label: "laptop", width: 1024, height: 820 },
+  { label: "tablet", width: 768, height: 900 },
+  { label: "narrow", width: 430, height: 840 },
+];
 
 if (!liveUrl) {
   results.push({
@@ -50,6 +60,11 @@ if (!liveUrl) {
     url: `${liveUrl}/preview.html?selftest=1`,
     resultsId: "preview-selftest-results",
     timeoutMs: previewSelfTestTimeoutMs,
+  });
+  await validateResponsiveSmokeMatrix({
+    chromePath,
+    liveUrl,
+    timeoutMs: responsiveSmokeTimeoutMs,
   });
 }
 
@@ -117,6 +132,157 @@ async function validateBrowserSelfTest({
   }
 }
 
+async function validateResponsiveSmokeMatrix({ chromePath, liveUrl, timeoutMs }) {
+  for (const viewport of responsiveSmokeViewports) {
+    await validateResponsiveSmoke({
+      name: `board responsive smoke passes at ${viewport.label}`,
+      chromePath,
+      url: `${liveUrl}/?responsivecheck=1`,
+      viewport,
+      timeoutMs,
+      expression: buildBoardResponsiveSmokeExpression(),
+    });
+    await validateResponsiveSmoke({
+      name: `preview responsive smoke passes at ${viewport.label}`,
+      chromePath,
+      url: `${liveUrl}/preview.html?responsivecheck=1`,
+      viewport,
+      timeoutMs,
+      expression: buildPreviewResponsiveSmokeExpression(),
+    });
+  }
+}
+
+async function validateResponsiveSmoke({
+  name,
+  chromePath,
+  url,
+  viewport,
+  timeoutMs,
+  expression,
+}) {
+  try {
+    const browser = await launchChromeSession(chromePath, url, { viewport });
+    try {
+      const state = await browser.waitForResponsiveSmoke(expression, timeoutMs);
+      const passed = Boolean(state?.passed);
+      results.push({
+        name,
+        passed,
+        detail: passed
+          ? `${viewport.width}x${viewport.height}`
+          : `${viewport.width}x${viewport.height}: ${
+              state?.failures?.join("; ") || "responsive smoke failed"
+            }`,
+      });
+    } finally {
+      await browser.close();
+    }
+  } catch (error) {
+    if (isRecoverableBrowserSkip(error)) {
+      results.push({
+        name,
+        passed: true,
+        skipped: true,
+        detail:
+          "headless Chrome did not settle on this host; rerun with CANVAX_BROWSER_STRICT=1 to fail hard",
+      });
+      return;
+    }
+    results.push({
+      name,
+      passed: false,
+      detail: error instanceof Error ? error.message : "Unknown browser error",
+    });
+  }
+}
+
+function buildBoardResponsiveSmokeExpression() {
+  return `(() => {
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return {
+        width: box.width,
+        height: box.height,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        visible: box.width > 0 && box.height > 0
+      };
+    };
+    const failures = [];
+    const shell = rect(".shell");
+    const toolbar = rect(".toolbar");
+    const stage = rect(".stage-panel");
+    const canvas = rect("#board-canvas");
+    const mode = document.body?.dataset?.workspaceMode || "";
+    if (document.readyState !== "complete") failures.push("document not complete");
+    if (!["simple", "advanced"].includes(mode)) failures.push("workspace mode not set");
+    if (!shell?.visible) failures.push("shell missing");
+    if (!toolbar?.visible) failures.push("toolbar missing");
+    if (!stage?.visible) failures.push("stage missing");
+    if (!canvas?.visible) failures.push("canvas missing");
+    if (shell && shell.width > window.innerWidth + 16) failures.push("shell wider than viewport");
+    if (toolbar && toolbar.width > window.innerWidth + 16) failures.push("toolbar wider than viewport");
+    if (stage && stage.width < Math.min(300, window.innerWidth * 0.56)) failures.push("stage collapsed");
+    if (canvas && canvas.height < 240) failures.push("canvas too short");
+    return {
+      passed: failures.length === 0,
+      failures,
+      readyState: document.readyState,
+      mode,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  })()`;
+}
+
+function buildPreviewResponsiveSmokeExpression() {
+  return `(() => {
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return {
+        width: box.width,
+        height: box.height,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        visible: box.width > 0 && box.height > 0
+      };
+    };
+    const failures = [];
+    const shell = rect(".preview-shell");
+    const header = rect(".preview-header");
+    const layout = rect(".preview-layout");
+    const compare = rect("#compare-stage");
+    const sketch = rect("#sketch-surface-card");
+    const output = rect("#implementation-surface-card");
+    if (document.readyState !== "complete") failures.push("document not complete");
+    if (!shell?.visible) failures.push("preview shell missing");
+    if (!header?.visible) failures.push("preview header missing");
+    if (!layout?.visible) failures.push("preview layout missing");
+    if (!compare?.visible) failures.push("compare stage missing");
+    if (!sketch?.visible) failures.push("sketch surface missing");
+    if (!output?.visible) failures.push("output surface missing");
+    if (shell && shell.width > window.innerWidth + 16) failures.push("preview shell wider than viewport");
+    if (header && header.width > window.innerWidth + 16) failures.push("preview header wider than viewport");
+    if (compare && compare.width < Math.min(280, window.innerWidth * 0.58)) failures.push("compare stage collapsed");
+    return {
+      passed: failures.length === 0,
+      failures,
+      readyState: document.readyState,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  })()`;
+}
+
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -144,11 +310,19 @@ async function detectChromeBinary() {
 async function launchChromeSession(
   chromePath,
   initialUrl,
-  startupTimeoutMs = 15000,
+  options = {},
 ) {
+  const startupTimeoutMs =
+    typeof options === "number"
+      ? options
+      : parsePositiveInteger(options.startupTimeoutMs, 15000);
+  const viewport = typeof options === "object" ? options.viewport : null;
   const profileDir = await mkdtemp(
     join(tmpdir(), "canvax-browser-regression-"),
   );
+  const viewportArgs = viewport
+    ? [`--window-size=${viewport.width},${viewport.height}`]
+    : [];
   const child = spawn(
     chromePath,
     [
@@ -162,6 +336,7 @@ async function launchChromeSession(
       "--no-first-run",
       "--no-default-browser-check",
       "--remote-debugging-port=0",
+      ...viewportArgs,
       `--user-data-dir=${profileDir}`,
       initialUrl,
     ],
@@ -182,10 +357,21 @@ async function launchChromeSession(
     const cdp = await createCdpSession(targetWsUrl);
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
+    if (viewport) {
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: viewport.width,
+        height: viewport.height,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+    }
 
     return {
       async waitForSelfTest(resultsId, timeoutMs) {
         return waitForSelfTestState(cdp, resultsId, timeoutMs);
+      },
+      async waitForResponsiveSmoke(expression, timeoutMs) {
+        return waitForResponsiveSmokeState(cdp, expression, timeoutMs);
       },
       async close() {
         await cdp.close();
@@ -474,6 +660,35 @@ function createCdpSession(wsUrl) {
       rejectAll(new Error("CDP session closed."));
     });
   });
+}
+
+async function waitForResponsiveSmokeState(cdp, expression, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastState = null;
+  while (Date.now() < deadline) {
+    try {
+      const response = await cdp.send("Runtime.evaluate", {
+        expression,
+        returnByValue: true,
+        awaitPromise: true,
+      });
+      const value = response?.result?.result?.value ?? response?.result?.value;
+      lastState = value || lastState;
+      if (value?.readyState === "complete" && value?.passed) {
+        return value;
+      }
+    } catch {
+      // Retry while the page is still navigating.
+    }
+    await delay(200);
+  }
+  if (lastState) {
+    return lastState;
+  }
+  const detail = lastState
+    ? `Timed out after ${timeoutMs}ms; failures=${lastState.failures?.join("; ") || "none reported"}.`
+    : `Timed out after ${timeoutMs}ms.`;
+  throw new Error(detail);
 }
 
 async function waitForSelfTestState(cdp, resultsId, timeoutMs) {

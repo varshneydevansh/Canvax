@@ -5133,7 +5133,7 @@ function renderFlowBoard() {
   const defaultStatus =
     state.workspaceMode === "simple"
       ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from + to connect screens."
-      : "Drag cards to arrange screens. Generated output cards are prior materialize/build previews; remove stale ones with x. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from the dot on a frame to connect screens.";
+      : "Drag cards to arrange screens. Output preview cards are generated Materialize/Build results, not extra frames; remove stale preview cards with x. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from the dot on a frame to connect screens.";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
@@ -5191,9 +5191,9 @@ function renderSpatialObjectNode(object) {
 function spatialObjectSourceLabel(object) {
   switch (object?.sourceKind) {
     case "generated-target":
-      return "output preview";
+      return "generated preview";
     case "generated-artifact":
-      return "artifact";
+      return "generated file";
     case "workspace-change":
       return "changed file";
     case "checkpoint":
@@ -5210,8 +5210,8 @@ function spatialObjectBodyText(object, frameTitle = "") {
     return object.meta?.summary
       ? object.meta.summary
       : frameTitle && frameTitle !== "Board object"
-        ? `Generated preview connected to ${frameTitle}`
-        : "Generated preview target from materialize/build output";
+        ? `Materialized or Codex-built preview connected to ${frameTitle}`
+        : "Materialized or Codex-built preview target. Remove it if it is stale.";
   }
 
   if (object?.sourceKind === "generated-artifact") {
@@ -5219,7 +5219,7 @@ function spatialObjectBodyText(object, frameTitle = "") {
       object.meta?.description ||
       object.meta?.path ||
       object.subtitle ||
-      "Generated artifact from the Codex output manifest"
+      "Generated file from the Codex output manifest"
     );
   }
 

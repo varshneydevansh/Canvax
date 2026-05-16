@@ -424,19 +424,20 @@ body[data-workspace-mode="advanced"] .panel {
 body[data-workspace-mode="advanced"] .toolbar {
     position: sticky;
     top: 0.75rem;
-    z-index: 5;
+    z-index: 12;
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
         linear-gradient(135deg, rgba(255, 93, 58, 0.14), transparent 28%),
         linear-gradient(225deg, rgba(35, 100, 170, 0.1), transparent 34%),
-        #352723;
+        linear-gradient(180deg, #40302b 0%, #2b2321 100%);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     box-shadow:
         0 1.35rem 3.2rem rgba(0, 0, 0, 0.5),
         inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.16);
     isolation: isolate;
+    overflow: hidden;
 }
 
 body[data-workspace-mode="advanced"] .toolbar::after {
@@ -2725,6 +2726,10 @@ select,
             transparent 42%
         ),
         rgba(255, 248, 239, 0.92);
+}
+
+.spatial-object-node.generated-output .spatial-object-header span {
+    color: #c5371f;
 }
 
 .spatial-object-node.generated-artifact {

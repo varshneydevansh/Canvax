@@ -459,7 +459,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 6.1: Responsive Fit Audit
 
-- **Status**: In progress. Current pass improves Workbench dock/tray layout, button feedback, readable generated-output map cards, and Advanced sticky-deck opacity; broader Preview/device matrix remains open.
+- **Status**: In progress. Current pass improves Workbench dock/tray layout, button feedback, readable generated-output map cards, Advanced sticky-deck opacity, and adds headless responsive smoke checks for board and Preview. Broader visual screenshot review remains open.
 - **Location**: `web/styles.css`, `web/preview.css`
 - **Description**: Fix overlap/clipping across Workbench, Preview, help, rails, artifact cards, and narrow windows.
 - **Complexity**: 5/10
@@ -470,17 +470,18 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - Buttons remain tactile and readable.
   - Advanced sticky controls do not blur canvas content into the inspector header. **Initial opaque-header pass shipped.**
 - **Validation**:
-  - Browser screenshots at 1440, 1024, 768, 430 widths.
+  - Headless responsive smoke at 1440, 1024, 768, 430 widths. **Covered by `scripts/browser-regression.mjs`.**
+  - Browser screenshots at 1440, 1024, 768, 430 widths. **Still manual/open for visual quality review.**
 
 ### Task 6.2: Browser Regression Matrix
 
-- **Status**: Partially shipped through in-browser self-test and regression helpers. Reliable host-level browser automation still needs hardening.
+- **Status**: Partially shipped through in-browser self-test, regression helpers, and responsive smoke matrix. Reliable host-level browser automation still needs hardening for full CI fail-hard mode and longer sessions.
 - **Location**: `scripts/browser-regression.mjs`
 - **Description**: Add deterministic tests for Workbench mode, generated output card, prompt pack export, and host capability states.
 - **Complexity**: 6/10
 - **Dependencies**: Sprint 6.1
 - **Acceptance Criteria**:
-  - Regression catches stale output cards and layout collapse.
+  - Regression catches stale output cards and layout collapse. **Initial coverage shipped through board/Preview self-tests plus responsive smoke checks.**
   - Tests skip cleanly only when no live service exists.
 - **Validation**:
   - `npm run regression`

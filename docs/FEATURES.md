@@ -181,6 +181,7 @@ Behavior:
 - exports group containment from `Map`, so frames and spatial objects carry `groupIds` and `spatialWorkspace.groups` lists member frames/objects for Codex-readable exploration boards
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
 - renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
+- labels generated preview cards as generated previews/files instead of raw manifest target jargon, and the Map help text explains that those cards are prior Materialize/Build outputs rather than extra frames
 - provides `Clear outputs` in `Map` to hide generated preview/artifact/change cards when the exploration board gets cluttered
 - renders recent checkpoints as spatial history cards in `Map`, so collaboration moments sit beside frames, variants, references, and generated outputs
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
@@ -217,6 +218,19 @@ Boundary:
 - The host capability chip is explicit about what Canvax can do locally today: Codex workspace/browser handoff is available, direct host image generation and native Codex microphone access require a future first-party bridge.
 - If `DESIGN.md` exists at the project root, Canvax includes it as design context in task packs and image prompt packs.
 - In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
+
+### Responsive Regression
+
+The browser regression harness validates the board and Preview at the widths designers have been testing manually:
+
+```text
+1440 desktop
+1024 laptop
+ 768 tablet
+ 430 narrow Codex/browser panel
+```
+
+The smoke check is structural, not a replacement for visual taste review. It verifies that the shell, toolbar, canvas/stage, Preview header, and compare surfaces remain visible and do not collapse at those sizes.
 
 ### Advanced
 
