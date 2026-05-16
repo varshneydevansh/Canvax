@@ -255,13 +255,13 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/lasso-selectable/nudgeable/duplicable/deletable spatial objects, selected-set dragging, group duplication with contained Map-object copies, movable/resizable labeled group regions that can move contained frame cards and spatial objects, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/lasso-selectable/nudgeable/duplicable/deletable spatial objects, selected-set dragging and resizing through a combined transform box, group duplication with contained Map-object copies, movable/resizable labeled group regions that can move contained frame cards and spatial objects, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
 
 Needed:
 
 - Zoomable infinite workspace.
 - Pan/zoom controls that feel stable on Mac trackpads. **Initial background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom are shipped; advanced inertial/grouped canvas behavior remains open.**
-- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable/selectable/multi-selectable/lasso-selectable Map objects; selected Map objects expose visible Copy context/Duplicate/Delete/Clear actions, can copy a no-API Markdown handoff, can be dragged as a selected set, nudged, duplicated, deleted, and exported as `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`; duplicating a group region duplicates contained Map objects; group regions move contained frame cards/spatial objects and export containment for Codex.**
+- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable/selectable/multi-selectable/lasso-selectable Map objects; selected Map objects expose visible Copy context/Duplicate/Delete/Clear actions, can copy a no-API Markdown handoff, can be dragged and resized as a selected set, nudged, duplicated, deleted, and exported as `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`; duplicating a group region duplicates contained Map objects; group regions move contained frame cards/spatial objects and export containment for Codex.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
 
@@ -276,12 +276,12 @@ done
   Workbench Map -> zoomable frame/variant project graph exported as spatialWorkspace
   Map Add group -> labeled exploration regions
   Map Add note/Add file -> manual context objects
-  Map object selection -> Shift-click and Shift-drag lasso + no-API context copy + selected-set drag + nudge/duplicate/delete + group-contained object copies + selectedObjectId export
+  Map object selection -> Shift-click and Shift-drag lasso + no-API context copy + selected-set drag/resize + nudge/duplicate/delete + group-contained object copies + selectedObjectId export
   Image pack -> asset candidate spatial objects in Map
   Codex output manifest -> generated target/artifact/change spatial objects in Map
 
 next
-  true infinite canvas -> multi-object resize handles + nested groups + richer object editing + history lanes
+  true infinite canvas -> nested group inspector + richer object editing + history lanes
 ```
 
 ### 4. Prototype Play Mode
@@ -387,7 +387,7 @@ Needed:
 
 ### P1: Reach Stitch-Style Core UX
 
-- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, Shift-drag lasso selection, selected-set dragging, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, and collapse repeated outputs to the latest useful per-frame/per-kind card. Richer nested editing remains open.**
+- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, Shift-drag lasso selection, selected-set dragging/resizing, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, and collapse repeated outputs to the latest useful per-frame/per-kind card. Richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames, expose in-place `Use variant` actions in Map, and export as explicit editable spatial branch records.**
 - Voice-driven critique/refinement lane.

@@ -3298,6 +3298,15 @@ function spatialObjectBounds(object) {
   return makeBounds(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
 }
 
+function selectedSpatialTransformObjects() {
+  return selectedSpatialObjectsForTransform();
+}
+
+function selectedSpatialTransformBounds() {
+  const bounds = selectedSpatialTransformObjects().map(spatialObjectBounds);
+  return bounds.length > 1 ? unionBounds(bounds) : null;
+}
+
 function applySpatialLassoSelection(bounds, options = {}) {
   const { additive = false, baseIds = [] } = options;
   const selectedByLasso = spatialObjectsIntersectingBounds(bounds);
@@ -3309,6 +3318,76 @@ function applySpatialLassoSelection(bounds, options = {}) {
   state.selectedConnectionId = null;
   state.pendingConnectionFromFrameId = null;
   return selectedByLasso;
+}
+
+function resizeSpatialSelectionFromDrag(drag, deltaX, deltaY) {
+  if (!drag?.originBounds || !Array.isArray(drag.objectOrigins)) {
+    return null;
+  }
+  const nextBounds = resizedBoundsFromHandle(
+    drag.originBounds,
+    drag.handle,
+    deltaX,
+    deltaY,
+  );
+  applySpatialSelectionResize(drag.originBounds, nextBounds, drag.objectOrigins);
+  return nextBounds;
+}
+
+function resizedBoundsFromHandle(originBounds, handle, deltaX, deltaY) {
+  const corner = typeof handle === "string" ? handle : "se";
+  const minWidth = Math.max(SPATIAL_OBJECT_MIN_WIDTH, 120);
+  const minHeight = Math.max(SPATIAL_OBJECT_MIN_HEIGHT, 90);
+  let left = originBounds.left;
+  let top = originBounds.top;
+  let right = originBounds.right;
+  let bottom = originBounds.bottom;
+
+  if (corner.includes("e")) {
+    right = Math.max(left + minWidth, originBounds.right + deltaX);
+  }
+  if (corner.includes("s")) {
+    bottom = Math.max(top + minHeight, originBounds.bottom + deltaY);
+  }
+  if (corner.includes("w")) {
+    left = Math.min(right - minWidth, originBounds.left + deltaX);
+  }
+  if (corner.includes("n")) {
+    top = Math.min(bottom - minHeight, originBounds.top + deltaY);
+  }
+
+  return makeBounds(Math.max(32, left), Math.max(32, top), right, bottom);
+}
+
+function applySpatialSelectionResize(originBounds, nextBounds, objectOrigins) {
+  const scaleX = originBounds.width
+    ? nextBounds.width / originBounds.width
+    : 1;
+  const scaleY = originBounds.height
+    ? nextBounds.height / originBounds.height
+    : 1;
+  objectOrigins.forEach((origin) => {
+    const object = spatialObjectById(origin.id);
+    if (!object) {
+      return;
+    }
+    object.x = Math.max(
+      32,
+      nextBounds.left + (origin.x - originBounds.left) * scaleX,
+    );
+    object.y = Math.max(
+      32,
+      nextBounds.top + (origin.y - originBounds.top) * scaleY,
+    );
+    object.width = Math.max(
+      SPATIAL_OBJECT_MIN_WIDTH,
+      origin.width * scaleX,
+    );
+    object.height = Math.max(
+      SPATIAL_OBJECT_MIN_HEIGHT,
+      origin.height * scaleY,
+    );
+  });
 }
 
 function duplicateSelectedSpatialObject() {
@@ -5673,7 +5752,7 @@ function renderFlowBoard() {
   const spatialObjectMarkup = spatialObjects
     .map((object) => renderSpatialObjectNode(object))
     .join("");
-  dom.flowBoard.innerHTML = `${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}${renderFlowLassoMarkup()}`;
+  dom.flowBoard.innerHTML = `${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}${renderSpatialSelectionBoxMarkup()}${renderFlowLassoMarkup()}`;
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
@@ -5715,6 +5794,37 @@ function flowLassoBounds(lasso) {
     Math.max(lasso.startPoint.x, lasso.currentPoint.x),
     Math.max(lasso.startPoint.y, lasso.currentPoint.y),
   );
+}
+
+function renderSpatialSelectionBoxMarkup() {
+  const bounds = selectedSpatialTransformBounds();
+  if (!bounds || state.flowLasso) {
+    return "";
+  }
+  const count = selectedSpatialTransformObjects().length;
+  const handles = ["nw", "ne", "se", "sw"];
+  return `
+    <div
+      class="spatial-selection-box ${state.flowDrag?.kind === "spatial-selection-resize" ? "resizing" : ""}"
+      style="left:${bounds.left}px; top:${bounds.top}px; width:${bounds.width}px; height:${bounds.height}px;"
+      role="group"
+      aria-label="${count} selected Map objects"
+    >
+      <span>${count} selected</span>
+      ${handles
+        .map(
+          (handle) => `
+            <button
+              class="spatial-selection-handle ${handle}"
+              type="button"
+              data-spatial-selection-resize="${handle}"
+              aria-label="Resize ${count} selected Map objects from ${handle}"
+            ></button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderSpatialObjectNode(object) {
@@ -7800,6 +7910,37 @@ function onFlowBoardPointerDown(event) {
     return;
   }
 
+  const selectionResizeHandle = event.target.closest(
+    "[data-spatial-selection-resize]",
+  );
+  if (selectionResizeHandle) {
+    event.preventDefault();
+    event.stopPropagation();
+    const bounds = selectedSpatialTransformBounds();
+    const objects = selectedSpatialTransformObjects();
+    if (!bounds || objects.length < 2) {
+      return;
+    }
+    state.flowDrag = {
+      kind: "spatial-selection-resize",
+      pointerId: event.pointerId,
+      handle: selectionResizeHandle.dataset.spatialSelectionResize,
+      startX: event.clientX,
+      startY: event.clientY,
+      originBounds: bounds,
+      objectOrigins: objects.map((object) => ({
+        id: object.id,
+        x: object.x,
+        y: object.y,
+        width: object.width || SPATIAL_OBJECT_WIDTH,
+        height: object.height || SPATIAL_OBJECT_HEIGHT,
+      })),
+      didMove: false,
+    };
+    renderFlowBoard();
+    return;
+  }
+
   const objectResizeHandle = event.target.closest(
     "[data-spatial-object-resize]",
   );
@@ -8017,6 +8158,12 @@ function onWindowPointerMove(event) {
         );
       }
     });
+  } else if (state.flowDrag.kind === "spatial-selection-resize") {
+    resizeSpatialSelectionFromDrag(
+      state.flowDrag,
+      deltaX / state.flowZoom,
+      deltaY / state.flowZoom,
+    );
   } else if (state.flowDrag.kind === "spatial-object-resize") {
     const object = spatialObjectById(state.flowDrag.objectId);
     if (!object) {
@@ -14577,23 +14724,42 @@ function assertManualSpatialObjectControls() {
     width: SPATIAL_OBJECT_WIDTH * 2 + 44,
     height: SPATIAL_OBJECT_HEIGHT * 1.55,
   });
+  const outsideObject = addSpatialObject({
+    type: "map-note",
+    title: "Self-test outside note",
+    subtitle: "Outside transform target",
+    sourceKind: "manual-note",
+    status: "note",
+    meta: { text: "Outside transform target" },
+  });
   const objectRecord = object ? spatialObjectById(object.id) : null;
   const groupRecord = group ? spatialObjectById(group.id) : null;
-  if (objectRecord && groupRecord) {
+  const outsideRecord = outsideObject
+    ? spatialObjectById(outsideObject.id)
+    : null;
+  if (objectRecord && groupRecord && outsideRecord) {
     groupRecord.x = 360;
     groupRecord.y = 460;
     groupRecord.width = 520;
     groupRecord.height = 320;
     objectRecord.x = 430;
     objectRecord.y = 535;
+    outsideRecord.x = 1040;
+    outsideRecord.y = 560;
+    outsideRecord.width = 220;
+    outsideRecord.height = 150;
     activeFrame.flowPosition = { x: 470, y: 550 };
     renderFlowBoard();
   }
   const added = Boolean(
     object &&
       group &&
+      outsideObject &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${object.id}'] [data-spatial-object-remove]`,
+      ) &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${outsideObject.id}']`,
       ) &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${group.id}'].map-group`,
@@ -14691,7 +14857,7 @@ function assertManualSpatialObjectControls() {
     objectAfterMultiNudge.x === objectXBeforeMultiNudge + 16;
   setSelectedSpatialObjects([]);
   const lassoTargetBounds = unionBounds(
-    [object, group]
+    [object, outsideObject]
       .map((entry) => (entry ? spatialObjectBounds(spatialObjectById(entry.id)) : null))
       .filter(Boolean),
   );
@@ -14714,10 +14880,58 @@ function assertManualSpatialObjectControls() {
   const lassoSelected =
     lassoHits.length >= 2 &&
     currentSelectedSpatialObjectIds().includes(object?.id || "") &&
-    currentSelectedSpatialObjectIds().includes(group?.id || "") &&
+    currentSelectedSpatialObjectIds().includes(outsideObject?.id || "") &&
     Boolean(dom.flowBoard.querySelector(".flow-lasso-overlay"));
   state.flowLasso = null;
   renderFlowBoard();
+  if (object && outsideObject) {
+    selectSpatialObject(object.id, { render: false });
+    selectSpatialObject(outsideObject.id, { render: true, additive: true });
+  }
+  const transformBounds = selectedSpatialTransformBounds();
+  const transformBoxRendered = Boolean(
+    transformBounds && dom.flowBoard.querySelector(".spatial-selection-box"),
+  );
+  const outsideBeforeResize = outsideObject
+    ? structuredClone(spatialObjectById(outsideObject.id))
+    : null;
+  const objectBeforeResize = object
+    ? structuredClone(spatialObjectById(object.id))
+    : null;
+  if (transformBounds) {
+    state.flowDrag = {
+      kind: "spatial-selection-resize",
+      pointerId: 930,
+      handle: "se",
+      startX: 100,
+      startY: 100,
+      originBounds: transformBounds,
+      objectOrigins: selectedSpatialTransformObjects().map((entry) => ({
+        id: entry.id,
+        x: entry.x,
+        y: entry.y,
+        width: entry.width || SPATIAL_OBJECT_WIDTH,
+        height: entry.height || SPATIAL_OBJECT_HEIGHT,
+      })),
+      didMove: false,
+    };
+    onWindowPointerMove({ pointerId: 930, clientX: 180, clientY: 150 });
+    onWindowPointerUp({ pointerId: 930 });
+  }
+  const outsideAfterResize = outsideObject
+    ? spatialObjectById(outsideObject.id)
+    : null;
+  const objectAfterResize = object ? spatialObjectById(object.id) : null;
+  const selectionResized =
+    Boolean(
+      transformBoxRendered &&
+        outsideBeforeResize &&
+        outsideAfterResize &&
+        objectBeforeResize &&
+        objectAfterResize,
+    ) &&
+    outsideAfterResize.width > outsideBeforeResize.width &&
+    objectAfterResize.width > objectBeforeResize.width;
   if (object) {
     selectSpatialObject(object.id, { render: false });
   }
@@ -14824,9 +15038,12 @@ function assertManualSpatialObjectControls() {
   if (group) {
     removeSpatialObject(group.id);
   }
+  if (outsideObject) {
+    removeSpatialObject(outsideObject.id);
+  }
   const removed = object
     ? !state.spatialObjects.some((entry) =>
-        [object.id, group?.id].includes(entry.id),
+        [object.id, group?.id, outsideObject?.id].includes(entry.id),
       )
     : false;
 
@@ -14852,6 +15069,7 @@ function assertManualSpatialObjectControls() {
       multiContextExported &&
       multiNudged &&
       lassoSelected &&
+      selectionResized &&
       groupDuplicatedWithMembers &&
       groupDragMovedMembers &&
       resized &&
@@ -14872,6 +15090,8 @@ function assertManualSpatialObjectControls() {
       multiNudged,
       lassoSelected,
       lassoHitCount: lassoHits.length,
+      selectionResized,
+      transformBoxRendered,
       groupDuplicatedWithMembers,
       groupDragMovedMembers,
       resized,
