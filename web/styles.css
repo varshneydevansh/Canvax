@@ -426,12 +426,17 @@ body[data-workspace-mode="advanced"] .toolbar {
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
-        linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent 32%),
-        #3a2d2a;
+        linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 30%),
+        #382b28;
     backdrop-filter: none;
     box-shadow:
-        0 1.4rem 3.4rem rgba(0, 0, 0, 0.34),
-        inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.12);
+        0 1.25rem 3rem rgba(0, 0, 0, 0.42),
+        inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.16);
+    isolation: isolate;
+}
+
+body[data-workspace-mode="advanced"] .toolbar::after {
+    display: none;
 }
 
 body[data-workspace-mode="advanced"] .stage-panel {

@@ -2687,11 +2687,30 @@ function buildManifestSpatialObjectId(kind, item, index = 0) {
 }
 
 function isManifestSpatialObject(object) {
-  return [
-    "generated-target",
-    "generated-artifact",
-    "workspace-change",
-  ].includes(object?.sourceKind);
+  if (
+    [
+      "generated-target",
+      "generated-artifact",
+      "workspace-change",
+    ].includes(object?.sourceKind)
+  ) {
+    return true;
+  }
+
+  const id = cleanString(object?.id);
+  if (
+    id.startsWith("target-object-") ||
+    id.startsWith("artifact-object-") ||
+    id.startsWith("change-object-")
+  ) {
+    return true;
+  }
+
+  return (
+    ["generated-output", "generated-artifact", "changed-file"].includes(
+      object?.type,
+    ) && Boolean(object?.sourceId || object?.meta?.path || object?.meta?.url)
+  );
 }
 
 function spatialObjectKey(...values) {
@@ -12780,7 +12799,25 @@ function assertSpatialObjectsFromOutputManifest() {
     previewManifest: structuredClone(state.serverStatus.previewManifest),
   };
 
-  state.spatialObjects = [];
+  state.spatialObjects = [
+    {
+      id: "target-object-legacy-materialized-preview",
+      type: "generated-output",
+      title: "Legacy stale generated output",
+      subtitle: "Should be removed during manifest reconciliation",
+      sourceId: "legacy-target",
+      sourceKind: "",
+      frameIds: [frameId],
+      x: 40,
+      y: 40,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: "stale",
+      meta: {
+        path: "artifacts/preview/materialized/legacy/index.html",
+      },
+    },
+  ];
   state.assetCandidatePack = null;
   state.serverStatus = {
     ...state.serverStatus,
@@ -12835,6 +12872,9 @@ function assertSpatialObjectsFromOutputManifest() {
   const frameBound = spatialExport.objects.every((object) =>
     object.frameIds.includes(frameId),
   );
+  const legacyCleaned = !spatialExport.objects.some(
+    (object) => object.id === "target-object-legacy-materialized-preview",
+  );
 
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
@@ -12851,8 +12891,8 @@ function assertSpatialObjectsFromOutputManifest() {
   renderAll();
 
   return assert(
-    exported && rendered && frameBound,
-    "Output manifest creates spatial objects for targets, artifacts, and changed files",
+    exported && rendered && frameBound && legacyCleaned,
+    "Output manifest reconciles spatial objects for targets, artifacts, and changed files",
   );
 }
 

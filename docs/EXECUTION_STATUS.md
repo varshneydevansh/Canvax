@@ -161,7 +161,7 @@ Status: In progress
 - [x] Preview includes initial `Play flow` frame-link playback from the entry frame through outgoing transitions
 - [x] Preview Play mode now overlays generated clickable hotspots on sketch/output viewports from outgoing Flow links
 - [x] Selected frame elements can now become persistent prototype hotspots that Preview Play uses as real click regions
-- [x] Workbench/Advanced Map now dedupes generated output/artifact spatial cards so stale materialized targets do not flood the canvas
+- [x] Workbench/Advanced Map now reconciles generated output/artifact spatial cards, including legacy stale-card cleanup, so old materialized targets do not flood the canvas
 - [x] Advanced sticky command deck is more opaque/readable over scroll content
 
 ```text
