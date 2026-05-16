@@ -302,7 +302,10 @@ async function runCli() {
   }
 
   if (wantsStop) {
-    const runtime = await getRunningRuntime();
+    let runtime = await getRunningRuntime();
+    if (!runtime) {
+      runtime = (await inspectPortForRuntime(requestedPort)).runtime;
+    }
     if (!runtime) {
       return printCliOutput(
         wantsJson,
@@ -363,12 +366,18 @@ async function runCli() {
   }
 
   if (wantsStatus) {
-    const runtime = await getRunningRuntime();
+    const runtime =
+      (await getRunningRuntime()) ||
+      (await inspectPortForRuntime(requestedPort)).runtime;
     if (!runtime) {
+      const portState = await inspectPortForRuntime(requestedPort);
       return printCliOutput(
         wantsJson,
         {
           running: false,
+          requestedPort,
+          portOccupied: portState.occupied,
+          portOccupant: portState.occupant,
           defaultPort,
           liveJsonPath,
           liveMarkdownPath,
@@ -402,10 +411,38 @@ async function runCli() {
   }
 
   let runtime = await getRunningRuntime();
+  let inspectedPort = null;
 
   if (runtime && wantsRestart) {
     await stopRuntime(runtime);
     runtime = null;
+  }
+
+  if (!runtime) {
+    inspectedPort = await inspectPortForRuntime(requestedPort);
+    if (inspectedPort.runtime) {
+      if (wantsRestart) {
+        await stopRuntime(inspectedPort.runtime);
+      } else {
+        runtime = inspectedPort.runtime;
+      }
+    } else if (inspectedPort.occupied) {
+      process.exitCode = 1;
+      return printCliError(
+        wantsJson,
+        {
+          running: false,
+          started: false,
+          requestedPort,
+          portOccupied: true,
+          portOccupant: inspectedPort.occupant,
+          defaultPort,
+          runtimePath,
+          serverLogPath,
+        },
+        `Port ${requestedPort} is already occupied by a non-Canvax process. Stop that process or run ./canvax --port <free-port>.`,
+      );
+    }
   }
 
   if (runtime) {
@@ -5242,6 +5279,78 @@ async function getRunningRuntime(options = {}) {
   return runtime;
 }
 
+async function inspectPortForRuntime(port) {
+  const url = `http://localhost:${port}`;
+  const status = await readRuntimeStatus({ url }, 700);
+  if (status?.pid && status.projectRoot === projectRoot) {
+    return {
+      available: false,
+      occupied: false,
+      occupant: "canvax",
+      runtime: buildRecoveredRuntime(status, port),
+    };
+  }
+
+  if (await canBindPort(port)) {
+    return {
+      available: true,
+      occupied: false,
+      occupant: "",
+      runtime: null,
+    };
+  }
+
+  return {
+    available: false,
+    occupied: true,
+    occupant: status?.projectRoot ? "other-canvax-workspace" : "unknown",
+    runtime: null,
+  };
+}
+
+function buildRecoveredRuntime(status, port) {
+  return {
+    ...buildRuntime(port),
+    pid: status.pid,
+    port,
+    url: status.url || `http://localhost:${port}`,
+    projectRoot: status.projectRoot || projectRoot,
+    runtimePath: status.runtimePath || runtimePath,
+    serverLogPath: status.serverLogPath || serverLogPath,
+    exportRoot: status.exportRoot || exportsRoot,
+    liveJsonPath: status.liveJsonPath || liveJsonPath,
+    liveMarkdownPath: status.liveMarkdownPath || liveMarkdownPath,
+    liveVoiceMarkdownPath: status.liveVoiceMarkdownPath || liveVoiceMarkdownPath,
+    rewriteRequestJsonPath:
+      status.rewriteRequestJsonPath || rewriteRequestJsonPath,
+    rewriteRequestMarkdownPath:
+      status.rewriteRequestMarkdownPath || rewriteRequestMarkdownPath,
+    transcriptBridgePath: status.transcriptBridgePath || transcriptBridgePath,
+    transcriptBridgeMarkdownPath:
+      status.transcriptBridgeMarkdownPath || transcriptBridgeMarkdownPath,
+    buildRealRequestJsonPath:
+      status.buildRealRequestJsonPath || buildRealRequestJsonPath,
+    buildRealRequestMarkdownPath:
+      status.buildRealRequestMarkdownPath || buildRealRequestMarkdownPath,
+    buildRequestsRoot: status.buildRequestsRoot || buildRequestsRoot,
+    assetCandidatesJsonPath:
+      status.assetCandidatesJsonPath || assetCandidatesJsonPath,
+    assetCandidatesMarkdownPath:
+      status.assetCandidatesMarkdownPath || assetCandidatesMarkdownPath,
+    assetCandidatesRoot: status.assetCandidatesRoot || assetCandidatesRoot,
+    latestCheckpointPath: status.latestCheckpointPath || latestCheckpointPath,
+    checkpointsIndexPath: status.checkpointsIndexPath || checkpointsIndexPath,
+    sessionEventsPath: status.sessionEventsPath || sessionEventsPath,
+    previewManifestPath: status.previewManifestPath || previewManifestPath,
+    codexOutputManifestPath:
+      status.codexOutputManifestPath || codexOutputManifestPath,
+    previewSnapshotsIndexPath:
+      status.previewSnapshotsIndexPath || previewSnapshotsIndexPath,
+    startedAt: status.startedAt || "",
+    recoveredFromPort: true,
+  };
+}
+
 async function readRuntimeStatus(runtime, timeoutMs = 900) {
   if (!runtime?.url) {
     return null;
@@ -5262,6 +5371,18 @@ async function readRuntimeStatus(runtime, timeoutMs = 900) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function canBindPort(port) {
+  return new Promise((resolvePromise) => {
+    const server = createServer();
+    server.once("error", () => {
+      resolvePromise(false);
+    });
+    server.listen(port, "127.0.0.1", () => {
+      server.close(() => resolvePromise(true));
+    });
+  });
 }
 
 function isProcessAlive(pid) {
@@ -5414,6 +5535,24 @@ function printCliOutput(asJson, payload, message) {
   console.log(`Codex transcript bridge: ${transcriptBridgePath}`);
   console.log(`Latest checkpoint: ${latestCheckpointPath}`);
   console.log(`Codex output manifest: ${codexOutputManifestPath}`);
+}
+
+function printCliError(asJson, payload, message) {
+  if (asJson) {
+    console.log(
+      JSON.stringify(
+        {
+          ...payload,
+          error: message,
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  console.error(message);
 }
 
 function printHelp() {

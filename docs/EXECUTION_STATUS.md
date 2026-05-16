@@ -68,16 +68,17 @@ Status: In progress
 - [x] No-API end-to-end workflow regression proves rough frame + voice + image prompt assets + build request + rewrite request + manifest binding as one chain
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service
 - [x] Isolated service lifecycle regression covers start, reuse, port mismatch, restart, status, and stop on throwaway ports without disrupting the default board
+- [x] CLI can recover a matching Canvax service from `/api/status` when runtime files are stale or missing
+- [x] CLI reports a structured `portOccupied` failure when a non-Canvax process owns the requested port
 - [x] Optional `Live rewrite` mode runs the local no-API rewrite executor after autosnap/freeze handoff saves
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays
-- [ ] Stale occupied-port recovery where another non-Canvax process owns the requested port
 - [ ] Remaining rough edges in true infinite-canvas object editing
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, long-session browser stress, no-API e2e workflow proof, runtime health validation, isolated lifecycle regression
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
-  non-Canvax occupied-port recovery, arbitrary-object infinite canvas, and richer nested object editing
+  arbitrary-object infinite canvas and richer nested object editing
 ```
 
 ### Sprint 2: Add voice as a native Canvax input

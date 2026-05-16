@@ -241,6 +241,8 @@ The board browser self-test also includes a dense long-session Map fixture. It r
 
 `npm run e2e-workflow` is the explicit rough-sketch-to-real-output proof. It creates a synthetic sketch frame with voice, correction marks, image prompt data, and asset candidates, then verifies the no-API build executor, dry-run Codex manifest binding, and rewrite executor as one chain. The proof manifest is written to `artifacts/canvax/e2e-workflow/latest/result.json`.
 
+The CLI now has explicit port recovery behavior: matching Canvax services can be recovered from `/api/status` when runtime files are stale or missing, while non-Canvax listeners produce a structured `portOccupied` response instead of a silent timeout.
+
 ### Advanced
 
 Advanced is the full inspector/debugging surface for frames, flow links, notes,

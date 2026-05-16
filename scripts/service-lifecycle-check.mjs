@@ -21,8 +21,15 @@ let activePort = 0;
 try {
   const firstPort = await findOpenPort();
   const secondPort = await findOpenPort();
+  const thirdPort = await findOpenPort();
+  const occupiedPort = await findOpenPort();
 
-  const initialStatus = await runCanvax(["--status", "--json"]);
+  const initialStatus = await runCanvax([
+    "--status",
+    "--port",
+    String(firstPort),
+    "--json",
+  ]);
   results.push(
     assert(
       initialStatus.running === false,
@@ -30,6 +37,26 @@ try {
       initialStatus.url || "",
     ),
   );
+
+  const blocker = await holdPort(occupiedPort);
+  try {
+    const occupied = await runCanvaxFailure([
+      "--port",
+      String(occupiedPort),
+      "--json",
+    ]);
+    results.push(
+      assert(
+        occupied.exitCode !== 0 &&
+          occupied.payload?.portOccupied === true &&
+          occupied.payload?.requestedPort === occupiedPort,
+        "isolated lifecycle reports non-Canvax occupied port",
+        occupied.payload?.error || "",
+      ),
+    );
+  } finally {
+    await closeServer(blocker);
+  }
 
   const started = await runCanvax(["--port", String(firstPort), "--json"]);
   activePort = firstPort;
@@ -119,12 +146,55 @@ try {
     ),
   );
 
-  const finalStatus = await runCanvax(["--status", "--json"]);
+  const finalStatus = await runCanvax([
+    "--status",
+    "--port",
+    String(secondPort),
+    "--json",
+  ]);
   results.push(
     assert(
       finalStatus.running === false,
       "isolated lifecycle reports stopped service",
       finalStatus.url || "",
+    ),
+  );
+
+  const staleRuntimeStarted = await runCanvax([
+    "--port",
+    String(thirdPort),
+    "--json",
+  ]);
+  activePort = thirdPort;
+  await rm(join(runtimeRoot, "runtime.json"), { force: true });
+  const recoveredStatus = await runCanvax([
+    "--status",
+    "--port",
+    String(thirdPort),
+    "--json",
+  ]);
+  results.push(
+    assert(
+      recoveredStatus.running === true &&
+        recoveredStatus.recoveredFromPort === true &&
+        recoveredStatus.pid === staleRuntimeStarted.pid,
+      "isolated lifecycle recovers matching service when runtime file is stale",
+      `pid ${recoveredStatus.pid || ""}`,
+    ),
+  );
+  const recoveredStop = await runCanvax([
+    "--stop",
+    "--port",
+    String(thirdPort),
+    "--json",
+  ]);
+  activePort = 0;
+  results.push(
+    assert(
+      recoveredStop.stopped === true &&
+        recoveredStop.pid === staleRuntimeStarted.pid,
+      "isolated lifecycle stops a recovered stale-runtime service",
+      `pid ${recoveredStop.pid || ""}`,
     ),
   );
 } catch (error) {
@@ -196,6 +266,40 @@ function runCanvax(args) {
   });
 }
 
+function runCanvaxFailure(args) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(process.execPath, [canvaxScriptPath, ...args], {
+      cwd: projectRoot,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", rejectPromise);
+    child.on("close", (code) => {
+      let payload = null;
+      try {
+        payload = stdout ? JSON.parse(stdout) : null;
+      } catch {
+        // Preserve raw output in the detail below.
+      }
+      resolvePromise({
+        exitCode: code,
+        payload,
+        stdout,
+        stderr,
+      });
+    });
+  });
+}
+
 async function waitForServiceStatus(url, timeoutMs = 4000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -210,6 +314,25 @@ async function waitForServiceStatus(url, timeoutMs = 4000) {
     await delay(100);
   }
   throw new Error(`Timed out waiting for ${url}/api/status`);
+}
+
+function holdPort(port) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "text/plain" });
+      response.end("not canvax");
+    });
+    server.on("error", rejectPromise);
+    server.listen(port, "127.0.0.1", () => {
+      resolvePromise(server);
+    });
+  });
+}
+
+function closeServer(server) {
+  return new Promise((resolvePromise) => {
+    server.close(() => resolvePromise());
+  });
 }
 
 function findOpenPort() {

@@ -111,7 +111,10 @@ Useful service commands:
 ./canvax --status
 ./canvax --stop
 ./canvax --restart
+npm run service-lifecycle
 ```
+
+`npm run service-lifecycle` uses isolated runtime files and throwaway ports. It covers normal start/reuse/restart/stop behavior, recovery from matching live `/api/status` data, and the non-Canvax occupied-port failure path.
 
 ```text
 edit code
