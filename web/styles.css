@@ -3028,6 +3028,35 @@ select,
     font-size: 0.82rem;
 }
 
+.flow-variant-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.9rem;
+    padding: 0.2rem 0.58rem;
+    border: 0.0625rem solid rgba(181, 71, 179, 0.24);
+    border-radius: 999px;
+    background: rgba(181, 71, 179, 0.1);
+    color: #783076;
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.flow-variant-action:hover {
+    border-color: rgba(181, 71, 179, 0.44);
+    background: rgba(181, 71, 179, 0.16);
+}
+
+.flow-variant-action.active {
+    border-color: rgba(255, 93, 58, 0.38);
+    background: rgba(255, 93, 58, 0.14);
+    color: var(--accent-deep);
+}
+
 .flow-link-handle {
     display: inline-flex;
     align-items: center;

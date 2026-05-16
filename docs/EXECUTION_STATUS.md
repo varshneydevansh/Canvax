@@ -53,6 +53,7 @@ Status: In progress
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
 - [x] Workbench `Map` styles generated variants as branch cards with visible lineage and primary state
+- [x] Workbench `Map` variant cards expose `Use variant` so generated directions can be promoted in-place without leaving the spatial workbench
 - [x] Workbench `Map` supports manual note cards and reference file/image cards as draggable/removable spatial context
 - [x] Workbench `Map` supports movable/resizable labeled group regions for explorations/reference boards
 - [x] Workbench `Map` group regions move contained frame cards and spatial objects together

@@ -180,6 +180,7 @@ Behavior:
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, draggable frame/variant cards, and link handles
 - styles generated variant cards as branch objects with lineage chips and primary-variant state, so generated directions do not look like ordinary duplicate frames
+- adds `Use variant` directly to variant cards in `Map`, so a designer can promote a generated direction as primary without leaving the spatial workbench
 - exports editable generated variant branches through `spatialWorkspace.variantBranches`, including source frame, target frame, direction, connection, editable state, and primary-promotion state
 - adds labeled group regions, manual note cards, and reference file/image cards directly to `Map`, including removable/resizable spatial cards and small image thumbnails for lightweight reference boards
 - lets Map group regions move contained frame cards and spatial objects together, so grouped explorations can be repositioned without rebuilding the board

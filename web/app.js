@@ -5436,6 +5436,17 @@ function renderFlowBoard() {
           </div>
           <div class="flow-card-footer">
             <span>${countFrameConnections(frame.id)} linked</span>
+            ${
+              frame.variant?.sourceFrameId
+                ? `<span
+                    class="flow-variant-action ${isPromotedVariant(frame) ? "active" : ""}"
+                    role="button"
+                    tabindex="0"
+                    data-promote-variant-frame="${escapeHtml(frame.id)}"
+                    title="${isPromotedVariant(frame) ? "This variant is the primary branch" : "Promote this variant as the primary branch"}"
+                  >${isPromotedVariant(frame) ? "Primary" : "Use variant"}</span>`
+                : ""
+            }
             <span
               class="flow-link-handle"
               role="button"
@@ -7476,6 +7487,16 @@ function onFlowBoardClick(event) {
     return;
   }
 
+  const promoteVariantHandle = event.target.closest(
+    "[data-promote-variant-frame]",
+  );
+  if (promoteVariantHandle) {
+    event.preventDefault();
+    event.stopPropagation();
+    promoteVariantFrameFromMap(promoteVariantHandle.dataset.promoteVariantFrame);
+    return;
+  }
+
   const node = event.target.closest("[data-flow-frame-id]");
   if (!node) {
     clearSpatialObjectSelection({ render: true });
@@ -8690,7 +8711,7 @@ function createVariantFramesFromCurrent(options = {}) {
 }
 
 function promoteCurrentVariantToPrimary(options = {}) {
-  const { silent = false, sync = true } = options;
+  const { silent = false, sync = true, stayInFlow = false } = options;
   const frame = currentFrame();
   if (!frame?.variant?.sourceFrameId) {
     if (!silent) {
@@ -8734,7 +8755,7 @@ function promoteCurrentVariantToPrimary(options = {}) {
 
   state.entryFrameId = frame.id;
   state.activeFrameId = frame.id;
-  state.viewMode = "frame";
+  state.viewMode = stayInFlow ? "flow" : "frame";
   state.selectedConnectionId = connection?.id || null;
   clearElementSelection();
   touchFrame(frame, {
@@ -8753,6 +8774,23 @@ function promoteCurrentVariantToPrimary(options = {}) {
     });
   }
   return true;
+}
+
+function promoteVariantFrameFromMap(frameId, options = {}) {
+  const frame = frameById(frameId);
+  if (!frame?.variant?.sourceFrameId) {
+    renderStatus("Select a variant frame before using it as primary");
+    return false;
+  }
+  state.activeFrameId = frame.id;
+  const promoted = promoteCurrentVariantToPrimary({
+    ...options,
+    stayInFlow: true,
+  });
+  if (promoted && !options.silent) {
+    renderStatus(`${frame.title} is now the primary variant`);
+  }
+  return promoted;
 }
 
 function deleteFrame() {
@@ -13382,6 +13420,18 @@ async function runSelfTest() {
         "variant frames render as visible branch cards",
       ),
     );
+    results.push(
+      assert(
+        variantFrames.every((frame) =>
+          Boolean(
+            dom.flowBoard.querySelector(
+              `[data-promote-variant-frame='${frame.id}']`,
+            ),
+          ),
+        ),
+        "variant cards expose primary-branch action in Map",
+      ),
+    );
     const variantSpatialExport = buildSpatialWorkspaceExport();
     results.push(
       assert(
@@ -13397,8 +13447,7 @@ async function runSelfTest() {
         "variant branches export as editable spatial branches",
       ),
     );
-    state.activeFrameId = variantFrames[1].id;
-    const promoted = promoteCurrentVariantToPrimary({
+    const promoted = promoteVariantFrameFromMap(variantFrames[1].id, {
       silent: true,
       sync: false,
     });
@@ -13430,7 +13479,12 @@ async function runSelfTest() {
           dom.flowBoard.querySelector(
             `[data-flow-frame-id='${variantFrames[1].id}'].primary-variant`,
           ),
-        ),
+        ) &&
+          dom.flowBoard
+            .querySelector(
+              `[data-promote-variant-frame='${variantFrames[1].id}']`,
+            )
+            ?.textContent.includes("Primary"),
         "primary variant renders as a promoted branch card",
       ),
     );
