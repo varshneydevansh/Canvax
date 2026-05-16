@@ -527,6 +527,7 @@ Behavior:
 - `Split` shows sketch and output together
 - `Sketch` focuses on the sketch side
 - `Output` focuses on the generated or connected implementation side
+- `Play flow` starts from the entry frame and lets connected frames be clicked through as a lightweight storyboard prototype
 
 ```text
 Split  = sketch + output

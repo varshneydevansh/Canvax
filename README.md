@@ -91,6 +91,7 @@ flowchart LR
 - Keeps the main Workbench tray compact, with surface selection, action selection, host capability status, and design-context status visible without pushing the canvas below the fold.
 - Adds Workbench quick-prompt chips for common refinement directions like font, drama, mobile variant, spacing, and image candidates.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
+- Adds Preview `Play flow` so connected frames can be clicked through from the entry frame as a lightweight storyboard prototype.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
 - Writes a Codex task pack and image prompt pack with normalized coordinates, selected action mode, optional `DESIGN.md` context, plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
@@ -129,6 +130,7 @@ This commit line now includes the following major layers working together:
 - generic sketch board with Frame view and Flow view
 - Workbench mode for the low-friction sketch + voice + generated-output loop
 - Preview surface with compare modes and frame-aware output context
+- Preview Play flow for linked frame storyboards
 - voice notes and dedicated voice handoff file
 - checkpoints and session event log
 - output manifests, workspace-follow, and output activity feed

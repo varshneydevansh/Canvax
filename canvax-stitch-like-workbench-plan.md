@@ -50,6 +50,7 @@ Current completed baseline:
 - Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product.
 - Workbench now has `Sketch`, `Split`, `Output`, and `Map` focus modes so generated surfaces can become a large correction target and the frame/variant graph can become a spatial project canvas instead of staying trapped in Advanced Flow view.
 - Workbench `Map` now includes a spatial object layer: labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files become draggable object cards and export through `spatialWorkspace.objects`.
+- Preview now has initial `Play flow` playback for connected frames, starting from the entry frame and stepping through outgoing transition labels.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.

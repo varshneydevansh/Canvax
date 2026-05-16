@@ -151,12 +151,14 @@ Status: In progress
 - [x] Materialize refinement metadata now tracks changed regions and powers Preview overlays/summary
 - [x] Preview now forces safe same-target reloads with a digest-based revision key when the connected output context changes
 - [x] Board and Preview now surface frame-level output status badges so stale/synced/materialized states are visible while sketching continues
+- [x] Preview includes initial `Play flow` frame-link playback from the entry frame through outgoing transitions
 
 ```text
 Preview today:
   sketch side
   output side
   compare modes
+  play flow
   artifacts
   changes
   rewrite queue

@@ -280,11 +280,11 @@ next
 
 ### 4. Prototype Play Mode
 
-Flow links exist, but there is no polished "Play" mode that lets a user click through a prototype like a running product.
+Flow links exist, and Preview now has an initial `Play flow` mode that starts from the entry frame and lets the user click outgoing transition labels to move through connected frames. It is not yet a polished hotspot-based product prototype.
 
 Needed:
 
-- Play button for connected frames.
+- Play button for connected frames. **Initial Preview `Play flow` shipped.**
 - Click targets or hotspot regions on the frame canvas.
 - Transition labels that become interactive prototype behavior.
 - Automatic next-screen suggestions when a user links or clicks a component.
@@ -382,7 +382,7 @@ Needed:
 ### P1: Reach Stitch-Style Core UX
 
 - Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; nested groups and richer object editing are still open.**
-- Prototype Play mode.
+- Prototype Play mode. **Initial Preview frame-link playback shipped.**
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
 - Voice-driven critique/refinement lane.
 - Branchable design explorations with a clear agent/output history.

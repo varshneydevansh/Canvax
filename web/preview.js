@@ -1,6 +1,7 @@
 const PREVIEW_TARGET_KEY = "canvax-preview-target-v1";
 const FOLLOW_ACTIVE_KEY = "canvax-preview-follow-active-v1";
 const COMPARE_MODE_KEY = "canvax-preview-compare-mode-v1";
+const PLAY_MODE_KEY = "canvax-preview-play-mode-v1";
 const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
 const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
 const POLL_INTERVAL_MS = 2000;
@@ -30,6 +31,7 @@ const dom = {
   refreshPreview: document.querySelector("#refresh-preview"),
   openBoard: document.querySelector("#open-board"),
   followActive: document.querySelector("#follow-active"),
+  playFlow: document.querySelector("#play-flow"),
   followBadge: document.querySelector("#follow-badge"),
   viewportBadge: document.querySelector("#viewport-badge"),
   targetStateBadge: document.querySelector("#target-state-badge"),
@@ -60,6 +62,7 @@ const dom = {
   sketchViewer: document.querySelector("#sketch-viewer"),
   implementationViewer: document.querySelector("#implementation-viewer"),
   compareStage: document.querySelector("#compare-stage"),
+  prototypePlayPanel: document.querySelector("#prototype-play-panel"),
   refinementSummary: document.querySelector("#refinement-summary"),
   refinementStats: document.querySelector("#refinement-stats"),
   refinementRegions: document.querySelector("#refinement-regions"),
@@ -76,6 +79,7 @@ const state = {
   selectedFrameId: null,
   manualPreviewUrl: window.localStorage.getItem(PREVIEW_TARGET_KEY) || "",
   followActiveFrame: window.localStorage.getItem(FOLLOW_ACTIVE_KEY) !== "0",
+  playMode: window.localStorage.getItem(PLAY_MODE_KEY) === "1",
   compareMode: normalizeCompareMode(
     window.localStorage.getItem(COMPARE_MODE_KEY),
   ),
@@ -91,6 +95,10 @@ const livePreviewChannel =
 init();
 
 function init() {
+  if (state.playMode) {
+    state.followActiveFrame = false;
+    window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
+  }
   dom.manualPreviewUrl.value = state.manualPreviewUrl;
   dom.followActive.setAttribute(
     "aria-pressed",
@@ -99,6 +107,7 @@ function init() {
   dom.followActive.textContent = state.followActiveFrame
     ? "Following active frame"
     : "Manual frame selection";
+  renderPlayModeButton();
   dom.followBadge.textContent = state.followActiveFrame
     ? "Auto-follow on"
     : "Auto-follow off";
@@ -115,6 +124,8 @@ function init() {
     window.open("/", "_blank", "noopener");
   });
   dom.followActive.addEventListener("click", toggleFollowActive);
+  dom.playFlow.addEventListener("click", togglePlayMode);
+  dom.prototypePlayPanel.addEventListener("click", onPrototypePlayClick);
   dom.compareModeButtons.addEventListener("click", onCompareModeClick);
   dom.savePreviewUrl.addEventListener("click", () => {
     void saveManualPreviewUrl();
@@ -245,6 +256,10 @@ async function refreshPreviewState({ manual }) {
 
 function toggleFollowActive() {
   state.followActiveFrame = !state.followActiveFrame;
+  if (state.followActiveFrame) {
+    state.playMode = false;
+    window.localStorage.setItem(PLAY_MODE_KEY, "0");
+  }
   window.localStorage.setItem(
     FOLLOW_ACTIVE_KEY,
     state.followActiveFrame ? "1" : "0",
@@ -259,8 +274,63 @@ function toggleFollowActive() {
   dom.followBadge.textContent = state.followActiveFrame
     ? "Auto-follow on"
     : "Auto-follow off";
+  renderPlayModeButton();
   syncSelectedFrame();
   renderAll();
+}
+
+function togglePlayMode() {
+  const liveExport = currentLiveExport();
+  const frames = liveExport?.frames || [];
+  if (!frames.length) {
+    return;
+  }
+  state.playMode = !state.playMode;
+  if (state.playMode) {
+    state.followActiveFrame = false;
+    state.selectedFrameId =
+      liveExport.entryFrameId ||
+      liveExport.activeFrameId ||
+      state.selectedFrameId ||
+      frames[0].id;
+    window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
+  }
+  window.localStorage.setItem(PLAY_MODE_KEY, state.playMode ? "1" : "0");
+  renderPlayModeButton();
+  syncSelectedFrame();
+  renderAll();
+}
+
+function renderPlayModeButton() {
+  dom.playFlow.setAttribute("aria-pressed", String(state.playMode));
+  dom.playFlow.textContent = state.playMode ? "Stop play" : "Play flow";
+  dom.playFlow.classList.toggle("active", state.playMode);
+}
+
+function onPrototypePlayClick(event) {
+  const nextButton = event.target.closest("[data-play-frame]");
+  if (nextButton) {
+    state.selectedFrameId = nextButton.dataset.playFrame;
+    state.followActiveFrame = false;
+    state.playMode = true;
+    window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
+    window.localStorage.setItem(PLAY_MODE_KEY, "1");
+    renderPlayModeButton();
+    renderAll();
+    return;
+  }
+  const entryButton = event.target.closest("[data-play-entry]");
+  if (entryButton) {
+    const liveExport = currentLiveExport();
+    state.selectedFrameId =
+      liveExport?.entryFrameId || liveExport?.activeFrameId || state.selectedFrameId;
+    state.followActiveFrame = false;
+    state.playMode = true;
+    window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
+    window.localStorage.setItem(PLAY_MODE_KEY, "1");
+    renderPlayModeButton();
+    renderAll();
+  }
 }
 
 function syncSelectedFrame() {
@@ -276,6 +346,13 @@ function syncSelectedFrame() {
     ids.find((id) => id && frameIds.has(id)) || firstFrameId;
   const activeFrameId = currentLiveExport()?.activeFrameId;
   const entryFrameId = currentLiveExport()?.entryFrameId;
+  if (state.playMode) {
+    const selectedStillExists = frameIds.has(state.selectedFrameId);
+    if (!selectedStillExists) {
+      state.selectedFrameId = firstExistingFrameId(entryFrameId, activeFrameId);
+    }
+    return;
+  }
   if (state.followActiveFrame) {
     state.selectedFrameId = firstExistingFrameId(activeFrameId, entryFrameId);
     return;
@@ -299,6 +376,7 @@ function renderAll() {
   renderSnapshots();
   renderSelectedFrame();
   renderImplementationPreview();
+  renderPrototypePlay();
   renderPrompt();
   maybeRunPreviewSelfTest();
 }
@@ -406,6 +484,7 @@ function renderFrameRail() {
       dom.followBadge.textContent = "Auto-follow off";
       renderSelectedFrame();
       renderImplementationPreview();
+      renderPrototypePlay();
       renderFlow();
       renderFrameRail();
     });
@@ -530,6 +609,70 @@ function renderSelectedFrame() {
       `,
     )
     .join("");
+}
+
+function renderPrototypePlay() {
+  const liveExport = currentLiveExport();
+  const frames = Array.isArray(liveExport?.frames) ? liveExport.frames : [];
+  const connections = Array.isArray(liveExport?.connections)
+    ? liveExport.connections
+    : [];
+  const frame = currentFrame();
+  if (!frames.length) {
+    dom.prototypePlayPanel.className = "prototype-play-panel empty-state";
+    dom.prototypePlayPanel.textContent =
+      "Connect frames in Canvax Flow view to play this storyboard.";
+    return;
+  }
+
+  const outgoing = connections.filter(
+    (connection) => connection.fromFrameId === frame?.id,
+  );
+  const entryFrame =
+    frames.find((candidate) => candidate.id === liveExport.entryFrameId) ||
+    frames[0];
+  const status = state.playMode
+    ? `Playing from ${frame?.title || "selected frame"}`
+    : "Flow links are ready to play";
+
+  dom.prototypePlayPanel.className = `prototype-play-panel${
+    state.playMode ? " active" : ""
+  }`;
+  dom.prototypePlayPanel.innerHTML = `
+    <div class="prototype-play-head">
+      <div>
+        <strong>${escapeHtml(status)}</strong>
+        <p class="manifest-copy">${escapeHtml(
+          outgoing.length
+            ? "Choose a transition to move through the connected frames."
+            : "This frame has no outgoing transition yet.",
+        )}</p>
+      </div>
+      <button class="ghost-button compact" type="button" data-play-entry="true">
+        Entry: ${escapeHtml(entryFrame?.title || "Frame 1")}
+      </button>
+    </div>
+    <div class="prototype-actions">
+      ${
+        outgoing.length
+          ? outgoing
+              .map((connection, index) => {
+                const target = frames.find(
+                  (candidate) => candidate.id === connection.toFrameId,
+                );
+                return `
+                  <button class="prototype-step" type="button" data-play-frame="${escapeHtml(connection.toFrameId)}">
+                    <span>${index + 1}</span>
+                    <strong>${escapeHtml(connection.label || "Continue")}</strong>
+                    <small>${escapeHtml(target?.title || connection.toTitle || connection.toFrameId)}</small>
+                  </button>
+                `;
+              })
+              .join("")
+          : `<span class="empty-state">No outgoing link from this frame.</span>`
+      }
+    </div>
+  `;
 }
 
 function renderImplementationPreview() {
@@ -1499,6 +1642,13 @@ async function runPreviewSelfTest() {
         dom.rewriteHandoff.textContent.trim().length > 0 &&
           dom.rewriteHandoffState.textContent.trim().length > 0,
         "preview rewrite handoff lane renders",
+      ),
+    );
+    results.push(
+      assert(
+        dom.playFlow.textContent.trim().length > 0 &&
+          dom.prototypePlayPanel.textContent.trim().length > 0,
+        "preview prototype play controls render",
       ),
     );
   } catch (error) {
