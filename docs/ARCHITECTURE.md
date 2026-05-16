@@ -189,6 +189,7 @@ Purpose:
 - give Codex a stable, path-based handoff surface
 - preserve collaboration moments outside volatile browser memory
 - include `spatialWorkspace` so Codex can read frame/variant map positions, active/entry frames, and links as project memory
+- include `spatialWorkspace.variantBranches` so Codex can separate editable generated variant branches from normal navigation/prototype links
 
 ### 3. Output binding transport
 
@@ -550,6 +551,16 @@ Real-code handoff files:
 - `artifacts/canvax/build-requests/...`
 
 Variant branches are stored as normal frames with `frame.variant` lineage metadata. They remain editable and are connected to their source frame in the same Flow graph as ordinary screen transitions.
+
+The spatial export also derives `spatialWorkspace.variantBranches` from those frames and connections:
+
+```text
+frame.variant + source connection
+  -> spatialWorkspace.variantBranches[]
+  -> editable branch metadata for Codex
+```
+
+Each branch record includes source frame, variant frame, direction, connection id/label, editable status, position, size, and primary-promotion state.
 
 Image/asset handoff files:
 

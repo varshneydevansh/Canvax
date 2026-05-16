@@ -9163,6 +9163,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         groupIds: spatialGrouping.cardGroupIds.get(frame.id) || [],
       };
     }),
+    variantBranches: buildSpatialVariantBranches(frameSelection),
     groups: spatialGrouping.groups,
     objects: state.spatialObjects.map((object) => ({
       id: object.id,
@@ -9192,6 +9193,40 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         toTitle: frameTitleById(connection.toFrameId),
       })),
   };
+}
+
+function buildSpatialVariantBranches(frameSelection) {
+  return frameSelection
+    .filter((frame) => frame.variant?.sourceFrameId)
+    .map((frame) => {
+      const connection = state.connections.find(
+        (candidate) =>
+          candidate.fromFrameId === frame.variant.sourceFrameId &&
+          candidate.toFrameId === frame.id,
+      );
+      return {
+        id: `variant-branch-${frame.id}`,
+        frameId: frame.id,
+        title: frame.title,
+        sourceFrameId: frame.variant.sourceFrameId,
+        sourceFrameTitle:
+          frame.variant.sourceFrameTitle ||
+          frameTitleById(frame.variant.sourceFrameId),
+        label: frame.variant.label || "Variant",
+        direction: frame.variant.direction || "",
+        index: Number(frame.variant.index) || 0,
+        primary: Boolean(frame.variant.primary),
+        promotedAt: frame.variant.promotedAt || "",
+        editable: true,
+        connectionId: connection?.id || "",
+        connectionLabel: connection?.label || "",
+        position: structuredClone(frame.flowPosition),
+        size: {
+          width: FLOW_CARD_WIDTH,
+          height: FLOW_CARD_HEIGHT,
+        },
+      };
+    });
 }
 
 function computeSpatialGroupMembership(frameSelection, spatialObjects) {
@@ -12392,6 +12427,21 @@ async function runSelfTest() {
         "create variants connects branches in flow view",
       ),
     );
+    const variantSpatialExport = buildSpatialWorkspaceExport();
+    results.push(
+      assert(
+        variantSpatialExport.variantBranches.length >= 3 &&
+          variantFrames.every((frame) =>
+            variantSpatialExport.variantBranches.some(
+              (branch) =>
+                branch.frameId === frame.id &&
+                branch.sourceFrameId === variantSourceId &&
+                branch.editable === true,
+            ),
+          ),
+        "variant branches export as editable spatial branches",
+      ),
+    );
     state.activeFrameId = variantFrames[1].id;
     const promoted = promoteCurrentVariantToPrimary({
       silent: true,
@@ -12404,6 +12454,18 @@ async function runSelfTest() {
           variantFrames[1].variant?.primary === true &&
           Boolean(variantFrames[1].variant?.promotedAt),
         "variant branch can be promoted to primary",
+      ),
+    );
+    const promotedVariantExport = buildSpatialWorkspaceExport();
+    results.push(
+      assert(
+        promotedVariantExport.variantBranches.some(
+          (branch) =>
+            branch.frameId === variantFrames[1].id &&
+            branch.primary === true &&
+            Boolean(branch.promotedAt),
+        ),
+        "primary variant state exports through spatial branches",
       ),
     );
     state.frames = state.frames.filter((frame) => !variantFrameIds.has(frame.id));

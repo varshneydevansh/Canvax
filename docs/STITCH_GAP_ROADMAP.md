@@ -139,8 +139,8 @@ Canvax today
 - The generated output card remains a compact thumbnail/status/correction target, and Workbench adds a larger output stage through `Split` and `Output` focus modes for comfortable inspection and correction marks.
 - Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench. The mode switch and deck labels make it read as a technical inspector layer for the same workbench rather than a different app, and its sticky command deck is now more opaque so scroll content does not blur through the controls.
 - Workbench now supports `Sketch`, `Split`, `Output`, and `Map` focus modes. The compact output card remains a status/quick-correction target, the large output stage can become the primary correction surface, and Map exposes the frame/variant graph as a zoomable spatial workbench without opening Advanced.
-- Live exports now include a `spatialWorkspace` object with map zoom, card positions, group containment, entry/active frame ids, links, manual note/reference objects, asset candidate objects, generated preview targets, generated artifacts, and changed-file objects, so Codex can treat frame layout, grouped references, and implementation outputs as project memory rather than just a linear list. Map rendering now reconciles generated preview/artifact objects and removes legacy stale cards so old materialized outputs do not flood the spatial canvas.
-- Variant branches can now be promoted with `Use variant`, which marks the selected branch as primary and makes it the entry frame while preserving lineage.
+- Live exports now include a `spatialWorkspace` object with map zoom, card positions, editable variant branches, group containment, entry/active frame ids, links, manual note/reference objects, asset candidate objects, generated preview targets, generated artifacts, and changed-file objects, so Codex can treat frame layout, grouped references, and implementation outputs as project memory rather than just a linear list. Map rendering now reconciles generated preview/artifact objects and removes legacy stale cards so old materialized outputs do not flood the spatial canvas.
+- Variant branches can now be promoted with `Use variant`, which marks the selected branch as primary and makes it the entry frame while preserving lineage through `spatialWorkspace.variantBranches`.
 - Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
 - Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
 
@@ -261,7 +261,7 @@ Needed:
 
 - Zoomable infinite workspace.
 - Pan/zoom controls that feel stable on Mac trackpads. **Initial background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom are shipped; advanced inertial/grouped canvas behavior remains open.**
-- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable Map objects, and group containment is exported for Codex.**
+- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable Map objects, and group containment is exported for Codex.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
 
@@ -388,7 +388,7 @@ Needed:
 
 - Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions with exported containment, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
-- Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
+- Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames and export as explicit editable spatial branch records.**
 - Voice-driven critique/refinement lane.
 - Branchable design explorations with a clear agent/output history.
 - Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant". **Initial Workbench quick-prompt chips shipped.**

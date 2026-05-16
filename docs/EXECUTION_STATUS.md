@@ -146,6 +146,7 @@ Status: In progress
 - [x] `Apply to Codex` now triggers that rewrite executor from the board after saving the latest Workbench checkpoint
 - [x] Preview includes a `Rewrite handoff` lane showing request export, local executor artifact, and manifest binding state
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
+- [x] Variant branches export through `spatialWorkspace.variantBranches` as editable generated-direction objects with source/target/primary metadata
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
 - [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects`

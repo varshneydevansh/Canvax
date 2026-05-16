@@ -302,6 +302,7 @@ The live JSON also includes `spatialWorkspace`, which records:
 
 - map zoom
 - frame/variant card positions
+- editable variant branch records through `variantBranches`
 - spatial group region positions
 - spatial group containment through `groups`, card `groupIds`, and object `groupIds`
 - manual note card positions
@@ -710,6 +711,7 @@ Each variant is a real Canvax frame:
 - it can be selected, drawn on, labeled, resized, connected, materialized, or built with Codex
 - it keeps lineage metadata pointing back to the source frame
 - it appears in Flow view as a connected branch
+- it appears in `spatialWorkspace.variantBranches` as an editable branch object for Codex and Map-aware workflows
 - `Use variant` marks the selected branch as the primary variant and makes it the entry frame
 - it remains local-first and does not require an API key
 

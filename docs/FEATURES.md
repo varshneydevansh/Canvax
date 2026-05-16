@@ -175,6 +175,7 @@ Behavior:
 - shows the connected generated output inside the Workbench tray when one exists
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, draggable frame/variant cards, and link handles
+- exports editable generated variant branches through `spatialWorkspace.variantBranches`, including source frame, target frame, direction, connection, editable state, and primary-promotion state
 - adds labeled group regions, manual note cards, and reference file/image cards directly to `Map`, including removable/resizable spatial cards and small image thumbnails for lightweight reference boards
 - exports group containment from `Map`, so frames and spatial objects carry `groupIds` and `spatialWorkspace.groups` lists member frames/objects for Codex-readable exploration boards
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
@@ -717,6 +718,8 @@ Preview now has a `Rewrite handoff` lane beside the rewrite queue. It shows whet
 - `Adaptive`
 
 These are not static thumbnails. They are normal Canvax frames with copied sketch elements, a visible variant label, lineage metadata, and Flow connections back to the source frame.
+
+They also export as `spatialWorkspace.variantBranches`, so Codex can distinguish alternate generated directions from ordinary navigation links.
 
 Select a variant and use `Use variant` when that branch should become the primary direction. Canvax marks the frame as a primary variant, makes it the entry frame, and preserves the lineage metadata for Codex handoff.
 

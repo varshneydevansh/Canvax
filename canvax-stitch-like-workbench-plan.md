@@ -49,7 +49,7 @@ Current completed baseline:
 - Correction marks over generated output are saved into frame handoff data.
 - Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product. The sticky command deck now uses a more opaque surface so scrolled canvas content does not visually bleed through it.
 - Workbench now has `Sketch`, `Split`, `Output`, and `Map` focus modes so generated surfaces can become a large correction target and the frame/variant graph can become a spatial project canvas instead of staying trapped in Advanced Flow view.
-- Workbench `Map` now includes a spatial object layer: labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files become draggable object cards and export through `spatialWorkspace.objects`; group containment is exported through `spatialWorkspace.groups` and `groupIds`.
+- Workbench `Map` now includes a spatial object layer: editable generated variant branches export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files become draggable object cards and export through `spatialWorkspace.objects`; group containment is exported through `spatialWorkspace.groups` and `groupIds`.
 - Preview now has `Play flow` playback for connected frames, starting from the entry frame and stepping through outgoing transition labels, with generated clickable hotspots over the sketch/output viewport. Selected frame elements can also be linked to target frames, turning their actual drawn bounds into persistent Play-mode hotspots.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
@@ -422,7 +422,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
-- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus movable/resizable labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports background drag-pan, button zoom, cursor-centered pinch/ctrl-wheel zoom, and export-time group containment. This is not yet a true arbitrary-object infinite canvas with richer nested object editing.
+- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus explicit editable variant branch exports, movable/resizable labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports background drag-pan, button zoom, cursor-centered pinch/ctrl-wheel zoom, and export-time group containment. This is not yet a true arbitrary-object infinite canvas with richer nested object editing.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10
@@ -430,24 +430,24 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 - **Acceptance Criteria**:
   - Trackpad pan/zoom feels stable on macOS. **Initial background drag-pan plus cursor-centered pinch/ctrl-wheel zoom shipped; advanced inertial/grouped canvas behavior remains open.**
   - Cards can be moved without breaking frame snapshots. **Done for frame/variant cards through shared Flow positions.**
-  - Workbench state exports spatial positions. **Done through `spatialWorkspace.cards`, `spatialWorkspace.objects`, and `spatialWorkspace.groups`.**
+  - Workbench state exports spatial positions. **Done through `spatialWorkspace.cards`, `spatialWorkspace.variantBranches`, `spatialWorkspace.objects`, and `spatialWorkspace.groups`.**
 - **Validation**:
   - Large-session browser regression with many cards.
   - Board self-test verifies Workbench Map renders, zooms, and exports frames, group regions, group containment, manual notes, asset candidates, generated targets, artifacts, and changed-file spatial objects.
 
 ### Task 5.2: Add Variants Lane
 
-- **Status**: Expanded initial local version shipped. Variant frames can now be promoted to the primary branch.
+- **Status**: Expanded initial local version shipped. Variant frames can now be promoted to the primary branch and export as explicit editable spatial branch records.
 - **Location**: `web/app.js`, `web/index.html`
 - **Description**: Let Canvax create multiple editable directions from one sketch and show them as connected Flow branches.
 - **Complexity**: 7/10
 - **Dependencies**: Task 5.1
 - **Acceptance Criteria**:
-  - Variants have labels, notes, and lineage. **Done for deterministic local branches.**
+  - Variants have labels, notes, and lineage. **Done for deterministic local branches and `spatialWorkspace.variantBranches`.**
   - User can choose one as primary. **Done with `Use variant`, which marks the selected variant as primary and makes it the entry frame.**
   - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the promoted variant; automatic route/component binding still depends on the Codex build pass.**
 - **Validation**:
-  - Generate three deterministic local variants. **Covered by board self-test.**
+  - Generate three deterministic local variants. **Covered by board self-test, including spatial branch export and primary promotion export.**
 
 ## Sprint 6: Polish, Responsiveness, And Regression
 
