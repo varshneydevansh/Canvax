@@ -459,7 +459,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 6.1: Responsive Fit Audit
 
-- **Status**: In progress. Current pass improves Workbench dock/tray layout and button feedback; broader Preview/device matrix remains open.
+- **Status**: In progress. Current pass improves Workbench dock/tray layout, button feedback, readable generated-output map cards, and Advanced sticky-deck opacity; broader Preview/device matrix remains open.
 - **Location**: `web/styles.css`, `web/preview.css`
 - **Description**: Fix overlap/clipping across Workbench, Preview, help, rails, artifact cards, and narrow windows.
 - **Complexity**: 5/10
@@ -468,6 +468,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - No clipped labels like `1 fram e`.
   - Artifact chips wrap cleanly.
   - Buttons remain tactile and readable.
+  - Advanced sticky controls do not blur canvas content into the inspector header. **Initial opaque-header pass shipped.**
 - **Validation**:
   - Browser screenshots at 1440, 1024, 768, 430 widths.
 

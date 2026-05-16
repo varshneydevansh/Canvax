@@ -416,6 +416,8 @@ body[data-workspace-mode="advanced"] .panel {
         linear-gradient(225deg, rgba(35, 100, 170, 0.11), transparent 42%),
         rgba(255, 248, 236, 0.09);
     border-color: rgba(255, 248, 236, 0.14);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, 0.28);
 }
 
@@ -426,11 +428,13 @@ body[data-workspace-mode="advanced"] .toolbar {
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
-        linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 30%),
-        #382b28;
+        linear-gradient(135deg, rgba(255, 93, 58, 0.14), transparent 28%),
+        linear-gradient(225deg, rgba(35, 100, 170, 0.1), transparent 34%),
+        #352723;
     backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     box-shadow:
-        0 1.25rem 3rem rgba(0, 0, 0, 0.42),
+        0 1.35rem 3.2rem rgba(0, 0, 0, 0.5),
         inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.16);
     isolation: isolate;
 }
@@ -451,6 +455,9 @@ body[data-workspace-mode="advanced"] .inspector-panel {
 body[data-workspace-mode="advanced"] .toolbar-main {
     padding-top: 0.75rem;
     border-top: 0.0625rem solid rgba(255, 248, 236, 0.1);
+    background: rgba(53, 39, 35, 0.96);
+    border-radius: 1rem;
+    padding: 0.75rem;
 }
 
 body[data-workspace-mode="advanced"] .panel::after {
@@ -486,11 +493,14 @@ body[data-workspace-mode="advanced"] .canvas-note p,
 body[data-workspace-mode="advanced"] .generation-section .compact-block {
     background:
         linear-gradient(135deg, rgba(12, 141, 123, 0.1), transparent 46%),
-        rgba(255, 248, 236, 0.08);
+        rgba(255, 248, 236, 0.1);
     border-color: rgba(255, 248, 236, 0.12);
 }
 
 body[data-workspace-mode="advanced"] .mode-strip {
+    background:
+        linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent 42%),
+        rgba(43, 31, 28, 0.96);
     border-radius: 1.2rem;
 }
 

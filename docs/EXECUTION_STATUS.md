@@ -57,13 +57,15 @@ Status: In progress
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds` and `spatialWorkspace.groups` records member frames/objects
 - [x] Workbench `Map` supports background drag-pan plus cursor-centered pinch/ctrl-wheel zoom
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
+- [x] Advanced sticky command deck is treated as an opaque inspector header, reducing canvas bleed-through while scrolling
+- [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays
 - [ ] Full interaction regression pass with browser validation
 - [ ] Remaining rough edges in large-session behavior
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, manual context objects, generated output objects, preview button, cached frame renders
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, manual context objects, readable generated output objects, preview button, cached frame renders
 still open:
   stricter browser validation, arbitrary-object infinite canvas, and long-session polish
 ```

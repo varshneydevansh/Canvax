@@ -4887,7 +4887,7 @@ function renderFlowBoard() {
   const defaultStatus =
     state.workspaceMode === "simple"
       ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from + to connect screens."
-      : "Drag cards to arrange screens. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from the dot on a frame to connect screens.";
+      : "Drag cards to arrange screens. Generated output cards are prior materialize/build previews; remove stale ones with x. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from the dot on a frame to connect screens.";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
@@ -4902,6 +4902,8 @@ function renderSpatialObjectNode(object) {
         : "Board object";
   const thumbnail = cleanString(object.meta?.thumbnailDataUrl);
   const sourceLabel = spatialObjectSourceLabel(object);
+  const bodyText = spatialObjectBodyText(object, frameTitle);
+  const footerStatus = spatialObjectFooterStatus(object);
   return `
     <article
       class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""}"
@@ -4931,10 +4933,10 @@ function renderSpatialObjectNode(object) {
         <strong>${escapeHtml(compactDisplayText(object.title, 46))}</strong>
       </div>
       ${thumbnail ? `<img class="spatial-object-thumbnail" src="${escapeHtml(thumbnail)}" alt="" />` : ""}
-      <p>${escapeHtml(compactDisplayText(object.subtitle || object.status || "Spatial object", 68))}</p>
+      <p>${escapeHtml(compactDisplayText(bodyText, 78))}</p>
       <div class="spatial-object-footer">
         <span>${escapeHtml(frameTitle)}</span>
-        <span>${escapeHtml(object.status || "ready")}</span>
+        <span>${escapeHtml(footerStatus)}</span>
       </div>
     </article>
   `;
@@ -4943,7 +4945,7 @@ function renderSpatialObjectNode(object) {
 function spatialObjectSourceLabel(object) {
   switch (object?.sourceKind) {
     case "generated-target":
-      return "generated output";
+      return "output preview";
     case "generated-artifact":
       return "artifact";
     case "workspace-change":
@@ -4953,6 +4955,44 @@ function spatialObjectSourceLabel(object) {
     default:
       return object?.sourceKind || object?.type || "object";
   }
+}
+
+function spatialObjectBodyText(object, frameTitle = "") {
+  if (object?.sourceKind === "generated-target") {
+    return object.meta?.summary
+      ? object.meta.summary
+      : frameTitle && frameTitle !== "Board object"
+        ? `Generated preview connected to ${frameTitle}`
+        : "Generated preview target from materialize/build output";
+  }
+
+  if (object?.sourceKind === "generated-artifact") {
+    return (
+      object.meta?.description ||
+      object.meta?.path ||
+      object.subtitle ||
+      "Generated artifact from the Codex output manifest"
+    );
+  }
+
+  if (object?.sourceKind === "workspace-change") {
+    return object.meta?.summary || object.subtitle || "Workspace file change";
+  }
+
+  return object.subtitle || object.status || "Spatial object";
+}
+
+function spatialObjectFooterStatus(object) {
+  if (object?.sourceKind === "generated-target") {
+    return object.status === "materialized-preview" ? "preview" : object.status || "preview";
+  }
+  if (object?.sourceKind === "generated-artifact") {
+    return object.status || "artifact";
+  }
+  if (object?.sourceKind === "workspace-change") {
+    return "changed";
+  }
+  return object.status || "ready";
 }
 
 function renderFlowInspector() {
