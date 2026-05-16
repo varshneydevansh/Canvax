@@ -786,6 +786,7 @@ Workbench now reads the latest candidate pack and renders a compact `Asset candi
 - select the placed image element on its source frame
 - accept an attached generated image as the chosen candidate for that frame or region
 - preserve the candidate id on the image element for later export, materialize, and Codex handoff
+- export a `reviewSummary` with accepted candidate IDs and image element bindings so Codex can identify the chosen visual without reading the tray UI
 
 ```mermaid
 flowchart LR

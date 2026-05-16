@@ -2467,6 +2467,7 @@ function normalizeAssetCandidatePack(pack) {
     ...pack,
     kind: pack.kind || "canvax-asset-candidates",
     requiresOpenAiApiKey: Boolean(pack.requiresOpenAiApiKey),
+    reviewSummary: buildAssetCandidateReviewSummary(candidates),
     candidates,
   };
 }
@@ -3094,6 +3095,48 @@ function assetCandidateReviewState(candidate) {
   };
 }
 
+function buildAssetCandidateReviewSummary(candidates = []) {
+  const items = Array.isArray(candidates) ? candidates : [];
+  const acceptedCandidates = items
+    .map(summarizeAcceptedAssetCandidate)
+    .filter(Boolean);
+  return {
+    total: items.length,
+    promptReady: items.filter((candidate) => candidate.status === "prompt-ready")
+      .length,
+    placed: items.filter((candidate) => candidate.status === "placed").length,
+    attached: items.filter((candidate) => candidate.status === "attached")
+      .length,
+    accepted: acceptedCandidates.length,
+    acceptedCandidateIds: acceptedCandidates.map((candidate) => candidate.id),
+    acceptedCandidates,
+  };
+}
+
+function summarizeAcceptedAssetCandidate(candidate) {
+  const slots = Array.isArray(candidate?.outputSlots)
+    ? candidate.outputSlots
+    : [];
+  const acceptedSlot = slots.find((slot) => slot?.accepted);
+  if (!acceptedSlot && candidate?.status !== "accepted") {
+    return null;
+  }
+  const fallbackSlot = acceptedSlot || slots[0] || {};
+  return {
+    id: candidate.id,
+    title: candidate.title || "Accepted asset candidate",
+    sourceFrameId: candidate.sourceFrameId || "",
+    sourceFrameTitle: candidate.sourceFrameTitle || "",
+    placement: candidate.placement || "",
+    bounds: candidate.bounds || null,
+    imageElementId: fallbackSlot.imageElementId || "",
+    frameId: fallbackSlot.frameId || candidate.sourceFrameId || "",
+    imagePath: fallbackSlot.imagePath || "",
+    acceptedAt: fallbackSlot.acceptedAt || "",
+    prompt: candidate.prompt || "",
+  };
+}
+
 function renderAssetCandidateTray() {
   if (!dom.assetCandidateTray) {
     return;
@@ -3106,12 +3149,13 @@ function renderAssetCandidateTray() {
   }
 
   const activeFrameId = state.activeFrameId;
+  const reviewSummary = buildAssetCandidateReviewSummary(candidates);
   dom.assetCandidateTray.hidden = false;
   dom.assetCandidateTray.innerHTML = `
     <div class="asset-candidate-head">
       <div>
         <p class="eyebrow">Asset candidates</p>
-        <strong>${candidates.length} prompt-ready slot${candidates.length === 1 ? "" : "s"}</strong>
+        <strong>${candidates.length} slot${candidates.length === 1 ? "" : "s"} · ${reviewSummary.accepted} accepted</strong>
       </div>
       <span>No API key required</span>
     </div>
@@ -3276,6 +3320,16 @@ function updateAssetCandidateSlot(
         "Generated candidate was placed back onto the Canvax frame.",
     },
   ];
+  refreshCurrentAssetCandidatePackReview();
+}
+
+function refreshCurrentAssetCandidatePackReview() {
+  if (!state.assetCandidatePack?.candidates) {
+    return;
+  }
+  state.assetCandidatePack.reviewSummary = buildAssetCandidateReviewSummary(
+    state.assetCandidatePack.candidates,
+  );
 }
 
 function selectAssetCandidateElement(candidateId) {
@@ -9781,6 +9835,11 @@ function buildAssetCandidatePack(imagePromptPack) {
       candidate,
     ]),
   );
+  const candidates = frames
+    .flatMap((frame) => buildFrameAssetCandidates(frame))
+    .map((candidate) =>
+      mergeAssetCandidateReview(candidate, existingById.get(candidate.id)),
+    );
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-asset-candidates",
@@ -9794,11 +9853,8 @@ function buildAssetCandidatePack(imagePromptPack) {
       imagePromptPack?.designContext || currentDesignContextForExport(),
     usage:
       "Use these prompt-ready records as image generation candidates. Paste or attach generated outputs back to the matching frame/region when available.",
-    candidates: frames
-      .flatMap((frame) => buildFrameAssetCandidates(frame))
-      .map((candidate) =>
-        mergeAssetCandidateReview(candidate, existingById.get(candidate.id)),
-      ),
+    reviewSummary: buildAssetCandidateReviewSummary(candidates),
+    candidates,
   };
 }
 
@@ -10357,6 +10413,26 @@ function buildAssetCandidatePackMarkdown(pack) {
     "## How To Use",
     "Use these prompt-ready candidates with the current Codex/ChatGPT image-generation host when available. Canvax stores the prompt, bounds, source frame, and empty output slots without calling a paid API.",
   ];
+  const reviewSummary =
+    pack.reviewSummary || buildAssetCandidateReviewSummary(candidates);
+  lines.push(
+    "",
+    "## Review Summary",
+    "",
+    `- Accepted: ${reviewSummary.accepted || 0}`,
+    `- Attached: ${reviewSummary.attached || 0}`,
+    `- Placed slots: ${reviewSummary.placed || 0}`,
+    `- Prompt-ready: ${reviewSummary.promptReady || 0}`,
+  );
+  if (reviewSummary.acceptedCandidates?.length) {
+    reviewSummary.acceptedCandidates.forEach((candidate) => {
+      lines.push(
+        `- Chosen: ${candidate.title} (${candidate.id}) -> ${
+          candidate.imageElementId || "no image element"
+        }`,
+      );
+    });
+  }
   candidates.forEach((candidate, index) => {
     lines.push("");
     lines.push(`## ${index + 1}. ${candidate.title}`);
@@ -13756,6 +13832,8 @@ async function assertAssetCandidateTrayPlacement() {
   const accepted = acceptAssetCandidate(candidateId, { sync: false });
   const acceptedCandidate = assetCandidateById(candidateId);
   const acceptedSlot = acceptedCandidate?.outputSlots?.[0] || null;
+  const reviewSummary = state.assetCandidatePack?.reviewSummary || {};
+  const acceptedSummary = reviewSummary.acceptedCandidates?.[0] || null;
   const bounds = element ? getElementBounds(element, frame) : null;
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const placed =
@@ -13772,7 +13850,10 @@ async function assertAssetCandidateTrayPlacement() {
     accepted &&
     acceptedCandidate?.status === "accepted" &&
     acceptedSlot?.accepted === true &&
-    acceptedSlot?.imageElementId === imageElement.id;
+    acceptedSlot?.imageElementId === imageElement.id &&
+    reviewSummary.accepted === 1 &&
+    reviewSummary.acceptedCandidateIds?.includes(candidateId) &&
+    acceptedSummary?.imageElementId === imageElement.id;
 
   window.clearTimeout(state.captureTimer);
   state.captureTimer = null;
@@ -13786,7 +13867,7 @@ async function assertAssetCandidateTrayPlacement() {
 
   return assert(
     placed,
-    "asset candidate tray places, attaches, and accepts editable image slots",
+    "asset candidate tray places, attaches, accepts, and summarizes editable image slots",
   );
 }
 

@@ -394,6 +394,7 @@ After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it 
 - select the placed image element on its source frame
 - accept the chosen generated image so the candidate output slot records the decision
 - keep the asset bound to its `assetCandidateId` so Codex can trace which prompt produced which visual region
+- read `reviewSummary.acceptedCandidates` in the asset candidate pack when Codex needs the chosen image/illustration candidate
 
 The tray still does not call an image API. It is a local bridge between prompt-ready candidates and whatever image-generation host is available in the current Codex/ChatGPT session.
 
