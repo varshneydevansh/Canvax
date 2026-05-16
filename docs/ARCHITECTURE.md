@@ -310,6 +310,7 @@ Canvax/
 - `Generate screen`: a semantic renderer path for richer screen output
 - `Build with Codex`: a real-code handoff path that writes a build request and output contract for Codex to execute
 - `scripts/execute-build-request.mjs`: a deterministic local smoke executor that turns the latest build request into a frame-bound preview artifact and publishes `artifacts/canvax/codex-output.json`
+- `scripts/execute-rewrite-request.mjs`: a deterministic local smoke executor that turns the latest rewrite request into a refreshed frame-bound preview artifact and publishes `artifacts/canvax/codex-output.json`
 
 ```text
 same endpoint
@@ -320,6 +321,11 @@ same endpoint
 
 separate endpoint
   /api/save-build-request         -> Codex-readable real implementation request
+
+rewrite request executor
+  exports/canvax-rewrite-request-latest.json
+      |
+      `-> artifacts/preview/codex-rewrite/frames/<frame-id>/
 ```
 
 ```mermaid

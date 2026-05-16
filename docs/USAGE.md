@@ -625,6 +625,38 @@ flowchart LR
     class G preview;
 ```
 
+## Execute Rewrite Request
+
+Use `npm run execute-rewrite` when a frame already has generated output and the latest sketch, voice note, or correction marks should refresh that output binding.
+
+This is the local no-API proof path for the live refinement loop:
+
+- `canvax-rewrite-request-latest.*` tells Codex what needs attention.
+- `execute-rewrite-request.mjs` consumes that request plus the task pack composition.
+- it writes a refreshed HTML artifact under `artifacts/preview/codex-rewrite/frames/<frame-id>/`.
+- it publishes the refreshed target through `artifacts/canvax/codex-output.json`.
+
+```bash
+npm run execute-rewrite
+```
+
+That writes:
+
+- `artifacts/preview/codex-rewrite/frames/<frame-id>/index.html`
+- `artifacts/preview/codex-rewrite/frames/<frame-id>/context.json`
+- `artifacts/canvax/codex-output.json`
+
+```text
+sketch changes + voice + correction marks
+  -> live rewrite request
+  -> execute-rewrite-request
+  -> refreshed frame-bound preview artifact
+  -> Codex output manifest
+  -> Preview and Workbench output refresh
+```
+
+This executor is deterministic and local. It is not a paid image/model call, and it does not replace a real Codex implementation pass. Its job is to prove that the request, affected-region context, preview artifact, and manifest binding are wired end to end.
+
 ## Editable Variants
 
 Use `Variants` / `Create variants` when you want alternate directions from the same sketch without leaving Canvax.

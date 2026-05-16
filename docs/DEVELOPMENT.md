@@ -208,6 +208,12 @@ Optional local executor
   artifacts/preview/codex-build/frames/<frame-id>/index.html
   artifacts/preview/codex-build/frames/<frame-id>/context.json
   artifacts/canvax/codex-output.json
+
+Rewrite local executor
+  node scripts/execute-rewrite-request.mjs
+  artifacts/preview/codex-rewrite/frames/<frame-id>/index.html
+  artifacts/preview/codex-rewrite/frames/<frame-id>/context.json
+  artifacts/canvax/codex-output.json
 ```
 
 ```mermaid
@@ -224,6 +230,7 @@ sequenceDiagram
     Codex->>Codex: edits real workspace files
     Codex->>Service: write-codex-output manifest
     Codex->>Service: optional execute-build-request smoke artifact
+    Codex->>Service: optional execute-rewrite-request smoke artifact
     Preview->>Service: poll /api/preview-state
     Service-->>Preview: frame-bound generated target
 ```
@@ -231,8 +238,10 @@ sequenceDiagram
 Regression coverage:
 
 - `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact
+- `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact
 
 - `scripts/regression-check.mjs` validates the latest build request schema when present.
+- `scripts/regression-check.mjs` validates the latest rewrite request schema when present.
 - Board self-test creates a synthetic build request and verifies the no-API frame-to-code contract.
 
 ## Variant Branch Implementation

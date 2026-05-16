@@ -78,6 +78,8 @@ Prefer these files when they exist:
 - `exports/canvax-voice-latest.md`
 - `exports/canvax-task-pack-latest.json`
 - `exports/canvax-task-pack-latest.md`
+- `exports/canvax-rewrite-request-latest.json`
+- `exports/canvax-rewrite-request-latest.md`
 - `exports/canvax-image-prompt-pack-latest.json`
 - `exports/canvax-image-prompt-pack-latest.md`
 - `exports/canvax-transcript-bridge.json`
@@ -91,6 +93,14 @@ Prefer these files when they exist:
 The live JSON export is the primary source because it includes frame metadata and the saved image paths.
 
 The task pack and image prompt pack may include `actionMode`, `hostLane`, and `designContext`. Use those fields to decide whether the user is asking for implementation, refinement, specs, image prompting, or variations, and to avoid promising native host features that the current local board does not expose.
+
+If the user says they marked corrections, changed a generated output, or wants Codex to refresh an existing output from the latest sketch/voice, read `exports/canvax-rewrite-request-latest.json` after the live export. For a deterministic local smoke refresh, run:
+
+```bash
+npm run execute-rewrite
+```
+
+That writes a refreshed frame-bound preview artifact under `artifacts/preview/codex-rewrite/frames/...` and publishes the standard Codex output manifest. It is local and does not require an API key.
 
 If the user asks for image generation, illustration, poster composition, book spreads, or "where should the image model place things", read `exports/canvax-image-prompt-pack-latest.json` or `.md` after the live export. This pack is no-API by design: it gives Codex/ChatGPT host capabilities the prompt, coordinates, safe zones, and HTML/CSS placement scaffold without requiring Canvax to call a paid API.
 

@@ -59,6 +59,7 @@ const results = [];
 
 await validateCodexOutputDryRun();
 await validateExecuteBuildRequestDryRun();
+await validateExecuteRewriteRequestDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
@@ -227,6 +228,45 @@ async function validateExecuteBuildRequestDryRun() {
     }
     results.push({
       name: "build request local executor dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+async function validateExecuteRewriteRequestDryRun() {
+  try {
+    await readFile(rewriteRequestJsonPath, "utf8");
+    const { stdout } = await runCommand("node", [
+      "scripts/execute-rewrite-request.mjs",
+      "--no-publish",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.previewPath?.startsWith("artifacts/preview/codex-rewrite/") &&
+        payload?.contextPath?.startsWith("artifacts/preview/codex-rewrite/") &&
+        Number.isInteger(payload?.affectedRegionCount) &&
+        payload?.published === false,
+    );
+    results.push({
+      name: "rewrite request local executor dry-run is valid",
+      passed,
+      detail: passed ? payload.previewPath : "invalid payload",
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      results.push({
+        name: "rewrite request local executor dry-run is valid",
+        passed: true,
+        skipped: true,
+        detail: "no rewrite request export present",
+      });
+      return;
+    }
+    results.push({
+      name: "rewrite request local executor dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : "Unknown error",
     });

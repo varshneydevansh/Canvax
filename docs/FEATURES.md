@@ -665,6 +665,31 @@ flowchart LR
 
 The Canvax handoff remains local-first: no `OPENAI_API_KEY` is required to create the request.
 
+## Rewrite Request Executor
+
+`execute-rewrite-request` is the deterministic local smoke path for the live refinement loop.
+
+It reads:
+
+- `exports/canvax-rewrite-request-latest.json`
+- `exports/canvax-task-pack-latest.json`
+
+It writes:
+
+- `artifacts/preview/codex-rewrite/frames/<frame-id>/index.html`
+- `artifacts/preview/codex-rewrite/frames/<frame-id>/context.json`
+- `artifacts/canvax/codex-output.json` unless `--no-publish` is used
+
+```text
+latest sketch / voice / correction marks
+  -> rewrite request
+  -> local refreshed preview artifact
+  -> output manifest
+  -> Workbench and Preview reload the frame-bound output
+```
+
+The generated context includes the selected rewrite queue item, affected regions, connected output targets, and the original request. This keeps the rough-sketch-to-refined-output path testable without an API key while leaving real app/code rewrites to Codex.
+
 ## Editable Variant Branches
 
 `Create variants` turns the active frame into three editable branch frames:

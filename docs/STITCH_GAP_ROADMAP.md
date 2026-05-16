@@ -184,6 +184,7 @@ Canvax today
 - Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
 - Rewrite queue tells Codex which frames need first output, a target, binding, or refresh.
 - `canvax-rewrite-request-latest.*` packages queued frames, stale output context, correction marks, voice notes, and output manifest bindings into one Codex-readable refinement handoff.
+- `execute-rewrite-request` consumes that handoff into a refreshed frame-bound local artifact plus Codex output manifest, proving the no-API rewrite binding path before a full autonomous Codex rewrite loop exists.
 - Codex Browser Use / Atlas can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
 
 ## What Is Still Missing
@@ -235,12 +236,13 @@ flowchart LR
 
 ### 2. Live Two-Way Rewrite Loop
 
-Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes. It does not yet run a continuous loop where Codex rewrites the generated surface while the user keeps drawing.
+Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes, and `execute-rewrite-request` can turn that handoff into a refreshed frame-bound local preview artifact. It does not yet run a continuous loop where Codex rewrites the generated surface while the user keeps drawing.
 
 Needed:
 
 - A live task queue for frames needing rewrite attention.
 - A focused rewrite request artifact. **Initial `canvax-rewrite-request-latest.*` shipped.**
+- A deterministic local executor for that request. **Initial `execute-rewrite-request` shipped.**
 - A frame revision to output revision dependency graph.
 - A "changed sketch region -> affected generated component" map.
 - A visible rewrite progress lane in Preview.
@@ -393,7 +395,7 @@ Needed:
 - Codex reads the latest frame/checkpoint and writes actual app/page/component code.
 - Codex writes a manifest that binds the generated code route back to the frame.
 - Preview reloads and highlights changed code/artifact context.
-- Sketch corrections become targeted rewrite tasks instead of generic prompts.
+- Sketch corrections become targeted rewrite tasks instead of generic prompts. **Initial rewrite request plus local executor shipped; component-level targeting remains open.**
 - Browser Use / Atlas opens and inspects the board, Preview, and generated app so Codex can fix visual issues from the same workspace loop.
 
 ### P3: Add Design System And Asset Intelligence

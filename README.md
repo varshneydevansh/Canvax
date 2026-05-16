@@ -104,6 +104,8 @@ flowchart LR
 - Adds a live output activity feed in the board and Preview, so output-context changes are visible while you keep sketching.
 - Adds frame-level output status badges in the board and Preview, so stale, synced, materialized, and global-target states stay visible across longer flows.
 - Adds a rewrite queue in the board and Preview, so frames that need first output, a frame binding, a target, or a refresh are surfaced explicitly instead of being inferred from scattered badges.
+- Writes `canvax-rewrite-request-latest.*` as a focused refinement handoff for queued frames, stale outputs, voice notes, and correction marks.
+- Includes `npm run execute-rewrite` as a deterministic no-API smoke path that turns the latest rewrite request into a refreshed frame-bound preview artifact and Codex output manifest.
 - Reloads same-URL Preview targets with a digest-based revision key when connected implementation context changes, which keeps local app previews closer to live Codex edits.
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
 - Lets you save preview compare snapshots into the workspace for later review.
@@ -131,6 +133,7 @@ This commit line now includes the following major layers working together:
 - `Generate screen` with board-side recipe controls
 - `Materialize` with stable per-frame targets and refinement deltas
 - rewrite queue and frame-level output status badges
+- rewrite request export plus local rewrite executor for frame-bound preview refresh
 - Workbench surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
 - Workbench action modes for build, refinement, spec, image prompt, and variation workflows
 - task and image prompt packs for host-side code, spec, UI, and image-generation work without requiring `OPENAI_API_KEY`

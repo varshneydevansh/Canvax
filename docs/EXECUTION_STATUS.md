@@ -137,6 +137,7 @@ Status: In progress
 - [x] `Build with Codex` writes a no-API real implementation request plus frame-to-code output contract for Codex to execute
 - [x] `canvax-rewrite-request-latest.*` writes the live output-refinement request alongside the task pack and image prompt pack
 - [x] `execute-build-request` provides a deterministic local smoke path from latest build request to frame-bound preview artifact and Codex output manifest
+- [x] `execute-rewrite-request` provides a deterministic local smoke path from latest rewrite request to refreshed frame-bound preview artifact, affected-region context, and Codex output manifest
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
 - [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails
