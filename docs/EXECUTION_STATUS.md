@@ -58,7 +58,7 @@ Status: In progress
 - [x] Workbench `Map` group regions move contained frame cards and spatial objects together
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds` and `spatialWorkspace.groups` records member frames/objects
 - [x] Workbench `Map` supports background drag-pan plus cursor-centered pinch/ctrl-wheel zoom
-- [x] Workbench `Map` spatial objects can be selected, edited through a visible Duplicate/Delete/Clear action strip, keyboard-nudged, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, group-duplicated with contained Map objects, and exported as the active `spatialWorkspace.selectedObjectId`
+- [x] Workbench `Map` spatial objects can be selected, edited through a visible Copy context/Duplicate/Delete/Clear action strip, copied as no-API Markdown context, keyboard-nudged, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, group-duplicated with contained Map objects, and exported as the active `spatialWorkspace.selectedObjectId`
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
 - [x] Workbench `Map` renders recent checkpoints as spatial history cards for longer collaboration sessions
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
@@ -78,7 +78,7 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/nudged/duplicated/deleted Map objects, group duplication with contained Map object copies, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/nudged/duplicated/deleted Map objects, no-API selected-object context copy, group duplication with contained Map object copies, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
   richer nested object editing, history lanes, and full arbitrary-object infinite canvas behavior
 ```

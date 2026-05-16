@@ -340,6 +340,7 @@ const dom = {
   mapSelectionActions: document.querySelector("#map-selection-actions"),
   mapSelectedObjectTitle: document.querySelector("#map-selected-object-title"),
   mapSelectedObjectDetail: document.querySelector("#map-selected-object-detail"),
+  mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
   mapDeleteObject: document.querySelector("#map-delete-object"),
   mapClearSelection: document.querySelector("#map-clear-selection"),
@@ -677,6 +678,9 @@ function bindEvents() {
   dom.addSpatialGroup.addEventListener("click", addSpatialGroupObject);
   dom.clearSpatialGenerated.addEventListener("click", () => {
     void clearGeneratedSpatialObjects();
+  });
+  dom.mapCopyObjectContext.addEventListener("click", () => {
+    void copySelectedSpatialObjectContext();
   });
   dom.mapDuplicateObject.addEventListener("click", duplicateSelectedSpatialObject);
   dom.mapDeleteObject.addEventListener("click", () => {
@@ -3282,6 +3286,93 @@ function cloneSpatialObjectMetaForManualCopy(object) {
   return meta;
 }
 
+async function copySelectedSpatialObjectContext() {
+  const object = selectedSpatialObject();
+  const text = buildSpatialObjectContextText(object);
+  if (!object || !text) {
+    renderStatus("No selected Map object context to copy");
+    return false;
+  }
+  const copied = await writeTextToClipboard(text);
+  renderStatus(
+    copied
+      ? `Copied ${object.title} context`
+      : `Could not copy ${object.title} context`,
+  );
+  return copied;
+}
+
+function buildSpatialObjectContextText(object) {
+  if (!object) {
+    return "";
+  }
+  const frameLabel =
+    object.frameIds?.length === 1
+      ? frameTitleById(object.frameIds[0])
+      : object.frameIds?.length
+        ? object.frameIds.map(frameTitleById).join(", ")
+        : "Board object";
+  const promptText =
+    cleanString(object.meta?.prompt) ||
+    cleanString(object.meta?.text) ||
+    cleanString(object.meta?.summary) ||
+    cleanString(object.meta?.description) ||
+    cleanString(object.subtitle) ||
+    cleanString(object.title);
+  const details = [
+    `# Canvax Map Object: ${object.title || "Spatial object"}`,
+    "",
+    `- Type: ${object.type || "object"}`,
+    `- Source: ${object.sourceKind || "manual"}`,
+    `- Status: ${spatialObjectFooterStatus(object)}`,
+    `- Frame: ${frameLabel}`,
+    `- Position: ${Math.round(object.x)}, ${Math.round(object.y)}`,
+    `- Size: ${Math.round(object.width || SPATIAL_OBJECT_WIDTH)} x ${Math.round(object.height || SPATIAL_OBJECT_HEIGHT)}`,
+  ];
+  if (object.type === "map-group") {
+    details.push(
+      `- Contains: ${spatialObjectsInsideGroup(object).length} Map objects`,
+    );
+  }
+  if (object.meta?.path || object.meta?.previewPath || object.meta?.url) {
+    details.push(
+      `- Target: ${object.meta.path || object.meta.previewPath || object.meta.url}`,
+    );
+  }
+  if (promptText) {
+    details.push("", "## Prompt / Context", promptText);
+  }
+  return details.join("\n").trim();
+}
+
+async function writeTextToClipboard(text) {
+  if (!text) {
+    return false;
+  }
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to the local DOM fallback below.
+    }
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    textarea.remove();
+  }
+}
+
 function assetCandidateById(candidateId) {
   const candidates = state.assetCandidatePack?.candidates || [];
   return candidates.find((candidate) => candidate.id === candidateId) || null;
@@ -5443,7 +5534,9 @@ function renderMapSelectionActions() {
   }
   const object = state.viewMode === "flow" ? selectedSpatialObject() : null;
   const hasSelection = Boolean(object);
+  const copyText = buildSpatialObjectContextText(object);
   dom.mapSelectionActions.hidden = !hasSelection;
+  dom.mapCopyObjectContext.disabled = !copyText;
   dom.mapDuplicateObject.disabled = !hasSelection;
   dom.mapDeleteObject.disabled = !hasSelection;
   dom.mapClearSelection.disabled = !hasSelection;
@@ -14127,8 +14220,14 @@ function assertManualSpatialObjectControls() {
     Boolean(object) &&
     !dom.mapSelectionActions.hidden &&
     dom.mapSelectedObjectTitle.textContent === object.title &&
+    !dom.mapCopyObjectContext.disabled &&
     !dom.mapDuplicateObject.disabled &&
     !dom.mapDeleteObject.disabled;
+  const contextText = buildSpatialObjectContextText(objectRecord);
+  const contextExported =
+    contextText.includes("Self-test map note") &&
+    contextText.includes("Manual spatial object") &&
+    contextText.includes("Prompt / Context");
   const objectXBeforeNudge = objectRecord?.x || 0;
   let nudgePrevented = false;
   onWindowKeyDown({
@@ -14291,6 +14390,7 @@ function assertManualSpatialObjectControls() {
     added &&
       selectedRendered &&
       selectionActionsVisible &&
+      contextExported &&
       nudged &&
       duplicated &&
       duplicateDeleted &&
@@ -14304,6 +14404,7 @@ function assertManualSpatialObjectControls() {
       added,
       selectedRendered,
       selectionActionsVisible,
+      contextExported,
       nudged,
       duplicated,
       duplicateDeleted,
