@@ -185,7 +185,9 @@ Canvax today
 
 ### 1. True Codex-Built Screen Generation
 
-Current `Generate screen` is local and deterministic. It improves the preview, but it does not yet ask Codex to create real app/page code from the sketch and then bind that implementation back automatically.
+Current `Generate screen` is local and deterministic. It improves the preview, but it does not by itself create real app/page code.
+
+Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request and frame-to-code output contract, then Codex can execute that request in the chat/session and publish the resulting route or artifact with `write-codex-output`.
 
 Target behavior:
 
@@ -195,8 +197,8 @@ draw frame -> Generate with Codex -> app/page files change -> preview updates ->
 
 Needed:
 
-- A board action that creates a Codex-ready generation task from the current frame/checkpoint.
-- A standard output contract for generated app/page/screen code.
+- A board action that creates a Codex-ready generation task from the current frame/checkpoint. **Initial version shipped as `Build with Codex`.**
+- A standard output contract for generated app/page/screen code. **Initial version shipped through `exports/canvax-build-real-latest.*` plus `artifacts/canvax/codex-output.json`.**
 - Automatic preview binding to the generated route or artifact.
 - Frame-aware code ownership so one frame maps to the files/components Codex generated.
 
@@ -207,7 +209,7 @@ done
   rough frame -> local Generate screen -> polished HTML artifact -> Preview
 
 next
-  rough frame -> Codex Build real screen -> app/page files -> live app preview
+  rough frame -> Build with Codex request -> Codex edits app/page files -> live app preview
 ```
 
 ```mermaid
@@ -372,7 +374,7 @@ Needed:
 
 ### P2: Make Codex The Differentiator
 
-- One board action: `Build real screen`.
+- One board action: `Build with Codex`. **Initial task/request writer shipped.**
 - Codex reads the latest frame/checkpoint and writes actual app/page/component code.
 - Codex writes a manifest that binds the generated code route back to the frame.
 - Preview reloads and highlights changed code/artifact context.
@@ -420,11 +422,11 @@ flowchart TD
 
 Concrete next steps:
 
-- Add `Build real screen` beside `Generate screen`.
+- Add `Build with Codex` beside `Generate screen`. **Done for Workbench, rail, toolbar, and Advanced generation panel.**
 - Add explicit action modes for `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`.
 - Add generated image candidate import/placement as first-class board assets.
 - Add a Browser Use / Atlas first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
-- Implement a task artifact under `artifacts/canvax/tasks/` that Codex can read and execute.
+- Implement a task artifact under `artifacts/canvax/build-requests/` that Codex can read and execute. **Initial JSON/Markdown request archive shipped.**
 - Extend `write-codex-output.mjs` so Codex can bind generated routes/components to frame ids in one command.
 - Add Preview UI for "Codex is building/refining this frame" state.
 - Add prototype Play mode before attempting a full infinite canvas, because the current frame/flow model can support Play sooner.

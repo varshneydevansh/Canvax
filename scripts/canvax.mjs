@@ -31,6 +31,7 @@ const previewSnapshotsIndexPath = resolve(
 const codexOutputRoot = resolve(projectRoot, "artifacts", "canvax");
 const checkpointsRoot = resolve(codexOutputRoot, "checkpoints");
 const checkpointsIndexPath = resolve(checkpointsRoot, "checkpoints.json");
+const buildRequestsRoot = resolve(codexOutputRoot, "build-requests");
 const runtimeRoot = resolve(projectRoot, ".canvax");
 const runtimePath = resolve(runtimeRoot, "runtime.json");
 const serverLogPath = resolve(runtimeRoot, "server.log");
@@ -39,6 +40,14 @@ const liveMarkdownPath = resolve(exportsRoot, "canvax-live-latest.md");
 const liveVoiceMarkdownPath = resolve(exportsRoot, "canvax-voice-latest.md");
 const taskPackJsonPath = resolve(exportsRoot, "canvax-task-pack-latest.json");
 const taskPackMarkdownPath = resolve(exportsRoot, "canvax-task-pack-latest.md");
+const buildRealRequestJsonPath = resolve(
+  exportsRoot,
+  "canvax-build-real-latest.json",
+);
+const buildRealRequestMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-build-real-latest.md",
+);
 const imagePromptPackJsonPath = resolve(
   exportsRoot,
   "canvax-image-prompt-pack-latest.json",
@@ -115,6 +124,7 @@ function buildTransportDescriptor(overrides = {}) {
       voice: "exports/canvax-voice-latest.md",
       checkpoint: "exports/canvax-checkpoint-latest.json",
       taskPack: "exports/canvax-task-pack-latest.json",
+      buildRealRequest: "exports/canvax-build-real-latest.json",
       imagePromptPack: "exports/canvax-image-prompt-pack-latest.json",
     },
     liveMirror: {
@@ -284,6 +294,9 @@ async function runCli() {
           liveVoiceMarkdownPath,
           transcriptBridgePath,
           transcriptBridgeMarkdownPath,
+          buildRealRequestJsonPath,
+          buildRealRequestMarkdownPath,
+          buildRequestsRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -304,6 +317,9 @@ async function runCli() {
         liveVoiceMarkdownPath,
         transcriptBridgePath,
         transcriptBridgeMarkdownPath,
+        buildRealRequestJsonPath,
+        buildRealRequestMarkdownPath,
+        buildRequestsRoot,
         latestCheckpointPath,
         checkpointsIndexPath,
         sessionEventsPath,
@@ -325,6 +341,9 @@ async function runCli() {
           liveVoiceMarkdownPath,
           transcriptBridgePath,
           transcriptBridgeMarkdownPath,
+          buildRealRequestJsonPath,
+          buildRealRequestMarkdownPath,
+          buildRequestsRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -474,6 +493,9 @@ async function runServer(port) {
           liveVoiceMarkdownPath,
           transcriptBridgePath,
           transcriptBridgeMarkdownPath,
+          buildRealRequestJsonPath,
+          buildRealRequestMarkdownPath,
+          buildRequestsRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -502,6 +524,13 @@ async function runServer(port) {
 
       if (request.method === "POST" && url.pathname === "/api/save-export") {
         return handleSaveExport(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/save-build-request"
+      ) {
+        return handleSaveBuildRequest(request, response);
       }
 
       if (
@@ -751,6 +780,142 @@ async function handleSaveExport(request, response) {
     imagePromptPackMarkdownPath,
     transport: buildTransportDescriptor(),
   });
+}
+
+async function handleSaveBuildRequest(request, response) {
+  const payload = await readJson(request);
+  const source =
+    payload.request && typeof payload.request === "object"
+      ? payload.request
+      : payload;
+
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return writeJson(response, 400, {
+      error: "Build request payload is missing.",
+    });
+  }
+
+  const activeFrameId = cleanString(source.activeFrameId || source.frame?.id);
+  if (!activeFrameId) {
+    return writeJson(response, 400, {
+      error: "Build request requires an active frame id.",
+    });
+  }
+
+  const createdAt = cleanString(source.createdAt) || new Date().toISOString();
+  const frameTitle =
+    cleanString(source.frame?.title) ||
+    cleanString(source.outputContract?.frameBinding?.frameTitle) ||
+    activeFrameId;
+  const requestId = `${buildTimestamp()}-${slugify(frameTitle)}`;
+  const requestRoot = resolve(buildRequestsRoot, requestId);
+  const requestJsonPath = resolve(requestRoot, "request.json");
+  const requestMarkdownPath = resolve(requestRoot, "request.md");
+  const nextRequest = {
+    ...source,
+    schemaVersion: Number(source.schemaVersion) || HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-build-real-request",
+    createdAt,
+    source: cleanString(source.source) || "canvax-workbench",
+    requiresOpenAiApiKey: false,
+    activeFrameId,
+    outputContract: {
+      ...(source.outputContract &&
+      typeof source.outputContract === "object" &&
+      !Array.isArray(source.outputContract)
+        ? source.outputContract
+        : {}),
+      manifestPath: "artifacts/canvax/codex-output.json",
+      previewManifestPath: "exports/canvax-preview-manifest.json",
+    },
+    archive: {
+      requestId,
+      jsonPath: toWorkspaceRelativePath(requestJsonPath),
+      markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+    },
+  };
+  const markdown =
+    typeof payload.markdown === "string" && payload.markdown.trim()
+      ? payload.markdown
+      : buildServerBuildRequestMarkdown(nextRequest);
+  const jsonBody = `${JSON.stringify(nextRequest, null, 2)}\n`;
+  const markdownBody = markdown.endsWith("\n") ? markdown : `${markdown}\n`;
+
+  await mkdir(requestRoot, { recursive: true });
+  await mkdir(exportsRoot, { recursive: true });
+  await writeFile(requestJsonPath, jsonBody);
+  await writeFile(requestMarkdownPath, markdownBody);
+  await writeFile(buildRealRequestJsonPath, jsonBody);
+  await writeFile(buildRealRequestMarkdownPath, markdownBody);
+
+  await appendFile(
+    sessionEventsPath,
+    `${JSON.stringify({
+      type: "build-real-request",
+      id: requestId,
+      at: createdAt,
+      frameId: activeFrameId,
+      frameTitle,
+      jsonPath: toWorkspaceRelativePath(requestJsonPath),
+      markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+      latestJsonPath: toWorkspaceRelativePath(buildRealRequestJsonPath),
+      latestMarkdownPath: toWorkspaceRelativePath(
+        buildRealRequestMarkdownPath,
+      ),
+    })}\n`,
+  );
+
+  return writeJson(response, 200, {
+    saved: true,
+    request: nextRequest,
+    requestId,
+    jsonPath: toWorkspaceRelativePath(requestJsonPath),
+    markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+    latestJsonPath: toWorkspaceRelativePath(buildRealRequestJsonPath),
+    latestMarkdownPath: toWorkspaceRelativePath(buildRealRequestMarkdownPath),
+    buildRequestsRoot,
+    suggestedPublishCommand:
+      nextRequest.outputContract?.publishCommand ||
+      `node scripts/write-codex-output.mjs --from-git-status --frame ${activeFrameId}`,
+  });
+}
+
+function buildServerBuildRequestMarkdown(request) {
+  const frame = request.frame || {};
+  const instructions = Array.isArray(request.codexInstructions)
+    ? request.codexInstructions
+    : [];
+  const doneDefinition = Array.isArray(request.doneDefinition)
+    ? request.doneDefinition
+    : [];
+  const lines = [
+    "# Canvax Build Real Request",
+    "",
+    `- Kind: ${request.kind}`,
+    `- Created: ${request.createdAt}`,
+    `- Requires OpenAI API key: ${request.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Active frame: ${frame.title || request.activeFrameId}`,
+    `- Manifest: ${request.outputContract?.manifestPath || "artifacts/canvax/codex-output.json"}`,
+    "",
+    "## Read First",
+    `- ${request.handoff?.liveJsonPath || "exports/canvax-live-latest.json"}`,
+    `- ${request.handoff?.taskPackJsonPath || "exports/canvax-task-pack-latest.json"}`,
+    `- ${request.handoff?.checkpointPath || "exports/canvax-checkpoint-latest.json"}`,
+    "",
+    "## Instructions",
+  ];
+  if (instructions.length) {
+    instructions.forEach((item) => lines.push(`- ${item}`));
+  } else {
+    lines.push("- Build real workspace files from the active Canvax frame.");
+  }
+  lines.push("", "## Done Definition");
+  if (doneDefinition.length) {
+    doneDefinition.forEach((item) => lines.push(`- ${item}`));
+  } else {
+    lines.push("- Publish the generated route/component back with write-codex-output.");
+  }
+  return lines.join("\n");
 }
 
 async function handleCodexTranscript(request, response) {
@@ -1192,6 +1357,8 @@ async function handlePreviewState(response) {
       liveJsonPath,
       liveMarkdownPath,
       liveVoiceMarkdownPath,
+      buildRealRequestJsonPath,
+      buildRealRequestMarkdownPath,
       transcriptBridgePath,
       transcriptBridgeMarkdownPath,
       checkpointLatestPath: latestCheckpointPath,
@@ -4597,6 +4764,10 @@ function workspaceUrlForPath(inputPath, versionTag = "") {
   return `${baseUrl}?v=${encodeURIComponent(String(versionTag))}`;
 }
 
+function toWorkspaceRelativePath(filePath) {
+  return relative(projectRoot, resolve(filePath)).split("\\").join("/");
+}
+
 function isAllowedWorkspacePath(filePath) {
   return (
     isWithinRoot(filePath, projectRoot) && !isWithinRoot(filePath, runtimeRoot)
@@ -4620,6 +4791,9 @@ function buildRuntime(port) {
     liveVoiceMarkdownPath,
     transcriptBridgePath,
     transcriptBridgeMarkdownPath,
+    buildRealRequestJsonPath,
+    buildRealRequestMarkdownPath,
+    buildRequestsRoot,
     latestCheckpointPath,
     checkpointsIndexPath,
     sessionEventsPath,

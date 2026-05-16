@@ -179,6 +179,7 @@ const dom = {
   focusUndo: document.querySelector("#focus-undo"),
   focusRedo: document.querySelector("#focus-redo"),
   focusGenerate: document.querySelector("#focus-generate"),
+  focusBuildReal: document.querySelector("#focus-build-real"),
   focusImagePack: document.querySelector("#focus-image-pack"),
   focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
   focusApply: document.querySelector("#focus-apply"),
@@ -222,6 +223,7 @@ const dom = {
   statusPill: document.querySelector("#status-pill"),
   openPreview: document.querySelector("#open-preview"),
   generateScreen: document.querySelector("#generate-screen"),
+  buildRealScreen: document.querySelector("#build-real-screen"),
   materializeFrame: document.querySelector("#materialize-frame"),
   captureButton: document.querySelector("#capture-button"),
   stageTitle: document.querySelector("#stage-title"),
@@ -271,6 +273,7 @@ const dom = {
   generationFocus: document.querySelector("#generation-focus"),
   generationSummary: document.querySelector("#generation-summary"),
   generateScreenPanel: document.querySelector("#generate-screen-panel"),
+  buildRealScreenPanel: document.querySelector("#build-real-screen-panel"),
   materializeFramePanel: document.querySelector("#materialize-frame-panel"),
   writeDesignContext: document.querySelector("#write-design-context"),
   voiceStatus: document.querySelector("#voice-status"),
@@ -420,6 +423,9 @@ function bindEvents() {
   dom.focusGenerate.addEventListener("click", () => {
     void generateCurrentScreen();
   });
+  dom.focusBuildReal.addEventListener("click", () => {
+    void buildRealScreenWithCodex();
+  });
   dom.focusImagePack.addEventListener("click", () => {
     void saveImagePromptPackForHost();
   });
@@ -490,11 +496,17 @@ function bindEvents() {
   dom.generateScreen.addEventListener("click", () => {
     void generateCurrentScreen();
   });
+  dom.buildRealScreen.addEventListener("click", () => {
+    void buildRealScreenWithCodex();
+  });
   dom.materializeFrame.addEventListener("click", () => {
     void materializeCurrentFrame();
   });
   dom.generateScreenPanel.addEventListener("click", () => {
     void generateCurrentScreen();
+  });
+  dom.buildRealScreenPanel.addEventListener("click", () => {
+    void buildRealScreenWithCodex();
   });
   dom.materializeFramePanel.addEventListener("click", () => {
     void materializeCurrentFrame();
@@ -985,6 +997,7 @@ function hydrateState() {
       },
       captureTimer: null,
       previewStateTimer: null,
+      buildRealInFlight: false,
       outputCheckpointInFlight: false,
       outputAnnotationDraft: null,
       lastActionScope: "",
@@ -1287,6 +1300,7 @@ function createInitialState() {
     },
     captureTimer: null,
     previewStateTimer: null,
+    buildRealInFlight: false,
     outputCheckpointInFlight: false,
     outputAnnotationDraft: null,
     lastActionScope: "",
@@ -1751,6 +1765,10 @@ function handleWorkbenchRailAction(action) {
     void generateCurrentScreen();
     return;
   }
+  if (action === "build-real") {
+    void buildRealScreenWithCodex();
+    return;
+  }
   if (action === "image-pack") {
     void saveImagePromptPackForHost();
     return;
@@ -1921,6 +1939,8 @@ function renderGenerationRecipe() {
   dom.generationSummary.textContent = summary;
   dom.generateScreen.title = `Generate a richer screen using ${summary}`;
   dom.generateScreenPanel.title = `Generate a richer screen using ${summary}`;
+  dom.buildRealScreen.title = `Create a Codex-ready real implementation request using ${summary}`;
+  dom.buildRealScreenPanel.title = `Create a Codex-ready real implementation request using ${summary}`;
 }
 
 function renderTools() {
@@ -1974,6 +1994,11 @@ function renderFocusPad() {
       button.disabled = Boolean(state.generationInFlight);
     });
   dom.workbenchRail
+    .querySelectorAll("[data-rail-action='build-real']")
+    .forEach((button) => {
+      button.disabled = Boolean(state.buildRealInFlight);
+    });
+  dom.workbenchRail
     .querySelectorAll("[data-rail-action='image-pack']")
     .forEach((button) => {
       button.disabled = Boolean(state.focusApplyInFlight);
@@ -2010,6 +2035,9 @@ function renderFocusPad() {
   dom.focusAddManual.disabled = !state.voice.manualDraft.trim();
   dom.focusApply.disabled = Boolean(state.focusApplyInFlight);
   dom.focusGenerate.disabled = Boolean(state.generationInFlight);
+  dom.focusBuildReal.disabled = Boolean(state.buildRealInFlight);
+  dom.buildRealScreen.disabled = Boolean(state.buildRealInFlight);
+  dom.buildRealScreenPanel.disabled = Boolean(state.buildRealInFlight);
   dom.focusImagePack.disabled = Boolean(state.focusApplyInFlight);
   dom.focusVoiceToggle.textContent =
     state.voice.status === "listening" ? "Stop talking" : "Start talking";
@@ -2018,7 +2046,10 @@ function renderFocusPad() {
     state.voice.status === "listening",
   );
 
-  if (state.focusApplyInFlight) {
+  if (state.buildRealInFlight) {
+    dom.focusStatus.textContent =
+      "Creating the real implementation request and frame-to-code contract for Codex...";
+  } else if (state.focusApplyInFlight) {
     dom.focusStatus.textContent =
       "Saving the sketch, voice context, and checkpoint for Codex...";
   } else if (state.voice.status === "listening") {
@@ -2813,6 +2844,127 @@ async function applyFocusPadToCodex() {
     }
   } finally {
     state.focusApplyInFlight = false;
+    renderFocusPad();
+  }
+}
+
+async function buildRealScreenWithCodex(options = {}) {
+  const { silent = false, announce = true } = options;
+  const frame = currentFrame();
+  if (!frame || state.buildRealInFlight) {
+    return null;
+  }
+
+  const hasBuildContext = Boolean(
+    frame.elements.length ||
+      frame.backgroundImage ||
+      frame.captures.length ||
+      frame.objective.trim() ||
+      frame.layout.trim() ||
+      state.voice.segments.length ||
+      (frame.outputAnnotations || []).length,
+  );
+  if (!hasBuildContext) {
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        "Draw, label, speak, or add a note before creating a real build request.";
+    }
+    if (announce) {
+      renderStatus("Nothing to build yet");
+    }
+    return null;
+  }
+
+  const originalBuildLabel = dom.buildRealScreen.textContent;
+  const originalBuildPanelLabel = dom.buildRealScreenPanel.textContent;
+  const originalFocusBuildLabel = dom.focusBuildReal.textContent;
+  state.buildRealInFlight = true;
+  renderFocusPad();
+
+  try {
+    if (!frame.objective.trim()) {
+      frame.objective =
+        "Build a real app/page/screen from this rough Canvax frame.";
+    }
+    if (!frame.layout.trim()) {
+      frame.layout =
+        "Use the sketch geometry, labels, voice notes, and output correction marks as the implementation brief.";
+    }
+    persistState();
+
+    dom.buildRealScreen.disabled = true;
+    dom.buildRealScreenPanel.disabled = true;
+    dom.focusBuildReal.disabled = true;
+    if (!silent) {
+      dom.buildRealScreen.textContent = "Preparing...";
+      dom.buildRealScreenPanel.textContent = "Preparing...";
+      dom.focusBuildReal.textContent = "Preparing...";
+      dom.workspaceStatus.textContent =
+        `Preparing real implementation request for ${frame.title}...`;
+    }
+    if (announce) {
+      renderStatus(`Preparing real implementation request for ${frame.title}`);
+    }
+
+    const exportResult = await freezeFrame(true, {
+      reason: "build-real-screen",
+      status: "Build request snapshot saved",
+    });
+    const exportPackage = await buildExportPackage();
+    const request = buildBuildRealRequest(frame, exportPackage, exportResult);
+    const response = await fetch("/api/save-build-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request,
+        markdown: buildBuildRealRequestMarkdown(request),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Build request save failed.");
+    }
+
+    state.serverStatus = {
+      ...state.serverStatus,
+      buildRequest: data.request || request,
+      buildRequestPath: data.latestMarkdownPath || data.markdownPath || "",
+    };
+    state.focusLastAppliedText =
+      "Build request ready. Codex can now read the latest Canvax build request and write real app/screen code.";
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        `Build request saved to ${data.latestMarkdownPath || data.markdownPath}. Ask Codex to build from it.`;
+    }
+    if (announce) {
+      renderStatus("Build request ready for Codex");
+    }
+    void saveCheckpointToWorkspace("build-real-screen", {
+      silent: true,
+      exportResult,
+      note: `Created a real implementation request for ${frame.title}.`,
+    });
+    renderServerStatus();
+    return data;
+  } catch (error) {
+    if (!silent) {
+      dom.workspaceStatus.textContent =
+        error instanceof Error
+          ? error.message
+          : "Build request save failed.";
+    }
+    if (announce) {
+      renderStatus("Build request failed");
+    }
+    return null;
+  } finally {
+    state.buildRealInFlight = false;
+    dom.buildRealScreen.disabled = false;
+    dom.buildRealScreenPanel.disabled = false;
+    dom.focusBuildReal.disabled = false;
+    dom.buildRealScreen.textContent = originalBuildLabel;
+    dom.buildRealScreenPanel.textContent = originalBuildPanelLabel;
+    dom.focusBuildReal.textContent = originalFocusBuildLabel;
     renderFocusPad();
   }
 }
@@ -7055,6 +7207,175 @@ function buildTaskPackMarkdown(taskPack) {
   return lines.join("\n");
 }
 
+function buildBuildRealRequest(frame, exportPackage, exportResult) {
+  const taskPack = exportPackage?.taskPack || buildTaskPack(exportPackage.frames);
+  const activeTaskFrame =
+    taskPack.frames.find((candidate) => candidate.id === frame.id) ||
+    taskPack.frames[0] ||
+    null;
+  const imagePromptFrame =
+    exportPackage?.imagePromptPack?.frames?.find(
+      (candidate) => candidate.id === frame.id,
+    ) || null;
+  const actionMode = currentActionMode();
+  const generation = normalizeGenerationConfig(state.board.generation);
+  const frameId = frame.id;
+
+  return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-build-real-request",
+    createdAt: new Date().toISOString(),
+    source: "canvax-workbench",
+    requiresOpenAiApiKey: false,
+    actionMode: actionMode.id,
+    actionModeLabel: actionMode.label,
+    actionModeDescription: actionMode.description,
+    board: {
+      project: state.board.project,
+      goal: state.board.goal,
+      surface: state.board.audience,
+      mood: state.board.designMood,
+      generationRecipe: generationSummaryText(generation),
+    },
+    activeFrameId: frameId,
+    frame: activeTaskFrame,
+    imagePromptFrame,
+    voice: taskPack.voice || buildVoiceExport(state.frames),
+    designContext: taskPack.designContext || currentDesignContextForExport(),
+    generation,
+    handoff: {
+      liveJsonPath: "exports/canvax-live-latest.json",
+      liveMarkdownPath: "exports/canvax-live-latest.md",
+      taskPackJsonPath: "exports/canvax-task-pack-latest.json",
+      taskPackMarkdownPath: "exports/canvax-task-pack-latest.md",
+      checkpointPath: "exports/canvax-checkpoint-latest.json",
+      imagePromptPackPath: "exports/canvax-image-prompt-pack-latest.json",
+      buildRequestJsonPath: "exports/canvax-build-real-latest.json",
+      buildRequestMarkdownPath: "exports/canvax-build-real-latest.md",
+      lastSavedExport: {
+        jsonPath: exportResult?.jsonPath || "",
+        markdownPath: exportResult?.markdownPath || "",
+        taskPackJsonPath: exportResult?.taskPackJsonPath || "",
+        imagePromptPackJsonPath: exportResult?.imagePromptPackJsonPath || "",
+      },
+    },
+    outputContract: {
+      manifestPath: "artifacts/canvax/codex-output.json",
+      previewManifestPath: "exports/canvax-preview-manifest.json",
+      publishCommand: `node scripts/write-codex-output.mjs --from-git-status --frame ${frameId} --url http://localhost:<app-port>`,
+      publishArtifactCommand: `node scripts/write-codex-output.mjs --from-git-status --frame ${frameId} --preview-path <workspace-html-path>`,
+      frameBinding: {
+        frameId,
+        frameTitle: frame.title,
+        expectedTargetTypes: ["route", "component", "html-artifact"],
+      },
+    },
+    codexInstructions: [
+      "Read this request, the live export, task pack, checkpoint, and DESIGN.md if present before changing files.",
+      "Build actual app/page/component files in the current workspace, not only a Canvax materialized mock.",
+      "Respect the sketch geometry, labels, voice notes, output correction marks, and generation recipe as design intent.",
+      "Run the relevant project checks after implementation.",
+      "Publish the result back into Canvax with scripts/write-codex-output.mjs so Preview and Workbench can bind the generated output to this frame.",
+    ],
+    doneDefinition: [
+      "A real route, component, page, HTML artifact, or app screen exists in workspace files.",
+      "The output is bound to the source frame through artifacts/canvax/codex-output.json.",
+      "Preview or Workbench can open the generated target.",
+      "Changed files and artifacts are listed in the Codex output manifest.",
+      "No OpenAI API key is required by the Canvax handoff itself.",
+    ],
+    nonGoals: [
+      "Do not call paid APIs from Canvax to satisfy this request.",
+      "Do not replace the original sketch frame with generated code.",
+      "Do not treat the local Generate screen artifact as production output unless the user explicitly accepts it.",
+    ],
+  };
+}
+
+function buildBuildRealRequestMarkdown(request) {
+  if (!request) {
+    return "";
+  }
+  const frame = request.frame || {};
+  const compositionElements = Array.isArray(frame.composition?.elements)
+    ? frame.composition.elements.slice(0, 16)
+    : [];
+  const voiceSegments = Array.isArray(request.voice?.segments)
+    ? request.voice.segments.slice(0, 8)
+    : [];
+  const lines = [
+    "# Canvax Build Real Request",
+    "",
+    `- Kind: ${request.kind}`,
+    `- Created: ${request.createdAt}`,
+    `- Requires OpenAI API key: ${request.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Project: ${request.board?.project || "Canvax"}`,
+    `- Active frame: ${frame.title || request.activeFrameId}`,
+    `- Action mode: ${request.actionModeLabel || request.actionMode}`,
+    `- Design context: ${request.designContext?.exists ? request.designContext.relativePath : "No DESIGN.md found"}`,
+    "",
+    "## Objective",
+    request.board?.goal ||
+      "Build a real app/page/screen from the active Canvax frame.",
+    "",
+    "## Read First",
+    `- Live export: \`${request.handoff.liveJsonPath}\``,
+    `- Task pack: \`${request.handoff.taskPackJsonPath}\``,
+    `- Checkpoint: \`${request.handoff.checkpointPath}\``,
+    `- Image prompt pack: \`${request.handoff.imagePromptPackPath}\``,
+    "",
+    "## Active Frame",
+    `- Frame id: \`${request.activeFrameId}\``,
+    `- Surface: ${frame.viewport || "unknown"} ${frame.viewportWidth || ""}x${frame.viewportHeight || ""}`.trim(),
+    `- Intent: ${frame.intent || "No explicit intent"}`,
+    `- Notes: ${frame.notes || "No explicit structure notes"}`,
+    `- Behavior: ${frame.behavior || "No behavior notes"}`,
+    `- Assets: ${frame.assets || "No asset notes"}`,
+    `- Variants: ${frame.variants || "No variant notes"}`,
+    "",
+    "## Composition Elements",
+  ];
+
+  if (compositionElements.length) {
+    compositionElements.forEach((element) => {
+      lines.push(
+        `- ${element.index}. ${element.type} as ${element.role} at ${element.placement}: ${JSON.stringify(element.bounds)}`,
+      );
+    });
+  } else {
+    lines.push("- No structured elements found. Use notes, voice, and screenshots.");
+  }
+
+  lines.push("", "## Voice / Spoken Notes");
+  if (voiceSegments.length) {
+    voiceSegments.forEach((segment) => {
+      lines.push(`- ${segment.scope || "frame"}: ${segment.text}`);
+    });
+  } else {
+    lines.push("- No voice notes captured for this request.");
+  }
+
+  lines.push(
+    "",
+    "## Codex Output Contract",
+    `- Manifest: \`${request.outputContract.manifestPath}\``,
+    "- After implementing real files, publish the binding with one of:",
+    `  - \`${request.outputContract.publishCommand}\``,
+    `  - \`${request.outputContract.publishArtifactCommand}\``,
+    "",
+    "## Codex Instructions",
+  );
+  request.codexInstructions.forEach((item) => lines.push(`- ${item}`));
+
+  lines.push("", "## Done Definition");
+  request.doneDefinition.forEach((item) => lines.push(`- ${item}`));
+
+  lines.push("", "## Non-Goals");
+  request.nonGoals.forEach((item) => lines.push(`- ${item}`));
+
+  return lines.join("\n");
+}
+
 function buildImagePromptPackMarkdown(pack) {
   if (!pack) {
     return "";
@@ -9189,6 +9510,35 @@ async function runSelfTest() {
             materializedHtml.includes("Show original sketch") &&
             materializedHtml.includes("Show design notes"),
           "materialized output keeps sketch and notes as opt-in review aids",
+        ),
+      );
+    }
+    const buildRealResult = await buildRealScreenWithCodex({
+      silent: true,
+      announce: false,
+    });
+    results.push(
+      assert(
+        buildRealResult?.request?.kind === "canvax-build-real-request" &&
+          buildRealResult.request.requiresOpenAiApiKey === false &&
+          buildRealResult.request.outputContract?.manifestPath ===
+            "artifacts/canvax/codex-output.json",
+        "build real request creates no-API frame-to-code contract",
+        buildRealResult?.latestMarkdownPath ||
+          "Build real request did not return a latest markdown path.",
+      ),
+    );
+    if (buildRealResult?.latestMarkdownPath) {
+      const buildRequestMarkdown = await fetch(
+        `/workspace/${buildRealResult.latestMarkdownPath}`,
+        { cache: "no-store" },
+      ).then((response) => (response.ok ? response.text() : ""));
+      results.push(
+        assert(
+          buildRequestMarkdown.includes("Canvax Build Real Request") &&
+            buildRequestMarkdown.includes("Requires OpenAI API key: no") &&
+            buildRequestMarkdown.includes("write-codex-output"),
+          "build real request writes readable Codex handoff markdown",
         ),
       );
     }

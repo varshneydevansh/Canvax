@@ -151,7 +151,7 @@ The next packaging step should be a Canvax plugin that bundles:
 - the existing skill instructions
 - MCP-style tools for reading the current frame/checkpoint
 - a tool to open the board in Browser Use / Atlas
-- a tool to create a `Build real screen` task
+- a tool to create or read a `Build with Codex` real implementation request
 - a tool to publish output manifests after Codex changes files
 
 The skill should remain as the lightweight fallback. The plugin should become the richer installable Codex integration.

@@ -68,7 +68,7 @@ Still open:
 
 - first-class generated image candidate management
 - true infinite spatial canvas
-- direct `Build real screen with Codex` route/code generation and binding
+- direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
 - native Codex microphone/image-generation host bridge
 
 ## Target UX
@@ -514,14 +514,14 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 The Workbench baseline has moved past the first Stitch-like shell and now has large output focus/split modes. The next implementation should be:
 
 ```text
-Build real screen action + frame-to-code manifest contract
+Build with Codex action + frame-to-code manifest contract
 ```
 
 That means:
 
-- create a Codex-readable task artifact for the active frame/checkpoint
+- create a Codex-readable task artifact for the active frame/checkpoint **done as `exports/canvax-build-real-latest.*` and `artifacts/canvax/build-requests/`**
 - let Codex write actual app/page/component files from the frame
-- bind the generated route/component back to the frame in the output manifest
+- bind the generated route/component back to the frame in the output manifest **contract exists; Codex execution still needed**
 - keep Preview and the Workbench output stage synced to that generated route
 
 After that is stable, continue into generated image candidates and true spatial/infinite canvas work. Do not add an API-key requirement. Canvax should keep exporting prompt packs and task packs locally, then let Codex/ChatGPT host capabilities use them when available.

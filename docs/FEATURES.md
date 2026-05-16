@@ -605,6 +605,53 @@ What Generate screen is for:
 - turning a sketch into something that feels more like a real website or app screen
 - trying stronger design directions without leaving the Canvax loop
 
+## Build With Codex
+
+Build with Codex is the first real-code bridge.
+
+It does not generate a mock directly inside Canvax. Instead, it writes a task artifact that Codex can execute in the current workspace.
+
+Outputs:
+
+- `exports/canvax-build-real-latest.json`
+- `exports/canvax-build-real-latest.md`
+- archived copies under `artifacts/canvax/build-requests/`
+
+What the request includes:
+
+- frame-to-code binding target
+- active frame composition and notes
+- voice/manual notes
+- `DESIGN.md` context when present
+- live export, task pack, checkpoint, and image prompt pack paths
+- `artifacts/canvax/codex-output.json` as the binding manifest
+- suggested `write-codex-output` commands
+
+```text
+Generate screen:
+  local renderer -> HTML preview artifact
+
+Build with Codex:
+  frame request -> Codex writes real files -> output manifest -> Preview binding
+```
+
+```mermaid
+flowchart LR
+    S[Sketch frame] --> R[Build real request]
+    R --> C[Codex implementation pass]
+    C --> M[Codex output manifest]
+    M --> P[Preview/Workbench output]
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef request fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef output fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    class S sketch;
+    class R request;
+    class C,M,P output;
+```
+
+The Canvax handoff remains local-first: no `OPENAI_API_KEY` is required to create the request.
+
 ```text
 Generate screen
   sketch geometry  -> placement hints

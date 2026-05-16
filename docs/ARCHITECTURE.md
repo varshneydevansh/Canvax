@@ -305,6 +305,7 @@ Canvax/
 
 - `Materialize`: a geometry-preserving styled preview
 - `Generate screen`: a semantic renderer path for richer screen output
+- `Build with Codex`: a real-code handoff path that writes a build request and output contract for Codex to execute
 
 ```text
 same endpoint
@@ -312,6 +313,9 @@ same endpoint
       |
       +-- mode: materialize       -> geometry-first styled artifact
       `-- mode: generate-screen   -> semantic screen renderer
+
+separate endpoint
+  /api/save-build-request         -> Codex-readable real implementation request
 ```
 
 ```mermaid
@@ -475,6 +479,12 @@ Look in:
 - `web/app.js` for export package creation
 - `scripts/canvax.mjs` for file writing and service endpoints
 - `scripts/write-codex-output.mjs` for Codex-side output publishing from git status or explicit artifacts
+
+Real-code handoff files:
+
+- `exports/canvax-build-real-latest.json`
+- `exports/canvax-build-real-latest.md`
+- `artifacts/canvax/build-requests/...`
 
 ## Current Design Boundary
 

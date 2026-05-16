@@ -489,6 +489,63 @@ That flow:
 
 `Generate screen` is still local and deterministic. It is a richer profile-driven pass, not a paid API call.
 
+## Build With Codex
+
+Use `Build with Codex` when the current frame is ready to become real workspace code.
+
+This is different from `Generate screen`:
+
+- `Generate screen` writes a local HTML preview artifact from the sketch.
+- `Build with Codex` writes a Codex-readable implementation request for actual app/page/component files.
+- The request does not call a paid API and does not require `OPENAI_API_KEY`.
+
+Canvax writes the latest request to:
+
+- `exports/canvax-build-real-latest.json`
+- `exports/canvax-build-real-latest.md`
+
+It also archives each request under:
+
+- `artifacts/canvax/build-requests/...`
+
+The request contains:
+
+- active frame id, title, viewport, notes, labels, and composition coordinates
+- voice/manual notes
+- design context from `DESIGN.md` when present
+- links to the live export, task pack, checkpoint, and image prompt pack
+- the expected Codex output manifest path
+- suggested `scripts/write-codex-output.mjs` commands for binding the generated route or artifact back to the frame
+
+```text
+sketch + voice + labels
+  -> Build with Codex
+  -> exports/canvax-build-real-latest.md
+  -> Codex implements real files
+  -> scripts/write-codex-output.mjs
+  -> artifacts/canvax/codex-output.json
+  -> Preview and Workbench bind the output to the frame
+```
+
+```mermaid
+flowchart LR
+    A[Active frame] --> B[Build with Codex]
+    B --> C[Build request JSON/MD]
+    C --> D[Codex edits real app files]
+    D --> E[write-codex-output]
+    E --> F[Codex output manifest]
+    F --> G[Workbench and Preview]
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef request fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef code fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    classDef preview fill:#eef3ff,stroke:#2364aa,color:#101828;
+    class A sketch;
+    class B,C request;
+    class D,E,F code;
+    class G preview;
+```
+
 For hero-like website frames, Generate screen now uses semantic screen inference:
 
 ```text

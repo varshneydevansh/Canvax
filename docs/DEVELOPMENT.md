@@ -179,6 +179,53 @@ flowchart LR
 
 Use `Generate screen` for hero-like website/app screens where Canvax should infer sections, hierarchy, calls to action, and visual tone. Use `Materialize` when you want a quicker mock that stays closer to raw canvas geometry.
 
+## Build With Codex Development Path
+
+`Build with Codex` is intentionally a handoff contract, not a local renderer.
+
+Runtime path:
+
+```text
+web/app.js
+  buildRealScreenWithCodex()
+  buildBuildRealRequest()
+  buildBuildRealRequestMarkdown()
+
+scripts/canvax.mjs
+  POST /api/save-build-request
+  artifacts/canvax/build-requests/<request>/request.json
+  artifacts/canvax/build-requests/<request>/request.md
+  exports/canvax-build-real-latest.json
+  exports/canvax-build-real-latest.md
+
+Codex implementation pass
+  edits app/page/component files
+  node scripts/write-codex-output.mjs --from-git-status --frame <frame-id> ...
+  artifacts/canvax/codex-output.json
+```
+
+```mermaid
+sequenceDiagram
+    participant Board as Canvax board
+    participant Service as Local service
+    participant Codex as Codex
+    participant Preview as Preview/Workbench
+
+    Board->>Service: save live export/checkpoint
+    Board->>Service: save build-real request
+    Service-->>Board: latest request paths
+    Codex->>Service: reads exported request files
+    Codex->>Codex: edits real workspace files
+    Codex->>Service: write-codex-output manifest
+    Preview->>Service: poll /api/preview-state
+    Service-->>Preview: frame-bound generated target
+```
+
+Regression coverage:
+
+- `scripts/regression-check.mjs` validates the latest build request schema when present.
+- Board self-test creates a synthetic build request and verifies the no-API frame-to-code contract.
+
 ## Where To Change What
 
 ### Add or change a drawing tool

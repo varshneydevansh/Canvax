@@ -253,6 +253,13 @@
                                 Generate screen
                             </button>
                             <button
+                                id="build-real-screen"
+                                class="ghost-button"
+                                title="Create a Codex-ready request to build real app/page code from this frame"
+                            >
+                                Build with Codex
+                            </button>
+                            <button
                                 id="materialize-frame"
                                 class="ghost-button"
                                 title="Turn the current frame into a quick styled local preview"
@@ -366,6 +373,9 @@
                             </button>
                             <button id="focus-generate" class="ghost-button">
                                 Make real
+                            </button>
+                            <button id="focus-build-real" class="ghost-button">
+                                Build code
                             </button>
                             <button id="focus-image-pack" class="ghost-button">
                                 Image pack
@@ -566,6 +576,14 @@
                         title="Make the current sketch real"
                     >
                         Make
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-action="build-real"
+                        type="button"
+                        title="Create a Codex-ready real implementation request"
+                    >
+                        Build
                     </button>
                     <button
                         class="rail-button rail-button-strong"
@@ -1013,6 +1031,14 @@
                             title="Generate a richer local screen from the current frame"
                         >
                             Generate screen
+                        </button>
+                        <button
+                            id="build-real-screen-panel"
+                            class="ghost-button"
+                            type="button"
+                            title="Create a Codex-ready build request for real app/page code"
+                        >
+                            Build with Codex
                         </button>
                         <button
                             id="materialize-frame-panel"

@@ -11,6 +11,11 @@ const taskPackJsonPath = resolve(
   "exports",
   "canvax-task-pack-latest.json",
 );
+const buildRealRequestJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-build-real-latest.json",
+);
 const imagePromptPackJsonPath = resolve(
   projectRoot,
   "exports",
@@ -66,6 +71,17 @@ await validateOptionalJsonSchema(
     value.schemaVersion >= 1 &&
     Array.isArray(value?.frames),
   "task pack schema is valid",
+);
+await validateOptionalJsonSchema(
+  buildRealRequestJsonPath,
+  (value) =>
+    value?.kind === "canvax-build-real-request" &&
+    value.requiresOpenAiApiKey === false &&
+    value.outputContract?.manifestPath ===
+      "artifacts/canvax/codex-output.json" &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1,
+  "build real request schema is valid",
 );
 await validateOptionalJsonSchema(
   imagePromptPackJsonPath,
