@@ -435,7 +435,7 @@ Concrete next steps:
 - Add explicit action modes for `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`.
 - Add generated image candidate import/placement as first-class board assets. **Initial Workbench candidate tray and editable image-slot placement shipped.**
 - Add a Browser Use / Atlas first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
-- Implement a task artifact under `artifacts/canvax/build-requests/` that Codex can read and execute. **Initial JSON/Markdown request archive shipped.**
+- Implement a task artifact under `artifacts/canvax/build-requests/` that Codex can read and execute. **Initial JSON/Markdown request archive and deterministic local executor shipped.**
 - Extend `write-codex-output.mjs` so Codex can bind generated routes/components to frame ids in one command.
 - Add Preview UI for "Codex is building/refining this frame" state.
 - Add prototype Play mode before attempting a full infinite canvas, because the current frame/flow model can support Play sooner.

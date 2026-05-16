@@ -72,6 +72,7 @@ Still open:
 - automatic host image generation and multi-candidate review. Initial candidate tray placement plus attach-image import is shipped.
 - true infinite spatial canvas beyond the initial Workbench Map frame/variant layer
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
+- deterministic `execute-build-request` smoke path is shipped for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
 - native Codex microphone/image-generation host bridge
 
 ## Target UX

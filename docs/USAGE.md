@@ -545,6 +545,7 @@ This is different from `Generate screen`:
 - `Generate screen` writes a local HTML preview artifact from the sketch.
 - `Build with Codex` writes a Codex-readable implementation request for actual app/page/component files.
 - The request does not call a paid API and does not require `OPENAI_API_KEY`.
+- `node scripts/execute-build-request.mjs` can execute the latest request into a local HTML preview artifact and publish the frame binding. This is a deterministic smoke path, not a replacement for Codex editing real app files.
 
 Canvax writes the latest request to:
 
@@ -573,6 +574,18 @@ sketch + voice + labels
   -> artifacts/canvax/codex-output.json
   -> Preview and Workbench bind the output to the frame
 ```
+
+Local smoke path:
+
+```bash
+npm run execute-build
+```
+
+That writes:
+
+- `artifacts/preview/codex-build/frames/<frame-id>/index.html`
+- `artifacts/preview/codex-build/frames/<frame-id>/context.json`
+- `artifacts/canvax/codex-output.json`
 
 ```mermaid
 flowchart LR

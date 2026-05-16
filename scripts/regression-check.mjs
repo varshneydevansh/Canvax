@@ -53,6 +53,7 @@ const demoScriptPath = resolve(projectRoot, "docs", "canvax-demo-script.md");
 const results = [];
 
 await validateCodexOutputDryRun();
+await validateExecuteBuildRequestDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
@@ -172,6 +173,44 @@ async function validateCodexOutputDryRun() {
   } catch (error) {
     results.push({
       name: "codex output dry-run manifest is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+async function validateExecuteBuildRequestDryRun() {
+  try {
+    await readFile(buildRealRequestJsonPath, "utf8");
+    const { stdout } = await runCommand("node", [
+      "scripts/execute-build-request.mjs",
+      "--no-publish",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.previewPath?.startsWith("artifacts/preview/codex-build/") &&
+        payload?.contextPath?.startsWith("artifacts/preview/codex-build/") &&
+        payload?.published === false,
+    );
+    results.push({
+      name: "build request local executor dry-run is valid",
+      passed,
+      detail: passed ? payload.previewPath : "invalid payload",
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      results.push({
+        name: "build request local executor dry-run is valid",
+        passed: true,
+        skipped: true,
+        detail: "no build request export present",
+      });
+      return;
+    }
+    results.push({
+      name: "build request local executor dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : "Unknown error",
     });

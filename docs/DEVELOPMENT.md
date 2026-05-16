@@ -181,7 +181,7 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 ## Build With Codex Development Path
 
-`Build with Codex` is intentionally a handoff contract, not a local renderer.
+`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for smoke-testing the contract and publishing a frame-bound preview artifact when no app route has been built yet.
 
 Runtime path:
 
@@ -202,6 +202,12 @@ Codex implementation pass
   edits app/page/component files
   node scripts/write-codex-output.mjs --from-git-status --frame <frame-id> ...
   artifacts/canvax/codex-output.json
+
+Optional local executor
+  node scripts/execute-build-request.mjs
+  artifacts/preview/codex-build/frames/<frame-id>/index.html
+  artifacts/preview/codex-build/frames/<frame-id>/context.json
+  artifacts/canvax/codex-output.json
 ```
 
 ```mermaid
@@ -217,11 +223,14 @@ sequenceDiagram
     Codex->>Service: reads exported request files
     Codex->>Codex: edits real workspace files
     Codex->>Service: write-codex-output manifest
+    Codex->>Service: optional execute-build-request smoke artifact
     Preview->>Service: poll /api/preview-state
     Service-->>Preview: frame-bound generated target
 ```
 
 Regression coverage:
+
+- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact
 
 - `scripts/regression-check.mjs` validates the latest build request schema when present.
 - Board self-test creates a synthetic build request and verifies the no-API frame-to-code contract.

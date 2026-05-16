@@ -612,13 +612,14 @@ What Generate screen is for:
 
 Build with Codex is the first real-code bridge.
 
-It does not generate a mock directly inside Canvax. Instead, it writes a task artifact that Codex can execute in the current workspace.
+It writes a task artifact that Codex can execute in the current workspace. For validation and quick preview binding, Canvax also includes `scripts/execute-build-request.mjs`, which reads the latest request and writes a local HTML artifact plus Codex output manifest without calling a paid API.
 
 Outputs:
 
 - `exports/canvax-build-real-latest.json`
 - `exports/canvax-build-real-latest.md`
 - archived copies under `artifacts/canvax/build-requests/`
+- optional local smoke artifacts under `artifacts/preview/codex-build/frames/...`
 
 What the request includes:
 
@@ -636,6 +637,9 @@ Generate screen:
 
 Build with Codex:
   frame request -> Codex writes real files -> output manifest -> Preview binding
+
+Local smoke executor:
+  latest request -> HTML artifact -> output manifest -> Preview binding
 ```
 
 ```mermaid
