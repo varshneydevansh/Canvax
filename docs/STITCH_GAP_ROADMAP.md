@@ -255,13 +255,13 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/nudgeable/duplicable/deletable spatial objects, movable/resizable labeled group regions that can move contained frame cards and spatial objects, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/nudgeable/duplicable/deletable spatial objects, group duplication with contained Map-object copies, movable/resizable labeled group regions that can move contained frame cards and spatial objects, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
 
 Needed:
 
 - Zoomable infinite workspace.
 - Pan/zoom controls that feel stable on Mac trackpads. **Initial background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom are shipped; advanced inertial/grouped canvas behavior remains open.**
-- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable/selectable Map objects; Map objects can be nudged, duplicated, deleted, and exported as `spatialWorkspace.selectedObjectId`; group regions move contained frame cards/spatial objects and export containment for Codex.**
+- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable/selectable Map objects; Map objects can be nudged, duplicated, deleted, and exported as `spatialWorkspace.selectedObjectId`; duplicating a group region duplicates contained Map objects; group regions move contained frame cards/spatial objects and export containment for Codex.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
 
@@ -276,7 +276,7 @@ done
   Workbench Map -> zoomable frame/variant project graph exported as spatialWorkspace
   Map Add group -> labeled exploration regions
   Map Add note/Add file -> manual context objects
-  Map object selection -> nudge/duplicate/delete + selectedObjectId export
+  Map object selection -> nudge/duplicate/delete + group-contained object copies + selectedObjectId export
   Image pack -> asset candidate spatial objects in Map
   Codex output manifest -> generated target/artifact/change spatial objects in Map
 

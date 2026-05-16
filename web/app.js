@@ -3173,18 +3173,10 @@ function duplicateSelectedSpatialObject() {
   if (!object) {
     return null;
   }
-  const duplicate = normalizeSpatialObjects([
-    {
-      ...structuredClone(object),
-      id: uid("spatial"),
-      title: `${object.title || "Spatial object"} copy`,
-      sourceId: "",
-      sourceKind: `${object.sourceKind || object.type || "manual"}-copy`,
-      x: object.x + 36,
-      y: object.y + 36,
-      meta: cloneSpatialObjectMetaForManualCopy(object),
-    },
-  ])[0];
+  if (object.type === "map-group") {
+    return duplicateSpatialGroupObject(object);
+  }
+  const duplicate = cloneSpatialObjectForDuplicate(object);
   if (!duplicate) {
     return null;
   }
@@ -3200,6 +3192,67 @@ function duplicateSelectedSpatialObject() {
   scheduleLivePreviewSync();
   renderStatus(`Duplicated ${object.title}`);
   return duplicate;
+}
+
+function duplicateSpatialGroupObject(group) {
+  const groupDuplicate = cloneSpatialObjectForDuplicate(group);
+  if (!groupDuplicate) {
+    return null;
+  }
+  const containedObjects = spatialObjectsInsideGroup(group);
+  const containedDuplicates = containedObjects
+    .map((object) =>
+      cloneSpatialObjectForDuplicate(object, {
+        meta: { copiedWithinGroupId: group.id, copiedToGroupId: groupDuplicate.id },
+      }),
+    )
+    .filter(Boolean);
+  state.spatialObjects = normalizeSpatialObjects([
+    ...state.spatialObjects,
+    groupDuplicate,
+    ...containedDuplicates,
+  ]);
+  state.selectedSpatialObjectId = groupDuplicate.id;
+  state.selectedConnectionId = null;
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    `Duplicated ${group.title} with ${containedDuplicates.length} contained Map object${containedDuplicates.length === 1 ? "" : "s"}`,
+  );
+  return groupDuplicate;
+}
+
+function spatialObjectsInsideGroup(group) {
+  if (!group || group.type !== "map-group") {
+    return [];
+  }
+  const groupRect = spatialObjectRect(group);
+  return state.spatialObjects.filter(
+    (object) =>
+      object.id !== group.id &&
+      rectContainsRectCenter(groupRect, spatialObjectRect(object)),
+  );
+}
+
+function cloneSpatialObjectForDuplicate(object, options = {}) {
+  const { offsetX = 36, offsetY = 36, meta: extraMeta = {} } = options;
+  return normalizeSpatialObjects([
+    {
+      ...structuredClone(object),
+      id: uid("spatial"),
+      title: `${object.title || "Spatial object"} copy`,
+      sourceId: "",
+      sourceKind: `${object.sourceKind || object.type || "manual"}-copy`,
+      x: object.x + offsetX,
+      y: object.y + offsetY,
+      meta: {
+        ...cloneSpatialObjectMetaForManualCopy(object),
+        ...extraMeta,
+      },
+    },
+  ])[0];
 }
 
 function cloneSpatialObjectMetaForManualCopy(object) {
@@ -14139,6 +14192,20 @@ function assertManualSpatialObjectControls() {
       groupExport?.memberObjectIds.includes(object?.id || "") &&
         groupExport?.memberCardIds.includes(activeFrame.id),
     );
+  selectSpatialObject(group?.id, { render: true });
+  const groupDuplicate = duplicateSelectedSpatialObject();
+  const groupedObjectCopy = object
+    ? state.spatialObjects.find(
+        (entry) =>
+          entry.meta?.copiedFrom === object.id &&
+          entry.meta?.copiedWithinGroupId === group?.id,
+      )
+    : null;
+  const groupDuplicatedWithMembers =
+    Boolean(groupDuplicate && groupedObjectCopy) &&
+    groupDuplicate.id !== group?.id &&
+    groupedObjectCopy.x === (objectAfterGroupDrag?.x || 0) + 36 &&
+    state.selectedSpatialObjectId === groupDuplicate.id;
   if (object) {
     removeSpatialObject(object.id);
   }
@@ -14166,6 +14233,7 @@ function assertManualSpatialObjectControls() {
       nudged &&
       duplicated &&
       duplicateDeleted &&
+      groupDuplicatedWithMembers &&
       groupDragMovedMembers &&
       resized &&
       exported &&
@@ -14177,6 +14245,7 @@ function assertManualSpatialObjectControls() {
       nudged,
       duplicated,
       duplicateDeleted,
+      groupDuplicatedWithMembers,
       groupDragMovedMembers,
       resized,
       exported,
