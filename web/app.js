@@ -1266,6 +1266,7 @@ function hydrateState() {
       flowDrag: null,
       flowConnectionDraft: null,
       flowPan: null,
+      flowLasso: null,
       brushPreview: {
         visible: false,
         x: 0,
@@ -1579,6 +1580,7 @@ function createInitialState() {
     flowDrag: null,
     flowConnectionDraft: null,
     flowPan: null,
+    flowLasso: null,
     brushPreview: {
       visible: false,
       x: 0,
@@ -3280,6 +3282,33 @@ function nudgeSelectedSpatialObject(deltaX, deltaY) {
       : `Moved ${objects.length} Map objects`,
   );
   return true;
+}
+
+function spatialObjectsIntersectingBounds(bounds) {
+  if (!bounds) {
+    return [];
+  }
+  return state.spatialObjects.filter((object) =>
+    boundsIntersect(spatialObjectBounds(object), bounds),
+  );
+}
+
+function spatialObjectBounds(object) {
+  const rect = spatialObjectRect(object);
+  return makeBounds(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+}
+
+function applySpatialLassoSelection(bounds, options = {}) {
+  const { additive = false, baseIds = [] } = options;
+  const selectedByLasso = spatialObjectsIntersectingBounds(bounds);
+  const selectedIds = selectedByLasso.map((object) => object.id);
+  const nextIds = additive
+    ? normalizeStringArray([...baseIds, ...selectedIds])
+    : selectedIds;
+  setSelectedSpatialObjects(nextIds, selectedIds.at(-1) || nextIds.at(-1));
+  state.selectedConnectionId = null;
+  state.pendingConnectionFromFrameId = null;
+  return selectedByLasso;
 }
 
 function duplicateSelectedSpatialObject() {
@@ -5644,17 +5673,48 @@ function renderFlowBoard() {
   const spatialObjectMarkup = spatialObjects
     .map((object) => renderSpatialObjectNode(object))
     .join("");
-  dom.flowBoard.innerHTML = `${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}`;
+  dom.flowBoard.innerHTML = `${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}${renderFlowLassoMarkup()}`;
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
     state.workspaceMode === "simple"
-      ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from + to connect screens."
+      ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag background to pan, Shift-drag empty space to lasso Map objects, pinch/ctrl-wheel to zoom, or pull from + to connect screens."
       : "Drag cards to arrange screens. Output preview cards are generated Materialize/Build results, not extra frames; remove stale preview cards with x. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from the dot on a frame to connect screens.";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
   renderMapSelectionActions();
+}
+
+function renderFlowLassoMarkup() {
+  if (!state.flowLasso) {
+    return "";
+  }
+  const bounds = flowLassoBounds(state.flowLasso);
+  if (!bounds) {
+    return "";
+  }
+  return `
+    <div
+      class="flow-lasso-overlay"
+      style="left:${bounds.left}px; top:${bounds.top}px; width:${bounds.width}px; height:${bounds.height}px;"
+      aria-hidden="true"
+    >
+      <span>Lasso</span>
+    </div>
+  `;
+}
+
+function flowLassoBounds(lasso) {
+  if (!lasso?.startPoint || !lasso?.currentPoint) {
+    return null;
+  }
+  return makeBounds(
+    Math.min(lasso.startPoint.x, lasso.currentPoint.x),
+    Math.min(lasso.startPoint.y, lasso.currentPoint.y),
+    Math.max(lasso.startPoint.x, lasso.currentPoint.x),
+    Math.max(lasso.startPoint.y, lasso.currentPoint.y),
+  );
 }
 
 function renderSpatialObjectNode(object) {
@@ -7771,19 +7831,34 @@ function onFlowBoardPointerDown(event) {
     if (!object) {
       return;
     }
-    selectSpatialObject(objectId, { render: false });
+    if (
+      event.shiftKey ||
+      !currentSelectedSpatialObjectIds().includes(objectId)
+    ) {
+      selectSpatialObject(objectId, {
+        render: false,
+        additive: event.shiftKey,
+      });
+    }
+    if (!currentSelectedSpatialObjectIds().includes(objectId)) {
+      return;
+    }
+    const dragObjects = selectedSpatialObjectsForTransform();
     state.flowDrag = {
-      kind: "spatial-object",
+      kind: "spatial-selection",
       objectId,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      originX: object.x,
-      originY: object.y,
-      memberOrigins:
-        object.type === "map-group"
-          ? buildSpatialGroupDragMemberOrigins(object)
-          : null,
+      objectOrigins: dragObjects.map((entry) => ({
+        id: entry.id,
+        x: entry.x,
+        y: entry.y,
+        memberOrigins:
+          entry.type === "map-group"
+            ? buildSpatialGroupDragMemberOrigins(entry)
+            : null,
+      })),
       didMove: false,
     };
     return;
@@ -7826,6 +7901,23 @@ function onFlowShellPointerDown(event) {
     return;
   }
 
+  if (event.shiftKey) {
+    event.preventDefault();
+    const point = pointFromFlowEvent(event);
+    state.flowLasso = {
+      pointerId: event.pointerId,
+      startPoint: point,
+      currentPoint: point,
+      baseIds:
+        event.metaKey || event.ctrlKey ? currentSelectedSpatialObjectIds() : [],
+      additive: event.metaKey || event.ctrlKey,
+      didMove: false,
+    };
+    dom.flowShell.classList.add("is-lassoing");
+    renderFlowBoard();
+    return;
+  }
+
   state.flowPan = {
     pointerId: event.pointerId,
     startX: event.clientX,
@@ -7863,6 +7955,24 @@ function onWindowPointerMove(event) {
     return;
   }
 
+  if (state.flowLasso && event.pointerId === state.flowLasso.pointerId) {
+    state.flowLasso.currentPoint = pointFromFlowEvent(event);
+    const deltaX =
+      state.flowLasso.currentPoint.x - state.flowLasso.startPoint.x;
+    const deltaY =
+      state.flowLasso.currentPoint.y - state.flowLasso.startPoint.y;
+    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+      state.flowLasso.didMove = true;
+    }
+    applySpatialLassoSelection(flowLassoBounds(state.flowLasso), {
+      additive: state.flowLasso.additive,
+      baseIds: state.flowLasso.baseIds,
+    });
+    renderFlowBoard();
+    renderSpec();
+    return;
+  }
+
   if (state.flowPan && event.pointerId === state.flowPan.pointerId) {
     dom.flowShell.scrollLeft =
       state.flowPan.scrollLeft - (event.clientX - state.flowPan.startX);
@@ -7889,22 +7999,24 @@ function onWindowPointerMove(event) {
     state.flowDrag.didMove = true;
   }
 
-  if (state.flowDrag.kind === "spatial-object") {
-    const object = spatialObjectById(state.flowDrag.objectId);
-    if (!object) {
-      return;
-    }
-    const nextX = Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom);
-    const nextY = Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom);
-    object.x = nextX;
-    object.y = nextY;
-    if (object.type === "map-group" && state.flowDrag.memberOrigins) {
-      moveSpatialGroupMembers(
-        state.flowDrag.memberOrigins,
-        nextX - state.flowDrag.originX,
-        nextY - state.flowDrag.originY,
-      );
-    }
+  if (state.flowDrag.kind === "spatial-selection") {
+    (state.flowDrag.objectOrigins || []).forEach((origin) => {
+      const object = spatialObjectById(origin.id);
+      if (!object) {
+        return;
+      }
+      const nextX = Math.max(32, origin.x + deltaX / state.flowZoom);
+      const nextY = Math.max(32, origin.y + deltaY / state.flowZoom);
+      object.x = nextX;
+      object.y = nextY;
+      if (object.type === "map-group" && origin.memberOrigins) {
+        moveSpatialGroupMembers(
+          origin.memberOrigins,
+          nextX - origin.x,
+          nextY - origin.y,
+        );
+      }
+    });
   } else if (state.flowDrag.kind === "spatial-object-resize") {
     const object = spatialObjectById(state.flowDrag.objectId);
     if (!object) {
@@ -7941,6 +8053,25 @@ function onWindowPointerUp(event) {
   if (state.flowPan && event.pointerId === state.flowPan.pointerId) {
     state.flowPan = null;
     dom.flowShell.classList.remove("is-panning");
+    return;
+  }
+
+  if (state.flowLasso && event.pointerId === state.flowLasso.pointerId) {
+    const selectedCount = currentSelectedSpatialObjectIds().length;
+    const didMove = state.flowLasso.didMove;
+    state.flowLasso = null;
+    dom.flowShell.classList.remove("is-lassoing");
+    renderFlowBoard();
+    renderSpec();
+    if (didMove) {
+      persistState();
+      void saveExportToWorkspace({ silent: true });
+      renderStatus(
+        selectedCount
+          ? `Lasso selected ${selectedCount} Map object${selectedCount === 1 ? "" : "s"}`
+          : "Lasso found no Map objects",
+      );
+    }
     return;
   }
 
@@ -13889,6 +14020,9 @@ function restoreStateAfterSelfTest(snapshot, runtime) {
   state.isDrawing = false;
   state.flowDrag = null;
   state.flowConnectionDraft = null;
+  state.flowLasso = null;
+  state.flowPan = null;
+  dom.flowShell?.classList.remove("is-lassoing", "is-panning");
   state.hoverElementId = null;
   state.elementTransform = null;
   state.labelDraft = null;
@@ -14555,6 +14689,35 @@ function assertManualSpatialObjectControls() {
     Boolean(groupAfterMultiNudge && objectAfterMultiNudge) &&
     groupAfterMultiNudge.x === groupXBeforeMultiNudge + 16 &&
     objectAfterMultiNudge.x === objectXBeforeMultiNudge + 16;
+  setSelectedSpatialObjects([]);
+  const lassoTargetBounds = unionBounds(
+    [object, group]
+      .map((entry) => (entry ? spatialObjectBounds(spatialObjectById(entry.id)) : null))
+      .filter(Boolean),
+  );
+  state.flowLasso = {
+    pointerId: 927,
+    startPoint: {
+      x: Math.max(0, (lassoTargetBounds?.left || 0) - 24),
+      y: Math.max(0, (lassoTargetBounds?.top || 0) - 24),
+    },
+    currentPoint: {
+      x: (lassoTargetBounds?.right || 0) + 24,
+      y: (lassoTargetBounds?.bottom || 0) + 24,
+    },
+    baseIds: [],
+    additive: false,
+    didMove: true,
+  };
+  const lassoHits = applySpatialLassoSelection(flowLassoBounds(state.flowLasso));
+  renderFlowBoard();
+  const lassoSelected =
+    lassoHits.length >= 2 &&
+    currentSelectedSpatialObjectIds().includes(object?.id || "") &&
+    currentSelectedSpatialObjectIds().includes(group?.id || "") &&
+    Boolean(dom.flowBoard.querySelector(".flow-lasso-overlay"));
+  state.flowLasso = null;
+  renderFlowBoard();
   if (object) {
     selectSpatialObject(object.id, { render: false });
   }
@@ -14570,14 +14733,19 @@ function assertManualSpatialObjectControls() {
     : null;
   if (groupRecord) {
     state.flowDrag = {
-      kind: "spatial-object",
+      kind: "spatial-selection",
       objectId: groupRecord.id,
       pointerId: 928,
       startX: 100,
       startY: 100,
-      originX: groupRecord.x,
-      originY: groupRecord.y,
-      memberOrigins: buildSpatialGroupDragMemberOrigins(groupRecord),
+      objectOrigins: [
+        {
+          id: groupRecord.id,
+          x: groupRecord.x,
+          y: groupRecord.y,
+          memberOrigins: buildSpatialGroupDragMemberOrigins(groupRecord),
+        },
+      ],
       didMove: false,
     };
     onWindowPointerMove({ pointerId: 928, clientX: 170, clientY: 145 });
@@ -14683,6 +14851,7 @@ function assertManualSpatialObjectControls() {
       multiSelected &&
       multiContextExported &&
       multiNudged &&
+      lassoSelected &&
       groupDuplicatedWithMembers &&
       groupDragMovedMembers &&
       resized &&
@@ -14701,6 +14870,8 @@ function assertManualSpatialObjectControls() {
       multiSelected,
       multiContextExported,
       multiNudged,
+      lassoSelected,
+      lassoHitCount: lassoHits.length,
       groupDuplicatedWithMembers,
       groupDragMovedMembers,
       resized,

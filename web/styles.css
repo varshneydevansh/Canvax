@@ -2562,6 +2562,10 @@ select,
     cursor: grabbing;
 }
 
+.flow-shell.is-lassoing {
+    cursor: crosshair;
+}
+
 .flow-surface {
     position: relative;
     min-width: 100%;
@@ -2590,6 +2594,40 @@ select,
 
 .flow-svg {
     overflow: visible;
+}
+
+.flow-lasso-overlay {
+    position: absolute;
+    z-index: 20;
+    display: grid;
+    min-width: 0.25rem;
+    min-height: 0.25rem;
+    place-items: start;
+    border: 0.11rem dashed rgba(12, 141, 123, 0.92);
+    border-radius: 0.8rem;
+    background:
+        linear-gradient(
+            135deg,
+            rgba(12, 141, 123, 0.18),
+            rgba(255, 93, 58, 0.08)
+        );
+    box-shadow:
+        0 0 0 0.18rem rgba(12, 141, 123, 0.1),
+        0 1rem 2.2rem rgba(24, 17, 14, 0.14);
+    pointer-events: none;
+}
+
+.flow-lasso-overlay span {
+    margin: 0.45rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(12, 141, 123, 0.92);
+    color: #fffaf2;
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .flow-card-node {
