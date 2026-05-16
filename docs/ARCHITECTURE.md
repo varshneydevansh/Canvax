@@ -490,9 +490,14 @@ frame.flowPosition
   -> Flow view cards
   -> Workbench Map cards
   -> live export spatialWorkspace.cards
+
+asset candidate pack
+  -> state.spatialObjects
+  -> Workbench Map object cards
+  -> live export spatialWorkspace.objects
 ```
 
-The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards or drawing connection drafts, so saved positions remain stable regardless of the current zoom level.
+The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards, spatial objects, or drawing connection drafts, so saved positions remain stable regardless of the current zoom level.
 
 ### Export and persistence
 

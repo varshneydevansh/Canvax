@@ -228,6 +228,7 @@ function validateSpatialWorkspaceWhenPresent(value) {
       Number.isFinite(value.surface.width) &&
       Number.isFinite(value.surface.height) &&
       Array.isArray(value?.cards) &&
+      Array.isArray(value?.objects || []) &&
       Array.isArray(value?.links),
   );
 }

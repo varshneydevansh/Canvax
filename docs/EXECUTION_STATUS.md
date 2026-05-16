@@ -134,6 +134,7 @@ Status: In progress
 - [x] `execute-build-request` provides a deterministic local smoke path from latest build request to frame-bound preview artifact and Codex output manifest
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
+- [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Rematerialize now reuses a stable per-frame artifact path and refreshes preview via versioned URLs
 - [x] Preview target resolution now prefers the currently selected frame when multiple generated targets exist
 - [x] Freeze/autosnap now silently rematerialize a frame that already has a generated target

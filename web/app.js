@@ -17,6 +17,8 @@ const ERASER_COLOR = "rgba(0, 0, 0, 0)";
 const ERASER_RENDER_COLOR = "#000000";
 const FLOW_CARD_WIDTH = 256;
 const FLOW_CARD_HEIGHT = 180;
+const SPATIAL_OBJECT_WIDTH = 232;
+const SPATIAL_OBJECT_HEIGHT = 132;
 const FLOW_SURFACE_PADDING = 120;
 const SELECTION_HANDLE_SIZE = 14;
 const PREVIEW_WINDOW_NAME = "canvax-preview-window";
@@ -372,6 +374,7 @@ function init() {
   bindInteractionFeedback();
   fetchServerStatus();
   refreshPreviewStateFromServer();
+  syncSpatialObjectsFromHandoffs();
   renderAll();
   scheduleLivePreviewSync();
   exposeDebugHelpers();
@@ -1032,6 +1035,7 @@ function hydrateState() {
       assetCandidatePack: normalizeAssetCandidatePack(
         migrated.assetCandidatePack,
       ),
+      spatialObjects: normalizeSpatialObjects(migrated.spatialObjects),
       connections,
       entryFrameId,
       selectedConnectionId: null,
@@ -1338,6 +1342,7 @@ function createInitialState() {
     workbenchFocus: "sketch",
     workbenchTrayCollapsed: false,
     assetCandidatePack: null,
+    spatialObjects: [],
     connections: [],
     entryFrameId: firstFrame.id,
     selectedConnectionId: null,
@@ -2209,6 +2214,86 @@ function normalizeAssetCandidatePack(pack) {
     kind: pack.kind || "canvax-asset-candidates",
     requiresOpenAiApiKey: Boolean(pack.requiresOpenAiApiKey),
     candidates,
+  };
+}
+
+function normalizeSpatialObjects(objects) {
+  if (!Array.isArray(objects)) {
+    return [];
+  }
+  return objects
+    .filter((object) => object?.id)
+    .map((object, index) => ({
+      id: object.id,
+      type: object.type || "note",
+      title: object.title || "Spatial object",
+      subtitle: object.subtitle || "",
+      sourceId: object.sourceId || "",
+      sourceKind: object.sourceKind || object.type || "manual",
+      frameIds: Array.isArray(object.frameIds) ? object.frameIds : [],
+      x: Number.isFinite(object.x)
+        ? object.x
+        : defaultSpatialObjectPosition(index).x,
+      y: Number.isFinite(object.y)
+        ? object.y
+        : defaultSpatialObjectPosition(index).y,
+      width: Number.isFinite(object.width)
+        ? object.width
+        : SPATIAL_OBJECT_WIDTH,
+      height: Number.isFinite(object.height)
+        ? object.height
+        : SPATIAL_OBJECT_HEIGHT,
+      status: object.status || "",
+      meta: object.meta && typeof object.meta === "object" ? object.meta : {},
+    }));
+}
+
+function syncSpatialObjectsFromHandoffs() {
+  const currentObjects = normalizeSpatialObjects(state.spatialObjects);
+  const existingIds = new Set(currentObjects.map((object) => object.id));
+  const candidates = state.assetCandidatePack?.candidates || [];
+  const nextObjects = [...currentObjects];
+
+  candidates.slice(0, 12).forEach((candidate) => {
+    const id = `asset-object-${candidate.id}`;
+    if (existingIds.has(id)) {
+      return;
+    }
+    const position = defaultSpatialObjectPosition(nextObjects.length);
+    nextObjects.push({
+      id,
+      type: candidate.type === "frame-composite" ? "image-frame" : "image-region",
+      title: candidate.title || "Asset candidate",
+      subtitle: candidate.placement || candidate.sourceFrameTitle || "prompt-ready",
+      sourceId: candidate.id,
+      sourceKind: "asset-candidate",
+      frameIds: candidate.sourceFrameId ? [candidate.sourceFrameId] : [],
+      x: position.x,
+      y: position.y,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: candidate.status || "prompt-ready",
+      meta: {
+        prompt: candidate.prompt || "",
+        bounds: candidate.bounds || null,
+        aspectRatio: candidate.aspectRatio || "",
+      },
+    });
+  });
+
+  state.spatialObjects = nextObjects;
+}
+
+function defaultSpatialObjectPosition(index) {
+  const column = index % 3;
+  const row = Math.floor(index / 3);
+  return {
+    x: FLOW_SURFACE_PADDING + column * (SPATIAL_OBJECT_WIDTH + 44),
+    y:
+      FLOW_SURFACE_PADDING +
+      FLOW_CARD_HEIGHT +
+      132 +
+      row * (SPATIAL_OBJECT_HEIGHT + 36),
   };
 }
 
@@ -3887,7 +3972,7 @@ function renderFlowBoard() {
   dom.flowSvg.setAttribute("width", String(layout.width));
   dom.flowSvg.setAttribute("height", String(layout.height));
 
-  dom.flowBoard.innerHTML = state.frames
+  const frameMarkup = state.frames
     .map((frame) => {
       const viewport = viewportPresets[frame.viewport];
       const thumbnail = frameThumbnailDataUrl(frame, {
@@ -3938,15 +4023,46 @@ function renderFlowBoard() {
       `;
     })
     .join("");
+  const spatialObjectMarkup = state.spatialObjects
+    .map((object) => renderSpatialObjectNode(object))
+    .join("");
+  dom.flowBoard.innerHTML = `${frameMarkup}${spatialObjectMarkup}`;
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
     state.workspaceMode === "simple"
-      ? "Spatial map: arrange frames, variants, generated directions, and branches. Drag cards, zoom the map, or pull from + to connect screens."
+      ? "Spatial map: arrange frames, variants, asset candidates, generated directions, and branches. Drag cards or objects, zoom the map, or pull from + to connect screens."
       : "Drag cards to arrange screens. Pull from the dot on a frame to connect screens like a lightweight prototype map.";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
+}
+
+function renderSpatialObjectNode(object) {
+  const frameTitle =
+    object.frameIds?.length === 1
+      ? frameTitleById(object.frameIds[0])
+      : object.frameIds?.length
+        ? `${object.frameIds.length} frames`
+        : "Board object";
+  return `
+    <button
+      class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""}"
+      data-spatial-object-id="${escapeHtml(object.id)}"
+      style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
+      title="${escapeHtml(object.meta?.prompt || object.subtitle || object.title)}"
+    >
+      <div class="spatial-object-header" data-spatial-object-drag="${escapeHtml(object.id)}">
+        <span>${escapeHtml(object.sourceKind || object.type || "object")}</span>
+        <strong>${escapeHtml(compactDisplayText(object.title, 46))}</strong>
+      </div>
+      <p>${escapeHtml(compactDisplayText(object.subtitle || object.status || "Spatial object", 68))}</p>
+      <div class="spatial-object-footer">
+        <span>${escapeHtml(frameTitle)}</span>
+        <span>${escapeHtml(object.status || "ready")}</span>
+      </div>
+    </button>
+  `;
 }
 
 function renderFlowInspector() {
@@ -4050,7 +4166,7 @@ function renderBrushPreview() {
 }
 
 function computeFlowSurfaceSize(frames = state.frames) {
-  const bounds = frames.reduce(
+  const frameBounds = frames.reduce(
     (accumulator, frame) => {
       return {
         width: Math.max(
@@ -4069,7 +4185,19 @@ function computeFlowSurfaceSize(frames = state.frames) {
     },
   );
 
-  return bounds;
+  return state.spatialObjects.reduce(
+    (accumulator, object) => ({
+      width: Math.max(
+        accumulator.width,
+        object.x + object.width + FLOW_SURFACE_PADDING,
+      ),
+      height: Math.max(
+        accumulator.height,
+        object.y + object.height + FLOW_SURFACE_PADDING,
+      ),
+    }),
+    frameBounds,
+  );
 }
 
 function buildFlowSvgMarkup(width, height) {
@@ -5661,6 +5789,22 @@ function onFlowBoardClick(event) {
     return;
   }
 
+  const spatialObjectNode = event.target.closest("[data-spatial-object-id]");
+  if (spatialObjectNode) {
+    const object = spatialObjectById(spatialObjectNode.dataset.spatialObjectId);
+    if (state.flowDrag?.objectId === object?.id && state.flowDrag.didMove) {
+      return;
+    }
+    const frameId = object?.frameIds?.[0];
+    if (frameId && frameById(frameId)) {
+      state.activeFrameId = frameId;
+      clearElementSelection();
+      renderAll();
+      renderStatus(`Selected spatial object for ${frameTitleById(frameId)}`);
+    }
+    return;
+  }
+
   const node = event.target.closest("[data-flow-frame-id]");
   if (!node) {
     return;
@@ -5718,6 +5862,26 @@ function onFlowBoardPointerDown(event) {
     return;
   }
 
+  const objectDragHandle = event.target.closest("[data-spatial-object-drag]");
+  if (objectDragHandle) {
+    const objectId = objectDragHandle.dataset.spatialObjectDrag;
+    const object = spatialObjectById(objectId);
+    if (!object) {
+      return;
+    }
+    state.flowDrag = {
+      kind: "spatial-object",
+      objectId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: object.x,
+      originY: object.y,
+      didMove: false,
+    };
+    return;
+  }
+
   const dragHandle = event.target.closest("[data-flow-drag]");
   if (!dragHandle) {
     return;
@@ -5730,6 +5894,7 @@ function onFlowBoardPointerDown(event) {
   }
 
   state.flowDrag = {
+    kind: "frame",
     frameId,
     pointerId: event.pointerId,
     startX: event.clientX,
@@ -5761,21 +5926,29 @@ function onWindowPointerMove(event) {
     return;
   }
 
-  const frame = frameById(state.flowDrag.frameId);
-  if (!frame) {
-    return;
-  }
-
   const deltaX = event.clientX - state.flowDrag.startX;
   const deltaY = event.clientY - state.flowDrag.startY;
   if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
     state.flowDrag.didMove = true;
   }
 
-  frame.flowPosition = {
-    x: Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom),
-    y: Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom),
-  };
+  if (state.flowDrag.kind === "spatial-object") {
+    const object = spatialObjectById(state.flowDrag.objectId);
+    if (!object) {
+      return;
+    }
+    object.x = Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom);
+    object.y = Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom);
+  } else {
+    const frame = frameById(state.flowDrag.frameId);
+    if (!frame) {
+      return;
+    }
+    frame.flowPosition = {
+      x: Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom),
+      y: Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom),
+    };
+  }
   renderFlowBoard();
 }
 
@@ -7313,6 +7486,11 @@ function buildPromptMarkdown() {
   lines.push(
     `- Spatial positions: ${state.frames.map((frame) => `${frame.title} at ${Math.round(frame.flowPosition.x)},${Math.round(frame.flowPosition.y)}`).join("; ")}`,
   );
+  if (state.spatialObjects.length) {
+    lines.push(
+      `- Spatial objects: ${state.spatialObjects.map((object) => `${object.title} (${object.sourceKind}) at ${Math.round(object.x)},${Math.round(object.y)}`).join("; ")}`,
+    );
+  }
   if (state.connections.length) {
     state.connections.forEach((connection) => {
       const noteSuffix = connection.notes ? ` (${connection.notes})` : "";
@@ -7569,6 +7747,22 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         linkedCount: countFrameConnections(frame.id),
       };
     }),
+    objects: state.spatialObjects.map((object) => ({
+      id: object.id,
+      type: object.type,
+      title: object.title,
+      subtitle: object.subtitle,
+      sourceKind: object.sourceKind,
+      sourceId: object.sourceId,
+      status: object.status,
+      frameIds: object.frameIds || [],
+      position: { x: object.x, y: object.y },
+      size: {
+        width: object.width || SPATIAL_OBJECT_WIDTH,
+        height: object.height || SPATIAL_OBJECT_HEIGHT,
+      },
+      meta: object.meta || {},
+    })),
     links: state.connections
       .filter(
         (connection) =>
@@ -7801,6 +7995,10 @@ function isAssetCandidateElement(element) {
 
 function currentFrameById(frameId) {
   return state.frames.find((frame) => frame.id === frameId) || null;
+}
+
+function spatialObjectById(objectId) {
+  return state.spatialObjects.find((object) => object.id === objectId) || null;
 }
 
 function buildFrameComposition(frame) {
@@ -8260,6 +8458,7 @@ async function saveImagePromptPackForHost(options = {}) {
   state.assetCandidatePack = normalizeAssetCandidatePack(
     assetData.assetCandidatePack || assetCandidatePack,
   );
+  syncSpatialObjectsFromHandoffs();
   dom.workspaceStatus.textContent = `Image prompt and asset candidate packs ready at ${path}`;
   state.focusLastAppliedText =
     "Image prompt and asset candidate packs ready. Ask Codex/ChatGPT image generation to use them.";
@@ -9292,6 +9491,7 @@ function buildPersistedSnapshot(source) {
     workbenchFocus: source.workbenchFocus,
     workbenchTrayCollapsed: Boolean(source.workbenchTrayCollapsed),
     assetCandidatePack: source.assetCandidatePack || null,
+    spatialObjects: source.spatialObjects || [],
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -10679,6 +10879,7 @@ function restoreStateAfterSelfTest(snapshot, runtime) {
   state.workbenchFocus = snapshot.workbenchFocus || "sketch";
   state.workbenchTrayCollapsed = Boolean(snapshot.workbenchTrayCollapsed);
   state.assetCandidatePack = snapshot.assetCandidatePack || null;
+  state.spatialObjects = normalizeSpatialObjects(snapshot.spatialObjects);
   state.connections = structuredClone(snapshot.connections);
   state.entryFrameId = snapshot.entryFrameId;
   state.activeFrameId = snapshot.activeFrameId;
@@ -10900,8 +11101,26 @@ function assertWorkbenchSpatialMap() {
     viewMode: state.viewMode,
     flowZoom: state.flowZoom,
     tool: state.tool,
+    spatialObjects: structuredClone(state.spatialObjects),
   };
 
+  state.spatialObjects = [
+    {
+      id: "spatial-selftest-asset",
+      type: "image-region",
+      title: "Self-test asset object",
+      subtitle: "Prompt-ready region",
+      sourceKind: "asset-candidate",
+      sourceId: "asset-selftest-region",
+      frameIds: [currentFrame().id],
+      x: 420,
+      y: 520,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: "prompt-ready",
+      meta: { prompt: "Self-test prompt" },
+    },
+  ];
   setWorkspaceMode("simple");
   setWorkbenchFocus("map");
   const mapVisible =
@@ -10919,19 +11138,25 @@ function assertWorkbenchSpatialMap() {
   const exportValid =
     spatialExport.kind === "canvax-spatial-workspace" &&
     spatialExport.cards.length === state.frames.length &&
+    spatialExport.objects.length === 1 &&
+    spatialExport.objects[0]?.sourceKind === "asset-candidate" &&
     spatialExport.zoom === state.flowZoom;
+  const objectRendered = Boolean(
+    dom.flowBoard.querySelector("[data-spatial-object-id='spatial-selftest-asset']"),
+  );
 
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
   state.flowZoom = previous.flowZoom;
   state.tool = previous.tool;
+  state.spatialObjects = previous.spatialObjects;
   persistState();
   renderAll();
 
   return assert(
-    mapVisible && zoomChanged && exportValid,
-    "Workbench spatial map renders and exports",
+    mapVisible && zoomChanged && exportValid && objectRendered,
+    "Workbench spatial map renders and exports frames plus objects",
   );
 }
 
