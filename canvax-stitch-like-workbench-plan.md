@@ -475,13 +475,14 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 6.2: Browser Regression Matrix
 
-- **Status**: Partially shipped through in-browser self-test, regression helpers, and responsive smoke matrix. Reliable host-level browser automation still needs hardening for full CI fail-hard mode and longer sessions.
+- **Status**: Expanded browser matrix shipped. Board self-test now includes a long-session Map stress fixture with many captured frames, voice notes, asset candidates, generated preview targets, artifacts, changed files, and checkpoint cards; responsive board/Preview smoke runs at 1440, 1024, 768, and 430 widths. CI fail-hard service lifecycle coverage remains open.
 - **Location**: `scripts/browser-regression.mjs`
 - **Description**: Add deterministic tests for Workbench mode, generated output card, prompt pack export, and host capability states.
 - **Complexity**: 6/10
 - **Dependencies**: Sprint 6.1
 - **Acceptance Criteria**:
   - Regression catches stale output cards and layout collapse. **Initial coverage shipped through board/Preview self-tests plus responsive smoke checks.**
+  - Dense long-session Map state remains navigable and renders all expected object categories. **Covered by board browser self-test.**
   - Tests skip cleanly only when no live service exists.
 - **Validation**:
   - `npm run regression`

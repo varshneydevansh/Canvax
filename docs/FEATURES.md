@@ -232,6 +232,8 @@ The browser regression harness validates the board and Preview at the widths des
 
 The smoke check is structural, not a replacement for visual taste review. It verifies that the shell, toolbar, canvas/stage, Preview header, and compare surfaces remain visible and do not collapse at those sizes.
 
+The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated preview targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use.
+
 ### Advanced
 
 Advanced is the full inspector/debugging surface for frames, flow links, notes,

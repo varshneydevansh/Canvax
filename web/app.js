@@ -13938,10 +13938,19 @@ async function exerciseLargeSessionSelfTest(results) {
     selectedConnectionId: state.selectedConnectionId,
     pendingConnectionFromFrameId: state.pendingConnectionFromFrameId,
     voice: structuredClone(state.voice),
+    workspaceMode: state.workspaceMode,
+    workbenchFocus: state.workbenchFocus,
+    viewMode: state.viewMode,
+    flowZoom: state.flowZoom,
+    spatialObjects: structuredClone(state.spatialObjects),
+    hiddenSpatialObjectIds: structuredClone(state.hiddenSpatialObjectIds),
+    assetCandidatePack: structuredClone(state.assetCandidatePack),
+    previewManifest: structuredClone(state.serverStatus.previewManifest),
+    checkpointHistory: structuredClone(state.serverStatus.checkpointHistory),
   };
 
   try {
-    const fixture = buildLargeSessionFixture(12);
+    const fixture = buildLargeSessionFixture(18);
     state.frames = fixture.frames;
     state.connections = fixture.connections;
     state.activeFrameId = fixture.frames[0].id;
@@ -13952,6 +13961,13 @@ async function exerciseLargeSessionSelfTest(results) {
       ...createInitialVoiceState(),
       scope: "frame",
       segments: fixture.voiceSegments,
+    };
+    state.assetCandidatePack = fixture.assetCandidatePack;
+    state.hiddenSpatialObjectIds = [];
+    state.serverStatus = {
+      ...state.serverStatus,
+      previewManifest: fixture.previewManifest,
+      checkpointHistory: fixture.checkpointHistory,
     };
     persistState();
 
@@ -13995,6 +14011,69 @@ async function exerciseLargeSessionSelfTest(results) {
         "large-session checkpoint summary stays consistent",
       ),
     );
+
+    syncSpatialObjectsFromHandoffs();
+    setWorkspaceMode("simple");
+    setWorkbenchFocus("map");
+    renderFlowBoard();
+    const spatialExport = buildSpatialWorkspaceExport();
+    const renderedFrameCards =
+      dom.flowBoard.querySelectorAll("[data-flow-frame-id]").length;
+    const renderedSpatialObjects =
+      dom.flowBoard.querySelectorAll("[data-spatial-object-id]").length;
+    const objectSources = new Set(
+      spatialExport.objects.map((object) => object.sourceKind),
+    );
+    const mapIsNavigable =
+      document.body.dataset.workbenchFocus === "map" &&
+      !dom.flowWorkspace.hidden &&
+      dom.flowShell.scrollWidth >= dom.flowShell.clientWidth &&
+      dom.flowShell.scrollHeight >= dom.flowShell.clientHeight;
+    const generatedLabels = [
+      ...dom.flowBoard.querySelectorAll(
+        ".spatial-object-node.generated-output .spatial-object-header span",
+      ),
+    ].map((node) => node.textContent.trim().toLowerCase());
+
+    results.push(
+      assert(
+        renderedFrameCards === fixture.frames.length,
+        "large-session browser map renders every frame card",
+      ),
+    );
+    results.push(
+      assert(
+        renderedSpatialObjects >=
+          fixture.expectedSpatialObjectMinimum,
+        "large-session browser map renders dense spatial objects",
+        `${renderedSpatialObjects} rendered spatial objects`,
+      ),
+    );
+    results.push(
+      assert(
+        [
+          "asset-candidate",
+          "generated-target",
+          "generated-artifact",
+          "workspace-change",
+          "checkpoint",
+        ].every((source) => objectSources.has(source)),
+        "large-session browser map covers candidates, outputs, changes, and checkpoints",
+      ),
+    );
+    results.push(
+      assert(
+        mapIsNavigable,
+        "large-session browser map remains navigable",
+      ),
+    );
+    results.push(
+      assert(
+        generatedLabels.length > 0 &&
+          generatedLabels.every((label) => label !== "generated-target"),
+        "large-session generated output cards use designer-readable labels",
+      ),
+    );
   } finally {
     state.frames = original.frames;
     state.connections = original.connections;
@@ -14003,6 +14082,18 @@ async function exerciseLargeSessionSelfTest(results) {
     state.selectedConnectionId = original.selectedConnectionId;
     state.pendingConnectionFromFrameId = original.pendingConnectionFromFrameId;
     state.voice = original.voice;
+    state.workspaceMode = original.workspaceMode;
+    state.workbenchFocus = original.workbenchFocus;
+    state.viewMode = original.viewMode;
+    state.flowZoom = original.flowZoom;
+    state.spatialObjects = original.spatialObjects;
+    state.hiddenSpatialObjectIds = original.hiddenSpatialObjectIds;
+    state.assetCandidatePack = original.assetCandidatePack;
+    state.serverStatus = {
+      ...state.serverStatus,
+      previewManifest: original.previewManifest,
+      checkpointHistory: original.checkpointHistory,
+    };
     persistState();
     renderAll();
   }
@@ -14065,6 +14156,10 @@ function buildLargeSessionFixture(frameCount = 12) {
     frames,
     connections,
     voiceSegments,
+    previewManifest: buildLargeSessionPreviewManifest(frames),
+    checkpointHistory: buildLargeSessionCheckpointHistory(frames),
+    assetCandidatePack: buildLargeSessionAssetCandidatePack(frames),
+    expectedSpatialObjectMinimum: 32,
   };
 }
 
@@ -14075,6 +14170,9 @@ function buildLargeSessionFrame(index) {
   const contentId = uid("shape");
   const actionId = uid("shape");
   const accent = palette[index % Math.max(1, palette.length - 1)];
+  const captures = [0, 1].map((captureIndex) =>
+    buildLargeSessionCapture(index, captureIndex, accent),
+  );
   const top = 88 + (index % 3) * 18;
   const layoutTop = top + 190;
   return createFrame({
@@ -14090,6 +14188,8 @@ function buildLargeSessionFrame(index) {
     assets: "Use low-fidelity placeholders and preserve annotation density.",
     mobile: "Collapse supporting rails on smaller widths.",
     flowPosition: defaultFlowPosition(index),
+    thumbnail: captures[0]?.image || "",
+    captures,
     elements: [
       {
         id: heroId,
@@ -14159,6 +14259,97 @@ function buildLargeSessionFrame(index) {
       },
     ],
   });
+}
+
+function buildLargeSessionPreviewManifest(frames) {
+  return {
+    targets: frames.slice(0, 10).map((frame, index) => ({
+      id: `large-target-${index + 1}`,
+      label: `${frame.title} generated preview`,
+      type: index % 2 === 0 ? "generated-screen-preview" : "materialized-preview",
+      source: index % 2 === 0 ? "canvax-generate-screen" : "canvax-materialize",
+      previewPath: `artifacts/preview/large-session/${frame.id}/index.html`,
+      frameIds: [frame.id],
+      sourceFrameId: frame.id,
+      sourceFrameUpdatedAt: frame.updatedAt,
+      changeSummary: `Generated preview for ${frame.title}`,
+    })),
+    artifacts: frames.slice(0, 8).map((frame, index) => ({
+      id: `large-artifact-${index + 1}`,
+      label: `${frame.title} spec artifact`,
+      path: `artifacts/canvax/large-session/${frame.id}/spec.md`,
+      kind: index % 2 === 0 ? "spec" : "context",
+      frameIds: [frame.id],
+      description: `Implementation handoff for ${frame.title}`,
+    })),
+    changes: frames.slice(0, 9).map((frame, index) => ({
+      id: `large-change-${index + 1}`,
+      label: `implementation/${frame.id}.html`,
+      path: `artifacts/preview/large-session/${frame.id}/implementation.html`,
+      kind: "updated",
+      frameIds: [frame.id],
+      summary: `Updated generated implementation for ${frame.title}`,
+    })),
+  };
+}
+
+function buildLargeSessionCheckpointHistory(frames) {
+  return {
+    updatedAt: "2026-03-14T00:20:00.000Z",
+    items: frames.slice(0, 10).map((frame, index) => ({
+      id: `large-checkpoint-${index + 1}`,
+      savedAt: `2026-03-14T00:${String(index + 1).padStart(2, "0")}:00.000Z`,
+      reason: index % 2 === 0 ? "focus-apply" : "output-update",
+      label: index % 2 === 0 ? "Workbench apply" : "Output update",
+      frameId: frame.id,
+      frameTitle: frame.title,
+      targetLabel: `${frame.title} generated preview`,
+      voiceSegmentCount: 1 + (index % 3),
+      captureCount: frame.captures.length,
+      artifactCount: 1 + (index % 2),
+      changeCount: 2 + index,
+      checkpointUrl: `/workspace/artifacts/canvax/checkpoints/large-session/${frame.id}.json`,
+      markdownUrl: `/workspace/artifacts/canvax/checkpoints/large-session/${frame.id}.md`,
+    })),
+  };
+}
+
+function buildLargeSessionAssetCandidatePack(frames) {
+  const candidates = frames.slice(0, 14).map((frame, index) => ({
+    id: `large-candidate-${index + 1}`,
+    type: index % 4 === 0 ? "frame-composite" : "region",
+    title: `${frame.title} image candidate`,
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    placement: index % 2 === 0 ? "hero image slot" : "supporting asset slot",
+    status: index % 3 === 0 ? "accepted" : "prompt-ready",
+    prompt: `Generate a polished asset for ${frame.title} with clear composition boundaries.`,
+    aspectRatio: index % 2 === 0 ? "16:9" : "4:3",
+    bounds: {
+      x: 0.08,
+      y: 0.12 + (index % 4) * 0.08,
+      w: 0.38,
+      h: 0.24,
+    },
+  }));
+
+  return {
+    kind: "canvax-asset-candidates",
+    requiresOpenAiApiKey: false,
+    createdAt: "2026-03-14T00:00:00.000Z",
+    candidates,
+    reviewSummary: buildAssetCandidateReviewSummary(candidates),
+  };
+}
+
+function buildLargeSessionCapture(frameIndex, captureIndex, color) {
+  const label = `F${frameIndex + 1}.${captureIndex + 1}`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200"><rect width="320" height="200" rx="24" fill="#fff8ec"/><rect x="28" y="34" width="264" height="44" rx="12" fill="${color}"/><rect x="28" y="102" width="190" height="56" rx="12" fill="#241814" opacity="0.9"/><text x="42" y="62" font-family="Arial" font-size="22" font-weight="700" fill="#241814">${label}</text></svg>`;
+  return {
+    id: `large-capture-${frameIndex + 1}-${captureIndex + 1}`,
+    at: `2026-03-14T00:${String(frameIndex).padStart(2, "0")}:${String(captureIndex).padStart(2, "0")}.000Z`,
+    image: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+  };
 }
 
 function clickTool(tool) {
