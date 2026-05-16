@@ -70,6 +70,9 @@ const buildResult = await executeJson("node", [
   "--no-publish",
   "--json",
 ]);
+const buildFrameCodeMap = buildResult.implementationFiles.find(
+  (file) => file.kind === "frame-code-map",
+);
 record(
   "build executor creates frame-bound preview and implementation bundle",
   buildResult.ok === true &&
@@ -86,8 +89,37 @@ record(
     ),
   buildResult.previewPath,
 );
+record(
+  "build executor creates frame-to-code ownership map",
+  Boolean(
+    buildFrameCodeMap &&
+      buildFrameCodeMap.path.endsWith(
+        "/implementation/canvax-component-map.json",
+      ),
+  ),
+  buildFrameCodeMap?.path || "missing map",
+);
 await assertReadableProjectFile(buildResult.previewPath);
 await assertReadableProjectFile(buildResult.contextPath);
+if (buildFrameCodeMap?.path) {
+  await assertReadableProjectFile(buildFrameCodeMap.path);
+  const rawMap = await readFile(
+    resolve(projectRoot, buildFrameCodeMap.path),
+    "utf8",
+  );
+  const parsedMap = JSON.parse(rawMap);
+  record(
+    "frame-to-code ownership map binds source elements to selectors",
+    parsedMap.kind === "canvax-frame-code-map" &&
+      parsedMap.frame?.id === frameId &&
+      parsedMap.ownership?.files?.some((file) =>
+        file.path.endsWith("index.html"),
+      ) &&
+      parsedMap.regions?.some((region) =>
+        region.implementationSelector?.includes("data-canvax-node-id"),
+      ),
+  );
+}
 
 const buildManifestDryRun = await executeJson("node", [
   "scripts/write-codex-output.mjs",
@@ -101,6 +133,12 @@ const buildManifestDryRun = await executeJson("node", [
   frameId,
   "--artifact",
   `${buildResult.contextPath}::E2E build context::${frameId}`,
+  ...(buildFrameCodeMap?.path
+    ? [
+        "--artifact",
+        `${buildFrameCodeMap.path}::E2E frame-to-code map::${frameId}`,
+      ]
+    : []),
   "--dry-run",
   "--json",
 ]);
@@ -109,7 +147,10 @@ record(
   buildManifestDryRun.dryRun === true &&
     buildManifestDryRun.manifest?.targets?.[0]?.frameIds?.includes(frameId) &&
     buildManifestDryRun.manifest?.targets?.[0]?.previewPath ===
-      buildResult.previewPath,
+      buildResult.previewPath &&
+    buildManifestDryRun.manifest?.artifacts?.some((artifact) =>
+      artifact.path?.endsWith("/implementation/canvax-component-map.json"),
+    ),
 );
 
 rewriteRequest.outputManifest = buildManifestDryRun.manifest;

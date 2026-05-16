@@ -160,12 +160,22 @@ async function writeImplementationFiles(files) {
 }
 
 function buildContextPayload(request, previewPath, implementationFiles = []) {
+  const frameCodeMap = implementationFiles.find(
+    (file) => file.kind === "frame-code-map",
+  );
   return {
     kind: "canvax-executed-build-preview",
     createdAt: new Date().toISOString(),
     source: "scripts/execute-build-request.mjs",
     requiresOpenAiApiKey: false,
     previewPath,
+    frameCodeMap: frameCodeMap
+      ? {
+          path: frameCodeMap.relativePath,
+          label: frameCodeMap.label,
+          kind: frameCodeMap.kind,
+        }
+      : null,
     implementationFiles: implementationFiles.map((file) => ({
       path: file.relativePath,
       label: file.label,
@@ -195,6 +205,16 @@ function buildImplementationFiles(request, { frameId, frameTitle, outputRoot }) 
       label: `${frameTitle} implementation JS`,
       kind: "javascript",
       content: buildImplementationJs(request, { frameId, frameTitle }),
+    },
+    {
+      name: "canvax-component-map.json",
+      label: `${frameTitle} frame-to-code ownership map`,
+      kind: "frame-code-map",
+      content: `${JSON.stringify(
+        buildFrameCodeMap(request, { frameId, frameTitle }),
+        null,
+        2,
+      )}\n`,
     },
     {
       name: "README.md",
@@ -665,7 +685,8 @@ function buildImplementationElementMarkup(elements) {
           .replace(/\bor\b.*/i, "") ||
         `Element ${index + 1}`;
       const type = safeCssClass(element.type || "rect");
-      return `<article class="generated-node ${type}" style="left:${left};top:${top};width:${width};height:${height};--node-color:${color};--angle:${index % 2 ? "7deg" : "-6deg"}">
+      const sourceId = cleanString(element.id) || `element-${index + 1}`;
+      return `<article class="generated-node ${type}" data-canvax-node-id="${escapeHtml(sourceId)}" data-canvax-node-type="${escapeHtml(element.type || "element")}" style="left:${left};top:${top};width:${width};height:${height};--node-color:${color};--angle:${index % 2 ? "7deg" : "-6deg"}">
           <span class="node-label">${escapeHtml(element.type || "element")}</span>
           <strong>${escapeHtml(compactText(text, 54))}</strong>
           <p>${escapeHtml(compactText(role, 82))}</p>
@@ -907,11 +928,133 @@ function buildElementNode(element, index) {
       .replace(/\bor\b.*/i, "") ||
     `Element ${index + 1}`;
   const type = safeCssClass(element.type || "rect");
-  return `    <article class="node ${type}" style="left:${left};top:${top};width:${width};height:${height};--node-color:${color};--angle:${index % 2 ? "7deg" : "-6deg"}">
+  const sourceId = cleanString(element.id) || `element-${index + 1}`;
+  return `    <article class="node ${type}" data-canvax-node-id="${escapeHtml(sourceId)}" data-canvax-node-type="${escapeHtml(element.type || "element")}" style="left:${left};top:${top};width:${width};height:${height};--node-color:${color};--angle:${index % 2 ? "7deg" : "-6deg"}">
       <span class="node-label">${escapeHtml(element.type || "element")}</span>
       <strong>${escapeHtml(compactText(text, 54))}</strong>
       <p>${escapeHtml(compactText(role, 82))}</p>
     </article>`;
+}
+
+function buildFrameCodeMap(request, { frameId, frameTitle }) {
+  const model = buildScreenModel(request);
+  const safeComponentName = `${pascalCase(frameTitle || frameId)}Screen`;
+  return {
+    schemaVersion: 1,
+    kind: "canvax-frame-code-map",
+    createdAt: new Date().toISOString(),
+    source: "scripts/execute-build-request.mjs",
+    requiresOpenAiApiKey: false,
+    frame: {
+      id: frameId,
+      title: frameTitle,
+      viewport:
+        request.frame?.viewport || (model.width >= 900 ? "desktop" : "mobile"),
+      width: model.width,
+      height: model.height,
+    },
+    ownership: {
+      componentName: safeComponentName,
+      routeSuggestion: `/canvax/${safeSlug(frameTitle || frameId)}`,
+      previewEntry: "../index.html",
+      implementationRoot: "implementation/",
+      files: [
+        {
+          path: "implementation/index.html",
+          role: "standalone markup and frame-bound component structure",
+        },
+        {
+          path: "implementation/styles.css",
+          role: "responsive visual system and source-element placement",
+        },
+        {
+          path: "implementation/app.js",
+          role: "lightweight interaction hooks and debug metadata",
+        },
+        {
+          path: "implementation/canvax-component-map.json",
+          role: "frame-to-code ownership and source-element mapping",
+        },
+        {
+          path: "implementation/README.md",
+          role: "human-readable implementation notes",
+        },
+      ],
+    },
+    generatedSelectors: {
+      screenRoot: `[data-frame-id="${frameId}"]`,
+      nodeSelector: "[data-canvax-node-id]",
+      sourceIdAttribute: "data-canvax-node-id",
+      sourceTypeAttribute: "data-canvax-node-type",
+    },
+    regions: model.elements.map((element, index) =>
+      buildFrameCodeRegion(element, index),
+    ),
+    codexInstructions: [
+      "Use this map to port the local HTML/CSS/JS bundle into real app/page/component files.",
+      "Preserve data-canvax-node-id attributes or equivalent component comments when creating production code.",
+      "When the user sketches over a generated region, map the correction back to the matching region id before rewriting code.",
+      "After editing real files, publish the result with scripts/write-codex-output.mjs and bind it to this frame id.",
+    ],
+  };
+}
+
+function buildFrameCodeRegion(element, index) {
+  const sourceId = cleanString(element.id) || `element-${index + 1}`;
+  const role = cleanString(element.role || element.type || "element");
+  const text =
+    cleanString(element.text) ||
+    role
+      .split(",")[0]
+      .trim()
+      .replace(/\bor\b.*/i, "") ||
+    `Element ${index + 1}`;
+  return {
+    id: sourceId,
+    type: cleanString(element.type || "element"),
+    label: compactText(text, 80),
+    role: compactText(role, 120),
+    color: normalizeColor(element.color) || elementColor(index),
+    bounds: normalizeBounds(element.bounds),
+    implementationSelector: `[data-canvax-node-id="${sourceId}"]`,
+    suggestedComponentName: `${pascalCase(text || sourceId)}Region`,
+    source: {
+      elementId: sourceId,
+      elementIndex: index,
+      roughSketchType: cleanString(element.type || "element"),
+    },
+  };
+}
+
+function normalizeBounds(bounds = {}) {
+  return {
+    x: clamp01(bounds.x),
+    y: clamp01(bounds.y),
+    w: clamp01(bounds.w),
+    h: clamp01(bounds.h),
+  };
+}
+
+function clamp01(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, numeric));
+}
+
+function pascalCase(value) {
+  const text = cleanString(value)
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim();
+  if (!text) {
+    return "Canvax";
+  }
+  return text
+    .split(/\s+/)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join("")
+    .replace(/[^a-z0-9]/gi, "");
 }
 
 function firstMeaningfulLabel(elements) {

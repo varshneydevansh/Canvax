@@ -198,7 +198,7 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 ## Build With Codex Development Path
 
-`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet.
+`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes `canvax-component-map.json`, a frame-to-code ownership map that links source sketch elements to generated selectors and files.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.
 
@@ -222,6 +222,7 @@ scripts/canvax.mjs
   artifacts/preview/codex-build/frames/<frame-id>/implementation/index.html
   artifacts/preview/codex-build/frames/<frame-id>/implementation/styles.css
   artifacts/preview/codex-build/frames/<frame-id>/implementation/app.js
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-component-map.json
   artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md
   artifacts/canvax/codex-output.json
 
@@ -258,6 +259,7 @@ sequenceDiagram
     Board->>Service: execute latest build request
     Service-->>Board: frame-bound smoke preview and manifest
     Codex->>Service: reads exported request files
+    Codex->>Service: reads frame-to-code ownership map
     Codex->>Codex: edits real workspace files
     Codex->>Service: write-codex-output manifest
     Codex->>Service: optional execute-build-request smoke artifact
@@ -269,7 +271,7 @@ sequenceDiagram
 
 Regression coverage:
 
-- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle
+- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle and `canvax-component-map.json`
 - Board self-test verifies the UI/server path executes and binds that artifact through the output manifest.
 - `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact
 - Board self-test verifies `POST /api/execute-rewrite-request` binds a refreshed preview artifact through the output manifest.

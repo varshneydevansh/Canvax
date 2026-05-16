@@ -157,7 +157,7 @@ Status: In progress
 - [x] `Build with Codex` writes a no-API real implementation request plus frame-to-code output contract for Codex to execute
 - [x] `canvax-rewrite-request-latest.*` writes the live output-refinement request alongside the task pack and image prompt pack
 - [x] `Build with Codex` now calls the deterministic local `execute-build-request` path from the board, creating a frame-bound preview artifact and Codex output manifest without a terminal step
-- [x] `execute-build-request` remains available as a CLI deterministic local path from latest build request to frame-bound preview artifact, implementation starter bundle, and Codex output manifest
+- [x] `execute-build-request` remains available as a CLI deterministic local path from latest build request to frame-bound preview artifact, implementation starter bundle, frame-to-code ownership map, and Codex output manifest
 - [x] `execute-rewrite-request` provides a deterministic local smoke path from latest rewrite request to refreshed frame-bound preview artifact, affected-region context, and Codex output manifest
 - [x] `Apply to Codex` now triggers that rewrite executor from the board after saving the latest Workbench checkpoint
 - [x] Preview includes a `Rewrite handoff` lane showing request export, local executor artifact, and manifest binding state

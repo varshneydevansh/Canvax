@@ -225,6 +225,9 @@ async function validateExecuteBuildRequestDryRun() {
           path.endsWith("/implementation/app.js"),
         ) &&
         implementationFilePaths.some((path) =>
+          path.endsWith("/implementation/canvax-component-map.json"),
+        ) &&
+        implementationFilePaths.some((path) =>
           path.endsWith("/implementation/README.md"),
         ) &&
         payload?.published === false,

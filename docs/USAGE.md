@@ -592,6 +592,7 @@ This is different from `Generate screen`:
 - `Build with Codex` writes a Codex-readable implementation request for actual app/page/component files.
 - The request does not call a paid API and does not require `OPENAI_API_KEY`.
 - The board now immediately runs the no-API local build executor after the request is saved, so the Workbench and Preview get a frame-bound preview plus an implementation starter bundle without requiring a terminal command.
+- The starter bundle now includes a frame-to-code ownership map so Codex can trace sketch elements to generated selectors/files when it ports the artifact into a real app route.
 - `node scripts/execute-build-request.mjs` remains available when you want to re-run that executor manually. This is a deterministic starter path, not a replacement for Codex editing real app files.
 
 Canvax writes the latest request to:
@@ -637,8 +638,16 @@ That writes:
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/index.html`
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/styles.css`
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/app.js`
+- `artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-component-map.json`
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md`
 - `artifacts/canvax/codex-output.json`
+
+The component map records:
+
+- the frame id/title and viewport
+- the generated root selector and node selectors
+- every source sketch element id, type, label, bounds, and matching generated selector
+- recommended file ownership for Codex when it ports the starter bundle into production code
 
 ```mermaid
 flowchart LR
@@ -646,9 +655,11 @@ flowchart LR
     B --> C[Build request JSON/MD]
     C --> D[Local no-API executor]
     D --> E[Frame-bound preview and implementation bundle]
+    E --> J[Frame-to-code ownership map]
     C --> F[Codex edits real app files]
     F --> G[write-codex-output]
     E --> H[Codex output manifest]
+    J --> F
     G --> H
     H --> I[Workbench and Preview]
 
@@ -658,8 +669,8 @@ flowchart LR
     classDef preview fill:#eef3ff,stroke:#2364aa,color:#101828;
     class A sketch;
     class B,C request;
-    class D,E,F code;
-    class G preview;
+    class D,E,F,J code;
+    class G,H,I preview;
 ```
 
 ## Execute Rewrite Request

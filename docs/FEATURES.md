@@ -664,7 +664,7 @@ Build with Codex is the first real-code bridge.
 
 It writes a task artifact that Codex can execute in the current workspace. The board now also calls the local `execute-build-request` path after saving the request, so designers immediately get a frame-bound preview artifact, implementation starter files, and output manifest without opening a terminal or using a paid API.
 
-That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation.
+That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation. The bundle includes a `canvax-component-map.json` ownership file so Codex can map sketch element ids to generated selectors and preserve that relationship during the port.
 
 Outputs:
 
@@ -673,6 +673,7 @@ Outputs:
 - archived copies under `artifacts/canvax/build-requests/`
 - optional local build artifacts under `artifacts/preview/codex-build/frames/...`
 - implementation starter files under `artifacts/preview/codex-build/frames/<frame-id>/implementation/`
+- `implementation/canvax-component-map.json` for frame-to-code ownership
 
 What the request includes:
 
@@ -693,15 +694,17 @@ Build with Codex:
   frame request -> Codex writes real files -> output manifest -> Preview binding
 
 Local smoke executor:
-  latest request -> HTML artifact -> output manifest -> Preview binding
+  latest request -> HTML artifact + component map -> output manifest -> Preview binding
 ```
 
 ```mermaid
 flowchart LR
     S[Sketch frame] --> R[Build real request]
     R --> L[Local no-API executor]
+    L --> O[Frame-to-code ownership map]
     L --> M[Codex output manifest]
     R --> C[Codex implementation pass]
+    O --> C
     C --> M
     M --> P[Preview/Workbench output]
 

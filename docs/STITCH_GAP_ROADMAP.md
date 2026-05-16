@@ -210,16 +210,16 @@ Needed:
 - A board action that creates a Codex-ready generation task from the current frame/checkpoint. **Initial version shipped as `Build with Codex`.**
 - A standard output contract for generated app/page/screen code. **Initial version shipped through `exports/canvax-build-real-latest.*` plus `artifacts/canvax/codex-output.json`.**
 - Automatic preview binding to the generated route or artifact. **Shipped for the local no-API build executor and its implementation bundle; still open for autonomous Codex-edited app routes/components.**
-- Frame-aware code ownership so one frame maps to the files/components Codex generated.
+- Frame-aware code ownership so one frame maps to the files/components Codex generated. **Initial local version shipped through `implementation/canvax-component-map.json`; still open for richer production route/component ownership once Codex edits real files.**
 
 Current stepping stone:
 
 ```text
 done
   rough frame -> local Generate screen -> polished HTML artifact -> Preview
+  rough frame -> Build with Codex request -> local bound preview + implementation bundle + component map
 
 next
-  rough frame -> Build with Codex request -> local bound preview + implementation bundle
   rough frame -> Build with Codex request -> Codex edits app/page files -> live app preview
 ```
 
