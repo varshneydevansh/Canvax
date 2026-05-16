@@ -3926,27 +3926,72 @@ async function buildRealScreenWithCodex(options = {}) {
       throw new Error(data.error || "Build request save failed.");
     }
 
+    let executeResult = null;
+    if (!silent) {
+      dom.buildRealScreen.textContent = "Binding...";
+      dom.buildRealScreenPanel.textContent = "Binding...";
+      dom.focusBuildReal.textContent = "Binding...";
+      dom.workspaceStatus.textContent =
+        `Running the local no-API build preview for ${frame.title}...`;
+    }
+    try {
+      const executeResponse = await fetch("/api/execute-build-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestPath: data.latestJsonPath || data.jsonPath || "",
+        }),
+      });
+      executeResult = await executeResponse.json();
+      if (!executeResponse.ok || !executeResult?.executed) {
+        throw new Error(
+          executeResult?.error || "Build request execution failed.",
+        );
+      }
+      await refreshPreviewStateFromServer();
+    } catch (error) {
+      executeResult = {
+        executed: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Build request execution failed.",
+      };
+    }
+
     state.serverStatus = {
       ...state.serverStatus,
       buildRequest: data.request || request,
       buildRequestPath: data.latestMarkdownPath || data.markdownPath || "",
+      buildExecution: executeResult,
     };
-    state.focusLastAppliedText =
-      "Build request ready. Codex can now read the latest Canvax build request and write real app/screen code.";
+    state.focusLastAppliedText = executeResult?.executed
+      ? "Build request saved and a local frame-bound preview is attached. Codex can now replace the smoke artifact with real app/screen code."
+      : "Build request ready for Codex, but the local preview execution did not finish. Codex can still read the request and build from it.";
     if (!silent) {
-      dom.workspaceStatus.textContent =
-        `Build request saved to ${data.latestMarkdownPath || data.markdownPath}. Ask Codex to build from it.`;
+      dom.workspaceStatus.textContent = executeResult?.executed
+        ? `Build request saved and bound to ${executeResult.previewPath}.`
+        : `Build request saved to ${data.latestMarkdownPath || data.markdownPath}. Local preview binding failed.`;
     }
     if (announce) {
-      renderStatus("Build request ready for Codex");
+      renderStatus(
+        executeResult?.executed
+          ? "Build preview bound to Canvax"
+          : "Build request ready for Codex",
+      );
     }
     void saveCheckpointToWorkspace("build-real-screen", {
       silent: true,
       exportResult,
-      note: `Created a real implementation request for ${frame.title}.`,
+      note: executeResult?.executed
+        ? `Created and executed a no-API build preview for ${frame.title}.`
+        : `Created a real implementation request for ${frame.title}.`,
     });
     renderServerStatus();
-    return data;
+    return {
+      ...data,
+      executeResult,
+    };
   } catch (error) {
     if (!silent) {
       dom.workspaceStatus.textContent =
@@ -11767,6 +11812,16 @@ async function runSelfTest() {
         "build real request creates no-API frame-to-code contract",
         buildRealResult?.latestMarkdownPath ||
           "Build real request did not return a latest markdown path.",
+      ),
+    );
+    results.push(
+      assert(
+        buildRealResult?.executeResult?.executed === true &&
+          Boolean(buildRealResult.executeResult.previewPath) &&
+          Boolean(buildRealResult.executeResult.manifestPath),
+        "build real request executes and binds a frame preview manifest",
+        buildRealResult?.executeResult?.error ||
+          "Build request did not execute into a bound preview artifact.",
       ),
     );
     if (buildRealResult?.latestMarkdownPath) {

@@ -196,7 +196,7 @@ Canvax today
 
 Current `Generate screen` is local and deterministic. It improves the preview, but it does not by itself create real app/page code.
 
-Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request and frame-to-code output contract, then Codex can execute that request in the chat/session and publish the resulting route or artifact with `write-codex-output`.
+Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request and frame-to-code output contract, then the board runs the local no-API executor to bind an immediate frame preview. Codex can still execute that same request in the chat/session and replace the smoke artifact with a real route or component through `write-codex-output`.
 
 Target behavior:
 
@@ -208,7 +208,7 @@ Needed:
 
 - A board action that creates a Codex-ready generation task from the current frame/checkpoint. **Initial version shipped as `Build with Codex`.**
 - A standard output contract for generated app/page/screen code. **Initial version shipped through `exports/canvax-build-real-latest.*` plus `artifacts/canvax/codex-output.json`.**
-- Automatic preview binding to the generated route or artifact.
+- Automatic preview binding to the generated route or artifact. **Shipped for the local no-API build executor; still open for autonomous Codex-edited app routes/components.**
 - Frame-aware code ownership so one frame maps to the files/components Codex generated.
 
 Current stepping stone:
@@ -218,6 +218,7 @@ done
   rough frame -> local Generate screen -> polished HTML artifact -> Preview
 
 next
+  rough frame -> Build with Codex request -> local bound smoke preview
   rough frame -> Build with Codex request -> Codex edits app/page files -> live app preview
 ```
 
@@ -394,7 +395,7 @@ Needed:
 
 ### P2: Make Codex The Differentiator
 
-- One board action: `Build with Codex`. **Initial task/request writer shipped.**
+- One board action: `Build with Codex`. **Initial task/request writer plus local execution/binding path shipped.**
 - Codex reads the latest frame/checkpoint and writes actual app/page/component code.
 - Codex writes a manifest that binds the generated code route back to the frame.
 - Preview reloads and highlights changed code/artifact context.

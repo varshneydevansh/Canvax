@@ -573,7 +573,8 @@ This is different from `Generate screen`:
 - `Generate screen` writes a local HTML preview artifact from the sketch.
 - `Build with Codex` writes a Codex-readable implementation request for actual app/page/component files.
 - The request does not call a paid API and does not require `OPENAI_API_KEY`.
-- `node scripts/execute-build-request.mjs` can execute the latest request into a local HTML preview artifact and publish the frame binding. This is a deterministic smoke path, not a replacement for Codex editing real app files.
+- The board now immediately runs the no-API local build executor after the request is saved, so the Workbench and Preview get a frame-bound smoke artifact without requiring a terminal command.
+- `node scripts/execute-build-request.mjs` remains available when you want to re-run that executor manually. This is a deterministic smoke path, not a replacement for Codex editing real app files.
 
 Canvax writes the latest request to:
 
@@ -597,13 +598,15 @@ The request contains:
 sketch + voice + labels
   -> Build with Codex
   -> exports/canvax-build-real-latest.md
+  -> local no-API build executor
+  -> frame-bound preview manifest
   -> Codex implements real files
   -> scripts/write-codex-output.mjs
   -> artifacts/canvax/codex-output.json
   -> Preview and Workbench bind the output to the frame
 ```
 
-Local smoke path:
+Manual local smoke path:
 
 ```bash
 npm run execute-build
@@ -619,10 +622,13 @@ That writes:
 flowchart LR
     A[Active frame] --> B[Build with Codex]
     B --> C[Build request JSON/MD]
-    C --> D[Codex edits real app files]
-    D --> E[write-codex-output]
-    E --> F[Codex output manifest]
-    F --> G[Workbench and Preview]
+    C --> D[Local no-API executor]
+    D --> E[Frame-bound smoke artifact]
+    C --> F[Codex edits real app files]
+    F --> G[write-codex-output]
+    E --> H[Codex output manifest]
+    G --> H
+    H --> I[Workbench and Preview]
 
     classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
     classDef request fill:#fff7e6,stroke:#f0a202,color:#211815;

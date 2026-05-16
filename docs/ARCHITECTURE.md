@@ -308,7 +308,7 @@ Canvax/
 
 - `Materialize`: a geometry-preserving styled preview
 - `Generate screen`: a semantic renderer path for richer screen output
-- `Build with Codex`: a real-code handoff path that writes a build request and output contract for Codex to execute
+- `Build with Codex`: a real-code handoff path that writes a build request and output contract for Codex to execute, then runs the local no-API executor so Workbench/Preview get an immediate frame-bound smoke target
 - `scripts/execute-build-request.mjs`: a deterministic local smoke executor that turns the latest build request into a frame-bound preview artifact and publishes `artifacts/canvax/codex-output.json`
 - `scripts/execute-rewrite-request.mjs`: a deterministic local smoke executor that turns the latest rewrite request into a refreshed frame-bound preview artifact and publishes `artifacts/canvax/codex-output.json`
 
@@ -321,6 +321,7 @@ same endpoint
 
 separate endpoint
   /api/save-build-request         -> Codex-readable real implementation request
+  /api/execute-build-request      -> local no-API build preview and output manifest binding
 
 rewrite request executor
   exports/canvax-rewrite-request-latest.json

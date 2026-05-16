@@ -183,6 +183,8 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 `Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for smoke-testing the contract and publishing a frame-bound preview artifact when no app route has been built yet.
 
+The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a smoke preview is written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.
+
 Runtime path:
 
 ```text
@@ -193,10 +195,14 @@ web/app.js
 
 scripts/canvax.mjs
   POST /api/save-build-request
+  POST /api/execute-build-request
   artifacts/canvax/build-requests/<request>/request.json
   artifacts/canvax/build-requests/<request>/request.md
   exports/canvax-build-real-latest.json
   exports/canvax-build-real-latest.md
+  artifacts/preview/codex-build/frames/<frame-id>/index.html
+  artifacts/preview/codex-build/frames/<frame-id>/context.json
+  artifacts/canvax/codex-output.json
 
 Codex implementation pass
   edits app/page/component files
@@ -226,6 +232,8 @@ sequenceDiagram
     Board->>Service: save live export/checkpoint
     Board->>Service: save build-real request
     Service-->>Board: latest request paths
+    Board->>Service: execute latest build request
+    Service-->>Board: frame-bound smoke preview and manifest
     Codex->>Service: reads exported request files
     Codex->>Codex: edits real workspace files
     Codex->>Service: write-codex-output manifest
@@ -238,11 +246,12 @@ sequenceDiagram
 Regression coverage:
 
 - `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact
+- Board self-test verifies the UI/server path executes and binds that artifact through the output manifest.
 - `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact
 
 - `scripts/regression-check.mjs` validates the latest build request schema when present.
 - `scripts/regression-check.mjs` validates the latest rewrite request schema when present.
-- Board self-test creates a synthetic build request and verifies the no-API frame-to-code contract.
+- Board self-test creates a synthetic build request, verifies the no-API frame-to-code contract, and verifies the automatic execution/binding path.
 
 ## Variant Branch Implementation
 

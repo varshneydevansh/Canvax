@@ -574,6 +574,13 @@ async function runServer(port) {
 
       if (
         request.method === "POST" &&
+        url.pathname === "/api/execute-build-request"
+      ) {
+        return handleExecuteBuildRequest(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
         url.pathname === "/api/save-asset-candidates"
       ) {
         return handleSaveAssetCandidates(request, response);
@@ -949,6 +956,52 @@ async function handleSaveBuildRequest(request, response) {
       nextRequest.outputContract?.publishCommand ||
       `node scripts/write-codex-output.mjs --from-git-status --frame ${activeFrameId}`,
   });
+}
+
+async function handleExecuteBuildRequest(request, response) {
+  const payload = await readJson(request);
+  const requestPath = cleanString(payload?.requestPath);
+  const args = ["scripts/execute-build-request.mjs", "--json"];
+  if (requestPath) {
+    args.push("--request", requestPath);
+  }
+
+  try {
+    const { stdout } = await runCommand(process.execPath, args, {
+      cwd: projectRoot,
+    });
+    const result = JSON.parse(stdout);
+    const previewUrl = result.previewPath
+      ? workspaceUrlForPath(result.previewPath, new Date().toISOString())
+      : "";
+
+    await appendFile(
+      sessionEventsPath,
+      `${JSON.stringify({
+        type: "build-real-executed",
+        at: new Date().toISOString(),
+        frameId: cleanString(result.frameId),
+        frameTitle: cleanString(result.frameTitle),
+        previewPath: cleanString(result.previewPath),
+        contextPath: cleanString(result.contextPath),
+        manifestPath: cleanString(result.manifestPath),
+      })}\n`,
+    );
+
+    return writeJson(response, 200, {
+      executed: true,
+      ...result,
+      previewUrl,
+    });
+  } catch (error) {
+    return writeJson(response, 500, {
+      executed: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Build request execution failed.",
+    });
+  }
 }
 
 function buildServerBuildRequestMarkdown(request) {

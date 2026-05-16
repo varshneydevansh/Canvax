@@ -624,7 +624,9 @@ What Generate screen is for:
 
 Build with Codex is the first real-code bridge.
 
-It writes a task artifact that Codex can execute in the current workspace. For validation and quick preview binding, Canvax also includes `scripts/execute-build-request.mjs`, which reads the latest request and writes a local HTML artifact plus Codex output manifest without calling a paid API.
+It writes a task artifact that Codex can execute in the current workspace. The board now also calls the local `execute-build-request` path after saving the request, so designers immediately get a frame-bound preview artifact and output manifest without opening a terminal or using a paid API.
+
+That automatic artifact is a smoke target. Codex should replace it with real app/page/component files when the user asks for production implementation.
 
 Outputs:
 
@@ -648,6 +650,7 @@ Generate screen:
   local renderer -> HTML preview artifact
 
 Build with Codex:
+  frame request -> local smoke artifact -> output manifest -> Preview binding
   frame request -> Codex writes real files -> output manifest -> Preview binding
 
 Local smoke executor:
@@ -657,8 +660,10 @@ Local smoke executor:
 ```mermaid
 flowchart LR
     S[Sketch frame] --> R[Build real request]
+    R --> L[Local no-API executor]
+    L --> M[Codex output manifest]
     R --> C[Codex implementation pass]
-    C --> M[Codex output manifest]
+    C --> M
     M --> P[Preview/Workbench output]
 
     classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;

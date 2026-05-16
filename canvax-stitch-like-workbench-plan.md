@@ -78,8 +78,8 @@ Still open:
 
 - automatic host image generation remains open. Multi-candidate review now has local attached-image thumbnails, select, and accept state in the candidate tray.
 - true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially nested groups and richer object editing
-- direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
-- deterministic `execute-build-request` smoke path is shipped for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
+- direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API smoke path immediately for manifest binding; Codex still has to execute the real implementation pass for production route/component files.
+- deterministic `execute-build-request` smoke path is shipped and reachable from the board for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
 - deterministic `execute-rewrite-request` smoke path and Preview `Rewrite handoff` lane are shipped for turning the latest rewrite request into a refreshed frame-bound local HTML artifact; a continuous autonomous Codex rewrite loop remains the real target.
 - native Codex microphone/image-generation host bridge
 

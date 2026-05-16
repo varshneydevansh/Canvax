@@ -138,7 +138,8 @@ Status: In progress
 - [x] `Generate screen` now has a semantic hero/page renderer for polished website-style output instead of only literal sketch geometry
 - [x] `Build with Codex` writes a no-API real implementation request plus frame-to-code output contract for Codex to execute
 - [x] `canvax-rewrite-request-latest.*` writes the live output-refinement request alongside the task pack and image prompt pack
-- [x] `execute-build-request` provides a deterministic local smoke path from latest build request to frame-bound preview artifact and Codex output manifest
+- [x] `Build with Codex` now calls the deterministic local `execute-build-request` path from the board, creating a frame-bound preview artifact and Codex output manifest without a terminal step
+- [x] `execute-build-request` remains available as a CLI deterministic local smoke path from latest build request to frame-bound preview artifact and Codex output manifest
 - [x] `execute-rewrite-request` provides a deterministic local smoke path from latest rewrite request to refreshed frame-bound preview artifact, affected-region context, and Codex output manifest
 - [x] Preview includes a `Rewrite handoff` lane showing request export, local executor artifact, and manifest binding state
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
