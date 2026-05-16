@@ -684,9 +684,7 @@ function bindEvents() {
   });
   dom.mapDuplicateObject.addEventListener("click", duplicateSelectedSpatialObject);
   dom.mapDeleteObject.addEventListener("click", () => {
-    if (state.selectedSpatialObjectId) {
-      removeSpatialObject(state.selectedSpatialObjectId);
-    }
+    removeSelectedSpatialObjects();
   });
   dom.mapClearSelection.addEventListener("click", () => {
     clearSpatialObjectSelection({ render: true });
@@ -1160,11 +1158,24 @@ function hydrateState() {
       : frames[0].id;
 
     const spatialObjects = normalizeSpatialObjects(migrated.spatialObjects);
-    const selectedSpatialObjectId = spatialObjects.some(
-      (object) => object.id === migrated.selectedSpatialObjectId,
+    const spatialObjectIdSet = new Set(
+      spatialObjects.map((object) => object.id),
+    );
+    const persistedPrimarySpatialObjectId = spatialObjectIdSet.has(
+      migrated.selectedSpatialObjectId,
     )
       ? migrated.selectedSpatialObjectId
       : null;
+    const persistedSpatialObjectIds = normalizeStringArray(
+      migrated.selectedSpatialObjectIds,
+    ).filter((id) => spatialObjectIdSet.has(id));
+    const selectedSpatialObjectIds = normalizeStringArray([
+      ...persistedSpatialObjectIds.filter(
+        (id) => id !== persistedPrimarySpatialObjectId,
+      ),
+      persistedPrimarySpatialObjectId,
+    ]).filter((id) => spatialObjectIdSet.has(id));
+    const selectedSpatialObjectId = selectedSpatialObjectIds.at(-1) || null;
 
     return {
       ...empty,
@@ -1217,6 +1228,7 @@ function hydrateState() {
         migrated.hiddenSpatialObjectIds,
       ),
       selectedSpatialObjectId,
+      selectedSpatialObjectIds,
       connections,
       entryFrameId,
       selectedConnectionId: null,
@@ -1530,6 +1542,7 @@ function createInitialState() {
     spatialObjects: [],
     hiddenSpatialObjectIds: [],
     selectedSpatialObjectId: null,
+    selectedSpatialObjectIds: [],
     connections: [],
     entryFrameId: firstFrame.id,
     selectedConnectionId: null,
@@ -2737,12 +2750,12 @@ function syncSpatialObjectsFromHandoffs() {
   });
 
   state.spatialObjects = nextObjects;
-  if (
-    state.selectedSpatialObjectId &&
-    !nextObjects.some((object) => object.id === state.selectedSpatialObjectId)
-  ) {
-    state.selectedSpatialObjectId = null;
-  }
+  setSelectedSpatialObjects(
+    currentSelectedSpatialObjectIds().filter((id) =>
+      nextObjects.some((object) => object.id === id),
+    ),
+    state.selectedSpatialObjectId,
+  );
 }
 
 function upsertSpatialObject(objects, existingIds, nextObject) {
@@ -3089,7 +3102,7 @@ function addSpatialObject(partial) {
     ...state.spatialObjects,
     object,
   ]);
-  state.selectedSpatialObjectId = object.id;
+  setSelectedSpatialObjects([object.id]);
   state.selectedConnectionId = null;
   persistState();
   renderFlowBoard();
@@ -3106,26 +3119,88 @@ function removeSpatialObject(objectId) {
   state.spatialObjects = state.spatialObjects.filter(
     (candidate) => candidate.id !== objectId,
   );
-  if (state.selectedSpatialObjectId === objectId) {
-    state.selectedSpatialObjectId = null;
-  }
+  setSelectedSpatialObjects(
+    currentSelectedSpatialObjectIds().filter((id) => id !== objectId),
+  );
   persistState();
   renderFlowBoard();
   renderSpec();
   renderStatus(`Removed ${object.title} from the spatial map`);
 }
 
+function removeSelectedSpatialObjects() {
+  const selectedIds = currentSelectedSpatialObjectIds();
+  if (!selectedIds.length) {
+    return 0;
+  }
+  state.spatialObjects = state.spatialObjects.filter(
+    (object) => !selectedIds.includes(object.id),
+  );
+  setSelectedSpatialObjects([]);
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  renderStatus(
+    `Removed ${selectedIds.length} Map object${selectedIds.length === 1 ? "" : "s"} from the spatial map`,
+  );
+  return selectedIds.length;
+}
+
 function selectedSpatialObject() {
-  return spatialObjectById(state.selectedSpatialObjectId);
+  return (
+    spatialObjectById(state.selectedSpatialObjectId) ||
+    selectedSpatialObjects().at(-1) ||
+    null
+  );
+}
+
+function currentSelectedSpatialObjectIds() {
+  return normalizeStringArray([
+    ...(state.selectedSpatialObjectIds || []),
+    state.selectedSpatialObjectId,
+  ]).filter((id) => Boolean(spatialObjectById(id)));
+}
+
+function selectedSpatialObjects() {
+  return currentSelectedSpatialObjectIds()
+    .map((id) => spatialObjectById(id))
+    .filter(Boolean);
+}
+
+function setSelectedSpatialObjects(ids, primaryId = null) {
+  const validIds = normalizeStringArray(ids).filter((id) =>
+    Boolean(spatialObjectById(id)),
+  );
+  const validPrimary =
+    primaryId && validIds.includes(primaryId)
+      ? primaryId
+      : validIds.at(-1) || null;
+  state.selectedSpatialObjectIds = normalizeStringArray([
+    ...validIds.filter((id) => id !== validPrimary),
+    validPrimary,
+  ]).filter(Boolean);
+  state.selectedSpatialObjectId = validPrimary;
 }
 
 function selectSpatialObject(objectId, options = {}) {
-  const { render = true, announce = false } = options;
+  const { render = true, announce = false, additive = false } = options;
   const object = spatialObjectById(objectId);
   if (!object) {
     return null;
   }
-  state.selectedSpatialObjectId = object.id;
+  if (additive) {
+    const currentIds = currentSelectedSpatialObjectIds();
+    if (currentIds.includes(object.id)) {
+      setSelectedSpatialObjects(
+        currentIds.filter((id) => id !== object.id),
+        currentIds.filter((id) => id !== object.id).at(-1) || null,
+      );
+    } else {
+      setSelectedSpatialObjects([...currentIds, object.id], object.id);
+    }
+  } else {
+    setSelectedSpatialObjects([object.id], object.id);
+  }
   state.selectedConnectionId = null;
   state.pendingConnectionFromFrameId = null;
   if (render) {
@@ -3141,10 +3216,10 @@ function selectSpatialObject(objectId, options = {}) {
 
 function clearSpatialObjectSelection(options = {}) {
   const { render = false } = options;
-  if (!state.selectedSpatialObjectId) {
+  if (!currentSelectedSpatialObjectIds().length) {
     return;
   }
-  state.selectedSpatialObjectId = null;
+  setSelectedSpatialObjects([]);
   if (render) {
     renderFlowBoard();
     renderSpec();
@@ -3173,22 +3248,46 @@ function moveSpatialObjectByDelta(object, deltaX, deltaY) {
   return object;
 }
 
+function selectedSpatialObjectsForTransform() {
+  const objects = selectedSpatialObjects();
+  const selectedGroups = objects.filter((object) => object.type === "map-group");
+  return objects.filter(
+    (object) =>
+      !selectedGroups.some(
+        (group) =>
+          group.id !== object.id &&
+          rectContainsRectCenter(
+            spatialObjectRect(group),
+            spatialObjectRect(object),
+          ),
+      ),
+  );
+}
+
 function nudgeSelectedSpatialObject(deltaX, deltaY) {
-  const object = selectedSpatialObject();
-  if (!object) {
+  const objects = selectedSpatialObjectsForTransform();
+  if (!objects.length) {
     return false;
   }
-  moveSpatialObjectByDelta(object, deltaX, deltaY);
+  objects.forEach((object) => moveSpatialObjectByDelta(object, deltaX, deltaY));
   persistState();
   renderFlowBoard();
   renderSpec();
   scheduleLivePreviewSync();
-  renderStatus(`Moved ${object.title}`);
+  renderStatus(
+    objects.length === 1
+      ? `Moved ${objects[0].title}`
+      : `Moved ${objects.length} Map objects`,
+  );
   return true;
 }
 
 function duplicateSelectedSpatialObject() {
-  const object = selectedSpatialObject();
+  const objects = selectedSpatialObjectsForTransform();
+  if (objects.length > 1) {
+    return duplicateSpatialObjectSet(objects);
+  }
+  const object = objects[0] || selectedSpatialObject();
   if (!object) {
     return null;
   }
@@ -3203,7 +3302,7 @@ function duplicateSelectedSpatialObject() {
     ...state.spatialObjects,
     duplicate,
   ]);
-  state.selectedSpatialObjectId = duplicate.id;
+  setSelectedSpatialObjects([duplicate.id], duplicate.id);
   state.selectedConnectionId = null;
   persistState();
   renderFlowBoard();
@@ -3211,6 +3310,56 @@ function duplicateSelectedSpatialObject() {
   scheduleLivePreviewSync();
   renderStatus(`Duplicated ${object.title}`);
   return duplicate;
+}
+
+function duplicateSpatialObjectSet(objects) {
+  const copiedSourceIds = new Set();
+  const duplicates = [];
+  objects.forEach((object) => {
+    if (!object || copiedSourceIds.has(object.id)) {
+      return;
+    }
+    const duplicate = cloneSpatialObjectForDuplicate(object);
+    if (duplicate) {
+      duplicates.push(duplicate);
+      copiedSourceIds.add(object.id);
+    }
+    if (object.type === "map-group" && duplicate) {
+      spatialObjectsInsideGroup(object).forEach((child) => {
+        if (copiedSourceIds.has(child.id)) {
+          return;
+        }
+        const childDuplicate = cloneSpatialObjectForDuplicate(child, {
+          meta: {
+            copiedWithinGroupId: object.id,
+            copiedToGroupId: duplicate.id,
+          },
+        });
+        if (childDuplicate) {
+          duplicates.push(childDuplicate);
+          copiedSourceIds.add(child.id);
+        }
+      });
+    }
+  });
+  if (!duplicates.length) {
+    return null;
+  }
+  state.spatialObjects = normalizeSpatialObjects([
+    ...state.spatialObjects,
+    ...duplicates,
+  ]);
+  setSelectedSpatialObjects(
+    duplicates.map((object) => object.id),
+    duplicates.at(-1)?.id || null,
+  );
+  state.selectedConnectionId = null;
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(`Duplicated ${duplicates.length} Map objects`);
+  return duplicates.at(-1) || null;
 }
 
 function duplicateSpatialGroupObject(group) {
@@ -3231,7 +3380,10 @@ function duplicateSpatialGroupObject(group) {
     groupDuplicate,
     ...containedDuplicates,
   ]);
-  state.selectedSpatialObjectId = groupDuplicate.id;
+  setSelectedSpatialObjects(
+    [groupDuplicate, ...containedDuplicates].map((object) => object.id),
+    groupDuplicate.id,
+  );
   state.selectedConnectionId = null;
   persistState();
   renderFlowBoard();
@@ -3287,19 +3439,38 @@ function cloneSpatialObjectMetaForManualCopy(object) {
 }
 
 async function copySelectedSpatialObjectContext() {
+  const objects = selectedSpatialObjects();
   const object = selectedSpatialObject();
-  const text = buildSpatialObjectContextText(object);
-  if (!object || !text) {
+  const text = buildSpatialSelectionContextText(objects);
+  if (!objects.length || !text) {
     renderStatus("No selected Map object context to copy");
     return false;
   }
   const copied = await writeTextToClipboard(text);
   renderStatus(
     copied
-      ? `Copied ${object.title} context`
-      : `Could not copy ${object.title} context`,
+      ? `Copied ${objects.length === 1 ? object.title : `${objects.length} Map objects`} context`
+      : `Could not copy selected Map context`,
   );
   return copied;
+}
+
+function buildSpatialSelectionContextText(objects = selectedSpatialObjects()) {
+  const selectedObjects = Array.isArray(objects) ? objects.filter(Boolean) : [];
+  if (!selectedObjects.length) {
+    return "";
+  }
+  if (selectedObjects.length === 1) {
+    return buildSpatialObjectContextText(selectedObjects[0]);
+  }
+  return [
+    `# Canvax Map Selection: ${selectedObjects.length} objects`,
+    "",
+    ...selectedObjects.map((object, index) => {
+      const context = buildSpatialObjectContextText(object);
+      return `## ${index + 1}. ${object.title || "Spatial object"}\n\n${context}`;
+    }),
+  ].join("\n\n");
 }
 
 function buildSpatialObjectContextText(object) {
@@ -5499,7 +5670,7 @@ function renderSpatialObjectNode(object) {
   const sourceLabel = spatialObjectSourceLabel(object);
   const bodyText = spatialObjectBodyText(object, frameTitle);
   const footerStatus = spatialObjectFooterStatus(object);
-  const isSelected = state.selectedSpatialObjectId === object.id;
+  const isSelected = currentSelectedSpatialObjectIds().includes(object.id);
   return `
     <article
       class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""}"
@@ -5544,16 +5715,26 @@ function renderMapSelectionActions() {
     return;
   }
   const object = state.viewMode === "flow" ? selectedSpatialObject() : null;
-  const hasSelection = Boolean(object);
-  const copyText = buildSpatialObjectContextText(object);
+  const selectedObjects =
+    state.viewMode === "flow" ? selectedSpatialObjects() : [];
+  const hasSelection = selectedObjects.length > 0;
+  const copyText = buildSpatialSelectionContextText(selectedObjects);
   dom.mapSelectionActions.hidden = !hasSelection;
   dom.mapCopyObjectContext.disabled = !copyText;
   dom.mapDuplicateObject.disabled = !hasSelection;
   dom.mapDeleteObject.disabled = !hasSelection;
   dom.mapClearSelection.disabled = !hasSelection;
-  if (!object) {
+  if (!hasSelection || !object) {
     dom.mapSelectedObjectTitle.textContent = "No object selected";
     dom.mapSelectedObjectDetail.textContent = "Click a Map card to edit it.";
+    return;
+  }
+
+  if (selectedObjects.length > 1) {
+    dom.mapSelectedObjectTitle.textContent =
+      `${selectedObjects.length} Map objects selected`;
+    dom.mapSelectedObjectDetail.textContent =
+      "Arrow keys move the selection. Duplicate, delete, clear, or copy combined context.";
     return;
   }
 
@@ -7471,7 +7652,10 @@ function onFlowBoardClick(event) {
     if (state.flowDrag?.objectId === object?.id && state.flowDrag.didMove) {
       return;
     }
-    selectSpatialObject(object?.id, { render: false });
+    selectSpatialObject(object?.id, {
+      render: false,
+      additive: event.shiftKey,
+    });
     const frameId = object?.frameIds?.[0];
     if (frameId && frameById(frameId)) {
       state.activeFrameId = frameId;
@@ -7890,9 +8074,9 @@ function onWindowKeyDown(event) {
     return;
   }
 
-  if (state.viewMode === "flow" && state.selectedSpatialObjectId) {
+  if (state.viewMode === "flow" && currentSelectedSpatialObjectIds().length) {
     event.preventDefault();
-    removeSpatialObject(state.selectedSpatialObjectId);
+    removeSelectedSpatialObjects();
     return;
   }
 
@@ -10000,6 +10184,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     frameSelection,
     state.spatialObjects,
   );
+  const selectedObjects = selectedSpatialObjects();
   const selectedObject = selectedSpatialObject();
   return {
     kind: "canvax-spatial-workspace",
@@ -10010,9 +10195,13 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
     selectedObjectId: state.selectedSpatialObjectId || "",
+    selectedObjectIds: currentSelectedSpatialObjectIds(),
     selectedObject: selectedObject
       ? buildSpatialWorkspaceObject(selectedObject, spatialGrouping)
       : null,
+    selectedObjects: selectedObjects.map((object) =>
+      buildSpatialWorkspaceObject(object, spatialGrouping),
+    ),
     cards: frameSelection.map((frame, index) => {
       const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
       const status = describeFrameOutputStatus(frame, {
@@ -12089,6 +12278,7 @@ function buildPersistedSnapshot(source) {
     spatialObjects: source.spatialObjects || [],
     hiddenSpatialObjectIds: source.hiddenSpatialObjectIds || [],
     selectedSpatialObjectId: source.selectedSpatialObjectId || null,
+    selectedSpatialObjectIds: source.selectedSpatialObjectIds || [],
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -14229,6 +14419,7 @@ function assertManualSpatialObjectControls() {
     viewMode: state.viewMode,
     spatialObjects: structuredClone(state.spatialObjects),
     selectedSpatialObjectId: state.selectedSpatialObjectId,
+    selectedSpatialObjectIds: structuredClone(state.selectedSpatialObjectIds),
     activeFramePosition: structuredClone(currentFrame().flowPosition),
   };
 
@@ -14343,6 +14534,27 @@ function assertManualSpatialObjectControls() {
     deletePrevented &&
     !spatialObjectById(duplicateObject.id) &&
     !state.selectedSpatialObjectId;
+  selectSpatialObject(object?.id, { render: false });
+  selectSpatialObject(group?.id, { render: true, additive: true });
+  const multiSelected =
+    currentSelectedSpatialObjectIds().length === 2 &&
+    !dom.mapSelectionActions.hidden &&
+    dom.mapSelectedObjectTitle.textContent.includes("2 Map objects");
+  const multiContext = buildSpatialSelectionContextText();
+  const multiContextExported =
+    multiContext.includes("Self-test map note") &&
+    multiContext.includes("Self-test group");
+  const groupBeforeMultiNudge = group ? spatialObjectById(group.id) : null;
+  const objectBeforeMultiNudge = object ? spatialObjectById(object.id) : null;
+  const groupXBeforeMultiNudge = groupBeforeMultiNudge?.x || 0;
+  const objectXBeforeMultiNudge = objectBeforeMultiNudge?.x || 0;
+  nudgeSelectedSpatialObject(16, 0);
+  const groupAfterMultiNudge = group ? spatialObjectById(group.id) : null;
+  const objectAfterMultiNudge = object ? spatialObjectById(object.id) : null;
+  const multiNudged =
+    Boolean(groupAfterMultiNudge && objectAfterMultiNudge) &&
+    groupAfterMultiNudge.x === groupXBeforeMultiNudge + 16 &&
+    objectAfterMultiNudge.x === objectXBeforeMultiNudge + 16;
   if (object) {
     selectSpatialObject(object.id, { render: false });
   }
@@ -14405,7 +14617,9 @@ function assertManualSpatialObjectControls() {
   );
   const selectedObjectExported =
     spatialExport.selectedObjectId === object?.id &&
+    spatialExport.selectedObjectIds.includes(object?.id || "") &&
     spatialExport.selectedObject?.id === object?.id &&
+    spatialExport.selectedObjects.some((entry) => entry.id === object?.id) &&
     spatialExport.selectedObject?.contextMarkdown.includes(
       "Manual spatial object",
     );
@@ -14453,6 +14667,7 @@ function assertManualSpatialObjectControls() {
   state.viewMode = previous.viewMode;
   state.spatialObjects = previous.spatialObjects;
   state.selectedSpatialObjectId = previous.selectedSpatialObjectId;
+  state.selectedSpatialObjectIds = previous.selectedSpatialObjectIds;
   activeFrame.flowPosition = previous.activeFramePosition;
   persistState();
   renderAll();
@@ -14465,6 +14680,9 @@ function assertManualSpatialObjectControls() {
       nudged &&
       duplicated &&
       duplicateDeleted &&
+      multiSelected &&
+      multiContextExported &&
+      multiNudged &&
       groupDuplicatedWithMembers &&
       groupDragMovedMembers &&
       resized &&
@@ -14480,6 +14698,9 @@ function assertManualSpatialObjectControls() {
       nudged,
       duplicated,
       duplicateDeleted,
+      multiSelected,
+      multiContextExported,
+      multiNudged,
       groupDuplicatedWithMembers,
       groupDragMovedMembers,
       resized,
