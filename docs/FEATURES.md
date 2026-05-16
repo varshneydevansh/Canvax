@@ -716,20 +716,27 @@ Each candidate is a prompt-ready asset slot:
 - HTML/CSS scaffold
 - output slot for a generated image path later
 
+Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
+
+- place an editable image placeholder on the source frame or candidate bounds
+- attach a generated image file into that same region
+- preserve the candidate id on the image element for later export, materialize, and Codex handoff
+
 ```mermaid
 flowchart LR
     A[Frame sketch] --> B[Image prompt pack]
     B --> C[Asset candidate records]
-    C --> D[Host image generation]
-    D --> E[Generated image candidate]
-    E --> F[Attach back to frame/region]
+    C --> D[Workbench candidate tray]
+    D --> E[Place editable slot]
+    D --> F[Attach generated image]
+    F --> G[Frame image element]
 
     classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
     classDef pack fill:#fff7e6,stroke:#f0a202,color:#211815;
     classDef image fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
     class A sketch;
-    class B,C pack;
-    class D,E,F image;
+    class B,C,D pack;
+    class E,F,G image;
 ```
 
 This keeps image workflows local-first while giving future ChatGPT/Codex image-generation bridges a concrete target format.

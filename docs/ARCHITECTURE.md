@@ -469,6 +469,8 @@ Look in `web/app.js` for:
 
 Pasted or dropped images become `type: "image"` elements with `start`, `end`, `imageDataUrl`, `sourceName`, and optional `assetCandidateId`. They use the same selection, movement, resizing, duplication, layering, export, and materialize paths as other bounded elements.
 
+Asset candidates also become `type: "image"` elements when the user chooses `Place slot` or `Attach image` in the Workbench candidate tray. Empty slots have no `imageDataUrl` yet, but they still preserve `assetCandidateId`, bounds, and source name so generated assets can be traced back to their prompt record.
+
 ### Flow view
 
 Look in `web/app.js` for:
@@ -513,7 +515,7 @@ Image/asset handoff files:
 - `exports/canvax-asset-candidates-latest.json`
 - `artifacts/canvax/asset-candidates/...`
 
-Asset candidates are prompt-ready records with bounds and empty output slots. They do not represent generated images until a host image workflow attaches an output path later.
+Asset candidates are prompt-ready records with bounds and empty output slots. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots. Canvax still does not generate the image itself unless a future host bridge provides that capability.
 
 ## Current Design Boundary
 

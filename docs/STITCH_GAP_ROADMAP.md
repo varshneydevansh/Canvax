@@ -125,6 +125,7 @@ Canvax today
 - Labels can act as semantic notes for Codex, not just visible text.
 - Reference image underlays are supported through the explicit `Reference underlay` upload.
 - Pasted or dropped images can now become editable image elements, so generated candidates or reference crops can be placed back on a frame instead of only sitting behind the sketch.
+- Saved asset candidates now appear in a compact Workbench tray. Designers can place a candidate as an editable image slot on its source frame/region or attach a generated file back into that slot while preserving `assetCandidateId`.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
@@ -173,6 +174,7 @@ Canvax today
 - Live JSON and Markdown exports exist under `exports/`.
 - `canvax-task-pack-latest.*` and `canvax-image-prompt-pack-latest.*` exist for Codex and host-side image generation.
 - The image prompt pack includes normalized coordinates and an HTML/CSS placement scaffold so ChatGPT/image generation can preserve layout intent without Canvax calling an API.
+- `canvax-asset-candidates-latest.*` feeds the Workbench candidate tray so prompt-ready image regions can become editable board objects before or after host generation.
 - A host capability registry now reports local no-API handoff, Codex browser/workspace availability, host image generation boundary, and native microphone bridge boundary.
 - If a project `DESIGN.md` exists, Canvax includes it as design context in task and image prompt packs.
 - Advanced mode can write a starter `DESIGN.md` from the current board without overwriting an existing design contract.
@@ -306,21 +308,22 @@ Current stepping stone:
 done
   rough sketch -> labels/voice -> image prompt pack -> coordinates + scaffold
   image prompt pack -> asset candidate records with output slots
+  asset candidate records -> Workbench candidate tray -> editable slots
   generated/reference image -> paste/drop -> editable image element on frame
+  generated file -> candidate tray attach -> editable image element with candidate id
 
 next
-  prompt pack -> host image generation -> candidate images -> structured candidate import/selection UI
+  prompt pack -> host image generation -> multiple candidate images -> compare/select/accept UI
 ```
 
 Needed:
 
 - Asset regions on canvas.
-- Image candidate import and placement back into the board.
-- Image candidate import and placement back into the board. **Initial manual paste/drop placement shipped as editable image elements; structured candidate picker remains open.**
+- Image candidate import and placement back into the board. **Initial candidate tray placement and attach-image import are shipped.**
 - Variant comparison for image generations.
 - Style-lock packs for books, comics, posters, decks, and brand systems.
 - A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format shipped.**
-- Drag/attach generated image candidates back onto frames. **Initial image-element placement shipped through paste/drop.**
+- Drag/attach generated image candidates back onto frames. **Initial paste/drop and tray attach workflows are shipped.**
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
 
 ### 7. Multisurface Output
@@ -430,7 +433,7 @@ Concrete next steps:
 
 - Add `Build with Codex` beside `Generate screen`. **Done for Workbench, rail, toolbar, and Advanced generation panel.**
 - Add explicit action modes for `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`.
-- Add generated image candidate import/placement as first-class board assets.
+- Add generated image candidate import/placement as first-class board assets. **Initial Workbench candidate tray and editable image-slot placement shipped.**
 - Add a Browser Use / Atlas first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
 - Implement a task artifact under `artifacts/canvax/build-requests/` that Codex can read and execute. **Initial JSON/Markdown request archive shipped.**
 - Extend `write-codex-output.mjs` so Codex can bind generated routes/components to frame ids in one command.

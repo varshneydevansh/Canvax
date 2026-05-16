@@ -277,10 +277,25 @@ Candidate types:
 
 The pack is intentionally no-API. It is the durable target format for future host image-generation bridges and manual ChatGPT image workflows.
 
+The Workbench candidate tray reads the latest saved pack from board state after `Image pack` succeeds. Tray actions create ordinary `type: "image"` elements:
+
+```text
+Place slot
+  -> image element without imageDataUrl
+  -> preserves assetCandidateId + candidate bounds
+
+Attach image
+  -> image element with imageDataUrl
+  -> preserves assetCandidateId + candidate bounds
+```
+
+This keeps the image workflow local-first while making the prompt candidates visible and editable inside the canvas.
+
 Regression coverage:
 
 - export package contains a no-API asset candidate pack
 - browser self-test saves the candidate pack through the service
+- browser self-test places a candidate tray slot as an editable image element
 - `scripts/regression-check.mjs` validates `exports/canvax-asset-candidates-latest.json` when present
 
 ## Where To Change What

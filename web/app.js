@@ -22,6 +22,21 @@ const SELECTION_HANDLE_SIZE = 14;
 const PREVIEW_WINDOW_NAME = "canvax-preview-window";
 const shouldRunSelfTest =
   new URLSearchParams(window.location.search).get("selftest") === "1";
+
+if (shouldRunSelfTest) {
+  window.__canvaxSelfTestProgress = "booting";
+  window.__canvaxSelfTestError = "";
+  window.addEventListener("error", (event) => {
+    window.__canvaxSelfTestError =
+      event.message || "Unhandled browser error during self-test.";
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    window.__canvaxSelfTestError =
+      event.reason instanceof Error
+        ? event.reason.message
+        : String(event.reason || "Unhandled promise rejection during self-test.");
+  });
+}
 const viewModes = [
   { id: "frame", label: "Frame view" },
   { id: "flow", label: "Flow view" },
@@ -212,6 +227,7 @@ const dom = {
   workbenchOutputStageOpen: document.querySelector(
     "#workbench-output-stage-open",
   ),
+  assetCandidateTray: document.querySelector("#asset-candidate-tray"),
   railSizeValue: document.querySelector("#rail-size-value"),
   frameList: document.querySelector("#frame-list"),
   frameCount: document.querySelector("#frame-count"),
@@ -350,6 +366,7 @@ const state = hydrateState();
 init();
 
 function init() {
+  setSelfTestProgress("init");
   populateViewportSelect();
   bindEvents();
   bindInteractionFeedback();
@@ -359,6 +376,7 @@ function init() {
   scheduleLivePreviewSync();
   exposeDebugHelpers();
   if (shouldRunSelfTest) {
+    setSelfTestProgress("scheduled");
     window.setTimeout(() => {
       void runSelfTest();
     }, 150);
@@ -455,6 +473,24 @@ function bindEvents() {
   });
   dom.focusPreview.addEventListener("click", openPreviewWindow);
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
+  dom.assetCandidateTray.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-asset-candidate-place]");
+    if (!button) {
+      return;
+    }
+    placeAssetCandidatePlaceholder(button.dataset.assetCandidatePlace);
+  });
+  dom.assetCandidateTray.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-asset-candidate-upload]");
+    if (!input || !input.files?.[0]) {
+      return;
+    }
+    void placeAssetCandidateImage(
+      input.dataset.assetCandidateUpload,
+      input.files[0],
+    );
+    input.value = "";
+  });
   [dom.workbenchOutputSurface, dom.workbenchOutputStageSurface].forEach(
     (surface) => {
       surface.addEventListener("pointerdown", onWorkbenchOutputPointerDown);
@@ -993,6 +1029,9 @@ function hydrateState() {
         ? migrated.workbenchFocus
         : empty.workbenchFocus,
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
+      assetCandidatePack: normalizeAssetCandidatePack(
+        migrated.assetCandidatePack,
+      ),
       connections,
       entryFrameId,
       selectedConnectionId: null,
@@ -1298,6 +1337,7 @@ function createInitialState() {
     workspaceMode: "simple",
     workbenchFocus: "sketch",
     workbenchTrayCollapsed: false,
+    assetCandidatePack: null,
     connections: [],
     entryFrameId: firstFrame.id,
     selectedConnectionId: null,
@@ -1720,6 +1760,7 @@ function renderAll() {
   renderCheckpointPanel();
   renderUndoRedo();
   renderServerStatus();
+  renderAssetCandidateTray();
 }
 
 function renderWorkspaceMode() {
@@ -2125,6 +2166,7 @@ function renderFocusPad() {
   }
 
   renderWorkbenchOutput();
+  renderAssetCandidateTray();
 
   if (state.voice.interimText) {
     dom.focusTranscript.className = "voice-live";
@@ -2153,6 +2195,207 @@ function renderFocusPad() {
       `,
     )
     .join("");
+}
+
+function normalizeAssetCandidatePack(pack) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    return null;
+  }
+  const candidates = Array.isArray(pack.candidates)
+    ? pack.candidates.filter((candidate) => candidate?.id)
+    : [];
+  return {
+    ...pack,
+    kind: pack.kind || "canvax-asset-candidates",
+    requiresOpenAiApiKey: Boolean(pack.requiresOpenAiApiKey),
+    candidates,
+  };
+}
+
+function currentAssetCandidates() {
+  const pack = normalizeAssetCandidatePack(state.assetCandidatePack);
+  if (!pack?.candidates.length) {
+    return [];
+  }
+  const activeFrameId = state.activeFrameId;
+  const activeCandidates = pack.candidates.filter(
+    (candidate) => candidate.sourceFrameId === activeFrameId,
+  );
+  const otherCandidates = pack.candidates.filter(
+    (candidate) => candidate.sourceFrameId !== activeFrameId,
+  );
+  return [...activeCandidates, ...otherCandidates].slice(0, 6);
+}
+
+function assetCandidateById(candidateId) {
+  const candidates = state.assetCandidatePack?.candidates || [];
+  return candidates.find((candidate) => candidate.id === candidateId) || null;
+}
+
+function renderAssetCandidateTray() {
+  if (!dom.assetCandidateTray) {
+    return;
+  }
+  const candidates = currentAssetCandidates();
+  if (!candidates.length) {
+    dom.assetCandidateTray.hidden = true;
+    dom.assetCandidateTray.innerHTML = "";
+    return;
+  }
+
+  const activeFrameId = state.activeFrameId;
+  dom.assetCandidateTray.hidden = false;
+  dom.assetCandidateTray.innerHTML = `
+    <div class="asset-candidate-head">
+      <div>
+        <p class="eyebrow">Asset candidates</p>
+        <strong>${candidates.length} prompt-ready slot${candidates.length === 1 ? "" : "s"}</strong>
+      </div>
+      <span>No API key required</span>
+    </div>
+    <div class="asset-candidate-grid">
+      ${candidates
+        .map((candidate) => {
+          const sameFrame = candidate.sourceFrameId === activeFrameId;
+          const title = candidate.title || "Untitled candidate";
+          const placement = candidate.placement || "whole frame";
+          const typeLabel =
+            candidate.type === "frame-composite" ? "frame" : "region";
+          return `
+            <article class="asset-candidate-card ${sameFrame ? "active-frame" : ""}">
+              <div class="asset-candidate-card-head">
+                <span class="asset-kind">${escapeHtml(typeLabel)}</span>
+                <span>${sameFrame ? "This frame" : escapeHtml(candidate.sourceFrameTitle || "Other frame")}</span>
+              </div>
+              <strong title="${escapeHtml(title)}">${escapeHtml(compactDisplayText(title, 42))}</strong>
+              <p title="${escapeHtml(candidate.prompt || "")}">${escapeHtml(placement)}</p>
+              <div class="asset-candidate-actions">
+                <button class="ghost-button compact" type="button" data-asset-candidate-place="${escapeHtml(candidate.id)}">
+                  Place slot
+                </button>
+                <label class="ghost-link-button compact asset-upload-button">
+                  Attach image
+                  <input data-asset-candidate-upload="${escapeHtml(candidate.id)}" type="file" accept="image/*" />
+                </label>
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function candidateBoundsToFrameBounds(candidate, frame = currentFrame()) {
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const bounds = candidate?.bounds;
+  if (
+    bounds &&
+    Number.isFinite(bounds.x) &&
+    Number.isFinite(bounds.y) &&
+    Number.isFinite(bounds.w) &&
+    Number.isFinite(bounds.h) &&
+    bounds.w > 0 &&
+    bounds.h > 0
+  ) {
+    const left = clamp(bounds.x * viewport.width, 0, viewport.width);
+    const top = clamp(bounds.y * viewport.height, 0, viewport.height);
+    const right = clamp((bounds.x + bounds.w) * viewport.width, 0, viewport.width);
+    const bottom = clamp(
+      (bounds.y + bounds.h) * viewport.height,
+      0,
+      viewport.height,
+    );
+    return {
+      left: Math.min(left, right),
+      top: Math.min(top, bottom),
+      right: Math.max(left, right),
+      bottom: Math.max(top, bottom),
+    };
+  }
+
+  const width = viewport.width * 0.72;
+  const height = viewport.height * 0.56;
+  return {
+    left: (viewport.width - width) / 2,
+    top: (viewport.height - height) / 2,
+    right: (viewport.width + width) / 2,
+    bottom: (viewport.height + height) / 2,
+  };
+}
+
+function activateCandidateFrame(candidate) {
+  const sourceFrameId = candidate?.sourceFrameId;
+  if (sourceFrameId && currentFrameById(sourceFrameId)) {
+    state.activeFrameId = sourceFrameId;
+    state.viewMode = "frame";
+  }
+  return currentFrame();
+}
+
+function addAssetCandidateElement(candidate, options = {}) {
+  if (!candidate) {
+    return null;
+  }
+  const frame = activateCandidateFrame(candidate);
+  const bounds = candidateBoundsToFrameBounds(candidate, frame);
+  const element = {
+    id: uid("image"),
+    type: "image",
+    start: { x: bounds.left, y: bounds.top },
+    end: { x: bounds.right, y: bounds.bottom },
+    color: state.color,
+    size: 2,
+    alpha: 1,
+    composite: "source-over",
+    imageDataUrl: options.imageDataUrl || "",
+    sourceName: options.sourceName || candidate.title || "Asset candidate",
+    assetCandidateId: candidate.id,
+  };
+
+  pushHistory(frame.id);
+  frame.elements.push(element);
+  setSelectedElements([element.id], element.id);
+  touchFrame(frame, {
+    capture: true,
+    status: options.imageDataUrl
+      ? "Asset candidate image attached"
+      : "Asset candidate slot placed",
+  });
+  renderAll();
+  return element;
+}
+
+function placeAssetCandidatePlaceholder(candidateId) {
+  const candidate = assetCandidateById(candidateId);
+  if (!candidate) {
+    renderStatus("Asset candidate no longer exists");
+    return null;
+  }
+  const element = addAssetCandidateElement(candidate);
+  if (element) {
+    renderStatus("Asset candidate slot placed on its source frame");
+  }
+  return element;
+}
+
+async function placeAssetCandidateImage(candidateId, file) {
+  const candidate = assetCandidateById(candidateId);
+  if (!candidate || !file) {
+    renderStatus("Asset candidate image attach failed");
+    return null;
+  }
+  const imageDataUrl = await fileToDataUrl(file, 1400, {
+    preserveAlpha: true,
+  });
+  const element = addAssetCandidateElement(candidate, {
+    imageDataUrl,
+    sourceName: cleanString(file.name) || candidate.title,
+  });
+  if (element) {
+    renderStatus("Generated asset attached to candidate region");
+  }
+  return element;
 }
 
 function renderWorkbenchOutput() {
@@ -8014,9 +8257,14 @@ async function saveImagePromptPackForHost(options = {}) {
   const path =
     assetData.latestMarkdownPath ||
     "exports/canvax-image-prompt-pack-latest.md";
+  state.assetCandidatePack = normalizeAssetCandidatePack(
+    assetData.assetCandidatePack || assetCandidatePack,
+  );
   dom.workspaceStatus.textContent = `Image prompt and asset candidate packs ready at ${path}`;
   state.focusLastAppliedText =
     "Image prompt and asset candidate packs ready. Ask Codex/ChatGPT image generation to use them.";
+  persistState();
+  renderAssetCandidateTray();
   renderFocusPad();
   if (!silent) {
     renderStatus("Asset candidates ready for host image generation");
@@ -9043,6 +9291,7 @@ function buildPersistedSnapshot(source) {
     workspaceMode: source.workspaceMode,
     workbenchFocus: source.workbenchFocus,
     workbenchTrayCollapsed: Boolean(source.workbenchTrayCollapsed),
+    assetCandidatePack: source.assetCandidatePack || null,
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -9819,6 +10068,7 @@ function exposeDebugHelpers() {
 }
 
 async function runSelfTest() {
+  setSelfTestProgress("starting");
   const results = [];
   const originalSnapshot = structuredClone(buildPersistedSnapshot(state));
   const originalRuntime = {
@@ -9831,6 +10081,7 @@ async function runSelfTest() {
   const startedFrameCount = state.frames.length;
 
   try {
+    setSelfTestProgress("basic render assertions");
     await sleep(50);
     results.push(
       assert(
@@ -9876,6 +10127,7 @@ async function runSelfTest() {
     );
 
     resetFrameForSelfTest();
+    setSelfTestProgress("drawing tools");
     state.size = 22;
     renderColors();
     results.push(
@@ -9972,9 +10224,12 @@ async function runSelfTest() {
     results.push(assertEraserPreservesPaperLayer());
     results.push(assertEraserRemovesInk());
     results.push(assertWorkbenchRailSizeControls());
+    setSelfTestProgress("image and asset candidates");
     results.push(await assertImageAssetPlacement());
+    results.push(assertAssetCandidateTrayPlacement());
     results.push(assertWorkbenchSpatialMap());
 
+    setSelfTestProgress("undo redo and frame flow");
     const beforeUndo = currentFrame().elements.length;
     undoFrame();
     results.push(
@@ -10025,6 +10280,7 @@ async function runSelfTest() {
       assert(state.frames.length === beforeAdd, "delete frame works"),
     );
 
+    setSelfTestProgress("export package");
     const exportPackage = await buildExportPackage();
     results.push(
       assert(
@@ -10083,6 +10339,7 @@ async function runSelfTest() {
         "image prompt pack excludes eraser strokes",
       ),
     );
+    setSelfTestProgress("asset candidate service save");
     const assetCandidateResponse = await fetch("/api/save-asset-candidates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -10125,6 +10382,7 @@ async function runSelfTest() {
       ),
     );
 
+    setSelfTestProgress("workspace export");
     const exportResult = await saveExportToWorkspace({ silent: true });
     results.push(
       assert(Boolean(state.saveNotice), "workspace export completes"),
@@ -10135,6 +10393,7 @@ async function runSelfTest() {
         "workspace publish manifest syncs",
       ),
     );
+    setSelfTestProgress("materialize");
     const materializeResult = await materializeCurrentFrame({
       silent: true,
       announce: false,
@@ -10166,6 +10425,7 @@ async function runSelfTest() {
         ),
       );
     }
+    setSelfTestProgress("build real request");
     const buildRealResult = await buildRealScreenWithCodex({
       silent: true,
       announce: false,
@@ -10195,6 +10455,7 @@ async function runSelfTest() {
         ),
       );
     }
+    setSelfTestProgress("variant branches");
     const variantSourceId = currentFrame().id;
     const beforeVariantCount = state.frames.length;
     const variantFrames = createVariantFramesFromCurrent({
@@ -10240,6 +10501,7 @@ async function runSelfTest() {
     state.selectedConnectionId = null;
     persistState();
     renderAll();
+    setSelfTestProgress("output activity");
     const outputActivityItems = updateOutputActivityHistory(
       [],
       null,
@@ -10377,6 +10639,7 @@ async function runSelfTest() {
         "rewrite queue flags stale frame output",
       ),
     );
+    setSelfTestProgress("large session fixture");
     await exerciseLargeSessionSelfTest(results);
     results.push(
       assert(
@@ -10385,6 +10648,7 @@ async function runSelfTest() {
       ),
     );
   } catch (error) {
+    setSelfTestProgress("runtime error");
     results.push({
       name: "self-test runtime",
       passed: false,
@@ -10392,10 +10656,18 @@ async function runSelfTest() {
         error instanceof Error ? error.message : "Unknown self-test error",
     });
   } finally {
+    setSelfTestProgress("restore");
     restoreStateAfterSelfTest(originalSnapshot, originalRuntime);
   }
 
+  setSelfTestProgress("render results");
   renderSelfTestResults(results);
+}
+
+function setSelfTestProgress(label) {
+  if (shouldRunSelfTest) {
+    window.__canvaxSelfTestProgress = label;
+  }
 }
 
 function restoreStateAfterSelfTest(snapshot, runtime) {
@@ -10406,6 +10678,7 @@ function restoreStateAfterSelfTest(snapshot, runtime) {
   state.workspaceMode = snapshot.workspaceMode;
   state.workbenchFocus = snapshot.workbenchFocus || "sketch";
   state.workbenchTrayCollapsed = Boolean(snapshot.workbenchTrayCollapsed);
+  state.assetCandidatePack = snapshot.assetCandidatePack || null;
   state.connections = structuredClone(snapshot.connections);
   state.entryFrameId = snapshot.entryFrameId;
   state.activeFrameId = snapshot.activeFrameId;
@@ -10700,6 +10973,67 @@ async function assertImageAssetPlacement() {
   renderAll();
 
   return assert(placed, "image assets paste/drop as editable elements");
+}
+
+function assertAssetCandidateTrayPlacement() {
+  const frame = currentFrame();
+  const previousElements = structuredClone(frame.elements);
+  const previousSelection = selectionIds();
+  const previousSelectedElementId = state.selectedElementId;
+  const previousAssetCandidatePack = structuredClone(state.assetCandidatePack);
+  const history = ensureHistory(frame.id);
+  const previousHistory = {
+    past: structuredClone(history.past),
+    future: structuredClone(history.future),
+  };
+  const candidateId = "asset-selftest-region";
+
+  state.assetCandidatePack = {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-asset-candidates",
+    requiresOpenAiApiKey: false,
+    candidates: [
+      {
+        id: candidateId,
+        type: "region",
+        status: "prompt-ready",
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
+        title: "Self-test visual region",
+        prompt: "Generate a visual for the selected Canvax region.",
+        negativePrompt: "",
+        bounds: { x: 0.2, y: 0.22, w: 0.24, h: 0.18 },
+        placement: "upper-left",
+        aspectRatio: "4:3",
+        outputSlots: [],
+      },
+    ],
+  };
+  renderAssetCandidateTray();
+  const element = placeAssetCandidatePlaceholder(candidateId);
+  const bounds = element ? getElementBounds(element, frame) : null;
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const placed =
+    !dom.assetCandidateTray.hidden &&
+    element?.type === "image" &&
+    element.assetCandidateId === candidateId &&
+    !element.imageDataUrl &&
+    bounds?.width > viewport.width * 0.2 &&
+    bounds?.height > viewport.height * 0.14 &&
+    Math.abs((element.start?.x || 0) - viewport.width * 0.2) < 4 &&
+    Math.abs((element.start?.y || 0) - viewport.height * 0.22) < 4;
+
+  window.clearTimeout(state.captureTimer);
+  state.captureTimer = null;
+  frame.elements = previousElements;
+  history.past = previousHistory.past;
+  history.future = previousHistory.future;
+  state.assetCandidatePack = previousAssetCandidatePack;
+  setSelectedElements(previousSelection, previousSelectedElementId);
+  persistState();
+  renderAll();
+
+  return assert(placed, "asset candidate tray places editable image slots");
 }
 
 async function createSelfTestImageFile() {

@@ -13,6 +13,14 @@ const results = [];
 const chromePath = await detectChromeBinary();
 const serviceState = await detectCanvaxServiceState();
 const liveUrl = serviceState.url;
+const boardSelfTestTimeoutMs = parsePositiveInteger(
+  process.env.CANVAX_BOARD_SELFTEST_TIMEOUT_MS,
+  90000,
+);
+const previewSelfTestTimeoutMs = parsePositiveInteger(
+  process.env.CANVAX_PREVIEW_SELFTEST_TIMEOUT_MS,
+  30000,
+);
 
 if (!liveUrl) {
   results.push({
@@ -34,14 +42,14 @@ if (!liveUrl) {
     chromePath,
     url: `${liveUrl}/?selftest=1`,
     resultsId: "selftest-results",
-    timeoutMs: 45000,
+    timeoutMs: boardSelfTestTimeoutMs,
   });
   await validateBrowserSelfTest({
     name: "preview browser self-test passes",
     chromePath,
     url: `${liveUrl}/preview.html?selftest=1`,
     resultsId: "preview-selftest-results",
-    timeoutMs: 30000,
+    timeoutMs: previewSelfTestTimeoutMs,
   });
 }
 
@@ -107,6 +115,11 @@ async function validateBrowserSelfTest({
       detail: error instanceof Error ? error.message : "Unknown browser error",
     });
   }
+}
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function detectChromeBinary() {
@@ -466,6 +479,7 @@ function createCdpSession(wsUrl) {
 async function waitForSelfTestState(cdp, resultsId, timeoutMs) {
   const selector = `#${resultsId}`;
   const deadline = Date.now() + timeoutMs;
+  let lastState = null;
   while (Date.now() < deadline) {
     try {
       const response = await cdp.send("Runtime.evaluate", {
@@ -473,7 +487,10 @@ async function waitForSelfTestState(cdp, resultsId, timeoutMs) {
           const node = document.querySelector(${JSON.stringify(selector)});
           return {
             ready: Boolean(node),
+            readyState: document.readyState,
             bodyPassed: document.body?.dataset?.selftestPassed || "",
+            progress: window.__canvaxSelfTestProgress || "",
+            error: window.__canvaxSelfTestError || "",
             text: node?.textContent || ""
           };
         })()`,
@@ -481,6 +498,7 @@ async function waitForSelfTestState(cdp, resultsId, timeoutMs) {
         awaitPromise: true,
       });
       const value = response?.result?.result?.value ?? response?.result?.value;
+      lastState = value || lastState;
       if (value?.ready) {
         return value;
       }
@@ -489,7 +507,10 @@ async function waitForSelfTestState(cdp, resultsId, timeoutMs) {
     }
     await delay(200);
   }
-  throw new Error(`Timed out after ${timeoutMs}ms.`);
+  const detail = lastState
+    ? `Timed out after ${timeoutMs}ms; readyState=${lastState.readyState || "unknown"} progress=${lastState.progress || "unknown"}${lastState.error ? ` error=${lastState.error}` : ""}.`
+    : `Timed out after ${timeoutMs}ms.`;
+  throw new Error(detail);
 }
 
 async function closeChromeProcess(child) {

@@ -346,13 +346,22 @@ Asset candidates are prompt-ready records, not generated images. They preserve:
 - HTML/CSS scaffold
 - empty output slots where generated images can be attached later
 
+After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it to:
+
+- place an editable image slot back onto the matching source frame or region
+- attach a generated image file to that slot after using a host image-generation tool
+- keep the asset bound to its `assetCandidateId` so Codex can trace which prompt produced which visual region
+
+The tray still does not call an image API. It is a local bridge between prompt-ready candidates and whatever image-generation host is available in the current Codex/ChatGPT session.
+
 ```text
 sketch + labels + voice
   -> Image pack
   -> image prompt pack
   -> asset candidate records
+  -> Workbench asset candidate tray
   -> host image generation
-  -> generated image placed back on the matching frame/region
+  -> generated image attached back to the matching editable frame/region slot
 ```
 
 Older compatibility files may also be written:
