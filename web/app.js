@@ -9962,6 +9962,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     frameSelection,
     state.spatialObjects,
   );
+  const selectedObject = selectedSpatialObject();
   return {
     kind: "canvax-spatial-workspace",
     coordinateSystem:
@@ -9971,6 +9972,9 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
     selectedObjectId: state.selectedSpatialObjectId || "",
+    selectedObject: selectedObject
+      ? buildSpatialWorkspaceObject(selectedObject, spatialGrouping)
+      : null,
     cards: frameSelection.map((frame, index) => {
       const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
       const status = describeFrameOutputStatus(frame, {
@@ -9996,23 +10000,9 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     }),
     variantBranches: buildSpatialVariantBranches(frameSelection),
     groups: spatialGrouping.groups,
-    objects: state.spatialObjects.map((object) => ({
-      id: object.id,
-      type: object.type,
-      title: object.title,
-      subtitle: object.subtitle,
-      sourceKind: object.sourceKind,
-      sourceId: object.sourceId,
-      status: object.status,
-      frameIds: object.frameIds || [],
-      groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
-      position: { x: object.x, y: object.y },
-      size: {
-        width: object.width || SPATIAL_OBJECT_WIDTH,
-        height: object.height || SPATIAL_OBJECT_HEIGHT,
-      },
-      meta: object.meta || {},
-    })),
+    objects: state.spatialObjects.map((object) =>
+      buildSpatialWorkspaceObject(object, spatialGrouping),
+    ),
     links: state.connections
       .filter(
         (connection) =>
@@ -10023,6 +10013,27 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         fromTitle: frameTitleById(connection.fromFrameId),
         toTitle: frameTitleById(connection.toFrameId),
       })),
+  };
+}
+
+function buildSpatialWorkspaceObject(object, spatialGrouping) {
+  return {
+    id: object.id,
+    type: object.type,
+    title: object.title,
+    subtitle: object.subtitle,
+    sourceKind: object.sourceKind,
+    sourceId: object.sourceId,
+    status: object.status,
+    frameIds: object.frameIds || [],
+    groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
+    position: { x: object.x, y: object.y },
+    size: {
+      width: object.width || SPATIAL_OBJECT_WIDTH,
+      height: object.height || SPATIAL_OBJECT_HEIGHT,
+    },
+    contextMarkdown: buildSpatialObjectContextText(object),
+    meta: object.meta || {},
   };
 }
 
@@ -14338,6 +14349,12 @@ function assertManualSpatialObjectControls() {
   const groupExport = spatialExport.groups.find(
     (entry) => entry.id === group?.id,
   );
+  const selectedObjectExported =
+    spatialExport.selectedObjectId === object?.id &&
+    spatialExport.selectedObject?.id === object?.id &&
+    spatialExport.selectedObject?.contextMarkdown.includes(
+      "Manual spatial object",
+    );
   const exported = spatialExport.objects.some(
     (entry) => entry.id === object?.id && entry.sourceKind === "manual-note",
   ) &&
@@ -14397,6 +14414,7 @@ function assertManualSpatialObjectControls() {
       groupDuplicatedWithMembers &&
       groupDragMovedMembers &&
       resized &&
+      selectedObjectExported &&
       exported &&
       removed,
     "Manual spatial map note and group can be selected, nudged, duplicated, deleted, moved with members, resized, exported, and removed",
@@ -14411,6 +14429,7 @@ function assertManualSpatialObjectControls() {
       groupDuplicatedWithMembers,
       groupDragMovedMembers,
       resized,
+      selectedObjectExported,
       exported,
       removed,
       groupExport,
