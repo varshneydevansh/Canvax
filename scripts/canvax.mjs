@@ -581,6 +581,13 @@ async function runServer(port) {
 
       if (
         request.method === "POST" &&
+        url.pathname === "/api/execute-rewrite-request"
+      ) {
+        return handleExecuteRewriteRequest(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
         url.pathname === "/api/save-asset-candidates"
       ) {
         return handleSaveAssetCandidates(request, response);
@@ -1000,6 +1007,61 @@ async function handleExecuteBuildRequest(request, response) {
         error instanceof Error
           ? error.message
           : "Build request execution failed.",
+    });
+  }
+}
+
+async function handleExecuteRewriteRequest(request, response) {
+  const payload = await readJson(request);
+  const requestPath = cleanString(payload?.requestPath);
+  const taskPackPath = cleanString(payload?.taskPackPath);
+  const frameId = cleanString(payload?.frameId);
+  const args = ["scripts/execute-rewrite-request.mjs", "--json"];
+  if (requestPath) {
+    args.push("--request", requestPath);
+  }
+  if (taskPackPath) {
+    args.push("--task-pack", taskPackPath);
+  }
+  if (frameId) {
+    args.push("--frame", frameId);
+  }
+
+  try {
+    const { stdout } = await runCommand(process.execPath, args, {
+      cwd: projectRoot,
+    });
+    const result = JSON.parse(stdout);
+    const previewUrl = result.previewPath
+      ? workspaceUrlForPath(result.previewPath, new Date().toISOString())
+      : "";
+
+    await appendFile(
+      sessionEventsPath,
+      `${JSON.stringify({
+        type: "rewrite-request-executed",
+        at: new Date().toISOString(),
+        frameId: cleanString(result.frameId),
+        frameTitle: cleanString(result.frameTitle),
+        previewPath: cleanString(result.previewPath),
+        contextPath: cleanString(result.contextPath),
+        manifestPath: cleanString(result.manifestPath),
+        affectedRegionCount: Number(result.affectedRegionCount) || 0,
+      })}\n`,
+    );
+
+    return writeJson(response, 200, {
+      executed: true,
+      ...result,
+      previewUrl,
+    });
+  } catch (error) {
+    return writeJson(response, 500, {
+      executed: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Rewrite request execution failed.",
     });
   }
 }

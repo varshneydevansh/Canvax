@@ -53,7 +53,7 @@ Canvax now has `Workbench` as the simple path:
 - the user can select drawn elements and assign prototype hotspot targets for Preview Play
 - the user can hide the context tray and keep working from the floating designer rail
 - the user can save an `Image pack` with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
-- `Apply to Codex` freezes the frame and writes a `focus-apply` checkpoint
+- `Apply to Codex` freezes the frame, writes a `focus-apply` checkpoint, and runs the local no-API rewrite executor so the attached output can refresh from the latest sketch/voice/correction context
 
 When the user says they used Workbench, prefer the latest checkpoint over older advanced-board context because it represents the specific sketch + voice + output-correction edit they meant Codex to act on.
 
@@ -96,7 +96,7 @@ The live JSON export is the primary source because it includes frame metadata an
 
 The task pack and image prompt pack may include `actionMode`, `hostLane`, and `designContext`. Use those fields to decide whether the user is asking for implementation, refinement, specs, image prompting, or variations, and to avoid promising native host features that the current local board does not expose.
 
-If the user says they marked corrections, changed a generated output, or wants Codex to refresh an existing output from the latest sketch/voice, read `exports/canvax-rewrite-request-latest.json` after the live export. For a deterministic local smoke refresh, run:
+If the user says they marked corrections, changed a generated output, or wants Codex to refresh an existing output from the latest sketch/voice, read `exports/canvax-rewrite-request-latest.json` after the live export. In Workbench, `Apply to Codex` already calls the local executor through `/api/execute-rewrite-request`. For a deterministic terminal refresh, run:
 
 ```bash
 npm run execute-rewrite
@@ -135,6 +135,8 @@ When Browser Use / Atlas is available, use it as the preferred visual inspection
 - fix visible layout issues in code, then publish output back with `write-codex-output.mjs`
 
 If the user presses `Build code` in Workbench, Canvax writes `exports/canvax-build-real-latest.*` and calls its local no-API executor so the output manifest has a frame-bound smoke preview. Treat that preview as a bound target for visual inspection, but do not mistake it for production implementation unless the user explicitly accepts it.
+
+If the user presses `Apply to Codex` in Workbench, Canvax writes the checkpoint and calls the local no-API rewrite executor so the output manifest can point at `artifacts/preview/codex-rewrite/frames/...`. Treat that as a refreshed bound preview artifact, not as final production code.
 
 Canvax now also writes explicit transport metadata into its live payloads, exports, and checkpoints. Treat that as a contract:
 

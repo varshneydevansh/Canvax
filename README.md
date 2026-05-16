@@ -113,6 +113,7 @@ flowchart LR
 - Writes `canvax-rewrite-request-latest.*` as a focused refinement handoff for queued frames, stale outputs, voice notes, and correction marks.
 - Adds a rewrite `revisionGraph` so Codex can map frame revisions to output revisions before changing generated work.
 - Includes `npm run execute-rewrite` as a deterministic no-API smoke path that turns the latest rewrite request into a refreshed frame-bound preview artifact and Codex output manifest.
+- Workbench `Apply to Codex` now calls the same local rewrite executor after saving the checkpoint, so sketch/voice/output-correction passes can refresh the attached preview without a terminal step.
 - Shows a Preview `Rewrite handoff` lane for request/export state, local executor artifacts, and manifest binding state.
 - Reloads same-URL Preview targets with a digest-based revision key when connected implementation context changes, which keeps local app previews closer to live Codex edits.
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
@@ -376,7 +377,7 @@ Checkpoint mode now adds:
 1. Start Canvax with `./canvax`.
 2. Install the skill once with `node scripts/install-canvax-skill.mjs`.
 3. Invoke `/canvax` or `$canvax` in Codex.
-4. Stay in `Workbench` for quick work: draw rough placement, start dictation or paste a spoken note, mark generated-output corrections if needed, then press `Apply to Codex`.
+4. Stay in `Workbench` for quick work: draw rough placement, start dictation or paste a spoken note, mark generated-output corrections if needed, then press `Apply to Codex` to save the checkpoint and refresh the local output binding.
 5. Pick the Workbench action that matches the current intent: build UI, refine UI, write spec, image prompt, or variations.
 6. Add a root `DESIGN.md` when the project needs reusable visual rules, brand constraints, or illustration direction.
 7. Open `Preview` when you want to see the generated or implemented target beside the sketch.

@@ -108,7 +108,16 @@ Workbench
  latest export + latest checkpoint
 ```
 
-`Apply to Codex` freezes the current frame, writes the live handoff, and saves a Workbench checkpoint. That gives Codex a single clean moment to read: the sketch image, the generated-output correction marks, the transcript/manual note, and the active frame context.
+`Apply to Codex` freezes the current frame, writes the live handoff, saves a Workbench checkpoint, and runs the local no-API rewrite executor. That gives Codex a single clean moment to read: the sketch image, the generated-output correction marks, the transcript/manual note, and the active frame context. When a generated output is already attached, the same press also refreshes a frame-bound local preview artifact through the Codex output manifest.
+
+```text
+Apply to Codex
+  -> freeze current frame
+  -> live export + checkpoint
+  -> rewrite request
+  -> local rewrite executor
+  -> refreshed output manifest target
+```
 
 `Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, and an HTML/CSS placement scaffold. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs.
 
@@ -644,7 +653,7 @@ flowchart LR
 
 ## Execute Rewrite Request
 
-Use `npm run execute-rewrite` when a frame already has generated output and the latest sketch, voice note, or correction marks should refresh that output binding.
+Use `npm run execute-rewrite` when a frame already has generated output and the latest sketch, voice note, or correction marks should refresh that output binding. Workbench `Apply to Codex` now calls the same executor through the local server, so the terminal command is mostly a repeatable/debug path.
 
 This is the local no-API proof path for the live refinement loop:
 
@@ -666,7 +675,7 @@ That writes:
 ```text
 sketch changes + voice + correction marks
   -> live rewrite request
-  -> execute-rewrite-request
+  -> execute-rewrite-request or Workbench Apply
   -> refreshed frame-bound preview artifact
   -> Codex output manifest
   -> Preview and Workbench output refresh

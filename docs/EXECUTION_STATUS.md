@@ -106,6 +106,7 @@ Status: In progress
 - [x] Board/checkpoint/live export now surface a rewrite queue that tells Codex which frames need first output, a frame binding, a target, or a refresh
 - [x] Board saves `canvax-rewrite-request-latest.*` so Codex gets one focused refinement handoff for sketch, voice, correction marks, queued frames, and connected outputs
 - [x] Rewrite requests include a `revisionGraph` mapping frame revisions to output targets, artifacts, changed files, stale state, and queue reasons
+- [x] Workbench `Apply to Codex` now calls the local no-API rewrite executor after saving the checkpoint, so a refreshed frame-bound preview artifact can be attached without a terminal command
 - [x] Board exports now include task and image prompt packs with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
 - [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
 - [x] Canvas image elements now carry pasted/generated assets through selection, composition summaries, Materialize payloads, and live exports
@@ -141,6 +142,7 @@ Status: In progress
 - [x] `Build with Codex` now calls the deterministic local `execute-build-request` path from the board, creating a frame-bound preview artifact and Codex output manifest without a terminal step
 - [x] `execute-build-request` remains available as a CLI deterministic local smoke path from latest build request to frame-bound preview artifact and Codex output manifest
 - [x] `execute-rewrite-request` provides a deterministic local smoke path from latest rewrite request to refreshed frame-bound preview artifact, affected-region context, and Codex output manifest
+- [x] `Apply to Codex` now triggers that rewrite executor from the board after saving the latest Workbench checkpoint
 - [x] Preview includes a `Rewrite handoff` lane showing request export, local executor artifact, and manifest binding state
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack

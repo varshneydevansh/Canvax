@@ -65,7 +65,7 @@ Current completed baseline:
 - `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
 - `canvax-rewrite-request-latest.*` is exported for live output refinement from queued frames, voice notes, correction marks, and connected output manifests.
 - Rewrite requests include a `revisionGraph` so Codex can map frame revisions to output targets, artifacts, changed files, stale state, and queue reasons before rewriting.
-- `execute-rewrite-request` can consume the latest rewrite request into a refreshed frame-bound local artifact and Codex output manifest, giving the live-refinement loop a no-API smoke path.
+- `execute-rewrite-request` can consume the latest rewrite request into a refreshed frame-bound local artifact and Codex output manifest, giving the live-refinement loop a no-API smoke path. Workbench `Apply to Codex` now invokes this path automatically after checkpoint save.
 - `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
 - `canvax-asset-candidates-latest.*` is exported as a prompt-ready image/asset candidate format with source frame, bounds, prompts, and output slots.
 - Pasted or dropped image outputs now become editable image elements on the frame, so generated candidates can be moved, resized, labeled, exported, and materialized without becoming a background-only underlay.
@@ -80,7 +80,7 @@ Still open:
 - true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially nested groups and richer object editing. Generated output objects are now deduped to reduce stale materialized clutter, but full history lanes remain open.
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API smoke path immediately for manifest binding; Codex still has to execute the real implementation pass for production route/component files.
 - deterministic `execute-build-request` smoke path is shipped and reachable from the board for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
-- deterministic `execute-rewrite-request` smoke path and Preview `Rewrite handoff` lane are shipped for turning the latest rewrite request into a refreshed frame-bound local HTML artifact; a continuous autonomous Codex rewrite loop remains the real target.
+- deterministic `execute-rewrite-request` smoke path, board-side Apply execution, and Preview `Rewrite handoff` lane are shipped for turning the latest rewrite request into a refreshed frame-bound local HTML artifact; a continuous autonomous Codex rewrite loop remains the real target.
 - native Codex microphone/image-generation host bridge
 
 ## Target UX

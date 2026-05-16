@@ -95,7 +95,7 @@ In-browser self-test:
 http://localhost:3210/?selftest=1
 ```
 
-The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, Workbench action modes, host/design-context handoff fields, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, and large-session export consistency.
+The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, Workbench action modes, host/design-context handoff fields, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, board-side rewrite execution, and large-session export consistency.
 
 Useful service commands:
 
@@ -217,6 +217,7 @@ Optional local executor
 
 Rewrite local executor
   node scripts/execute-rewrite-request.mjs
+  POST /api/execute-rewrite-request
   artifacts/preview/codex-rewrite/frames/<frame-id>/index.html
   artifacts/preview/codex-rewrite/frames/<frame-id>/context.json
   artifacts/canvax/codex-output.json
@@ -239,6 +240,7 @@ sequenceDiagram
     Codex->>Service: write-codex-output manifest
     Codex->>Service: optional execute-build-request smoke artifact
     Codex->>Service: optional execute-rewrite-request smoke artifact
+    Board->>Service: Apply to Codex executes rewrite request
     Preview->>Service: poll /api/preview-state
     Service-->>Preview: frame-bound generated target
 ```
@@ -248,6 +250,7 @@ Regression coverage:
 - `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact
 - Board self-test verifies the UI/server path executes and binds that artifact through the output manifest.
 - `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact
+- Board self-test verifies `POST /api/execute-rewrite-request` binds a refreshed preview artifact through the output manifest.
 
 - `scripts/regression-check.mjs` validates the latest build request schema when present.
 - `scripts/regression-check.mjs` validates the latest rewrite request schema when present.

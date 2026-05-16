@@ -3900,6 +3900,25 @@ function stopVoiceDictation() {
   void saveCheckpointToWorkspace("dictation-stop", { silent: true });
 }
 
+async function executeLatestRewriteRequest(options = {}) {
+  const { exportResult = null, frameId = state.activeFrameId } = options;
+  const response = await fetch("/api/execute-rewrite-request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      requestPath: exportResult?.rewriteRequestJsonPath || "",
+      taskPackPath: exportResult?.taskPackJsonPath || "",
+      frameId,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data?.executed) {
+    throw new Error(data?.error || "Rewrite request execution failed.");
+  }
+  await refreshPreviewStateFromServer();
+  return data;
+}
+
 async function applyFocusPadToCodex() {
   const frame = currentFrame();
   if (state.focusApplyInFlight) {
@@ -3925,11 +3944,40 @@ async function applyFocusPadToCodex() {
       status: "Workbench checkpoint saved",
     });
     if (exportResult) {
-      state.focusLastAppliedText =
-        "Applied. The latest sketch + voice checkpoint is ready for Codex.";
+      let executeResult = null;
       dom.workspaceStatus.textContent =
-        "Workbench applied. Ask Codex to use the latest Canvax checkpoint.";
-      renderStatus("Workbench checkpoint ready for Codex");
+        "Running local rewrite preview from the latest sketch + voice checkpoint...";
+      try {
+        executeResult = await executeLatestRewriteRequest({
+          exportResult,
+          frameId: frame.id,
+        });
+      } catch (error) {
+        executeResult = {
+          executed: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Rewrite request execution failed.",
+        };
+      }
+      state.serverStatus = {
+        ...state.serverStatus,
+        rewriteExecution: executeResult,
+      };
+      if (executeResult?.executed) {
+        state.focusLastAppliedText =
+          "Applied. The sketch + voice checkpoint refreshed the attached preview surface.";
+        dom.workspaceStatus.textContent =
+          `Workbench applied and rewrite preview bound to ${executeResult.previewPath}.`;
+        renderStatus("Rewrite preview refreshed from Workbench");
+      } else {
+        state.focusLastAppliedText =
+          "Applied. The checkpoint is ready for Codex, but the local rewrite preview did not finish.";
+        dom.workspaceStatus.textContent =
+          "Workbench checkpoint saved. Local rewrite preview did not finish; Codex can still read the latest request.";
+        renderStatus("Workbench checkpoint ready for Codex");
+      }
     } else {
       state.focusLastAppliedText =
         "Saved locally, but workspace sync did not finish. Try Apply again.";
@@ -12062,6 +12110,22 @@ async function runSelfTest() {
       assert(
         Boolean(state.serverStatus.previewManifest),
         "workspace publish manifest syncs",
+      ),
+    );
+    setSelfTestProgress("rewrite request execution");
+    const rewriteExecutionResult = await executeLatestRewriteRequest({
+      exportResult,
+      frameId: state.activeFrameId,
+    });
+    results.push(
+      assert(
+        rewriteExecutionResult?.executed === true &&
+          Boolean(rewriteExecutionResult.previewPath) &&
+          Boolean(rewriteExecutionResult.contextPath) &&
+          Boolean(rewriteExecutionResult.manifestPath),
+        "rewrite request executes and binds a refined preview artifact",
+        rewriteExecutionResult?.error ||
+          "Rewrite request did not execute into a bound preview artifact.",
       ),
     );
     setSelfTestProgress("materialize");

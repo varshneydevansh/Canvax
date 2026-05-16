@@ -184,7 +184,7 @@ Behavior:
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
 - `Hide tray` collapses the context tray so the canvas becomes the primary design surface
-- `Apply to Codex` freezes the frame, writes the live export, and saves a Workbench checkpoint
+- `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
 - `Preview` remains available without exposing the rest of Advanced mode
 
 ```text
@@ -196,6 +196,8 @@ Workbench
   + Apply to Codex
       -> live export
       -> checkpoint
+      -> rewrite request
+      -> local refreshed output target
       -> Codex reads one clear handoff
 ```
 
@@ -679,7 +681,7 @@ The Canvax handoff remains local-first: no `OPENAI_API_KEY` is required to creat
 
 ## Rewrite Request Executor
 
-`execute-rewrite-request` is the deterministic local smoke path for the live refinement loop.
+`execute-rewrite-request` is the deterministic local smoke path for the live refinement loop. Workbench `Apply to Codex` now invokes this path through the local server after saving the latest checkpoint, while the CLI remains useful for repeatable debugging.
 
 It reads:
 
