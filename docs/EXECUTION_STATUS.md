@@ -52,12 +52,13 @@ Status: In progress
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, active/entry frame ids, and links
+- [x] Pasted/dropped images become editable frame elements instead of only background underlays
 - [ ] Full interaction regression pass with browser validation
 - [ ] Remaining rough edges in large-session behavior
 
 ```text
 done now:
-  focus pad, board, tools, selection, flow, Workbench Map, preview button, cached frame renders
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, preview button, cached frame renders
 still open:
   stricter browser validation, arbitrary-object infinite canvas, and long-session polish
 ```
@@ -101,6 +102,7 @@ Status: In progress
 - [x] Board/checkpoint/live export now surface a rewrite queue that tells Codex which frames need first output, a frame binding, a target, or a refresh
 - [x] Board exports now include task and image prompt packs with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
 - [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
+- [x] Canvas image elements now carry pasted/generated assets through selection, composition summaries, Materialize payloads, and live exports
 
 ```mermaid
 flowchart TD

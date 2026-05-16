@@ -1908,6 +1908,9 @@ function normalizeMaterializeElement(value) {
         : null,
     x: Number(source.x) || 0,
     y: Number(source.y) || 0,
+    imageDataUrl: cleanString(source.imageDataUrl),
+    sourceName: cleanString(source.sourceName),
+    assetCandidateId: cleanString(source.assetCandidateId),
     points: Array.isArray(source.points)
       ? source.points.map((point) => normalizeMaterializePoint(point))
       : [],
@@ -2308,6 +2311,9 @@ function fingerprintMaterializeElement(element) {
         : null,
     x: Number(element.x) || 0,
     y: Number(element.y) || 0,
+    imageDataUrl: cleanString(element.imageDataUrl),
+    sourceName: cleanString(element.sourceName),
+    assetCandidateId: cleanString(element.assetCandidateId),
     points: Array.isArray(element.points)
       ? element.points.map((point) => normalizeMaterializePoint(point))
       : [],
@@ -3108,6 +3114,46 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         box-shadow: none;
       }
 
+      .image-node {
+        margin: 0;
+        padding: 0;
+        background: rgba(255, 250, 246, 0.92);
+      }
+
+      .image-node img,
+      .image-node-placeholder {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+
+      .image-node-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        color: var(--muted);
+        background:
+          linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent),
+          rgba(255, 255, 255, 0.72);
+      }
+
+      .image-node figcaption {
+        position: absolute;
+        left: 0.7rem;
+        bottom: 0.7rem;
+        max-width: calc(100% - 1.4rem);
+        padding: 0.28rem 0.55rem;
+        border-radius: 999px;
+        color: rgba(24, 17, 14, 0.74);
+        background: rgba(255, 250, 246, 0.82);
+        font-size: 0.72rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
       .arrow-node {
         background: transparent;
         border: 0;
@@ -3785,6 +3831,23 @@ function buildMaterializedNodeMarkup({
   const bounds = element.bounds;
   if (!bounds || bounds.width < 6 || bounds.height < 6) {
     return "";
+  }
+
+  if (element.type === "image") {
+    const imageSrc = cleanString(element.imageDataUrl);
+    const caption = cleanString(element.sourceName) || "Image asset";
+    return `<figure
+      class="material-node image-node"
+      data-interactive="true"
+      style="${buildBoundsStyle(bounds, element.color)}"
+    >
+      ${
+        imageSrc.startsWith("data:image/")
+          ? `<img src="${escapeAttribute(imageSrc)}" alt="${escapeAttribute(caption)}" />`
+          : `<div class="image-node-placeholder">${escapeHtml(caption)}</div>`
+      }
+      <figcaption>${escapeHtml(caption)}</figcaption>
+    </figure>`;
   }
 
   if (element.type === "line") {

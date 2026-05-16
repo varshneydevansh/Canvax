@@ -66,6 +66,7 @@ ASCII shape:
 web/index.html + web/styles.css + web/app.js
     |
     +--> tools and drawing
+    +--> editable image assets
     +--> frame and flow state
     +--> Workbench spatial map state
     +--> voice notes
@@ -464,6 +465,9 @@ Look in `web/app.js` for:
 - tool definitions
 - selection and grouping helpers
 - label creation and attachment logic
+- image-element placement through paste/drop
+
+Pasted or dropped images become `type: "image"` elements with `start`, `end`, `imageDataUrl`, `sourceName`, and optional `assetCandidateId`. They use the same selection, movement, resizing, duplication, layering, export, and materialize paths as other bounded elements.
 
 ### Flow view
 

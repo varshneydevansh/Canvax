@@ -170,6 +170,7 @@ Behavior:
 - exposes one voice action and one manual spoken-note field
 - exposes `Make real` for the local generated-screen pass
 - exposes `Image pack` for a no-API image-generation handoff with coordinates and an HTML/CSS scaffold
+- turns pasted or dropped images into editable frame elements for generated candidates, reference crops, storyboards, posters, or UI assets
 - shows the connected generated output inside the Workbench tray when one exists
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with pan/scroll, zoom controls, draggable frame/variant cards, and link handles
@@ -197,6 +198,7 @@ Boundary:
 
 - Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
 - `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, but it is not yet a finished infinite canvas for arbitrary file/image/code objects.
+- Pasted/dropped image assets are editable canvas elements. `Reference underlay` remains the explicit path for a non-editable tracing/background image.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.
 - The host capability chip is explicit about what Canvax can do locally today: Codex workspace/browser handoff is available, direct host image generation and native Codex microphone access require a future first-party bridge.

@@ -772,7 +772,7 @@ function bindEvents() {
       item.type.startsWith("image/"),
     );
     if (file) {
-      await applyBackgroundFile(file);
+      await placeImageFile(file, pointFromEvent(event));
     }
   });
 
@@ -791,8 +791,7 @@ function bindEvents() {
     if (!file) {
       return;
     }
-    await applyBackgroundFile(file);
-    renderStatus("Pasted image set as reference underlay");
+    await placeImageFile(file);
   });
 }
 
@@ -4222,6 +4221,10 @@ function drawElement(
     drawArrow(ctx, element, scale);
   }
 
+  if (element.type === "image") {
+    drawImageElement(ctx, element, scale);
+  }
+
   if (element.type === "label") {
     const fontSize = Math.max(18, (element.size || 18) * scale);
     const paddingX = 12 * scale;
@@ -4428,6 +4431,41 @@ function drawCoverImage(ctx, image, width, height) {
   ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
 }
 
+function drawImageElement(ctx, element, scale = 1) {
+  const left = Math.min(element.start.x, element.end.x) * scale;
+  const top = Math.min(element.start.y, element.end.y) * scale;
+  const width = Math.abs(element.end.x - element.start.x) * scale;
+  const height = Math.abs(element.end.y - element.start.y) * scale;
+  if (width < 2 || height < 2) {
+    return;
+  }
+
+  const image = getCachedImage(element.imageDataUrl || element.src || "");
+  ctx.save();
+  roundRect(ctx, left, top, width, height, 18 * scale);
+  ctx.clip();
+  if (image) {
+    ctx.translate(left, top);
+    drawCoverImage(ctx, image, width, height);
+  } else {
+    ctx.fillStyle = "rgba(255, 250, 244, 0.86)";
+    ctx.fillRect(left, top, width, height);
+    ctx.strokeStyle = element.color || palette[0];
+    ctx.setLineDash([8 * scale, 8 * scale]);
+    ctx.strokeRect(left, top, width, height);
+    ctx.fillStyle = element.color || palette[0];
+    ctx.font = `600 ${Math.max(13, 16 * scale)}px "Avenir Next", sans-serif`;
+    ctx.fillText("Image asset", left + 14 * scale, top + 28 * scale);
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = element.color || "rgba(24, 17, 14, 0.32)";
+  ctx.lineWidth = Math.max(1, (element.size || 2) * scale);
+  ctx.strokeRect(left, top, width, height);
+  ctx.restore();
+}
+
 function getElementBounds(element, frame = currentFrame()) {
   if (!element) {
     return null;
@@ -4452,7 +4490,8 @@ function getElementBounds(element, frame = currentFrame()) {
     element.type === "line" ||
     element.type === "arrow" ||
     element.type === "rect" ||
-    element.type === "ellipse"
+    element.type === "ellipse" ||
+    element.type === "image"
   ) {
     const inset = Math.max(6, (element.size || 1) / 2);
     return makeBounds(
@@ -6052,7 +6091,8 @@ function isElementMeaningful(element) {
     element.type === "line" ||
     element.type === "arrow" ||
     element.type === "rect" ||
-    element.type === "ellipse"
+    element.type === "ellipse" ||
+    element.type === "image"
   ) {
     return (
       Math.hypot(
@@ -6634,11 +6674,58 @@ async function refreshMaterializedFrameFromFreeze(exportResult = null) {
 async function applyBackgroundFile(file) {
   const frame = currentFrame();
   pushHistory(frame.id);
-  frame.backgroundImage = await fileToDataUrl(file, 1800);
+  frame.backgroundImage = await fileToDataUrl(file, 1800, {
+    mime: "image/jpeg",
+  });
   touchFrame(frame, { capture: true, status: "Reference underlay loaded" });
 }
 
-async function fileToDataUrl(file, maxWidth) {
+async function placeImageFile(file, point = null, options = {}) {
+  const frame = currentFrame();
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const dataUrl = await fileToDataUrl(file, 1400, { preserveAlpha: true });
+  const image = await ensureImage(dataUrl);
+  const maxWidth = Math.min(viewport.width * 0.44, 640);
+  const maxHeight = Math.min(viewport.height * 0.44, 520);
+  const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height);
+  const width = Math.max(120, Math.round(image.width * scale));
+  const height = Math.max(90, Math.round(image.height * scale));
+  const center = point || {
+    x: viewport.width / 2,
+    y: viewport.height / 2,
+  };
+  const left = clamp(
+    center.x - width / 2,
+    0,
+    Math.max(0, viewport.width - width),
+  );
+  const top = clamp(
+    center.y - height / 2,
+    0,
+    Math.max(0, viewport.height - height),
+  );
+  const element = {
+    id: uid("image"),
+    type: "image",
+    start: { x: left, y: top },
+    end: { x: left + width, y: top + height },
+    color: state.color,
+    size: 2,
+    alpha: 1,
+    composite: "source-over",
+    imageDataUrl: dataUrl,
+    sourceName: cleanString(file?.name) || options.sourceName || "Pasted image",
+    assetCandidateId: options.assetCandidateId || "",
+  };
+
+  pushHistory(frame.id);
+  frame.elements.push(element);
+  setSelectedElements([element.id], element.id);
+  touchFrame(frame, { capture: true, status: "Image asset placed" });
+  return element;
+}
+
+async function fileToDataUrl(file, maxWidth, options = {}) {
   const dataUrl = await readFileAsDataUrl(file);
   const image = await ensureImage(dataUrl);
   const scale = Math.min(1, maxWidth / image.width);
@@ -6647,7 +6734,14 @@ async function fileToDataUrl(file, maxWidth) {
   canvas.height = Math.round(image.height * scale);
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.88);
+  const mime =
+    options.mime ||
+    (options.preserveAlpha && file?.type === "image/png"
+      ? "image/png"
+      : "image/jpeg");
+  return mime === "image/jpeg"
+    ? canvas.toDataURL(mime, 0.88)
+    : canvas.toDataURL(mime);
 }
 
 function readFileAsDataUrl(file) {
@@ -7503,9 +7597,16 @@ function summarizeCompositionElement(element, frame, viewport, index) {
     index: index + 1,
     type: element.type || "unknown",
     role: inferElementRole(element, normalizedBounds),
-    text: element.type === "label" ? element.text || "" : "",
+    text:
+      element.type === "label"
+        ? element.text || ""
+        : element.type === "image"
+          ? element.sourceName || "image asset"
+          : "",
     color: element.color || "",
     strokeSize: element.size || 0,
+    assetCandidateId: element.assetCandidateId || "",
+    hasEmbeddedImage: element.type === "image" && Boolean(element.imageDataUrl),
     bounds: normalizedBounds,
     placement: describeBounds(normalizedBounds),
   };
@@ -7541,6 +7642,9 @@ function buildSafeZones(viewport) {
 function inferElementRole(element, bounds) {
   if (element.type === "label") {
     return "semantic note or requested text";
+  }
+  if (element.type === "image") {
+    return "placed image asset, generated candidate, reference, or visual source";
   }
   if (element.type === "arrow" || element.type === "line") {
     return "direction, motion, visual emphasis, or connection";
@@ -8324,6 +8428,17 @@ function buildMaterializeElement(element, frame = currentFrame()) {
         y: Number(resolved.y) || 0,
         attached: Boolean(resolved.attached),
       },
+    };
+  }
+
+  if (element.type === "image") {
+    return {
+      ...base,
+      start: normalizeMaterializePoint(element.start),
+      end: normalizeMaterializePoint(element.end),
+      imageDataUrl: cleanString(element.imageDataUrl || element.src),
+      sourceName: cleanString(element.sourceName),
+      assetCandidateId: cleanString(element.assetCandidateId),
     };
   }
 
@@ -9857,6 +9972,7 @@ async function runSelfTest() {
     results.push(assertEraserPreservesPaperLayer());
     results.push(assertEraserRemovesInk());
     results.push(assertWorkbenchRailSizeControls());
+    results.push(await assertImageAssetPlacement());
     results.push(assertWorkbenchSpatialMap());
 
     const beforeUndo = currentFrame().elements.length;
@@ -10544,6 +10660,67 @@ function assertWorkbenchSpatialMap() {
     mapVisible && zoomChanged && exportValid,
     "Workbench spatial map renders and exports",
   );
+}
+
+async function assertImageAssetPlacement() {
+  const frame = currentFrame();
+  const previousElements = structuredClone(frame.elements);
+  const previousSelection = selectionIds();
+  const previousSelectedElementId = state.selectedElementId;
+  const history = ensureHistory(frame.id);
+  const previousHistory = {
+    past: structuredClone(history.past),
+    future: structuredClone(history.future),
+  };
+
+  const file = await createSelfTestImageFile();
+  const element = await placeImageFile(file, { x: 360, y: 280 });
+  const bounds = getElementBounds(element, frame);
+  const composition = buildFrameComposition(frame);
+  const compositionEntry = composition.elements.find(
+    (entry) => entry.id === element.id,
+  );
+  const materializeElement = buildMaterializeElement(element, frame);
+  const placed =
+    element.type === "image" &&
+    Boolean(element.imageDataUrl) &&
+    bounds?.width > 80 &&
+    bounds?.height > 60 &&
+    state.selectedElementId === element.id &&
+    compositionEntry?.hasEmbeddedImage === true &&
+    materializeElement?.imageDataUrl === element.imageDataUrl;
+
+  window.clearTimeout(state.captureTimer);
+  state.captureTimer = null;
+  frame.elements = previousElements;
+  history.past = previousHistory.past;
+  history.future = previousHistory.future;
+  setSelectedElements(previousSelection, previousSelectedElementId);
+  persistState();
+  renderAll();
+
+  return assert(placed, "image assets paste/drop as editable elements");
+}
+
+async function createSelfTestImageFile() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 96;
+  canvas.height = 64;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#fff8ec";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#ff5d3a";
+  context.fillRect(8, 8, 80, 48);
+  context.fillStyle = "#0c8d7b";
+  context.beginPath();
+  context.arc(48, 32, 18, 0, Math.PI * 2);
+  context.fill();
+  const blob = await new Promise((resolve) => {
+    canvas.toBlob(resolve, "image/png");
+  });
+  return new File([blob || new Blob()], "canvax-selftest-asset.png", {
+    type: "image/png",
+  });
 }
 
 function resetFrameForSelfTest() {

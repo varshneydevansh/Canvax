@@ -123,7 +123,8 @@ Canvax today
 - Drawing tools exist: select, pen, marker, line, rectangle, oval, arrow, label, erase.
 - Selection supports moving, resizing, deleting, duplication, layering, grouping, and lasso selection.
 - Labels can act as semantic notes for Codex, not just visible text.
-- Reference image underlays are supported through paste/drop/upload.
+- Reference image underlays are supported through the explicit `Reference underlay` upload.
+- Pasted or dropped images can now become editable image elements, so generated candidates or reference crops can be placed back on a frame instead of only sitting behind the sketch.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
@@ -291,7 +292,7 @@ Needed:
 
 ### 6. Image Model And Asset Workflow
 
-Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, and write prompt-ready asset candidate records. It still does not directly generate or place final images by itself.
+Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
 
 Target behavior:
 
@@ -305,19 +306,21 @@ Current stepping stone:
 done
   rough sketch -> labels/voice -> image prompt pack -> coordinates + scaffold
   image prompt pack -> asset candidate records with output slots
+  generated/reference image -> paste/drop -> editable image element on frame
 
 next
-  prompt pack -> host image generation -> candidate images -> place back on canvas
+  prompt pack -> host image generation -> candidate images -> structured candidate import/selection UI
 ```
 
 Needed:
 
 - Asset regions on canvas.
 - Image candidate import and placement back into the board.
+- Image candidate import and placement back into the board. **Initial manual paste/drop placement shipped as editable image elements; structured candidate picker remains open.**
 - Variant comparison for image generations.
 - Style-lock packs for books, comics, posters, decks, and brand systems.
 - A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format shipped.**
-- Drag/attach generated image candidates back onto frames.
+- Drag/attach generated image candidates back onto frames. **Initial image-element placement shipped through paste/drop.**
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
 
 ### 7. Multisurface Output
