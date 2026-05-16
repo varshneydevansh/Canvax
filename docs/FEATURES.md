@@ -182,6 +182,7 @@ Behavior:
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
 - renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
 - provides `Clear outputs` in `Map` to hide generated preview/artifact/change cards when the exploration board gets cluttered
+- renders recent checkpoints as spatial history cards in `Map`, so collaboration moments sit beside frames, variants, references, and generated outputs
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching
@@ -209,7 +210,7 @@ Workbench
 Boundary:
 
 - Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
-- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, labeled group regions, manual notes, reference file/image cards, asset candidate objects, generated output targets, artifacts, and changed files. Spatial objects can be moved/resized and group regions export containment, but Map is not yet a finished infinite canvas with advanced nested object editing.
+- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, labeled group regions, manual notes, reference file/image cards, asset candidate objects, generated output targets, artifacts, changed files, and checkpoint history cards. Spatial objects can be moved/resized and group regions export containment, but Map is not yet a finished infinite canvas with advanced nested object editing.
 - Pasted/dropped image assets are editable canvas elements. `Reference underlay` remains the explicit path for a non-editable tracing/background image.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.

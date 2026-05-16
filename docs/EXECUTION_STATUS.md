@@ -58,6 +58,7 @@ Status: In progress
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds` and `spatialWorkspace.groups` records member frames/objects
 - [x] Workbench `Map` supports background drag-pan plus cursor-centered pinch/ctrl-wheel zoom
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
+- [x] Workbench `Map` renders recent checkpoints as spatial history cards for longer collaboration sessions
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
 - [x] Advanced sticky command deck is treated as an opaque inspector header, reducing canvas bleed-through while scrolling
 - [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon

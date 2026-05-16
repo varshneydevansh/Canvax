@@ -2522,6 +2522,9 @@ function syncSpatialObjectsFromHandoffs() {
   const mapTargets = selectSpatialMapTargets(targets);
   const mapArtifacts = selectSpatialMapArtifacts(artifacts, mapTargets);
   const mapChanges = changes.slice(0, 6);
+  const mapCheckpoints = selectSpatialMapCheckpoints(
+    state.serverStatus?.checkpointHistory,
+  );
   const activeManifestObjectIds = new Set([
     ...mapTargets
       .map((target, index) =>
@@ -2538,7 +2541,13 @@ function syncSpatialObjectsFromHandoffs() {
   ].filter((id) => !hiddenObjectIds.has(id)));
   const nextObjects = currentObjects.filter(
     (object) =>
-      !isManifestSpatialObject(object) || activeManifestObjectIds.has(object.id),
+      (!isManifestSpatialObject(object) ||
+        activeManifestObjectIds.has(object.id)) &&
+      (!isCheckpointSpatialObject(object) ||
+        mapCheckpoints.some(
+          (checkpoint, index) =>
+            buildCheckpointSpatialObjectId(checkpoint, index) === object.id,
+        )),
   );
   const existingIds = new Set(nextObjects.map((object) => object.id));
 
@@ -2660,6 +2669,38 @@ function syncSpatialObjectsFromHandoffs() {
     });
   });
 
+  mapCheckpoints.forEach((checkpoint, index) => {
+    const id = buildCheckpointSpatialObjectId(checkpoint, index);
+    const position = defaultSpatialObjectPosition(nextObjects.length);
+    upsertSpatialObject(nextObjects, existingIds, {
+      id,
+      type: "checkpoint-event",
+      title: checkpoint.label || checkpointReasonLabel(checkpoint.reason),
+      subtitle: checkpoint.targetLabel
+        ? `${checkpoint.frameTitle || "Board"} -> ${checkpoint.targetLabel}`
+        : checkpoint.frameTitle || "Session checkpoint",
+      sourceId: checkpoint.id || "",
+      sourceKind: "checkpoint",
+      frameIds: checkpoint.frameId ? [checkpoint.frameId] : [],
+      x: position.x,
+      y: position.y,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: checkpoint.reason || "checkpoint",
+      meta: {
+        savedAt: checkpoint.savedAt || "",
+        checkpointUrl: checkpoint.checkpointUrl || "",
+        jsonUrl: checkpoint.jsonUrl || "",
+        markdownUrl: checkpoint.markdownUrl || "",
+        voiceMarkdownUrl: checkpoint.voiceMarkdownUrl || "",
+        voiceSegmentCount: checkpoint.voiceSegmentCount || 0,
+        captureCount: checkpoint.captureCount || 0,
+        artifactCount: checkpoint.artifactCount || 0,
+        changeCount: checkpoint.changeCount || 0,
+      },
+    });
+  });
+
   state.spatialObjects = nextObjects;
 }
 
@@ -2727,6 +2768,24 @@ function selectSpatialMapArtifacts(artifacts, selectedTargets) {
   return [...selected.values()].reverse().slice(0, 4);
 }
 
+function selectSpatialMapCheckpoints(history) {
+  const items = Array.isArray(history?.items) ? history.items : [];
+  const selected = new Map();
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+    const key = cleanString(
+      `${item.id || "checkpoint"}-${item.savedAt || index}`,
+    );
+    if (!key || selected.has(key)) {
+      return;
+    }
+    selected.set(key, item);
+  });
+  return [...selected.values()].slice(0, 8);
+}
+
 function buildManifestSpatialObjectId(kind, item, index = 0) {
   if (kind === "target") {
     return `target-object-${spatialObjectKey(
@@ -2745,6 +2804,12 @@ function buildManifestSpatialObjectId(kind, item, index = 0) {
     )}`;
   }
   return `change-object-${spatialObjectKey(item.id, item.path, index)}`;
+}
+
+function buildCheckpointSpatialObjectId(item, index = 0) {
+  return `checkpoint-object-${spatialObjectKey(
+    `${item?.id || "checkpoint"}-${item?.savedAt || index}`,
+  )}`;
 }
 
 function isManifestSpatialObject(object) {
@@ -2771,6 +2836,14 @@ function isManifestSpatialObject(object) {
     ["generated-output", "generated-artifact", "changed-file"].includes(
       object?.type,
     ) && Boolean(object?.sourceId || object?.meta?.path || object?.meta?.url)
+  );
+}
+
+function isCheckpointSpatialObject(object) {
+  return (
+    object?.sourceKind === "checkpoint" ||
+    object?.type === "checkpoint-event" ||
+    cleanString(object?.id).startsWith("checkpoint-object-")
   );
 }
 
@@ -5069,6 +5142,8 @@ function spatialObjectSourceLabel(object) {
       return "artifact";
     case "workspace-change":
       return "changed file";
+    case "checkpoint":
+      return "history";
     case "asset-candidate":
       return "image candidate";
     default:
@@ -5098,6 +5173,26 @@ function spatialObjectBodyText(object, frameTitle = "") {
     return object.meta?.summary || object.subtitle || "Workspace file change";
   }
 
+  if (object?.sourceKind === "checkpoint") {
+    const details = [
+      object.meta?.captureCount
+        ? `${object.meta.captureCount} capture${object.meta.captureCount === 1 ? "" : "s"}`
+        : "",
+      object.meta?.voiceSegmentCount
+        ? `${object.meta.voiceSegmentCount} voice`
+        : "",
+      object.meta?.artifactCount
+        ? `${object.meta.artifactCount} artifact${object.meta.artifactCount === 1 ? "" : "s"}`
+        : "",
+      object.meta?.changeCount
+        ? `${object.meta.changeCount} change${object.meta.changeCount === 1 ? "" : "s"}`
+        : "",
+    ].filter(Boolean);
+    return details.length
+      ? `${timeLabel(object.meta?.savedAt)} checkpoint with ${details.join(", ")}`
+      : `${timeLabel(object.meta?.savedAt)} checkpoint`;
+  }
+
   return object.subtitle || object.status || "Spatial object";
 }
 
@@ -5110,6 +5205,9 @@ function spatialObjectFooterStatus(object) {
   }
   if (object?.sourceKind === "workspace-change") {
     return "changed";
+  }
+  if (object?.sourceKind === "checkpoint") {
+    return checkpointReasonLabel(object.status);
   }
   return object.status || "ready";
 }
@@ -12335,6 +12433,7 @@ async function runSelfTest() {
     results.push(await assertAssetCandidateTrayPlacement());
     results.push(assertWorkbenchSpatialMap());
     results.push(assertSpatialObjectsFromOutputManifest());
+    results.push(assertCheckpointSpatialObjects());
     results.push(assertManualSpatialObjectControls());
 
     setSelfTestProgress("undo redo and frame flow");
@@ -13382,9 +13481,9 @@ function assertSpatialObjectsFromOutputManifest() {
     Boolean(dom.flowBoard.querySelector(".spatial-object-node.generated-output")) &&
     Boolean(dom.flowBoard.querySelector(".spatial-object-node.generated-artifact")) &&
     Boolean(dom.flowBoard.querySelector(".spatial-object-node.changed-file"));
-  const frameBound = spatialExport.objects.every((object) =>
-    object.frameIds.includes(frameId),
-  );
+  const frameBound = spatialExport.objects
+    .filter(isManifestSpatialObject)
+    .every((object) => object.frameIds.includes(frameId));
   const legacyCleaned = !spatialExport.objects.some(
     (object) => object.id === "target-object-legacy-materialized-preview",
   );
@@ -13419,6 +13518,71 @@ function assertSpatialObjectsFromOutputManifest() {
       !clearedExport.objects.some(isManifestSpatialObject) &&
       hiddenObjectsStayHidden,
     "Output manifest reconciles and clears generated spatial objects",
+  );
+}
+
+function assertCheckpointSpatialObjects() {
+  const frameId = currentFrame().id;
+  const previous = {
+    workspaceMode: state.workspaceMode,
+    workbenchFocus: state.workbenchFocus,
+    viewMode: state.viewMode,
+    spatialObjects: structuredClone(state.spatialObjects),
+    checkpointHistory: structuredClone(state.serverStatus.checkpointHistory),
+  };
+
+  state.spatialObjects = [];
+  state.serverStatus = {
+    ...state.serverStatus,
+    checkpointHistory: {
+      updatedAt: new Date().toISOString(),
+      items: [
+        {
+          id: "selftest-checkpoint-1",
+          savedAt: new Date().toISOString(),
+          reason: "focus-apply",
+          label: "Workbench apply",
+          frameId,
+          frameTitle: currentFrame().title,
+          voiceSegmentCount: 2,
+          captureCount: 3,
+          artifactCount: 1,
+          changeCount: 4,
+          targetLabel: "Self-test preview",
+          checkpointUrl: "/workspace/artifacts/canvax/checkpoints/selftest/checkpoint.json",
+        },
+      ],
+    },
+  };
+  syncSpatialObjectsFromHandoffs();
+  setWorkspaceMode("simple");
+  setWorkbenchFocus("map");
+  renderFlowBoard();
+  const spatialExport = buildSpatialWorkspaceExport();
+  const exported = spatialExport.objects.some(
+    (object) =>
+      object.sourceKind === "checkpoint" &&
+      object.frameIds.includes(frameId) &&
+      object.meta.captureCount === 3,
+  );
+  const rendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-object-node.checkpoint-event"),
+  );
+
+  state.workspaceMode = previous.workspaceMode;
+  state.workbenchFocus = previous.workbenchFocus;
+  state.viewMode = previous.viewMode;
+  state.spatialObjects = previous.spatialObjects;
+  state.serverStatus = {
+    ...state.serverStatus,
+    checkpointHistory: previous.checkpointHistory,
+  };
+  persistState();
+  renderAll();
+
+  return assert(
+    exported && rendered,
+    "Checkpoint history renders and exports as spatial history cards",
   );
 }
 
