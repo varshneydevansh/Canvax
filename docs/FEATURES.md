@@ -239,6 +239,8 @@ The smoke check is structural, not a replacement for visual taste review. It ver
 
 The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated preview targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use.
 
+`npm run e2e-workflow` is the explicit rough-sketch-to-real-output proof. It creates a synthetic sketch frame with voice, correction marks, image prompt data, and asset candidates, then verifies the no-API build executor, dry-run Codex manifest binding, and rewrite executor as one chain. The proof manifest is written to `artifacts/canvax/e2e-workflow/latest/result.json`.
+
 ### Advanced
 
 Advanced is the full inspector/debugging surface for frames, flow links, notes,

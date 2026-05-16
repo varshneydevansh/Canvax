@@ -97,6 +97,14 @@ http://localhost:3210/?selftest=1
 
 The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, Workbench action modes, host/design-context handoff fields, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, board-side rewrite execution, and large-session export consistency.
 
+End-to-end no-API workflow proof:
+
+```bash
+npm run e2e-workflow
+```
+
+That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, and asset candidates. It then runs the deterministic build executor, dry-runs Codex output manifest binding, runs the rewrite executor from correction context, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
+
 Useful service commands:
 
 ```bash
