@@ -63,7 +63,7 @@ Status: In progress
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
 - [x] Workbench `Map` renders recent checkpoints as spatial history cards for longer collaboration sessions
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
-- [x] Advanced sticky command deck is treated as an opaque inspector header, reducing canvas bleed-through while scrolling
+- [x] Advanced command deck is treated as an opaque inspector header and no longer floats over the canvas while scrolling
 - [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon
 - [x] Browser regression includes headless board/Preview responsive smoke at 1440, 1024, 768, and 430 pixel widths
 - [x] Browser regression writes visual review snapshots for board and Preview at those responsive widths
@@ -181,7 +181,7 @@ Status: In progress
 - [x] Preview Play mode now overlays generated clickable hotspots on sketch/output viewports from outgoing Flow links
 - [x] Selected frame elements can now become persistent prototype hotspots that Preview Play uses as real click regions
 - [x] Workbench/Advanced Map now reconciles generated output/artifact spatial cards, including legacy stale-card cleanup, frame-path binding inference, deleted-frame filtering, and latest per-frame/per-kind output grouping so old materialized targets do not flood the canvas
-- [x] Advanced sticky command deck is solid/readable over scroll content so grid/canvas texture does not bleed through the controls
+- [x] Advanced command deck is solid/readable and scrolls with the inspector, so grid/canvas texture does not bleed through or sit under the controls
 
 ```text
 Preview today:

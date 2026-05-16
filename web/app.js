@@ -5885,23 +5885,20 @@ function renderSpatialSelectionBoxMarkup() {
 }
 
 function renderSpatialObjectNode(object) {
-  const frameTitle =
-    object.frameIds?.length === 1
-      ? frameTitleById(object.frameIds[0])
-      : object.frameIds?.length
-        ? `${object.frameIds.length} frames`
-        : isManifestSpatialObject(object)
-          ? "Global output"
-          : "Board object";
+  const frameTitle = spatialObjectFrameLabel(object);
   const thumbnail = cleanString(object.meta?.thumbnailDataUrl);
   const sourceLabel = spatialObjectSourceLabel(object);
   const bodyText = spatialObjectBodyText(object, frameTitle);
   const footerStatus = spatialObjectFooterStatus(object);
   const isSelected = currentSelectedSpatialObjectIds().includes(object.id);
+  const sourceClass = object.sourceKind
+    ? `source-${classToken(object.sourceKind)}`
+    : "";
   return `
     <article
-      class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""}"
+      class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
+      data-spatial-object-source="${escapeHtml(object.sourceKind || "")}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
       title="${escapeHtml(object.meta?.prompt || object.subtitle || object.title)}"
       role="button"
@@ -5925,7 +5922,7 @@ function renderSpatialObjectNode(object) {
       ></span>
       <div class="spatial-object-header" data-spatial-object-drag="${escapeHtml(object.id)}">
         <span>${escapeHtml(sourceLabel)}</span>
-        <strong>${escapeHtml(compactDisplayText(object.title, 46))}</strong>
+        <strong>${escapeHtml(compactDisplayText(spatialObjectTitle(object), 46))}</strong>
       </div>
       ${thumbnail ? `<img class="spatial-object-thumbnail" src="${escapeHtml(thumbnail)}" alt="" />` : ""}
       <p>${escapeHtml(compactDisplayText(bodyText, 78))}</p>
@@ -5965,12 +5962,7 @@ function renderMapSelectionActions() {
     return;
   }
 
-  const frameLabel =
-    object.frameIds?.length === 1
-      ? frameTitleById(object.frameIds[0])
-      : object.frameIds?.length
-        ? `${object.frameIds.length} frames`
-        : "Board object";
+  const frameLabel = spatialObjectFrameLabel(object);
   const details = [
     spatialObjectSourceLabel(object),
     spatialObjectFooterStatus(object),
@@ -5980,24 +5972,58 @@ function renderMapSelectionActions() {
     details.push(spatialGroupMemberSummary(object));
   }
 
-  dom.mapSelectedObjectTitle.textContent = object.title || "Spatial object";
+  dom.mapSelectedObjectTitle.textContent = spatialObjectTitle(object);
   dom.mapSelectedObjectDetail.textContent = details.filter(Boolean).join(" • ");
+}
+
+function spatialObjectFrameLabel(object) {
+  if (object.frameIds?.length === 1) {
+    const frame = frameById(object.frameIds[0]);
+    if (frame?.title) {
+      return frame.title;
+    }
+    return isManifestSpatialObject(object)
+      ? "Previous frame output"
+      : "Unknown frame";
+  }
+  if (object.frameIds?.length) {
+    return `${object.frameIds.length} frames`;
+  }
+  return isManifestSpatialObject(object) ? "Global output" : "Board object";
+}
+
+function spatialObjectTitle(object) {
+  if (object?.sourceKind === "generated-target") {
+    return object.title || "Generated preview";
+  }
+  if (object?.sourceKind === "generated-artifact") {
+    return object.title || object.meta?.path || "Generated file";
+  }
+  if (object?.sourceKind === "workspace-change") {
+    return object.title || object.meta?.path || "Changed file";
+  }
+  if (object?.sourceKind === "checkpoint") {
+    return object.title || "Saved checkpoint";
+  }
+  return object?.title || "Map object";
 }
 
 function spatialObjectSourceLabel(object) {
   switch (object?.sourceKind) {
     case "generated-target":
-      return "output preview";
+      return "Generated preview";
     case "generated-artifact":
-      return "output file";
+      return "Generated file";
     case "workspace-change":
-      return "code change";
+      return "Code change";
     case "checkpoint":
-      return "checkpoint";
+      return "Checkpoint";
     case "asset-candidate":
-      return "image prompt";
+      return "Image prompt";
+    case "spatial-group":
+      return "Group";
     default:
-      return object?.sourceKind || object?.type || "object";
+      return humanizeStatus(object?.sourceKind || object?.type || "object");
   }
 }
 
@@ -6006,9 +6032,11 @@ function spatialObjectBodyText(object, frameTitle = "") {
     return object.meta?.summary
       ? object.meta.summary
       : frameTitle &&
-          !["Board object", "Global output"].includes(frameTitle)
-        ? `Generated surface connected to ${frameTitle}. Draw corrections on the frame or output surface, then apply another pass.`
-        : "Generated surface target. It is a removable Map card, not an extra frame.";
+          !["Board object", "Global output", "Previous frame output"].includes(
+            frameTitle,
+          )
+        ? `Preview connected to ${frameTitle}. Sketch corrections, then Apply to Codex.`
+        : "Preview target from the output manifest. Remove it if it belongs to an older frame.";
   }
 
   if (object?.sourceKind === "generated-artifact") {
@@ -6049,10 +6077,12 @@ function spatialObjectBodyText(object, frameTitle = "") {
 
 function spatialObjectFooterStatus(object) {
   if (object?.sourceKind === "generated-target") {
-    return object.status === "materialized-preview" ? "preview" : object.status || "preview";
+    return object.status === "materialized-preview"
+      ? "materialized preview"
+      : humanizeStatus(object.status || "preview");
   }
   if (object?.sourceKind === "generated-artifact") {
-    return object.status || "artifact";
+    return humanizeStatus(object.status || "artifact");
   }
   if (object?.sourceKind === "workspace-change") {
     return "changed";
@@ -6060,7 +6090,16 @@ function spatialObjectFooterStatus(object) {
   if (object?.sourceKind === "checkpoint") {
     return checkpointReasonLabel(object.status);
   }
-  return object.status || "ready";
+  return humanizeStatus(object.status || "ready");
+}
+
+function humanizeStatus(value) {
+  return (
+    cleanString(value)
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() || "object"
+  );
 }
 
 function renderFlowInspector() {
@@ -15868,6 +15907,10 @@ function escapeHtml(value) {
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function classToken(value) {
+  return cleanString(value).replace(/[^a-z0-9_-]/gi, "-") || "item";
 }
 
 function clamp(value, min, max) {
