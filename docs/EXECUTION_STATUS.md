@@ -55,6 +55,7 @@ Status: In progress
 - [x] Workbench `Map` styles generated variants as branch cards with visible lineage and primary state
 - [x] Workbench `Map` supports manual note cards and reference file/image cards as draggable/removable spatial context
 - [x] Workbench `Map` supports movable/resizable labeled group regions for explorations/reference boards
+- [x] Workbench `Map` group regions move contained frame cards and spatial objects together
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds` and `spatialWorkspace.groups` records member frames/objects
 - [x] Workbench `Map` supports background drag-pan plus cursor-centered pinch/ctrl-wheel zoom
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
@@ -71,7 +72,7 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, long-session browser stress
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, long-session browser stress
 still open:
   service lifecycle validation, arbitrary-object infinite canvas, and richer nested object editing
 ```

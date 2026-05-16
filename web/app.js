@@ -7184,6 +7184,10 @@ function onFlowBoardPointerDown(event) {
       startY: event.clientY,
       originX: object.x,
       originY: object.y,
+      memberOrigins:
+        object.type === "map-group"
+          ? buildSpatialGroupDragMemberOrigins(object)
+          : null,
       didMove: false,
     };
     return;
@@ -7293,8 +7297,17 @@ function onWindowPointerMove(event) {
     if (!object) {
       return;
     }
-    object.x = Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom);
-    object.y = Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom);
+    const nextX = Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom);
+    const nextY = Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom);
+    object.x = nextX;
+    object.y = nextY;
+    if (object.type === "map-group" && state.flowDrag.memberOrigins) {
+      moveSpatialGroupMembers(
+        state.flowDrag.memberOrigins,
+        nextX - state.flowDrag.originX,
+        nextY - state.flowDrag.originY,
+      );
+    }
   } else if (state.flowDrag.kind === "spatial-object-resize") {
     const object = spatialObjectById(state.flowDrag.objectId);
     if (!object) {
@@ -9627,12 +9640,7 @@ function computeSpatialGroupMembership(frameSelection, spatialObjects) {
 
   const cardItems = frameSelection.map((frame) => ({
     id: frame.id,
-    rect: {
-      x: frame.flowPosition.x,
-      y: frame.flowPosition.y,
-      width: FLOW_CARD_WIDTH,
-      height: FLOW_CARD_HEIGHT,
-    },
+    rect: flowCardRect(frame),
   }));
   const objectItems = spatialObjects.map((object) => ({
     id: object.id,
@@ -9705,6 +9713,65 @@ function spatialObjectRect(object) {
     width: Number(object.width) || SPATIAL_OBJECT_WIDTH,
     height: Number(object.height) || SPATIAL_OBJECT_HEIGHT,
   };
+}
+
+function flowCardRect(frame) {
+  return {
+    x: Number(frame?.flowPosition?.x) || 0,
+    y: Number(frame?.flowPosition?.y) || 0,
+    width: FLOW_CARD_WIDTH,
+    height: FLOW_CARD_HEIGHT,
+  };
+}
+
+function buildSpatialGroupDragMemberOrigins(group) {
+  const groupRect = spatialObjectRect(group);
+  return {
+    frames: state.frames
+      .filter((frame) => rectContainsRectCenter(groupRect, flowCardRect(frame)))
+      .map((frame) => ({
+        id: frame.id,
+        x: frame.flowPosition.x,
+        y: frame.flowPosition.y,
+      })),
+    objects: state.spatialObjects
+      .filter(
+        (object) =>
+          object.id !== group.id &&
+          rectContainsRectCenter(groupRect, spatialObjectRect(object)),
+      )
+      .map((object) => ({
+        id: object.id,
+        x: object.x,
+        y: object.y,
+      })),
+  };
+}
+
+function moveSpatialGroupMembers(memberOrigins, deltaX, deltaY) {
+  if (!memberOrigins || typeof memberOrigins !== "object") {
+    return;
+  }
+
+  (memberOrigins.frames || []).forEach((origin) => {
+    const frame = frameById(origin.id);
+    if (!frame) {
+      return;
+    }
+    frame.flowPosition = {
+      x: Math.max(32, origin.x + deltaX),
+      y: Math.max(32, origin.y + deltaY),
+    };
+  });
+
+  (memberOrigins.objects || []).forEach((origin) => {
+    const object = spatialObjectById(origin.id);
+    if (!object) {
+      return;
+    }
+    object.x = Math.max(32, origin.x + deltaX);
+    object.y = Math.max(32, origin.y + deltaY);
+  });
 }
 
 function rectContainsRectCenter(container, child) {
@@ -13668,10 +13735,12 @@ function assertManualSpatialObjectControls() {
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
     spatialObjects: structuredClone(state.spatialObjects),
+    activeFramePosition: structuredClone(currentFrame().flowPosition),
   };
 
   setWorkspaceMode("simple");
   setWorkbenchFocus("map");
+  const activeFrame = currentFrame();
   const object = addSpatialObject({
     type: "map-note",
     title: "Self-test map note",
@@ -13689,6 +13758,18 @@ function assertManualSpatialObjectControls() {
     width: SPATIAL_OBJECT_WIDTH * 2 + 44,
     height: SPATIAL_OBJECT_HEIGHT * 1.55,
   });
+  const objectRecord = object ? spatialObjectById(object.id) : null;
+  const groupRecord = group ? spatialObjectById(group.id) : null;
+  if (objectRecord && groupRecord) {
+    groupRecord.x = 360;
+    groupRecord.y = 460;
+    groupRecord.width = 520;
+    groupRecord.height = 320;
+    objectRecord.x = 430;
+    objectRecord.y = 535;
+    activeFrame.flowPosition = { x: 470, y: 550 };
+    renderFlowBoard();
+  }
   const added = Boolean(
     object &&
       group &&
@@ -13699,16 +13780,52 @@ function assertManualSpatialObjectControls() {
         `[data-spatial-object-id='${group.id}'].map-group`,
       ),
   );
-  const groupWidthBefore = group?.width || 0;
-  if (group) {
+  const objectBeforeGroupDrag = objectRecord
+    ? { x: objectRecord.x, y: objectRecord.y }
+    : null;
+  const frameBeforeGroupDrag = {
+    x: activeFrame.flowPosition.x,
+    y: activeFrame.flowPosition.y,
+  };
+  const groupBeforeDrag = groupRecord
+    ? { x: groupRecord.x, y: groupRecord.y }
+    : null;
+  if (groupRecord) {
+    state.flowDrag = {
+      kind: "spatial-object",
+      objectId: groupRecord.id,
+      pointerId: 928,
+      startX: 100,
+      startY: 100,
+      originX: groupRecord.x,
+      originY: groupRecord.y,
+      memberOrigins: buildSpatialGroupDragMemberOrigins(groupRecord),
+      didMove: false,
+    };
+    onWindowPointerMove({ pointerId: 928, clientX: 170, clientY: 145 });
+    onWindowPointerUp({ pointerId: 928 });
+  }
+  const objectAfterGroupDrag = object ? spatialObjectById(object.id) : null;
+  const groupAfterDrag = group ? spatialObjectById(group.id) : null;
+  const groupDragMovedMembers =
+    Boolean(groupBeforeDrag && groupAfterDrag && groupAfterDrag.x > groupBeforeDrag.x) &&
+    Boolean(
+      objectBeforeGroupDrag &&
+        objectAfterGroupDrag &&
+        objectAfterGroupDrag.x > objectBeforeGroupDrag.x,
+    ) &&
+    activeFrame.flowPosition.x > frameBeforeGroupDrag.x;
+  const groupForResize = group ? spatialObjectById(group.id) : null;
+  const groupWidthBefore = groupForResize?.width || 0;
+  if (groupForResize) {
     state.flowDrag = {
       kind: "spatial-object-resize",
-      objectId: group.id,
+      objectId: groupForResize.id,
       pointerId: 929,
       startX: 100,
       startY: 100,
-      originWidth: group.width,
-      originHeight: group.height,
+      originWidth: groupForResize.width,
+      originHeight: groupForResize.height,
       didMove: false,
     };
     onWindowPointerMove({ pointerId: 929, clientX: 170, clientY: 140 });
@@ -13716,15 +13833,22 @@ function assertManualSpatialObjectControls() {
   }
   const resizedGroup = group ? spatialObjectById(group.id) : null;
   const resized = resizedGroup ? resizedGroup.width > groupWidthBefore : false;
-  const spatialObjectsExport = buildSpatialWorkspaceExport().objects;
-  const exported = spatialObjectsExport.some(
+  const spatialExport = buildSpatialWorkspaceExport();
+  const groupExport = spatialExport.groups.find(
+    (entry) => entry.id === group?.id,
+  );
+  const exported = spatialExport.objects.some(
     (entry) => entry.id === object?.id && entry.sourceKind === "manual-note",
   ) &&
-    spatialObjectsExport.some(
+    spatialExport.objects.some(
       (entry) =>
         entry.id === group?.id &&
         entry.sourceKind === "spatial-group" &&
         entry.size.width > groupWidthBefore,
+    ) &&
+    Boolean(
+      groupExport?.memberObjectIds.includes(object?.id || "") &&
+        groupExport?.memberCardIds.includes(activeFrame.id),
     );
   if (object) {
     removeSpatialObject(object.id);
@@ -13742,12 +13866,27 @@ function assertManualSpatialObjectControls() {
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
   state.spatialObjects = previous.spatialObjects;
+  activeFrame.flowPosition = previous.activeFramePosition;
   persistState();
   renderAll();
 
   return assert(
-    added && resized && exported && removed,
-    "Manual spatial map note and group can be added, resized, exported, and removed",
+    added && groupDragMovedMembers && resized && exported && removed,
+    "Manual spatial map note and group can be added, moved with members, resized, exported, and removed",
+    JSON.stringify({
+      added,
+      groupDragMovedMembers,
+      resized,
+      exported,
+      removed,
+      groupExport,
+      objectBeforeGroupDrag,
+      objectAfterGroupDrag: objectAfterGroupDrag
+        ? { x: objectAfterGroupDrag.x, y: objectAfterGroupDrag.y }
+        : null,
+      frameBeforeGroupDrag,
+      frameAfterGroupDrag: activeFrame.flowPosition,
+    }),
   );
 }
 

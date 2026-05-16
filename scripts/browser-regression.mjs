@@ -103,7 +103,9 @@ async function validateBrowserSelfTest({
         passed,
         detail: passed
           ? `${url} (${parsedResults.length} assertions)`
-          : failures[0]?.name ||
+          : failures[0]?.detail
+            ? `${failures[0].name}: ${failures[0].detail}`
+            : failures[0]?.name ||
             (!Array.isArray(parsedResults)
               ? "self-test results were not rendered"
               : !bodyPassed

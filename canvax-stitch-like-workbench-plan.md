@@ -49,7 +49,7 @@ Current completed baseline:
 - Correction marks over generated output are saved into frame handoff data.
 - Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product. The sticky command deck now uses a more opaque surface so scrolled canvas content does not visually bleed through it.
 - Workbench now has `Sketch`, `Split`, `Output`, and `Map` focus modes so generated surfaces can become a large correction target and the frame/variant graph can become a spatial project canvas instead of staying trapped in Advanced Flow view.
-- Workbench `Map` now includes a spatial object layer: editable generated variant branches export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, changed files, and recent checkpoints become draggable object cards and export through `spatialWorkspace.objects`; group containment is exported through `spatialWorkspace.groups` and `groupIds`.
+- Workbench `Map` now includes a spatial object layer: editable generated variant branches export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, changed files, and recent checkpoints become draggable object cards and export through `spatialWorkspace.objects`; group regions move contained frame cards/objects and containment is exported through `spatialWorkspace.groups` and `groupIds`.
 - Preview now has `Play flow` playback for connected frames, starting from the entry frame and stepping through outgoing transition labels, with generated clickable hotspots over the sketch/output viewport. Selected frame elements can also be linked to target frames, turning their actual drawn bounds into persistent Play-mode hotspots.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
@@ -78,7 +78,7 @@ Current completed baseline:
 Still open:
 
 - automatic host image generation remains open. Multi-candidate review now has local attached-image thumbnails, select, and accept state in the candidate tray.
-- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output/checkpoint object layer, especially nested groups and richer object editing. Generated output objects are now reconciled, can be cleared from Map, and legacy stale cards are cleaned up to reduce materialized-output clutter, but full history lane editing remains open.
+- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output/checkpoint object layer, especially deeper nested groups and richer object editing. Generated output objects are now reconciled, can be cleared from Map, and legacy stale cards are cleaned up to reduce materialized-output clutter, but full history lane editing remains open.
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API path immediately for manifest binding plus an implementation starter bundle; Codex still has to execute the real implementation pass for production route/component files.
 - deterministic `execute-build-request` path is shipped and reachable from the board for turning the latest build request into a frame-bound local HTML preview plus implementation files; full Codex route/component implementation remains the real target.
 - deterministic `execute-rewrite-request` smoke path, board-side Apply execution, optional autosnap/freeze `Live rewrite`, and Preview `Rewrite handoff` lane are shipped for turning the latest rewrite request into a refreshed frame-bound local HTML artifact; a continuous autonomous Codex rewrite loop with real app edits remains the real target.
@@ -422,7 +422,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
-- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus explicit editable variant branch exports, movable/resizable labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports background drag-pan, button zoom, cursor-centered pinch/ctrl-wheel zoom, and export-time group containment. This is not yet a true arbitrary-object infinite canvas with richer nested object editing.
+- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus explicit editable variant branch exports, movable/resizable labeled group regions that move contained frame cards/spatial objects, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports background drag-pan, button zoom, cursor-centered pinch/ctrl-wheel zoom, and export-time group containment. This is not yet a true arbitrary-object infinite canvas with richer nested object editing.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10
@@ -433,7 +433,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - Workbench state exports spatial positions. **Done through `spatialWorkspace.cards`, `spatialWorkspace.variantBranches`, `spatialWorkspace.objects`, and `spatialWorkspace.groups`.**
 - **Validation**:
   - Large-session browser regression with many cards.
-  - Board self-test verifies Workbench Map renders, zooms, and exports frames, group regions, group containment, manual notes, asset candidates, generated targets, artifacts, and changed-file spatial objects.
+  - Board self-test verifies Workbench Map renders, zooms, moves group regions with contained cards/objects, and exports frames, group regions, group containment, manual notes, asset candidates, generated targets, artifacts, and changed-file spatial objects.
 
 ### Task 5.2: Add Variants Lane
 

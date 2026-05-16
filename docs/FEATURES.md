@@ -178,6 +178,7 @@ Behavior:
 - styles generated variant cards as branch objects with lineage chips and primary-variant state, so generated directions do not look like ordinary duplicate frames
 - exports editable generated variant branches through `spatialWorkspace.variantBranches`, including source frame, target frame, direction, connection, editable state, and primary-promotion state
 - adds labeled group regions, manual note cards, and reference file/image cards directly to `Map`, including removable/resizable spatial cards and small image thumbnails for lightweight reference boards
+- lets Map group regions move contained frame cards and spatial objects together, so grouped explorations can be repositioned without rebuilding the board
 - exports group containment from `Map`, so frames and spatial objects carry `groupIds` and `spatialWorkspace.groups` lists member frames/objects for Codex-readable exploration boards
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
 - renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates

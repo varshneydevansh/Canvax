@@ -255,13 +255,13 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, movable/resizable labeled group regions, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with nested groups, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, movable/resizable labeled group regions that can move contained frame cards and spatial objects, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
 
 Needed:
 
 - Zoomable infinite workspace.
 - Pan/zoom controls that feel stable on Mac trackpads. **Initial background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom are shipped; advanced inertial/grouped canvas behavior remains open.**
-- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable Map objects, and group containment is exported for Codex.**
+- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable Map objects; group regions move contained frame cards/spatial objects and export containment for Codex.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
 
@@ -386,7 +386,7 @@ Needed:
 
 ### P1: Reach Stitch-Style Core UX
 
-- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions with exported containment, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; richer nested editing remains open.**
+- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames and export as explicit editable spatial branch records.**
 - Voice-driven critique/refinement lane.
