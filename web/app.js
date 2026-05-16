@@ -19,6 +19,8 @@ const FLOW_CARD_WIDTH = 256;
 const FLOW_CARD_HEIGHT = 180;
 const SPATIAL_OBJECT_WIDTH = 232;
 const SPATIAL_OBJECT_HEIGHT = 132;
+const SPATIAL_OBJECT_MIN_WIDTH = 168;
+const SPATIAL_OBJECT_MIN_HEIGHT = 96;
 const FLOW_SURFACE_PADDING = 120;
 const SELECTION_HANDLE_SIZE = 14;
 const PREVIEW_WINDOW_NAME = "canvax-preview-window";
@@ -4378,6 +4380,12 @@ function renderSpatialObjectNode(object) {
       >
         ×
       </button>
+      <span
+        class="spatial-object-resize"
+        data-spatial-object-resize="${escapeHtml(object.id)}"
+        title="Resize this map object"
+        aria-hidden="true"
+      ></span>
       <div class="spatial-object-header" data-spatial-object-drag="${escapeHtml(object.id)}">
         <span>${escapeHtml(object.sourceKind || object.type || "object")}</span>
         <strong>${escapeHtml(compactDisplayText(object.title, 46))}</strong>
@@ -6199,6 +6207,29 @@ function onFlowBoardPointerDown(event) {
     return;
   }
 
+  const objectResizeHandle = event.target.closest(
+    "[data-spatial-object-resize]",
+  );
+  if (objectResizeHandle) {
+    event.preventDefault();
+    const objectId = objectResizeHandle.dataset.spatialObjectResize;
+    const object = spatialObjectById(objectId);
+    if (!object) {
+      return;
+    }
+    state.flowDrag = {
+      kind: "spatial-object-resize",
+      objectId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originWidth: object.width || SPATIAL_OBJECT_WIDTH,
+      originHeight: object.height || SPATIAL_OBJECT_HEIGHT,
+      didMove: false,
+    };
+    return;
+  }
+
   const objectDragHandle = event.target.closest("[data-spatial-object-drag]");
   if (objectDragHandle) {
     const objectId = objectDragHandle.dataset.spatialObjectDrag;
@@ -6325,6 +6356,19 @@ function onWindowPointerMove(event) {
     }
     object.x = Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom);
     object.y = Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom);
+  } else if (state.flowDrag.kind === "spatial-object-resize") {
+    const object = spatialObjectById(state.flowDrag.objectId);
+    if (!object) {
+      return;
+    }
+    object.width = Math.max(
+      SPATIAL_OBJECT_MIN_WIDTH,
+      state.flowDrag.originWidth + deltaX / state.flowZoom,
+    );
+    object.height = Math.max(
+      SPATIAL_OBJECT_MIN_HEIGHT,
+      state.flowDrag.originHeight + deltaY / state.flowZoom,
+    );
   } else {
     const frame = frameById(state.flowDrag.frameId);
     if (!frame) {
@@ -11746,12 +11790,32 @@ function assertManualSpatialObjectControls() {
         `[data-spatial-object-id='${group.id}'].map-group`,
       ),
   );
+  const groupWidthBefore = group?.width || 0;
+  if (group) {
+    state.flowDrag = {
+      kind: "spatial-object-resize",
+      objectId: group.id,
+      pointerId: 929,
+      startX: 100,
+      startY: 100,
+      originWidth: group.width,
+      originHeight: group.height,
+      didMove: false,
+    };
+    onWindowPointerMove({ pointerId: 929, clientX: 170, clientY: 140 });
+    onWindowPointerUp({ pointerId: 929 });
+  }
+  const resizedGroup = group ? spatialObjectById(group.id) : null;
+  const resized = resizedGroup ? resizedGroup.width > groupWidthBefore : false;
   const spatialObjectsExport = buildSpatialWorkspaceExport().objects;
   const exported = spatialObjectsExport.some(
     (entry) => entry.id === object?.id && entry.sourceKind === "manual-note",
   ) &&
     spatialObjectsExport.some(
-      (entry) => entry.id === group?.id && entry.sourceKind === "spatial-group",
+      (entry) =>
+        entry.id === group?.id &&
+        entry.sourceKind === "spatial-group" &&
+        entry.size.width > groupWidthBefore,
     );
   if (object) {
     removeSpatialObject(object.id);
@@ -11773,8 +11837,8 @@ function assertManualSpatialObjectControls() {
   renderAll();
 
   return assert(
-    added && exported && removed,
-    "Manual spatial map note and group can be added, exported, and removed",
+    added && resized && exported && removed,
+    "Manual spatial map note and group can be added, resized, exported, and removed",
   );
 }
 

@@ -246,7 +246,7 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, labeled group regions, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with nested/resizable groups, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, movable/resizable labeled group regions, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with nested groups, branches, prompts, and code artifacts.
 
 Needed:
 
@@ -271,7 +271,7 @@ done
   Codex output manifest -> generated target/artifact/change spatial objects in Map
 
 next
-  true infinite canvas -> nested/resizable groups + richer object editing + history lanes
+  true infinite canvas -> nested groups + richer object editing + history lanes
 ```
 
 ### 4. Prototype Play Mode
@@ -377,7 +377,7 @@ Needed:
 
 ### P1: Reach Stitch-Style Core UX
 
-- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, labeled group regions, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; nested/resizable groups and richer object editing are still open.**
+- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, movable/resizable labeled group regions, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; nested groups and richer object editing are still open.**
 - Prototype Play mode.
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
 - Voice-driven critique/refinement lane.

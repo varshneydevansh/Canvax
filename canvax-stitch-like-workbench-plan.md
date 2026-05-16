@@ -71,7 +71,7 @@ Current completed baseline:
 Still open:
 
 - automatic host image generation and multi-candidate review. Initial candidate tray placement plus attach-image import is shipped.
-- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially nested/resizable groups and richer object editing
+- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially nested groups and richer object editing
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
 - deterministic `execute-build-request` smoke path is shipped for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
 - native Codex microphone/image-generation host bridge
@@ -414,7 +414,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
-- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom. This is not yet a true arbitrary-object infinite canvas with nested/resizable groups and richer object editing.
+- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus movable/resizable labeled group regions, manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom. This is not yet a true arbitrary-object infinite canvas with nested groups and richer object editing.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10

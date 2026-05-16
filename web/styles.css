@@ -2422,6 +2422,22 @@ select,
     color: var(--accent-deep);
 }
 
+.spatial-object-resize {
+    position: absolute;
+    right: 0.55rem;
+    bottom: 0.55rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    border-right: 0.15rem solid rgba(24, 17, 14, 0.34);
+    border-bottom: 0.15rem solid rgba(24, 17, 14, 0.34);
+    border-radius: 0.15rem;
+    cursor: nwse-resize;
+}
+
+.spatial-object-resize:hover {
+    border-color: var(--accent-deep);
+}
+
 .spatial-object-node.dragging {
     opacity: 0.9;
     box-shadow:
