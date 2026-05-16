@@ -503,7 +503,7 @@ preview / Codex output manifest
   -> live export spatialWorkspace.objects
 
 manual Map controls
-  -> note cards and reference file/image cards
+  -> labeled group regions, note cards, and reference file/image cards
   -> state.spatialObjects
   -> Workbench Map context object cards
   -> live export spatialWorkspace.objects

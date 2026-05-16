@@ -275,6 +275,7 @@ const dom = {
   flowZoomValue: document.querySelector("#flow-zoom-value"),
   addSpatialNote: document.querySelector("#add-spatial-note"),
   addSpatialFile: document.querySelector("#add-spatial-file"),
+  addSpatialGroup: document.querySelector("#add-spatial-group"),
   spatialFileInput: document.querySelector("#spatial-file-input"),
   setEntryFrame: document.querySelector("#set-entry-frame"),
   autoLayoutFlow: document.querySelector("#auto-layout-flow"),
@@ -555,6 +556,7 @@ function bindEvents() {
   dom.addSpatialFile.addEventListener("click", () => {
     dom.spatialFileInput.click();
   });
+  dom.addSpatialGroup.addEventListener("click", addSpatialGroupObject);
   dom.spatialFileInput.addEventListener("change", () => {
     const file = dom.spatialFileInput.files?.[0];
     if (file) {
@@ -2528,6 +2530,27 @@ function addSpatialNoteObject() {
   });
 }
 
+function addSpatialGroupObject() {
+  const defaultTitle = `Exploration ${state.spatialObjects.length + 1}`;
+  const title = window.prompt("Name this spatial group", defaultTitle);
+  if (!cleanString(title)) {
+    return;
+  }
+  addSpatialObject({
+    type: "map-group",
+    title: cleanString(title),
+    subtitle: "Drag this region behind related frames, references, and outputs.",
+    sourceKind: "spatial-group",
+    status: "group",
+    width: SPATIAL_OBJECT_WIDTH * 2 + 44,
+    height: SPATIAL_OBJECT_HEIGHT * 1.55,
+    meta: {
+      text: cleanString(title),
+      createdFrom: "workbench-map",
+    },
+  });
+}
+
 async function addSpatialFileObject(file) {
   const isImage = file.type.startsWith("image/");
   const thumbnailDataUrl =
@@ -4305,10 +4328,19 @@ function renderFlowBoard() {
       `;
     })
     .join("");
-  const spatialObjectMarkup = state.spatialObjects
+  const spatialGroups = state.spatialObjects.filter(
+    (object) => object.type === "map-group",
+  );
+  const spatialObjects = state.spatialObjects.filter(
+    (object) => object.type !== "map-group",
+  );
+  const spatialGroupMarkup = spatialGroups
     .map((object) => renderSpatialObjectNode(object))
     .join("");
-  dom.flowBoard.innerHTML = `${frameMarkup}${spatialObjectMarkup}`;
+  const spatialObjectMarkup = spatialObjects
+    .map((object) => renderSpatialObjectNode(object))
+    .join("");
+  dom.flowBoard.innerHTML = `${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}`;
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
@@ -11562,7 +11594,9 @@ function assertWorkbenchSpatialMap() {
     spatialExport.objects[0]?.sourceKind === "asset-candidate" &&
     spatialExport.zoom === state.flowZoom;
   const objectRendered = Boolean(
-    dom.flowBoard.querySelector("[data-spatial-object-id='spatial-selftest-asset']"),
+    dom.flowBoard.querySelector(
+      "[data-spatial-object-id='spatial-selftest-asset']",
+    ),
   );
 
   state.workspaceMode = previous.workspaceMode;
@@ -11693,20 +11727,42 @@ function assertManualSpatialObjectControls() {
     status: "note",
     meta: { text: "Manual spatial object" },
   });
+  const group = addSpatialObject({
+    type: "map-group",
+    title: "Self-test group",
+    subtitle: "Manual group region",
+    sourceKind: "spatial-group",
+    status: "group",
+    width: SPATIAL_OBJECT_WIDTH * 2 + 44,
+    height: SPATIAL_OBJECT_HEIGHT * 1.55,
+  });
   const added = Boolean(
     object &&
+      group &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${object.id}'] [data-spatial-object-remove]`,
+      ) &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${group.id}'].map-group`,
       ),
   );
-  const exported = buildSpatialWorkspaceExport().objects.some(
+  const spatialObjectsExport = buildSpatialWorkspaceExport().objects;
+  const exported = spatialObjectsExport.some(
     (entry) => entry.id === object?.id && entry.sourceKind === "manual-note",
-  );
+  ) &&
+    spatialObjectsExport.some(
+      (entry) => entry.id === group?.id && entry.sourceKind === "spatial-group",
+    );
   if (object) {
     removeSpatialObject(object.id);
   }
+  if (group) {
+    removeSpatialObject(group.id);
+  }
   const removed = object
-    ? !state.spatialObjects.some((entry) => entry.id === object.id)
+    ? !state.spatialObjects.some((entry) =>
+        [object.id, group?.id].includes(entry.id),
+      )
     : false;
 
   state.workspaceMode = previous.workspaceMode;
@@ -11718,7 +11774,7 @@ function assertManualSpatialObjectControls() {
 
   return assert(
     added && exported && removed,
-    "Manual spatial map note can be added, exported, and removed",
+    "Manual spatial map note and group can be added, exported, and removed",
   );
 }
 
