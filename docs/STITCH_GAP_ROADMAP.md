@@ -255,13 +255,13 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/lasso-selectable/nudgeable/duplicable/deletable spatial objects, selected-set dragging and resizing through a combined transform box, group duplication with contained Map-object copies, movable/resizable labeled group regions that can move contained frame cards and spatial objects, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/lasso-selectable/nudgeable/duplicable/deletable spatial objects, selected-set dragging and resizing through a combined transform box, group duplication with contained Map-object copies, movable/resizable labeled group regions with lightweight contents inspection, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
 
 Needed:
 
 - Zoomable infinite workspace.
 - Pan/zoom controls that feel stable on Mac trackpads. **Initial background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom are shipped; advanced inertial/grouped canvas behavior remains open.**
-- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable/selectable/multi-selectable/lasso-selectable Map objects; selected Map objects expose visible Copy context/Duplicate/Delete/Clear actions, can copy a no-API Markdown handoff, can be dragged and resized as a selected set, nudged, duplicated, deleted, and exported as `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`; duplicating a group region duplicates contained Map objects; group regions move contained frame cards/spatial objects and export containment for Codex.**
+- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and export through `spatialWorkspace.variantBranches`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable/selectable/multi-selectable/lasso-selectable Map objects; selected Map objects expose visible Copy context/Duplicate/Delete/Clear actions, can copy a no-API Markdown handoff, can be dragged and resized as a selected set, nudged, duplicated, deleted, and exported as `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`; duplicating a group region duplicates contained Map objects; group regions move contained frame cards/spatial objects and export containment plus selected group contents for Codex.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
 
@@ -281,7 +281,7 @@ done
   Codex output manifest -> generated target/artifact/change spatial objects in Map
 
 next
-  true infinite canvas -> nested group inspector + richer object editing + history lanes
+  true infinite canvas -> richer nested group editing + history lanes
 ```
 
 ### 4. Prototype Play Mode

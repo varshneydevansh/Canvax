@@ -3515,6 +3515,54 @@ function spatialObjectsInsideGroup(group) {
   );
 }
 
+function spatialGroupMemberDetails(group) {
+  if (!group || group.type !== "map-group") {
+    return { frames: [], objects: [], groups: [] };
+  }
+  const groupRect = spatialObjectRect(group);
+  const frames = state.frames.filter((frame) =>
+    rectContainsRectCenter(groupRect, flowCardRect(frame)),
+  );
+  const objects = state.spatialObjects.filter(
+    (object) =>
+      object.id !== group.id &&
+      rectContainsRectCenter(groupRect, spatialObjectRect(object)),
+  );
+  return {
+    frames,
+    objects: objects.filter((object) => object.type !== "map-group"),
+    groups: objects.filter((object) => object.type === "map-group"),
+  };
+}
+
+function spatialGroupMemberSummary(group, options = {}) {
+  const { limit = 5 } = options;
+  const members = spatialGroupMemberDetails(group);
+  const names = [
+    ...members.frames.map((frame) => frame.title),
+    ...members.groups.map((object) => object.title),
+    ...members.objects.map((object) => object.title),
+  ].filter(Boolean);
+  const countText = [
+    members.frames.length
+      ? `${members.frames.length} frame${members.frames.length === 1 ? "" : "s"}`
+      : "",
+    members.groups.length
+      ? `${members.groups.length} group${members.groups.length === 1 ? "" : "s"}`
+      : "",
+    members.objects.length
+      ? `${members.objects.length} object${members.objects.length === 1 ? "" : "s"}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const preview = names.slice(0, limit).join(", ");
+  const suffix = names.length > limit ? `, +${names.length - limit} more` : "";
+  return [countText || "empty group", preview ? `contains ${preview}${suffix}` : ""]
+    .filter(Boolean)
+    .join(" • ");
+}
+
 function cloneSpatialObjectForDuplicate(object, options = {}) {
   const { offsetX = 36, offsetY = 36, meta: extraMeta = {} } = options;
   return normalizeSpatialObjects([
@@ -3609,9 +3657,18 @@ function buildSpatialObjectContextText(object) {
     `- Size: ${Math.round(object.width || SPATIAL_OBJECT_WIDTH)} x ${Math.round(object.height || SPATIAL_OBJECT_HEIGHT)}`,
   ];
   if (object.type === "map-group") {
+    const members = spatialGroupMemberDetails(object);
     details.push(
-      `- Contains: ${spatialObjectsInsideGroup(object).length} Map objects`,
+      `- Contains: ${spatialGroupMemberSummary(object, { limit: 8 })}`,
     );
+    const memberLines = [
+      ...members.frames.map((frame) => `- Frame: ${frame.title}`),
+      ...members.groups.map((entry) => `- Group: ${entry.title}`),
+      ...members.objects.map((entry) => `- Object: ${entry.title}`),
+    ];
+    if (memberLines.length) {
+      details.push("", "## Group contents", ...memberLines);
+    }
   }
   if (object.meta?.path || object.meta?.previewPath || object.meta?.url) {
     details.push(
@@ -5920,10 +5977,7 @@ function renderMapSelectionActions() {
     frameLabel,
   ];
   if (object.type === "map-group") {
-    const containedCount = spatialObjectsInsideGroup(object).length;
-    details.push(
-      `${containedCount} contained Map object${containedCount === 1 ? "" : "s"}`,
-    );
+    details.push(spatialGroupMemberSummary(object));
   }
 
   dom.mapSelectedObjectTitle.textContent = object.title || "Spatial object";
@@ -14784,6 +14838,11 @@ function assertManualSpatialObjectControls() {
     contextText.includes("Self-test map note") &&
     contextText.includes("Manual spatial object") &&
     contextText.includes("Prompt / Context");
+  const groupContextText = buildSpatialObjectContextText(groupRecord);
+  const groupInspectorExported =
+    groupContextText.includes("Group contents") &&
+    groupContextText.includes("Self-test map note") &&
+    groupContextText.includes(activeFrame.title);
   const objectXBeforeNudge = objectRecord?.x || 0;
   let nudgePrevented = false;
   onWindowKeyDown({
@@ -15062,6 +15121,7 @@ function assertManualSpatialObjectControls() {
       selectedRendered &&
       selectionActionsVisible &&
       contextExported &&
+      groupInspectorExported &&
       nudged &&
       duplicated &&
       duplicateDeleted &&
@@ -15082,6 +15142,7 @@ function assertManualSpatialObjectControls() {
       selectedRendered,
       selectionActionsVisible,
       contextExported,
+      groupInspectorExported,
       nudged,
       duplicated,
       duplicateDeleted,
