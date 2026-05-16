@@ -362,16 +362,15 @@ Syntax checks, schema checks, and headless browser checks exist, but long-sessio
 Current coverage:
 
 - `npm run check` catches syntax/parser failures.
-- `npm run regression` validates export schema, server payload shape, isolated service lifecycle behavior, and the board/Preview browser self-test routes when the local service and Chrome are available.
+- `npm run regression` validates export schema, server payload shape, isolated service lifecycle behavior, the no-API e2e workflow proof, and the board/Preview browser self-test routes when the local service and Chrome are available.
 - `/api/status` and CLI `--status --json` now identify the live service PID, workspace root, runtime file path, local transport, and no-API host capability so stale runtime files are not trusted blindly. If the runtime file is stale or missing but the requested port is a matching Canvax service, the CLI recovers from `/api/status`; if a non-Canvax process owns the port, the CLI returns a structured `portOccupied` failure.
 - `npm run service-lifecycle` starts Canvax on a throwaway port with an isolated runtime root, verifies non-Canvax occupied-port diagnostics, reuse and port-mismatch behavior, restarts on a second port, and stops the service without disrupting the default board.
 - `npm run e2e-workflow` synthesizes a rough sketch, voice note, correction mark, image prompt pack, asset candidates, build request, rewrite request, build preview, rewrite preview, and dry-run Codex manifest bindings as one no-API proof chain.
 - In-browser self-test covers drawing tools, selection, eraser layer behavior, rail sizing, Workbench focus modes, Workbench spatial map rendering/export, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue, and a long-session Map stress fixture with many captured frames, voice notes, asset candidates, generated preview targets, artifacts, changed files, and checkpoint cards.
-- Headless responsive smoke now opens the board and Preview at 1440, 1024, 768, and 430 pixel widths to catch collapsed core panels before manual review.
+- Headless responsive smoke now opens the board and Preview at 1440, 1024, 768, and 430 pixel widths to catch collapsed core panels before manual review, and it writes viewport screenshots plus an index under `artifacts/canvax/browser-snapshots/latest/` for visual review.
 
 Needed:
-
-- Visual screenshot review for board and Preview at multiple viewport sizes.
+- Automated visual comparison against approved baselines if/when the product stabilizes enough to make pixel diffs useful.
 
 ## Improvement Backlog
 

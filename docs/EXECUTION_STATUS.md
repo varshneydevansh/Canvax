@@ -64,6 +64,7 @@ Status: In progress
 - [x] Advanced sticky command deck is treated as an opaque inspector header, reducing canvas bleed-through while scrolling
 - [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon
 - [x] Browser regression includes headless board/Preview responsive smoke at 1440, 1024, 768, and 430 pixel widths
+- [x] Browser regression writes visual review snapshots for board and Preview at those responsive widths
 - [x] Browser self-test includes a dense long-session Map fixture with captured frames, voice notes, generated outputs, artifacts, changed files, checkpoints, and asset candidates
 - [x] No-API end-to-end workflow regression proves rough frame + voice + image prompt assets + build request + rewrite request + manifest binding as one chain
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service
@@ -76,7 +77,7 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, manual context objects, readable generated output objects, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
   arbitrary-object infinite canvas and richer nested object editing
 ```

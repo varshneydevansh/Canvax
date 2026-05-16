@@ -235,7 +235,7 @@ The browser regression harness validates the board and Preview at the widths des
  430 narrow Codex/browser panel
 ```
 
-The smoke check is structural, not a replacement for visual taste review. It verifies that the shell, toolbar, canvas/stage, Preview header, and compare surfaces remain visible and do not collapse at those sizes.
+The smoke check is structural, not a replacement for visual taste review. It verifies that the shell, toolbar, canvas/stage, Preview header, and compare surfaces remain visible and do not collapse at those sizes. The browser regression harness also captures board and Preview PNGs for each viewport and writes an index under `artifacts/canvax/browser-snapshots/latest/`.
 
 The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated preview targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use.
 

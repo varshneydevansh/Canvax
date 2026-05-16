@@ -89,6 +89,12 @@ By default, browser timeouts are reported as `skip` so the main regression loop 
 CANVAX_BROWSER_STRICT=1 npm run browser-regression
 ```
 
+When browser regression runs successfully, it writes visual review snapshots for board and Preview at desktop, laptop, tablet, and narrow widths:
+
+```text
+artifacts/canvax/browser-snapshots/latest/index.json
+```
+
 In-browser self-test:
 
 ```bash

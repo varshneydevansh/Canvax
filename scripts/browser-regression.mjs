@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,8 +7,16 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const curlBinary = "/usr/bin/curl";
+const snapshotRoot = resolve(
+  projectRoot,
+  "artifacts",
+  "canvax",
+  "browser-snapshots",
+  "latest",
+);
 
 const results = [];
+const snapshots = [];
 
 const chromePath = await detectChromeBinary();
 const serviceState = await detectCanvaxServiceState();
@@ -47,6 +55,8 @@ if (!liveUrl) {
     detail: "Chrome binary not found",
   });
 } else {
+  await rm(snapshotRoot, { recursive: true, force: true });
+  await mkdir(snapshotRoot, { recursive: true });
   await validateBrowserSelfTest({
     name: "board browser self-test passes",
     chromePath,
@@ -66,6 +76,7 @@ if (!liveUrl) {
     liveUrl,
     timeoutMs: responsiveSmokeTimeoutMs,
   });
+  await writeSnapshotIndex();
 }
 
 const failed = results.filter((entry) => !entry.passed);
@@ -138,6 +149,7 @@ async function validateResponsiveSmokeMatrix({ chromePath, liveUrl, timeoutMs })
   for (const viewport of responsiveSmokeViewports) {
     await validateResponsiveSmoke({
       name: `board responsive smoke passes at ${viewport.label}`,
+      surface: "board",
       chromePath,
       url: `${liveUrl}/?responsivecheck=1`,
       viewport,
@@ -146,6 +158,7 @@ async function validateResponsiveSmokeMatrix({ chromePath, liveUrl, timeoutMs })
     });
     await validateResponsiveSmoke({
       name: `preview responsive smoke passes at ${viewport.label}`,
+      surface: "preview",
       chromePath,
       url: `${liveUrl}/preview.html?responsivecheck=1`,
       viewport,
@@ -157,6 +170,7 @@ async function validateResponsiveSmokeMatrix({ chromePath, liveUrl, timeoutMs })
 
 async function validateResponsiveSmoke({
   name,
+  surface,
   chromePath,
   url,
   viewport,
@@ -167,12 +181,16 @@ async function validateResponsiveSmoke({
     const browser = await launchChromeSession(chromePath, url, { viewport });
     try {
       const state = await browser.waitForResponsiveSmoke(expression, timeoutMs);
+      const screenshot = await captureResponsiveSnapshot(browser, {
+        surface,
+        viewport,
+      });
       const passed = Boolean(state?.passed);
       results.push({
         name,
-        passed,
+        passed: passed && Boolean(screenshot),
         detail: passed
-          ? `${viewport.width}x${viewport.height}`
+          ? `${viewport.width}x${viewport.height}${screenshot ? ` -> ${screenshot}` : " (screenshot failed)"}`
           : `${viewport.width}x${viewport.height}: ${
               state?.failures?.join("; ") || "responsive smoke failed"
             }`,
@@ -197,6 +215,42 @@ async function validateResponsiveSmoke({
       detail: error instanceof Error ? error.message : "Unknown browser error",
     });
   }
+}
+
+async function captureResponsiveSnapshot(browser, { surface, viewport }) {
+  const fileName = `${surface}-${viewport.label}-${viewport.width}x${viewport.height}.png`;
+  const filePath = resolve(snapshotRoot, fileName);
+  try {
+    await browser.captureScreenshot(filePath);
+    const relativePath = toProjectRelative(filePath);
+    snapshots.push({
+      surface,
+      viewport,
+      path: relativePath,
+    });
+    return relativePath;
+  } catch {
+    return "";
+  }
+}
+
+async function writeSnapshotIndex() {
+  if (!snapshots.length) {
+    return;
+  }
+  const indexPath = resolve(snapshotRoot, "index.json");
+  const payload = {
+    kind: "canvax-browser-visual-snapshots",
+    createdAt: new Date().toISOString(),
+    count: snapshots.length,
+    snapshots,
+  };
+  await writeFile(indexPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  results.push({
+    name: "browser visual snapshots written",
+    passed: true,
+    detail: toProjectRelative(indexPath),
+  });
 }
 
 function buildBoardResponsiveSmokeExpression() {
@@ -375,6 +429,14 @@ async function launchChromeSession(
       async waitForResponsiveSmoke(expression, timeoutMs) {
         return waitForResponsiveSmokeState(cdp, expression, timeoutMs);
       },
+      async captureScreenshot(filePath) {
+        const result = await cdp.send("Page.captureScreenshot", {
+          format: "png",
+          captureBeyondViewport: false,
+          fromSurface: true,
+        });
+        await writeFile(filePath, Buffer.from(result.result.data, "base64"));
+      },
       async close() {
         await cdp.close();
         await closeChromeProcess(child);
@@ -386,6 +448,10 @@ async function launchChromeSession(
     await rm(profileDir, { recursive: true, force: true });
     throw error;
   }
+}
+
+function toProjectRelative(filePath) {
+  return filePath.replace(`${projectRoot}/`, "");
 }
 
 async function detectCanvaxServiceState() {
