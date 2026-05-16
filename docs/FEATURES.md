@@ -175,6 +175,7 @@ Behavior:
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with pan/scroll, zoom controls, draggable frame/variant cards, and link handles
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
+- renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
@@ -198,7 +199,7 @@ Workbench
 Boundary:
 
 - Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
-- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards and asset candidate objects, but it is not yet a finished infinite canvas for arbitrary file/image/code objects.
+- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, asset candidate objects, generated output targets, artifacts, and changed files, but it is not yet a finished infinite canvas for arbitrary references and freeform files.
 - Pasted/dropped image assets are editable canvas elements. `Reference underlay` remains the explicit path for a non-editable tracing/background image.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.

@@ -49,7 +49,7 @@ Current completed baseline:
 - Correction marks over generated output are saved into frame handoff data.
 - Advanced mode remains the full inspector/debugging surface, but now shares the same dark dotted Canvax design language, tighter deck sizing, sticky command header, mode explanation, and deck labels so it reads as an advanced layer of the same product instead of a separate product.
 - Workbench now has `Sketch`, `Split`, `Output`, and `Map` focus modes so generated surfaces can become a large correction target and the frame/variant graph can become a spatial project canvas instead of staying trapped in Advanced Flow view.
-- Workbench `Map` now includes a first spatial object layer: asset candidates become draggable object cards and export through `spatialWorkspace.objects`.
+- Workbench `Map` now includes a spatial object layer: asset candidates, generated preview targets, generated artifacts, and changed files become draggable object cards and export through `spatialWorkspace.objects`.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
@@ -66,12 +66,12 @@ Current completed baseline:
 - Workbench now shows saved asset candidates as compact cards; each candidate can place an editable image slot on its source frame/region or attach a generated image file back to that slot while preserving `assetCandidateId`.
 - Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
 - Static Canvax assets are served with no-store headers to prevent stale browser UI after local service updates.
-- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, Workbench spatial map rendering/export for frames and objects, opt-in materialized review aids, flow links, task/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
+- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, Workbench spatial map rendering/export for frames, asset candidates, generated targets, artifacts, and changed files, opt-in materialized review aids, flow links, task/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Still open:
 
 - automatic host image generation and multi-candidate review. Initial candidate tray placement plus attach-image import is shipped.
-- true infinite spatial canvas beyond the initial Workbench Map frame/variant/object layer
+- true infinite spatial canvas beyond the Workbench Map frame/variant/generated-output object layer
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
 - deterministic `execute-build-request` smoke path is shipped for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
 - native Codex microphone/image-generation host bridge
@@ -414,7 +414,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
-- **Status**: Initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus asset candidate objects as a zoomable spatial project map and exports it as `spatialWorkspace`. This is not yet a true arbitrary-object infinite canvas.
+- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus asset candidates, generated preview targets, generated artifacts, and changed files as zoomable spatial project objects exported through `spatialWorkspace`. This is not yet a true arbitrary-object infinite canvas for any reference/file/group the user drops onto the board.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10
@@ -422,10 +422,10 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 - **Acceptance Criteria**:
   - Trackpad pan/zoom feels stable on macOS. **Open for native trackpad infinite-canvas gestures; button zoom shipped.**
   - Cards can be moved without breaking frame snapshots. **Done for frame/variant cards through shared Flow positions.**
-  - Workbench state exports spatial positions. **Done through `spatialWorkspace`.**
+  - Workbench state exports spatial positions. **Done through `spatialWorkspace.cards` and `spatialWorkspace.objects`.**
 - **Validation**:
   - Large-session browser regression with many cards.
-  - Board self-test verifies Workbench Map renders, zooms, and exports frames plus spatial objects.
+  - Board self-test verifies Workbench Map renders, zooms, and exports frames, asset candidates, generated targets, artifacts, and changed-file spatial objects.
 
 ### Task 5.2: Add Variants Lane
 

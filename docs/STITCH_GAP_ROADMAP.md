@@ -136,7 +136,7 @@ Canvax today
 - The generated output card remains a compact thumbnail/status/correction target, and Workbench adds a larger output stage through `Split` and `Output` focus modes for comfortable inspection and correction marks.
 - Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench. The mode switch and deck labels make it read as a technical inspector layer for the same workbench rather than a different app.
 - Workbench now supports `Sketch`, `Split`, `Output`, and `Map` focus modes. The compact output card remains a status/quick-correction target, the large output stage can become the primary correction surface, and Map exposes the frame/variant graph as a zoomable spatial workbench without opening Advanced.
-- Live exports now include a `spatialWorkspace` object with map zoom, card positions, entry/active frame ids, and links, so Codex can treat frame layout as project memory rather than just a linear list.
+- Live exports now include a `spatialWorkspace` object with map zoom, card positions, entry/active frame ids, links, asset candidate objects, generated preview targets, generated artifacts, and changed-file objects, so Codex can treat frame layout and implementation outputs as project memory rather than just a linear list.
 - Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
 - Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
 
@@ -246,13 +246,13 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, asset candidate spatial objects, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with free spatial organization of arbitrary references, generated outputs, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, asset candidate spatial objects, generated output/artifact/change spatial objects, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with free spatial organization of arbitrary references, custom files, branches, prompts, and code artifacts.
 
 Needed:
 
 - Zoomable infinite workspace.
 - Pan/zoom controls that feel stable on Mac trackpads. **Initial map zoom is now shipped for frame/variant cards; trackpad-native infinite-canvas zoom remains open.**
-- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames; asset candidates now appear as draggable Map objects.**
+- Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames; asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable Map objects.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
 
@@ -266,9 +266,10 @@ done
   generated preview review aids -> opt-in original sketch and design notes
   Workbench Map -> zoomable frame/variant project graph exported as spatialWorkspace
   Image pack -> asset candidate spatial objects in Map
+  Codex output manifest -> generated target/artifact/change spatial objects in Map
 
 next
-  true infinite canvas -> arbitrary references + generated outputs + code artifacts
+  true infinite canvas -> arbitrary references + freeform files + grouped explorations
 ```
 
 ### 4. Prototype Play Mode
@@ -374,7 +375,7 @@ Needed:
 
 ### P1: Reach Stitch-Style Core UX
 
-- Infinite canvas with pan/zoom. **Initial Workbench Map zoom plus asset-candidate spatial objects are shipped; arbitrary references/code/output objects are still open.**
+- Infinite canvas with pan/zoom. **Initial Workbench Map zoom plus asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; arbitrary references/freeform file objects and grouped explorations are still open.**
 - Prototype Play mode.
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
 - Voice-driven critique/refinement lane.

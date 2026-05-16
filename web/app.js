@@ -2250,21 +2250,44 @@ function normalizeSpatialObjects(objects) {
 
 function syncSpatialObjectsFromHandoffs() {
   const currentObjects = normalizeSpatialObjects(state.spatialObjects);
-  const existingIds = new Set(currentObjects.map((object) => object.id));
   const candidates = state.assetCandidatePack?.candidates || [];
-  const nextObjects = [...currentObjects];
+  const manifest = state.serverStatus?.previewManifest || null;
+  const targets = collectManifestTargets(manifest);
+  const artifacts = collectManifestArtifacts(manifest);
+  const changes = collectManifestChanges(manifest);
+  const activeManifestObjectIds = new Set([
+    ...targets
+      .slice(0, 8)
+      .map((target, index) =>
+        buildManifestSpatialObjectId("target", target, index),
+      ),
+    ...artifacts
+      .slice(0, 10)
+      .map((artifact, index) =>
+        buildManifestSpatialObjectId("artifact", artifact, index),
+      ),
+    ...changes
+      .slice(0, 10)
+      .map((change, index) =>
+        buildManifestSpatialObjectId("change", change, index),
+      ),
+  ]);
+  const nextObjects = currentObjects.filter(
+    (object) =>
+      !isManifestSpatialObject(object) || activeManifestObjectIds.has(object.id),
+  );
+  const existingIds = new Set(nextObjects.map((object) => object.id));
 
   candidates.slice(0, 12).forEach((candidate) => {
     const id = `asset-object-${candidate.id}`;
-    if (existingIds.has(id)) {
-      return;
-    }
     const position = defaultSpatialObjectPosition(nextObjects.length);
-    nextObjects.push({
+    upsertSpatialObject(nextObjects, existingIds, {
       id,
-      type: candidate.type === "frame-composite" ? "image-frame" : "image-region",
+      type:
+        candidate.type === "frame-composite" ? "image-frame" : "image-region",
       title: candidate.title || "Asset candidate",
-      subtitle: candidate.placement || candidate.sourceFrameTitle || "prompt-ready",
+      subtitle:
+        candidate.placement || candidate.sourceFrameTitle || "prompt-ready",
       sourceId: candidate.id,
       sourceKind: "asset-candidate",
       frameIds: candidate.sourceFrameId ? [candidate.sourceFrameId] : [],
@@ -2281,7 +2304,160 @@ function syncSpatialObjectsFromHandoffs() {
     });
   });
 
+  targets.slice(0, 8).forEach((target, index) => {
+    const id = buildManifestSpatialObjectId("target", target, index);
+    const position = defaultSpatialObjectPosition(nextObjects.length);
+    upsertSpatialObject(nextObjects, existingIds, {
+      id,
+      type: "generated-output",
+      title: target.label || "Generated output",
+      subtitle:
+        target.previewPath ||
+        target.resolvedUrl ||
+        target.description ||
+        "implementation preview",
+      sourceId: target.id || "",
+      sourceKind: "generated-target",
+      frameIds: frameIdsFromManifestItem(target),
+      x: position.x,
+      y: position.y,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: target.type || target.source || "preview",
+      meta: {
+        url: target.resolvedUrl || target.url || "",
+        previewPath: target.previewPath || "",
+        description: target.description || "",
+        summary: target.changeSummary || target.refinement?.summary || "",
+      },
+    });
+  });
+
+  artifacts.slice(0, 10).forEach((artifact, index) => {
+    const id = buildManifestSpatialObjectId("artifact", artifact, index);
+    const position = defaultSpatialObjectPosition(nextObjects.length);
+    upsertSpatialObject(nextObjects, existingIds, {
+      id,
+      type:
+        artifact.kind === "preview" ? "generated-output" : "generated-artifact",
+      title: artifact.label || "Generated artifact",
+      subtitle:
+        artifact.path ||
+        artifact.resolvedUrl ||
+        artifact.description ||
+        "artifact",
+      sourceId: artifact.id || "",
+      sourceKind: "generated-artifact",
+      frameIds: frameIdsFromManifestItem(artifact),
+      x: position.x,
+      y: position.y,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: artifact.kind || artifact.status || "artifact",
+      meta: {
+        url: artifact.resolvedUrl || "",
+        path: artifact.path || "",
+        description: artifact.description || "",
+        summary: artifact.changeSummary || artifact.refinement?.summary || "",
+      },
+    });
+  });
+
+  changes.slice(0, 10).forEach((change, index) => {
+    const id = buildManifestSpatialObjectId("change", change, index);
+    const position = defaultSpatialObjectPosition(nextObjects.length);
+    upsertSpatialObject(nextObjects, existingIds, {
+      id,
+      type: "changed-file",
+      title: change.label || change.path || "Changed file",
+      subtitle: change.path || change.summary || "workspace change",
+      sourceId: change.id || "",
+      sourceKind: "workspace-change",
+      frameIds: frameIdsFromManifestItem(change),
+      x: position.x,
+      y: position.y,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: change.kind || "updated",
+      meta: {
+        path: change.path || "",
+        summary: change.summary || "",
+        url: change.resolvedUrl || "",
+      },
+    });
+  });
+
   state.spatialObjects = nextObjects;
+}
+
+function upsertSpatialObject(objects, existingIds, nextObject) {
+  const existingIndex = objects.findIndex(
+    (object) => object.id === nextObject.id,
+  );
+  if (existingIndex === -1) {
+    objects.push(nextObject);
+    existingIds.add(nextObject.id);
+    return;
+  }
+
+  const existing = objects[existingIndex];
+  objects[existingIndex] = {
+    ...nextObject,
+    x: existing.x,
+    y: existing.y,
+    width: existing.width || nextObject.width,
+    height: existing.height || nextObject.height,
+  };
+  existingIds.add(nextObject.id);
+}
+
+function buildManifestSpatialObjectId(kind, item, index = 0) {
+  if (kind === "target") {
+    return `target-object-${spatialObjectKey(
+      item.id,
+      item.previewPath,
+      item.resolvedUrl,
+      index,
+    )}`;
+  }
+  if (kind === "artifact") {
+    return `artifact-object-${spatialObjectKey(
+      item.id,
+      item.path,
+      item.resolvedUrl,
+      index,
+    )}`;
+  }
+  return `change-object-${spatialObjectKey(item.id, item.path, index)}`;
+}
+
+function isManifestSpatialObject(object) {
+  return [
+    "generated-target",
+    "generated-artifact",
+    "workspace-change",
+  ].includes(object?.sourceKind);
+}
+
+function spatialObjectKey(...values) {
+  const candidate = values
+    .map((value) =>
+      Number.isFinite(value) ? String(value) : cleanString(value),
+    )
+    .find(Boolean);
+  return (
+    (candidate || "item")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 72) || "item"
+  );
+}
+
+function frameIdsFromManifestItem(item) {
+  const frameIds = Array.isArray(item?.frameIds) ? item.frameIds : [];
+  const sourceFrameId = cleanString(item?.sourceFrameId);
+  return [...new Set([...frameIds, sourceFrameId].filter(Boolean))];
 }
 
 function defaultSpatialObjectPosition(index) {
@@ -7315,9 +7491,11 @@ async function refreshPreviewStateFromServer() {
         state.serverStatus.sessionEventsPath ||
         "",
     };
+    syncSpatialObjectsFromHandoffs();
     importTranscriptBridge(data.transcriptBridge);
     renderCheckpointPanel();
     renderCodexOutput();
+    renderFlowBoard();
     renderServerStatus();
     void maybeCheckpointOutputUpdate(previousOutputDigest, nextOutputDigest);
   } catch {
@@ -9216,7 +9394,9 @@ async function materializeCurrentFrame(options = {}) {
         state.serverStatus.previewManifestPath ||
         "",
     };
+    syncSpatialObjectsFromHandoffs();
     renderCodexOutput();
+    renderFlowBoard();
     renderServerStatus();
     scheduleLivePreviewSync();
     void refreshPreviewStateFromServer();
@@ -9314,7 +9494,9 @@ async function publishWorkspaceOutput(options = {}) {
       previewManifest:
         data.previewManifest || state.serverStatus.previewManifest || null,
     };
+    syncSpatialObjectsFromHandoffs();
     renderCodexOutput();
+    renderFlowBoard();
     renderServerStatus();
     void refreshPreviewStateFromServer();
     if (!skipCheckpoint) {
@@ -9366,7 +9548,9 @@ async function clearPublishedCodexOutput() {
       previewManifest:
         data.previewManifest || state.serverStatus.previewManifest || null,
     };
+    syncSpatialObjectsFromHandoffs();
     renderCodexOutput();
+    renderFlowBoard();
     renderServerStatus();
     void refreshPreviewStateFromServer();
     dom.workspaceStatus.textContent = "Cleared published Codex output.";
@@ -10428,6 +10612,7 @@ async function runSelfTest() {
     results.push(await assertImageAssetPlacement());
     results.push(assertAssetCandidateTrayPlacement());
     results.push(assertWorkbenchSpatialMap());
+    results.push(assertSpatialObjectsFromOutputManifest());
 
     setSelfTestProgress("undo redo and frame flow");
     const beforeUndo = currentFrame().elements.length;
@@ -11157,6 +11342,95 @@ function assertWorkbenchSpatialMap() {
   return assert(
     mapVisible && zoomChanged && exportValid && objectRendered,
     "Workbench spatial map renders and exports frames plus objects",
+  );
+}
+
+function assertSpatialObjectsFromOutputManifest() {
+  const frameId = currentFrame().id;
+  const previous = {
+    workspaceMode: state.workspaceMode,
+    workbenchFocus: state.workbenchFocus,
+    viewMode: state.viewMode,
+    flowZoom: state.flowZoom,
+    tool: state.tool,
+    spatialObjects: structuredClone(state.spatialObjects),
+    assetCandidatePack: structuredClone(state.assetCandidatePack),
+    previewManifest: structuredClone(state.serverStatus.previewManifest),
+  };
+
+  state.spatialObjects = [];
+  state.assetCandidatePack = null;
+  state.serverStatus = {
+    ...state.serverStatus,
+    previewManifest: {
+      targets: [
+        {
+          id: "selftest-target",
+          label: "Self-test generated screen",
+          type: "generated-screen-preview",
+          previewPath: "artifacts/preview/selftest/index.html",
+          frameIds: [frameId],
+          changeSummary: "Self-test preview target",
+        },
+      ],
+      artifacts: [
+        {
+          id: "selftest-artifact",
+          label: "Self-test spec artifact",
+          path: "docs/selftest-spec.md",
+          kind: "spec",
+          frameIds: [frameId],
+        },
+      ],
+      changes: [
+        {
+          id: "selftest-change",
+          label: "web/app.js",
+          path: "web/app.js",
+          kind: "updated",
+          frameIds: [frameId],
+        },
+      ],
+    },
+  };
+  syncSpatialObjectsFromHandoffs();
+  setWorkspaceMode("simple");
+  setWorkbenchFocus("map");
+  renderFlowBoard();
+
+  const spatialExport = buildSpatialWorkspaceExport();
+  const objectSources = new Set(
+    spatialExport.objects.map((object) => object.sourceKind),
+  );
+  const exported =
+    objectSources.has("generated-target") &&
+    objectSources.has("generated-artifact") &&
+    objectSources.has("workspace-change");
+  const rendered =
+    Boolean(dom.flowBoard.querySelector(".spatial-object-node.generated-output")) &&
+    Boolean(dom.flowBoard.querySelector(".spatial-object-node.generated-artifact")) &&
+    Boolean(dom.flowBoard.querySelector(".spatial-object-node.changed-file"));
+  const frameBound = spatialExport.objects.every((object) =>
+    object.frameIds.includes(frameId),
+  );
+
+  state.workspaceMode = previous.workspaceMode;
+  state.workbenchFocus = previous.workbenchFocus;
+  state.viewMode = previous.viewMode;
+  state.flowZoom = previous.flowZoom;
+  state.tool = previous.tool;
+  state.spatialObjects = previous.spatialObjects;
+  state.assetCandidatePack = previous.assetCandidatePack;
+  state.serverStatus = {
+    ...state.serverStatus,
+    previewManifest: previous.previewManifest,
+  };
+  persistState();
+  renderAll();
+
+  return assert(
+    exported && rendered && frameBound,
+    "Output manifest creates spatial objects for targets, artifacts, and changed files",
   );
 }
 

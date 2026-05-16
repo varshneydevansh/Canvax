@@ -2397,6 +2397,39 @@ select,
     border-color: rgba(35, 100, 170, 0.28);
 }
 
+.spatial-object-node.generated-output {
+    border-color: rgba(255, 93, 58, 0.34);
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(255, 93, 58, 0.2),
+            transparent 42%
+        ),
+        rgba(255, 248, 239, 0.92);
+}
+
+.spatial-object-node.generated-artifact {
+    border-color: rgba(181, 71, 179, 0.28);
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(181, 71, 179, 0.16),
+            transparent 44%
+        ),
+        rgba(255, 251, 245, 0.9);
+}
+
+.spatial-object-node.changed-file {
+    border-color: rgba(35, 100, 170, 0.3);
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(35, 100, 170, 0.16),
+            transparent 44%
+        ),
+        rgba(246, 250, 255, 0.9);
+}
+
 .spatial-object-header {
     display: grid;
     gap: 0.22rem;

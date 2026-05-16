@@ -51,14 +51,14 @@ Status: In progress
 - [x] Workbench bottom designer dock with brush `-` / `+`, Image handoff, and tactile primary actions
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
-- [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, active/entry frame ids, and links
+- [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays
 - [ ] Full interaction regression pass with browser validation
 - [ ] Remaining rough edges in large-session behavior
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, preview button, cached frame renders
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, generated output objects, preview button, cached frame renders
 still open:
   stricter browser validation, arbitrary-object infinite canvas, and long-session polish
 ```
@@ -135,6 +135,7 @@ Status: In progress
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects`
+- [x] Workbench `Map` renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Rematerialize now reuses a stable per-frame artifact path and refreshes preview via versioned URLs
 - [x] Preview target resolution now prefers the currently selected frame when multiple generated targets exist
 - [x] Freeze/autosnap now silently rematerialize a frame that already has a generated target

@@ -118,9 +118,9 @@ Advanced mode includes `Create DESIGN.md` in the Generate screen section. That w
 
 The host chip is intentionally explicit. Today it reports local Codex Browser / file-handoff capability and marks host image generation or native mic bridging as unavailable unless a future Codex client exposes those bridges directly. That prevents Canvax from pretending it can call ChatGPT image generation or the Codex microphone from a localhost page.
 
-`Map` opens the frame graph as a designer-facing spatial workbench inside Workbench. Use it to arrange frames, variants, generated directions, asset candidate objects, and connected sections without switching to Advanced. The map has its own zoom controls and its positions are exported as `spatialWorkspace` so Codex can read project layout, branches, screen relationships, and prompt-ready assets.
+`Map` opens the frame graph as a designer-facing spatial workbench inside Workbench. Use it to arrange frames, variants, generated directions, asset candidate objects, generated preview targets, output artifacts, changed files, and connected sections without switching to Advanced. The map has its own zoom controls and its positions are exported as `spatialWorkspace` so Codex can read project layout, branches, screen relationships, prompt-ready assets, and implementation outputs.
 
-`Free canvas` is still a large single-frame scratchpad preset. `Map` is the first persistent spatial project layer. It is not yet a full infinite canvas for arbitrary files/images/code cards, but it now gives Canvax a zoomable spatial memory for frames, variant branches, and asset candidates.
+`Free canvas` is still a large single-frame scratchpad preset. `Map` is the first persistent spatial project layer. It is not yet a full infinite canvas for arbitrary references and freeform files, but it now gives Canvax a zoomable spatial memory for frames, variant branches, asset candidates, generated outputs, artifacts, and workspace changes.
 
 Switch to `Advanced` when you need multi-frame work, flow links, captures, output manifests, or generation/debugging controls. Advanced uses the same Canvax dark workspace language as Workbench, but it intentionally keeps the denser timeline/stage/inspector layout because it is the technical handoff deck. The mode description and deck labels clarify whether you are editing the frame workspace, mapping flow, or inspecting handoff details.
 
@@ -286,6 +286,9 @@ The live JSON also includes `spatialWorkspace`, which records:
 - map zoom
 - frame/variant card positions
 - asset candidate spatial object positions
+- generated preview target positions
+- generated artifact positions
+- changed-file positions
 - card sizes
 - entry frame
 - active frame
