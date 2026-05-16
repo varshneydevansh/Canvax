@@ -130,6 +130,7 @@ Canvax today
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
+- Workbench surface presets now cover UI, poster, slide, book-spread, storyboard, comic-page, square, and free-canvas work so Canvax can support broader design/illustration planning, not only app screens.
 - Workbench now exposes action modes for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`.
 - Workbench now has a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply, so the main sketch loop can stay canvas-first.
 - The Workbench rail now behaves like the primary bottom designer dock with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.

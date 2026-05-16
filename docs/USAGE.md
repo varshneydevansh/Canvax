@@ -74,7 +74,7 @@ Use Workbench when Canvax should feel like a scratchpad beside this chat.
 
 It hides advanced panels and keeps only:
 
-- visible surface selection for desktop, mobile, tablet, poster, square, or free canvas
+- visible surface selection for desktop, mobile, tablet, poster, slide, book spread, storyboard, comic page, square, or free canvas
 - action selection for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, or `Variations`
 - `New frame` for another screen/state
 - `New section` for a connected continuation below the current section

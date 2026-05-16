@@ -150,6 +150,20 @@ const viewportPresets = {
   mobile: { label: "Mobile", width: 430, height: 932, columns: 4 },
   square: { label: "Square", width: 1024, height: 1024, columns: 6 },
   poster: { label: "Poster", width: 900, height: 1400, columns: 6 },
+  slide: { label: "Slide 16:9", width: 1920, height: 1080, columns: 12 },
+  bookSpread: {
+    label: "Book spread",
+    width: 2200,
+    height: 1400,
+    columns: 12,
+  },
+  storyboard: {
+    label: "Storyboard",
+    width: 1800,
+    height: 1200,
+    columns: 12,
+  },
+  comicPage: { label: "Comic page", width: 1200, height: 1800, columns: 6 },
   free: { label: "Free canvas", width: 2400, height: 1600, columns: 16 },
 };
 
@@ -11792,6 +11806,14 @@ async function runSelfTest() {
         Object.keys(viewportPresets).length ===
           dom.viewportSelect.options.length,
         "viewport presets render",
+      ),
+    );
+    results.push(
+      assert(
+        ["slide", "bookSpread", "storyboard", "comicPage"].every(
+          (id) => viewportPresets[id] && viewportPresets[id].width,
+        ),
+        "designer surface presets render",
       ),
     );
     results.push(

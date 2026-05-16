@@ -42,7 +42,7 @@ If the user says "open in Chrome", "external browser", or "outside Codex", use t
 
 Canvax now has `Workbench` as the simple path:
 
-- the user chooses desktop, mobile, tablet, poster, square, or free canvas without opening Advanced mode
+- the user chooses desktop, mobile, tablet, poster, slide, book spread, storyboard, comic page, square, or free canvas without opening Advanced mode
 - the user chooses the current action: build UI, refine UI, write spec, image prompt, or variations
 - the user creates a new frame or connected section without leaving Workbench
 - the user draws rough placement

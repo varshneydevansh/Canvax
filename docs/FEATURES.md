@@ -163,7 +163,7 @@ Behavior:
 
 - hides the timeline, inspector, advanced toolbar, artifacts, rewrite queue, and transport details
 - keeps the active frame canvas as the main surface
-- shows a surface selector so mobile, tablet, desktop, poster, square, or free canvas can be chosen without opening Advanced mode
+- shows a surface selector so mobile, tablet, desktop, poster, slide, book spread, storyboard, comic page, square, or free canvas can be chosen without opening Advanced mode
 - shows an action selector for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
 - exposes only four drawing tools: pen, rectangle, arrow, erase
