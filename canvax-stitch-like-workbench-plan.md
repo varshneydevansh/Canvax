@@ -71,7 +71,7 @@ Current completed baseline:
 Still open:
 
 - automatic host image generation and multi-candidate review. Initial candidate tray placement plus attach-image import is shipped.
-- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer
+- true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output object layer, especially grouped regions and richer object editing
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
 - deterministic `execute-build-request` smoke path is shipped for turning the latest build request into a frame-bound local HTML artifact; full Codex route/component implementation remains the real target.
 - native Codex microphone/image-generation host bridge
@@ -414,13 +414,13 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.1: Promote Free Canvas Into Workbench Space
 
-- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as zoomable spatial project objects exported through `spatialWorkspace`. This is not yet a true arbitrary-object infinite canvas with grouped regions and native trackpad pan/zoom.
+- **Status**: Expanded initial version shipped. Workbench now has a `Map` focus that exposes the frame/variant graph plus manual notes, reference files/images, asset candidates, generated preview targets, generated artifacts, and changed files as spatial project objects exported through `spatialWorkspace`. The map supports background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom. This is not yet a true arbitrary-object infinite canvas with grouped regions and richer object editing.
 - **Location**: `web/app.js`, `web/styles.css`
 - **Description**: Add stable pan/zoom and spatial cards for sketches, outputs, references, text notes, and prompt packs.
 - **Complexity**: 9/10
 - **Dependencies**: Sprint 2
 - **Acceptance Criteria**:
-  - Trackpad pan/zoom feels stable on macOS. **Open for native trackpad infinite-canvas gestures; button zoom shipped.**
+  - Trackpad pan/zoom feels stable on macOS. **Initial background drag-pan plus cursor-centered pinch/ctrl-wheel zoom shipped; advanced inertial/grouped canvas behavior remains open.**
   - Cards can be moved without breaking frame snapshots. **Done for frame/variant cards through shared Flow positions.**
   - Workbench state exports spatial positions. **Done through `spatialWorkspace.cards` and `spatialWorkspace.objects`.**
 - **Validation**:

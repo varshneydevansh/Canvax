@@ -246,12 +246,12 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with grouped spatial regions, native trackpad pan/zoom, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with grouped spatial regions, branches, prompts, and code artifacts.
 
 Needed:
 
 - Zoomable infinite workspace.
-- Pan/zoom controls that feel stable on Mac trackpads. **Initial map zoom is now shipped for frame/variant cards; trackpad-native infinite-canvas zoom remains open.**
+- Pan/zoom controls that feel stable on Mac trackpads. **Initial background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom are shipped; advanced inertial/grouped canvas behavior remains open.**
 - Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames; manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable Map objects.**
 - Multiple generated directions visible at once.
 - Better timeline/history navigation for long sessions.
@@ -270,7 +270,7 @@ done
   Codex output manifest -> generated target/artifact/change spatial objects in Map
 
 next
-  true infinite canvas -> grouped explorations + native trackpad pan/zoom + richer object editing
+  true infinite canvas -> grouped explorations + richer object editing + history lanes
 ```
 
 ### 4. Prototype Play Mode
@@ -376,7 +376,7 @@ Needed:
 
 ### P1: Reach Stitch-Style Core UX
 
-- Infinite canvas with pan/zoom. **Initial Workbench Map zoom plus manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; grouped explorations and native trackpad pan/zoom are still open.**
+- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan, cursor-centered pinch/ctrl-wheel zoom, and manual note/reference, asset-candidate, generated-output, generated-artifact, and changed-file spatial objects are shipped; grouped explorations and richer object editing are still open.**
 - Prototype Play mode.
 - Multiple generated variants visible side by side. **Initial deterministic variants now appear as connected editable Flow frames.**
 - Voice-driven critique/refinement lane.

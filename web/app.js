@@ -809,6 +809,10 @@ function bindEvents() {
   dom.flowBoard.addEventListener("click", onFlowBoardClick);
   dom.flowBoard.addEventListener("pointerdown", onFlowBoardPointerDown);
   dom.flowSvg.addEventListener("click", onFlowSvgClick);
+  dom.flowShell.addEventListener("pointerdown", onFlowShellPointerDown);
+  dom.flowShell.addEventListener("wheel", onFlowShellWheel, {
+    passive: false,
+  });
   window.addEventListener("pointermove", onWindowPointerMove);
   window.addEventListener("pointerup", onWindowPointerUp);
   window.addEventListener("keydown", onWindowKeyDown);
@@ -1084,6 +1088,7 @@ function hydrateState() {
       isDrawing: false,
       flowDrag: null,
       flowConnectionDraft: null,
+      flowPan: null,
       brushPreview: {
         visible: false,
         x: 0,
@@ -1390,6 +1395,7 @@ function createInitialState() {
     isDrawing: false,
     flowDrag: null,
     flowConnectionDraft: null,
+    flowPan: null,
     brushPreview: {
       visible: false,
       x: 0,
@@ -4307,8 +4313,8 @@ function renderFlowBoard() {
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
     state.workspaceMode === "simple"
-      ? "Spatial map: arrange frames, variants, asset candidates, generated directions, and branches. Drag cards or objects, zoom the map, or pull from + to connect screens."
-      : "Drag cards to arrange screens. Pull from the dot on a frame to connect screens like a lightweight prototype map.";
+      ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from + to connect screens."
+      : "Drag cards to arrange screens. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from the dot on a frame to connect screens.";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
@@ -6204,12 +6210,61 @@ function onFlowBoardPointerDown(event) {
   };
 }
 
+function onFlowShellPointerDown(event) {
+  if (
+    event.button !== 0 ||
+    state.viewMode !== "flow" ||
+    state.flowDrag ||
+    state.flowConnectionDraft ||
+    event.target.closest(
+      "[data-flow-frame-id], [data-spatial-object-id], [data-flow-connection-id]",
+    )
+  ) {
+    return;
+  }
+
+  state.flowPan = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    scrollLeft: dom.flowShell.scrollLeft,
+    scrollTop: dom.flowShell.scrollTop,
+  };
+  dom.flowShell.classList.add("is-panning");
+}
+
+function onFlowShellWheel(event) {
+  if (state.viewMode !== "flow" || !(event.ctrlKey || event.metaKey)) {
+    return;
+  }
+
+  event.preventDefault();
+  const rect = dom.flowShell.getBoundingClientRect();
+  const previousZoom = state.flowZoom;
+  const pointerX = event.clientX - rect.left;
+  const pointerY = event.clientY - rect.top;
+  const contentX = (dom.flowShell.scrollLeft + pointerX) / previousZoom;
+  const contentY = (dom.flowShell.scrollTop + pointerY) / previousZoom;
+  const delta = event.deltaY < 0 ? 0.08 : -0.08;
+  setFlowZoom(previousZoom + delta);
+  dom.flowShell.scrollLeft = contentX * state.flowZoom - pointerX;
+  dom.flowShell.scrollTop = contentY * state.flowZoom - pointerY;
+}
+
 function onWindowPointerMove(event) {
   if (state.shellPan && event.pointerId === state.shellPan.pointerId) {
     dom.deviceShell.scrollLeft =
       state.shellPan.scrollLeft - (event.clientX - state.shellPan.startX);
     dom.deviceShell.scrollTop =
       state.shellPan.scrollTop - (event.clientY - state.shellPan.startY);
+    return;
+  }
+
+  if (state.flowPan && event.pointerId === state.flowPan.pointerId) {
+    dom.flowShell.scrollLeft =
+      state.flowPan.scrollLeft - (event.clientX - state.flowPan.startX);
+    dom.flowShell.scrollTop =
+      state.flowPan.scrollTop - (event.clientY - state.flowPan.startY);
     return;
   }
 
@@ -6255,6 +6310,12 @@ function onWindowPointerUp(event) {
   if (state.shellPan && event.pointerId === state.shellPan.pointerId) {
     state.shellPan = null;
     renderCanvas();
+    return;
+  }
+
+  if (state.flowPan && event.pointerId === state.flowPan.pointerId) {
+    state.flowPan = null;
+    dom.flowShell.classList.remove("is-panning");
     return;
   }
 
@@ -11454,6 +11515,45 @@ function assertWorkbenchSpatialMap() {
   const zoomChanged =
     state.flowZoom === Math.max(0.35, Number((zoomBefore - 0.1).toFixed(2))) &&
     dom.flowZoomValue.textContent === `${Math.round(state.flowZoom * 100)}%`;
+  const wheelZoomBefore = state.flowZoom;
+  let wheelPrevented = false;
+  const shellRect = dom.flowShell.getBoundingClientRect();
+  onFlowShellWheel({
+    ctrlKey: true,
+    metaKey: false,
+    deltaY: -40,
+    clientX: shellRect.left + 120,
+    clientY: shellRect.top + 120,
+    preventDefault() {
+      wheelPrevented = true;
+    },
+  });
+  const wheelZoomChanged =
+    wheelPrevented && state.flowZoom > wheelZoomBefore;
+  dom.flowShell.scrollLeft = 120;
+  dom.flowShell.scrollTop = 100;
+  onFlowShellPointerDown({
+    button: 0,
+    pointerId: 919,
+    clientX: 240,
+    clientY: 220,
+    target: dom.flowShell,
+  });
+  const panStartLeft = dom.flowShell.scrollLeft;
+  const panStartTop = dom.flowShell.scrollTop;
+  onWindowPointerMove({
+    pointerId: 919,
+    clientX: 190,
+    clientY: 170,
+  });
+  const panned =
+    state.flowPan &&
+    dom.flowShell.classList.contains("is-panning") &&
+    (dom.flowShell.scrollLeft !== panStartLeft ||
+      dom.flowShell.scrollTop !== panStartTop);
+  onWindowPointerUp({ pointerId: 919 });
+  const panEnded =
+    !state.flowPan && !dom.flowShell.classList.contains("is-panning");
   const spatialExport = buildSpatialWorkspaceExport();
   const exportValid =
     spatialExport.kind === "canvax-spatial-workspace" &&
@@ -11475,7 +11575,13 @@ function assertWorkbenchSpatialMap() {
   renderAll();
 
   return assert(
-    mapVisible && zoomChanged && exportValid && objectRendered,
+    mapVisible &&
+      zoomChanged &&
+      wheelZoomChanged &&
+      panned &&
+      panEnded &&
+      exportValid &&
+      objectRendered,
     "Workbench spatial map renders and exports frames plus objects",
   );
 }

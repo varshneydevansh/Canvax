@@ -2297,6 +2297,12 @@ select,
             rgba(24, 17, 14, 0.06)
         );
     overflow: auto;
+    cursor: grab;
+    overscroll-behavior: contain;
+}
+
+.flow-shell.is-panning {
+    cursor: grabbing;
 }
 
 .flow-surface {
