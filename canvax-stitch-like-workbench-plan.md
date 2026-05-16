@@ -53,6 +53,7 @@ Current completed baseline:
 - Preview now has `Play flow` playback for connected frames, starting from the entry frame and stepping through outgoing transition labels, with generated clickable hotspots over the sketch/output viewport.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
+- Workbench now has a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply so the user can keep sketching without returning to the top tray.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
 - The Workbench tray now uses a compact three-column command strip so the active canvas is visible in the first viewport instead of being pushed below the fold.
@@ -217,15 +218,15 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 1.3: Add a Bottom Command Composer
 
-- **Status**: Partially shipped as the bottom designer dock plus manual voice note/Apply controls. A full bottom text composer remains open.
+- **Status**: Shipped initial version. The bottom composer reuses the existing voice-note/task-pack pipeline and sits above the designer rail in Workbench.
 - **Location**: `web/index.html`, `web/styles.css`, `web/app.js`
 - **Description**: Add a bottom composer with manual dictation input, attach action placeholder, `Make real`, `Apply correction`, and `Preview`.
 - **Complexity**: 5/10
 - **Dependencies**: Task 1.2
 - **Acceptance Criteria**:
-  - The user can type/paste dictation without opening Advanced.
-  - Primary action is obvious.
-  - Buttons retain tactile feedback.
+  - The user can type/paste dictation without opening Advanced. **Done through the fixed Workbench command composer.**
+  - Primary action is obvious. **Done with Talk, Note, Make, and Apply controls.**
+  - Buttons retain tactile feedback. **Done with the same rail-style press/hover language.**
 - **Validation**:
   - Add manual note with Cmd/Ctrl+Enter.
   - Make screen from Workbench.

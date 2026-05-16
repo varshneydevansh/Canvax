@@ -483,6 +483,53 @@
                     </div>
                 </section>
 
+                <section
+                    id="workbench-composer"
+                    class="workbench-composer"
+                    aria-label="Workbench command composer"
+                >
+                    <label class="workbench-composer-input-wrap">
+                        <span>Sketch instruction</span>
+                        <textarea
+                            id="workbench-composer-input"
+                            rows="1"
+                            placeholder="Say what to change while you sketch. Example: move the hero image right and make the headline bolder."
+                        ></textarea>
+                    </label>
+                    <button
+                        id="workbench-composer-talk"
+                        class="composer-button"
+                        type="button"
+                        title="Start or stop dictation"
+                    >
+                        Talk
+                    </button>
+                    <button
+                        id="workbench-composer-note"
+                        class="composer-button"
+                        type="button"
+                        title="Add this instruction as a frame voice note"
+                    >
+                        Note
+                    </button>
+                    <button
+                        id="workbench-composer-make"
+                        class="composer-button composer-button-strong"
+                        type="button"
+                        title="Commit the instruction and generate a local screen"
+                    >
+                        Make
+                    </button>
+                    <button
+                        id="workbench-composer-apply"
+                        class="composer-button composer-button-strong"
+                        type="button"
+                        title="Commit the instruction and write the latest checkpoint for Codex"
+                    >
+                        Apply
+                    </button>
+                </section>
+
                 <nav
                     id="workbench-rail"
                     class="workbench-rail"

@@ -221,6 +221,12 @@ const dom = {
   workbenchFocusButtons: document.querySelector("#workbench-focus-buttons"),
   workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
   workbenchRail: document.querySelector("#workbench-rail"),
+  workbenchComposer: document.querySelector("#workbench-composer"),
+  workbenchComposerInput: document.querySelector("#workbench-composer-input"),
+  workbenchComposerTalk: document.querySelector("#workbench-composer-talk"),
+  workbenchComposerNote: document.querySelector("#workbench-composer-note"),
+  workbenchComposerMake: document.querySelector("#workbench-composer-make"),
+  workbenchComposerApply: document.querySelector("#workbench-composer-apply"),
   focusPad: document.querySelector("#focus-pad"),
   focusViewportSelect: document.querySelector("#focus-viewport-select"),
   focusActionModeSelect: document.querySelector("#focus-action-mode-select"),
@@ -465,6 +471,35 @@ function bindEvents() {
     }
     handleWorkbenchRailAction(button.dataset.railAction);
   });
+  dom.workbenchComposerInput.addEventListener("input", () => {
+    updateManualVoiceDraft(dom.workbenchComposerInput.value, {
+      clearFocusStatus: true,
+    });
+  });
+  dom.workbenchComposerInput.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+      event.preventDefault();
+      addManualVoiceNote("workbench-composer");
+    }
+  });
+  dom.workbenchComposerTalk.addEventListener("click", () => {
+    if (state.voice.status === "listening") {
+      stopVoiceDictation();
+    } else {
+      startVoiceDictation();
+    }
+  });
+  dom.workbenchComposerNote.addEventListener("click", () => {
+    addManualVoiceNote("workbench-composer");
+  });
+  dom.workbenchComposerMake.addEventListener("click", () => {
+    commitManualVoiceDraft("workbench-composer");
+    void generateCurrentScreen();
+  });
+  dom.workbenchComposerApply.addEventListener("click", () => {
+    commitManualVoiceDraft("workbench-composer");
+    void applyFocusPadToCodex();
+  });
   dom.focusToolButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-focus-tool]");
     if (!button) {
@@ -551,20 +586,17 @@ function bindEvents() {
     },
   );
   dom.focusManualInput.addEventListener("input", () => {
-    state.voice.manualDraft = dom.focusManualInput.value;
-    state.focusLastAppliedText = "";
-    persistState();
-    renderVoicePanel();
+    updateManualVoiceDraft(dom.focusManualInput.value, {
+      clearFocusStatus: true,
+    });
   });
   dom.focusManualInput.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-      dom.voiceManualInput.value = dom.focusManualInput.value;
-      addManualVoiceNote();
+      addManualVoiceNote("focus-manual-note");
     }
   });
   dom.focusAddManual.addEventListener("click", () => {
-    dom.voiceManualInput.value = dom.focusManualInput.value;
-    addManualVoiceNote();
+    addManualVoiceNote("focus-manual-note");
   });
 
   dom.addFrame.addEventListener("click", () => addFrame());
@@ -782,15 +814,16 @@ function bindEvents() {
   });
   dom.voiceStop.addEventListener("click", stopVoiceDictation);
   dom.voiceClearScope.addEventListener("click", clearVoiceScope);
-  dom.voiceAddManual.addEventListener("click", addManualVoiceNote);
+  dom.voiceAddManual.addEventListener("click", () => {
+    addManualVoiceNote("manual-note");
+  });
   dom.voiceManualInput.addEventListener("input", () => {
-    state.voice.manualDraft = dom.voiceManualInput.value;
-    renderVoicePanel();
+    updateManualVoiceDraft(dom.voiceManualInput.value);
   });
   dom.voiceManualInput.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      addManualVoiceNote();
+      addManualVoiceNote("manual-note");
     }
   });
   dom.setEntryFrame.addEventListener("click", setCurrentFrameAsEntry);
@@ -2200,8 +2233,7 @@ function renderFocusPad() {
   dom.focusDesignChip.textContent = designSummary.label;
   dom.focusDesignChip.title = designSummary.detail;
   dom.focusFreeCanvas.classList.toggle("active", frame.viewport === "free");
-  dom.focusManualInput.value = state.voice.manualDraft;
-  dom.focusAddManual.disabled = !state.voice.manualDraft.trim();
+  syncManualVoiceDraftControls();
   dom.focusApply.disabled = Boolean(state.focusApplyInFlight);
   dom.focusGenerate.disabled = Boolean(state.generationInFlight);
   dom.focusBuildReal.disabled = Boolean(state.buildRealInFlight);
@@ -2214,6 +2246,18 @@ function renderFocusPad() {
     "active",
     state.voice.status === "listening",
   );
+  dom.workbenchComposerTalk.textContent =
+    state.voice.status === "listening" ? "Stop" : "Talk";
+  dom.workbenchComposerTalk.classList.toggle(
+    "active",
+    state.voice.status === "listening",
+  );
+  dom.workbenchComposerTalk.setAttribute(
+    "aria-pressed",
+    String(state.voice.status === "listening"),
+  );
+  dom.workbenchComposerMake.disabled = Boolean(state.generationInFlight);
+  dom.workbenchComposerApply.disabled = Boolean(state.focusApplyInFlight);
   renderWorkbenchPromptChips();
 
   if (state.buildRealInFlight) {
@@ -3778,15 +3822,51 @@ function humanizeVoiceError(code) {
   }
 }
 
-function addManualVoiceNote() {
-  const text = dom.voiceManualInput.value.trim();
+function updateManualVoiceDraft(
+  value,
+  { clearFocusStatus = false, render = true } = {},
+) {
+  state.voice.manualDraft = String(value || "");
+  if (clearFocusStatus) {
+    state.focusLastAppliedText = "";
+  }
+  syncManualVoiceDraftControls();
+  persistState();
+  if (render) {
+    renderVoicePanel();
+    renderFocusPad();
+  }
+}
+
+function syncManualVoiceDraftControls() {
+  const draft = state.voice.manualDraft || "";
+  dom.voiceManualInput.value = draft;
+  dom.focusManualInput.value = draft;
+  dom.workbenchComposerInput.value = draft;
+  const hasDraft = Boolean(draft.trim());
+  dom.voiceAddManual.disabled = !hasDraft;
+  dom.focusAddManual.disabled = !hasDraft;
+  dom.workbenchComposerNote.disabled = !hasDraft;
+}
+
+function commitManualVoiceDraft(provider = "manual-note") {
+  const text = state.voice.manualDraft.trim();
   if (!text) {
+    return false;
+  }
+  state.voice.manualDraft = "";
+  syncManualVoiceDraftControls();
+  addVoiceSegment(text, { provider });
+  renderVoicePanel();
+  renderFocusPad();
+  return true;
+}
+
+function addManualVoiceNote(provider = "manual-note") {
+  const committed = commitManualVoiceDraft(provider);
+  if (!committed) {
     return;
   }
-  addVoiceSegment(text, { provider: "manual-note" });
-  state.voice.manualDraft = "";
-  dom.voiceManualInput.value = "";
-  renderVoicePanel();
   void saveCheckpointToWorkspace("voice-note", { silent: true });
 }
 
@@ -11085,6 +11165,15 @@ async function runSelfTest() {
           dom.focusPromptChips.querySelectorAll("[data-workbench-prompt]")
             .length,
         "Workbench quick prompt chips render",
+      ),
+    );
+    results.push(
+      assert(
+        Boolean(dom.workbenchComposerInput) &&
+          Boolean(dom.workbenchComposerTalk) &&
+          Boolean(dom.workbenchComposerMake) &&
+          Boolean(dom.workbenchComposerApply),
+        "Workbench bottom command composer renders",
       ),
     );
 

@@ -88,6 +88,7 @@ It hides advanced panels and keeps only:
 - correction marks drawn directly over generated output
 - pasted or dropped images as movable/resizable image assets on the frame
 - a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Make`, `Image`, and `Apply`
+- a bottom command composer for typed or pasted dictation with `Talk`, `Note`, `Make`, and `Apply`
 - context-sensitive size controls: `-` / `+` resize selected elements in Select mode and otherwise update the current brush/eraser size
 - eraser behavior that only removes drawn ink, not the paper/grid base, and does not export as black prompt/materialize geometry
 - `Hide tray` / `Show tray` for canvas-first designer focus
