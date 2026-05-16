@@ -121,6 +121,8 @@ Purpose:
 Local service = router + persistence + materialize engine
 ```
 
+Runtime reuse is guarded by `/api/status`. The CLI only trusts an existing runtime file when the PID is alive and the status endpoint matches the same workspace root, runtime path, and local transport contract.
+
 ## Main Workflow
 
 The intended daily loop is:

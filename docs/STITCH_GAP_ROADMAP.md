@@ -363,12 +363,13 @@ Current coverage:
 
 - `npm run check` catches syntax/parser failures.
 - `npm run regression` validates export schema, server payload shape, and the board/Preview browser self-test routes when the local service and Chrome are available.
+- `/api/status` and CLI `--status --json` now identify the live service PID, workspace root, runtime file path, local transport, and no-API host capability so stale runtime files are not trusted blindly.
 - In-browser self-test covers drawing tools, selection, eraser layer behavior, rail sizing, Workbench focus modes, Workbench spatial map rendering/export, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue, and a long-session Map stress fixture with many captured frames, voice notes, asset candidates, generated preview targets, artifacts, changed files, and checkpoint cards.
 - Headless responsive smoke now opens the board and Preview at 1440, 1024, 768, and 430 pixel widths to catch collapsed core panels before manual review.
 
 Needed:
 
-- Service lifecycle tests for stop/restart/reuse behavior.
+- Full service lifecycle tests for stop/restart/reuse behavior under occupied-port conditions.
 - Visual screenshot review for board and Preview at multiple viewport sizes.
 - Stale-port recovery when a listener exists but runtime files disagree.
 

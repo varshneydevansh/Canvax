@@ -322,6 +322,12 @@ async function validateRunningPreviewState() {
         : serviceState.url;
     if (!liveUrl) {
       results.push({
+        name: "status payload identifies current Canvax runtime",
+        passed: true,
+        skipped: true,
+        detail: serviceState.detail,
+      });
+      results.push({
         name: "preview-state payload is valid when the Canvax service is running",
         passed: true,
         skipped: true,
@@ -329,6 +335,28 @@ async function validateRunningPreviewState() {
       });
       return;
     }
+
+    const { stdout: statusRaw } = await runCommand(curlBinary, [
+      "-s",
+      `${liveUrl}/api/status`,
+    ]);
+    const statusPayload = JSON.parse(statusRaw);
+    const statusPassed = Boolean(
+      Number.isInteger(statusPayload?.pid) &&
+        statusPayload.pid > 0 &&
+        statusPayload.projectRoot === projectRoot &&
+        statusPayload.runtimePath === resolve(projectRoot, ".canvax", "runtime.json") &&
+        statusPayload.url === liveUrl &&
+        statusPayload.hostCapabilities?.requiresOpenAiApiKey === false &&
+        statusPayload.transport?.mode === "local-companion",
+    );
+    results.push({
+      name: "status payload identifies current Canvax runtime",
+      passed: statusPassed,
+      detail: statusPassed
+        ? `${liveUrl} pid ${statusPayload.pid}`
+        : "invalid status payload",
+    });
 
     const { stdout: previewStateRaw } = await runCommand(curlBinary, [
       "-s",

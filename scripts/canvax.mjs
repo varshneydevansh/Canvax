@@ -520,6 +520,8 @@ async function runServer(port) {
 
       if (request.method === "GET" && url.pathname === "/api/status") {
         return writeJson(response, 200, {
+          pid: process.pid,
+          projectRoot,
           exportRoot: exportsRoot,
           materializedPreviewRoot,
           liveJsonPath,
@@ -543,6 +545,7 @@ async function runServer(port) {
           previewSnapshotsIndexPath,
           previewUrl: `http://localhost:${port}/preview.html`,
           runtimePath,
+          startedAt: (await readRuntime())?.startedAt || "",
           transport: buildTransportDescriptor(),
           hostCapabilities: buildHostCapabilities(),
           designContext: await readDesignContext(),
@@ -5193,9 +5196,15 @@ async function clearRuntimeIfOwned(pid) {
   }
 }
 
-async function getRunningRuntime() {
+async function getRunningRuntime(options = {}) {
+  const { verifyHttp = true } = options;
   const runtime = await readRuntime();
   if (!runtime?.pid) {
+    return null;
+  }
+
+  if (runtime.projectRoot && runtime.projectRoot !== projectRoot) {
+    await clearRuntimeIfOwned(runtime.pid);
     return null;
   }
 
@@ -5204,7 +5213,48 @@ async function getRunningRuntime() {
     return null;
   }
 
+  if (verifyHttp) {
+    const status = await readRuntimeStatus(runtime);
+    const modernStatusMatchesRuntime =
+      status &&
+      status.pid === runtime.pid &&
+      status.runtimePath === runtimePath &&
+      status.projectRoot === projectRoot;
+    const legacyStatusMatchesRuntime =
+      status &&
+      !("pid" in status) &&
+      status.runtimePath === runtimePath &&
+      status.url === runtime.url &&
+      status.exportRoot === exportsRoot;
+    if (!modernStatusMatchesRuntime && !legacyStatusMatchesRuntime) {
+      await clearRuntimeIfOwned(runtime.pid);
+      return null;
+    }
+  }
+
   return runtime;
+}
+
+async function readRuntimeStatus(runtime, timeoutMs = 900) {
+  if (!runtime?.url) {
+    return null;
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${runtime.url}/api/status`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function isProcessAlive(pid) {
