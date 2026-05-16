@@ -40,6 +40,24 @@ const workspaceModes = [
   },
 ];
 
+const workbenchFocusModes = [
+  {
+    id: "sketch",
+    label: "Sketch",
+    description: "Use the sketch canvas as the primary surface.",
+  },
+  {
+    id: "split",
+    label: "Split",
+    description: "Inspect sketch and generated output together.",
+  },
+  {
+    id: "output",
+    label: "Output",
+    description: "Make the generated surface primary for corrections.",
+  },
+];
+
 const actionModes = [
   {
     id: "build-ui",
@@ -143,6 +161,7 @@ const dom = {
   workspaceModeButtons: document.querySelector("#workspace-mode-buttons"),
   workspaceModeLabel: document.querySelector("#workspace-mode-label"),
   workspaceModeDescription: document.querySelector("#workspace-mode-description"),
+  workbenchFocusButtons: document.querySelector("#workbench-focus-buttons"),
   workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
   workbenchRail: document.querySelector("#workbench-rail"),
   focusPad: document.querySelector("#focus-pad"),
@@ -173,6 +192,19 @@ const dom = {
   workbenchOutputMeta: document.querySelector("#workbench-output-meta"),
   workbenchOpenOutput: document.querySelector("#workbench-open-output"),
   workbenchClearMarks: document.querySelector("#workbench-clear-marks"),
+  workbenchOutputStage: document.querySelector("#workbench-output-stage"),
+  workbenchOutputStageBadge: document.querySelector(
+    "#workbench-output-stage-badge",
+  ),
+  workbenchOutputStageSurface: document.querySelector(
+    "#workbench-output-stage-surface",
+  ),
+  workbenchOutputStageMeta: document.querySelector(
+    "#workbench-output-stage-meta",
+  ),
+  workbenchOutputStageOpen: document.querySelector(
+    "#workbench-output-stage-open",
+  ),
   railSizeValue: document.querySelector("#rail-size-value"),
   frameList: document.querySelector("#frame-list"),
   frameCount: document.querySelector("#frame-count"),
@@ -339,6 +371,13 @@ function bindEvents() {
     }
     setWorkspaceMode(button.dataset.workspaceMode);
   });
+  dom.workbenchFocusButtons.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-workbench-focus]");
+    if (!button) {
+      return;
+    }
+    setWorkbenchFocus(button.dataset.workbenchFocus);
+  });
   dom.workbenchTrayToggle.addEventListener("click", toggleWorkbenchTray);
   dom.workbenchRail.addEventListener("click", (event) => {
     const button = event.target.closest("[data-rail-tool], [data-rail-action]");
@@ -396,25 +435,14 @@ function bindEvents() {
   });
   dom.focusPreview.addEventListener("click", openPreviewWindow);
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
-  dom.workbenchOutputSurface.addEventListener(
-    "pointerdown",
-    onWorkbenchOutputPointerDown,
-  );
-  dom.workbenchOutputSurface.addEventListener(
-    "pointermove",
-    onWorkbenchOutputPointerMove,
-  );
-  dom.workbenchOutputSurface.addEventListener(
-    "pointerup",
-    onWorkbenchOutputPointerUp,
-  );
-  dom.workbenchOutputSurface.addEventListener(
-    "pointerleave",
-    onWorkbenchOutputPointerUp,
-  );
-  dom.workbenchOutputSurface.addEventListener(
-    "pointercancel",
-    onWorkbenchOutputPointerUp,
+  [dom.workbenchOutputSurface, dom.workbenchOutputStageSurface].forEach(
+    (surface) => {
+      surface.addEventListener("pointerdown", onWorkbenchOutputPointerDown);
+      surface.addEventListener("pointermove", onWorkbenchOutputPointerMove);
+      surface.addEventListener("pointerup", onWorkbenchOutputPointerUp);
+      surface.addEventListener("pointerleave", onWorkbenchOutputPointerUp);
+      surface.addEventListener("pointercancel", onWorkbenchOutputPointerUp);
+    },
   );
   dom.focusManualInput.addEventListener("input", () => {
     state.voice.manualDraft = dom.focusManualInput.value;
@@ -925,6 +953,11 @@ function hydrateState() {
       )
         ? migrated.workspaceMode
         : empty.workspaceMode,
+      workbenchFocus: workbenchFocusModes.some(
+        (mode) => mode.id === migrated.workbenchFocus,
+      )
+        ? migrated.workbenchFocus
+        : empty.workbenchFocus,
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
       connections,
       entryFrameId,
@@ -1227,6 +1260,7 @@ function createInitialState() {
     zoom: 1,
     viewMode: "frame",
     workspaceMode: "simple",
+    workbenchFocus: "sketch",
     workbenchTrayCollapsed: false,
     connections: [],
     entryFrameId: firstFrame.id,
@@ -1637,6 +1671,7 @@ function renderWorkspaceMode() {
 
   document.body.dataset.workspaceMode = mode;
   document.body.dataset.viewMode = state.viewMode;
+  document.body.dataset.workbenchFocus = state.workbenchFocus;
   document.body.dataset.workbenchTray =
     mode === "simple" && state.workbenchTrayCollapsed
       ? "collapsed"
@@ -1661,6 +1696,17 @@ function renderWorkspaceMode() {
       const active = button.dataset.workspaceMode === mode;
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
+    });
+  dom.workbenchFocusButtons
+    .querySelectorAll("[data-workbench-focus]")
+    .forEach((button) => {
+      const active = button.dataset.workbenchFocus === state.workbenchFocus;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+      button.title =
+        workbenchFocusModes.find(
+          (entry) => entry.id === button.dataset.workbenchFocus,
+        )?.description || "";
     });
   renderFocusPad();
 }
@@ -1817,6 +1863,23 @@ function setWorkspaceMode(mode) {
     nextMode === "simple"
       ? "Workbench ready: sketch, talk, generate, then apply"
       : "Advanced Canvax controls shown",
+  );
+}
+
+function setWorkbenchFocus(focusMode) {
+  const nextFocus = workbenchFocusModes.some((mode) => mode.id === focusMode)
+    ? focusMode
+    : "sketch";
+  state.workbenchFocus = nextFocus;
+  state.viewMode = "frame";
+  persistState();
+  renderWorkspaceMode();
+  renderViewMode();
+  renderCanvas();
+  renderWorkbenchOutput();
+  renderStatus(
+    workbenchFocusModes.find((mode) => mode.id === nextFocus)?.description ||
+      "Workbench focus updated",
   );
 }
 
@@ -2025,18 +2088,61 @@ function renderWorkbenchOutput() {
 
   dom.workbenchOutputBadge.textContent = status?.label || targetKind;
   dom.workbenchOutputBadge.dataset.tone = status?.tone || (target ? "synced" : "empty");
+  dom.workbenchOutputStageBadge.textContent = status?.label || targetKind;
+  dom.workbenchOutputStageBadge.dataset.tone =
+    status?.tone || (target ? "synced" : "empty");
   dom.workbenchOpenOutput.hidden = !targetUrl;
   dom.workbenchOpenOutput.href = targetUrl || "#";
+  dom.workbenchOutputStageOpen.hidden = !targetUrl;
+  dom.workbenchOutputStageOpen.href = targetUrl || "#";
   dom.workbenchClearMarks.hidden = annotationCount === 0;
 
+  const context = {
+    annotationCount,
+    frame,
+    target,
+    targetKind,
+    targetLabel,
+    targetUrl,
+  };
+  renderWorkbenchOutputSurface(dom.workbenchOutputSurface, dom.workbenchOutputMeta, {
+    ...context,
+    compact: true,
+  });
+  renderWorkbenchOutputSurface(
+    dom.workbenchOutputStageSurface,
+    dom.workbenchOutputStageMeta,
+    {
+      ...context,
+      compact: false,
+    },
+  );
+  window.requestAnimationFrame(renderWorkbenchOutputAnnotations);
+}
+
+function renderWorkbenchOutputSurface(surface, metaNode, context) {
+  const {
+    annotationCount,
+    compact,
+    frame,
+    target,
+    targetKind,
+    targetLabel,
+    targetUrl,
+  } = context;
+  const stageClass = compact ? "" : " workbench-output-stage-surface";
   if (!target || !targetUrl) {
-    dom.workbenchOutputSurface.className =
-      "workbench-output-surface empty-state";
-    dom.workbenchOutputSurface.innerHTML = `
+    surface.className =
+      `workbench-output-surface${stageClass} empty-state`;
+    surface.innerHTML = `
       <span class="workbench-output-mark">Make real</span>
-      <p>Draw a rough layout, add spoken context, then press Make. Output appears here for correction marks.</p>
+      <p>${
+        compact
+          ? "Draw a rough layout, add spoken context, then press Make. Output appears here for correction marks."
+          : "Use Split or Output focus after Make to inspect generated surfaces at a usable size."
+      }</p>
     `;
-    dom.workbenchOutputMeta.textContent = annotationCount
+    metaNode.textContent = annotationCount
       ? `${annotationCount} output correction mark(s) are saved, but no generated surface is currently attached.`
       : "Ready for UI, image prompt, book spread, poster, app screen, deck, or spec work.";
     return;
@@ -2045,17 +2151,16 @@ function renderWorkbenchOutput() {
   const framedUrl = addTargetRevisionToUrl(targetUrl, target);
   const freshness = describeManifestFreshness(target, frame);
   const refinement = describeTargetRefinement(target);
-  dom.workbenchOutputSurface.className = `workbench-output-surface ${
+  surface.className = `workbench-output-surface${stageClass} ${
     annotationCount ? "has-annotations" : ""
   }`;
-  dom.workbenchOutputSurface.innerHTML = `
+  surface.innerHTML = `
     <iframe
       src="${escapeHtml(framedUrl)}"
       title="${escapeHtml(targetLabel)}"
       loading="lazy"
     ></iframe>
     <canvas
-      id="workbench-output-overlay"
       class="workbench-output-overlay"
       aria-label="Draw correction marks over the generated output"
     ></canvas>
@@ -2070,10 +2175,9 @@ function renderWorkbenchOutput() {
     refinement ||
     target.description ||
     `${targetKind} output is connected to this frame.`;
-  dom.workbenchOutputMeta.textContent = annotationCount
+  metaNode.textContent = annotationCount
     ? `${baseMeta} ${annotationCount} correction mark(s) are attached to this output.`
     : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
-  window.requestAnimationFrame(renderWorkbenchOutputAnnotations);
 }
 
 function currentWorkbenchTarget() {
@@ -2085,8 +2189,16 @@ function workbenchOutputToolCanDraw() {
   return state.tool === "pen" || state.tool === "marker" || state.tool === "erase";
 }
 
+function outputAnnotationCanvasFromEvent(event) {
+  const surface = event.currentTarget?.closest?.(
+    "[data-workbench-output-surface]",
+  );
+  const canvas = surface?.querySelector(".workbench-output-overlay") || null;
+  return canvas;
+}
+
 function outputAnnotationPointFromEvent(event) {
-  const canvas = document.querySelector("#workbench-output-overlay");
+  const canvas = outputAnnotationCanvasFromEvent(event);
   if (!canvas) {
     return null;
   }
@@ -2109,7 +2221,7 @@ function onWorkbenchOutputPointerDown(event) {
     return;
   }
   const target = currentWorkbenchTarget();
-  const canvas = document.querySelector("#workbench-output-overlay");
+  const canvas = outputAnnotationCanvasFromEvent(event);
   const point = outputAnnotationPointFromEvent(event);
   if (!target || !canvas || !point) {
     return;
@@ -2155,7 +2267,7 @@ function onWorkbenchOutputPointerUp(event) {
   if (!draft || draft.pointerId !== event.pointerId) {
     return;
   }
-  const canvas = document.querySelector("#workbench-output-overlay");
+  const canvas = outputAnnotationCanvasFromEvent(event);
   canvas?.releasePointerCapture?.(event.pointerId);
   state.outputAnnotationDraft = null;
   const normalized = normalizeOutputAnnotation(draft);
@@ -2184,10 +2296,16 @@ function isOutputAnnotationMeaningful(annotation) {
 }
 
 function renderWorkbenchOutputAnnotations() {
-  const canvas = document.querySelector("#workbench-output-overlay");
-  if (!canvas) {
+  const canvases = Array.from(
+    document.querySelectorAll(".workbench-output-overlay"),
+  );
+  if (!canvases.length) {
     return;
   }
+  canvases.forEach((canvas) => renderWorkbenchOutputAnnotationCanvas(canvas));
+}
+
+function renderWorkbenchOutputAnnotationCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   const nextWidth = Math.max(1, Math.round(rect.width * dpr));
@@ -7986,6 +8104,7 @@ function buildPersistedSnapshot(source) {
     voice: source.voice,
     viewMode: source.viewMode,
     workspaceMode: source.workspaceMode,
+    workbenchFocus: source.workbenchFocus,
     workbenchTrayCollapsed: Boolean(source.workbenchTrayCollapsed),
     connections: source.connections,
     entryFrameId: source.entryFrameId,
@@ -8809,6 +8928,14 @@ async function runSelfTest() {
         "Workbench action modes render",
       ),
     );
+    results.push(
+      assert(
+        workbenchFocusModes.length ===
+          dom.workbenchFocusButtons.querySelectorAll("[data-workbench-focus]")
+            .length,
+        "Workbench focus modes render",
+      ),
+    );
 
     resetFrameForSelfTest();
     state.size = 22;
@@ -9214,6 +9341,7 @@ function restoreStateAfterSelfTest(snapshot, runtime) {
   state.voice = structuredClone(snapshot.voice);
   state.viewMode = snapshot.viewMode;
   state.workspaceMode = snapshot.workspaceMode;
+  state.workbenchFocus = snapshot.workbenchFocus || "sketch";
   state.workbenchTrayCollapsed = Boolean(snapshot.workbenchTrayCollapsed);
   state.connections = structuredClone(snapshot.connections);
   state.entryFrameId = snapshot.entryFrameId;
@@ -9382,6 +9510,12 @@ function assertWorkbenchRailSizeControls() {
   const previousSelectedElementId = state.selectedElementId;
   const frame = currentFrame();
   const previousElements = structuredClone(frame.elements);
+  const history = ensureHistory(frame.id);
+  const previousHistory = {
+    past: structuredClone(history.past),
+    future: structuredClone(history.future),
+  };
+  const previousLastActionScope = state.lastActionScope;
 
   handleWorkbenchRailAction("size-up");
   const increased = state.size === Math.min(48, previousSize + 2);
@@ -9406,9 +9540,12 @@ function assertWorkbenchRailSizeControls() {
   const globalUnchanged = state.size === previousSize;
 
   frame.elements = previousElements;
+  history.past = previousHistory.past;
+  history.future = previousHistory.future;
   state.tool = previousTool;
   setSelectedElements(previousSelection, previousSelectedElementId);
   state.size = previousSize;
+  state.lastActionScope = previousLastActionScope;
   persistState();
   renderColors();
   renderBrushPreview();

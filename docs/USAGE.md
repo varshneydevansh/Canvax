@@ -83,6 +83,7 @@ It hides advanced panels and keeps only:
 - a quick manual voice note field
 - `Make real` for a local generated-screen preview
 - generated output beside the sketch when a preview target exists
+- `Sketch`, `Split`, and `Output` focus modes for choosing whether the rough canvas, side-by-side comparison, or generated surface is primary
 - correction marks drawn directly over generated output
 - a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Make`, `Image`, and `Apply`
 - context-sensitive size controls: `-` / `+` resize selected elements in Select mode and otherwise update the current brush/eraser size

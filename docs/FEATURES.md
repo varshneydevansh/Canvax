@@ -171,6 +171,7 @@ Behavior:
 - exposes `Make real` for the local generated-screen pass
 - exposes `Image pack` for a no-API image-generation handoff with coordinates and an HTML/CSS scaffold
 - shows the connected generated output inside the Workbench tray when one exists
+- provides `Sketch`, `Split`, and `Output` focus modes so the user can either draw on the sketch, inspect sketch and output together, or make generated output the primary correction surface
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size

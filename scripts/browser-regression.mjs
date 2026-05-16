@@ -480,7 +480,7 @@ async function waitForSelfTestState(cdp, resultsId, timeoutMs) {
         returnByValue: true,
         awaitPromise: true,
       });
-      const value = response?.result?.value;
+      const value = response?.result?.result?.value ?? response?.result?.value;
       if (value?.ready) {
         return value;
       }

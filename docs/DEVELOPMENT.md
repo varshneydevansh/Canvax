@@ -81,8 +81,9 @@ The browser pass expects:
 
 - a running Canvax service
 - a local Chrome binary, or `CANVAX_BROWSER` pointing to one
+- the board route `/?selftest=1` and Preview route `/preview.html?selftest=1` to both report passing self-test payloads
 
-By default, browser timeouts are reported as `skip` so the main regression loop stays usable on hosts where headless Chrome does not stabilize cleanly under Codex. If you want strict failure semantics, run:
+By default, browser timeouts are reported as `skip` so the main regression loop stays usable on hosts where headless Chrome does not stabilize cleanly under Codex. On a stable host, the browser pass should report `ok` for both board and Preview. If you want strict failure semantics, run:
 
 ```bash
 CANVAX_BROWSER_STRICT=1 npm run browser-regression

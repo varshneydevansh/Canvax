@@ -131,8 +131,9 @@ Canvax today
 - The Workbench rail now behaves like the primary bottom designer dock with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
 - The rail and slider size controls now resize selected elements in Select mode and only act globally when no element is selected.
 - The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it is a compact command strip focused on brief, surface/action context, voice, and generated output.
-- The generated output card is currently a compact thumbnail/status/correction target. It is not yet the large Stitch-like output workspace where designers can comfortably inspect and edit generated surfaces.
+- The generated output card remains a compact thumbnail/status/correction target, and Workbench adds a larger output stage through `Split` and `Output` focus modes for comfortable inspection and correction marks.
 - Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench. The mode switch and deck labels make it read as a technical inspector layer for the same workbench rather than a different app.
+- Workbench now supports `Sketch`, `Split`, and `Output` focus modes. The compact output card remains a status/quick-correction target, while the large output stage can become the primary correction surface.
 - Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
 - Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
 
@@ -181,36 +182,6 @@ Canvax today
 - Codex Browser Use / Atlas can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
 
 ## What Is Still Missing
-
-### 0. Output Focus And Split-View Workbench
-
-Current Workbench shows a generated output card, but it is still too small because it lives inside the top tray. That makes it useful as a status preview and quick correction target, not as the main design surface.
-
-Target behavior:
-
-```text
-Sketch focus  -> rough drawing is primary
-Split         -> sketch and generated output are both usable
-Output focus  -> generated surface is primary and can be annotated directly
-```
-
-Needed:
-
-- A Workbench view toggle for `Sketch`, `Split`, and `Output`.
-- A large output stage that uses the same preview target as the compact card.
-- Correction overlays that work on both compact and large output surfaces.
-- Responsive rules so the large output does not clip in Codex Browser widths.
-- Clear labels that explain whether the user is editing the sketch, annotating generated output, or viewing a live implementation.
-
-Current stepping stone:
-
-```text
-done
-  compact tray output card -> quick preview + draw corrections
-
-next
-  large output focus -> inspect, annotate, compare, and refine generated UI
-```
 
 ### 1. True Codex-Built Screen Generation
 
@@ -361,17 +332,16 @@ Needed:
 
 ### 8. Stronger Regression And Long-Session Stability
 
-Syntax checks and regression helpers exist, but browser validation is still not hard enough for a tool that will be used continuously.
+Syntax checks, schema checks, and headless browser checks exist, but long-session validation still needs to become broader before Canvax can be treated as a continuously running design surface.
 
 Current coverage:
 
 - `npm run check` catches syntax/parser failures.
-- `npm run regression` validates export schema and server payload shape.
-- In-browser self-test covers drawing tools, selection, eraser layer behavior, rail sizing, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
+- `npm run regression` validates export schema, server payload shape, and the board/Preview browser self-test routes when the local service and Chrome are available.
+- In-browser self-test covers drawing tools, selection, eraser layer behavior, rail sizing, Workbench focus modes, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Needed:
 
-- Reliable browser regression on this host.
 - Large-session tests with many frames, captures, voice notes, and generated artifacts.
 - Visual layout checks for board and Preview at multiple viewport sizes.
 - Service lifecycle tests for stop/restart/reuse behavior.
@@ -382,11 +352,11 @@ Needed:
 ### P0: Make Current Baseline Trustworthy
 
 - Keep runtime bugs in `Generate screen`, `Materialize`, and preview manifest paths at zero-regression through self-test and `npm run check`.
-- Promote generated output from a cramped tray card into a large focus/split surface before adding more advanced workflow features.
+- Keep Workbench `Sketch`, `Split`, and `Output` focus modes stable while adding real Codex build actions.
 - Keep button feedback consistent across board, Workbench dock, and Preview.
 - Continue responsive clipping fixes for compact side panels and dense metadata rows.
 - Preserve eraser isolation so erase operations never appear as black output geometry or wipe the paper/grid base layer.
-- Make browser regression reliable enough to fail hard in CI.
+- Keep browser regression reliable enough to fail hard in CI.
 - Add service lifecycle diagnostics for stale ports.
 
 ### P1: Reach Stitch-Style Core UX
@@ -439,19 +409,16 @@ Needed:
 
 ```mermaid
 flowchart TD
-    A[Stabilize current Generate/Materialize runtime] --> B[Workbench output focus and split view]
-    B --> C[Build real screen action]
-    C --> D[Frame-to-code manifest contract]
-    D --> E[Preview route binding and rewrite progress]
-    E --> F[Prototype Play mode]
-    F --> G[Infinite canvas and variant branches]
-    G --> H[DESIGN.md and asset generation lanes]
+    A[Stabilize current Generate/Materialize runtime] --> B[Build real screen action]
+    B --> C[Frame-to-code manifest contract]
+    C --> D[Preview route binding and rewrite progress]
+    D --> E[Prototype Play mode]
+    E --> F[Infinite canvas and variant branches]
+    F --> G[DESIGN.md and asset generation lanes]
 ```
 
 Concrete next steps:
 
-- Add Workbench `Sketch`, `Split`, and `Output` focus modes.
-- Make generated output large enough for real inspection and correction marks.
 - Add `Build real screen` beside `Generate screen`.
 - Add explicit action modes for `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`.
 - Add generated image candidate import/placement as first-class board assets.

@@ -400,6 +400,7 @@
                         <div
                             id="workbench-output-surface"
                             class="workbench-output-surface empty-state"
+                            data-workbench-output-surface="tray"
                         >
                             Draw a rough layout, add spoken context, then press
                             <strong>Make real</strong>. Output appears here for
@@ -589,6 +590,34 @@
 
                         <div class="stage-actions">
                             <div
+                                id="workbench-focus-buttons"
+                                class="segmented-control workbench-focus-control"
+                                role="tablist"
+                                aria-label="Workbench focus"
+                            >
+                                <button
+                                    class="segment active"
+                                    data-workbench-focus="sketch"
+                                    aria-pressed="true"
+                                >
+                                    Sketch
+                                </button>
+                                <button
+                                    class="segment"
+                                    data-workbench-focus="split"
+                                    aria-pressed="false"
+                                >
+                                    Split
+                                </button>
+                                <button
+                                    class="segment"
+                                    data-workbench-focus="output"
+                                    aria-pressed="false"
+                                >
+                                    Output
+                                </button>
+                            </div>
+                            <div
                                 id="view-mode-buttons"
                                 class="segmented-control"
                                 role="tablist"
@@ -750,6 +779,52 @@
                                     </p>
                                 </div>
                                 <canvas id="board-canvas"></canvas>
+                            </div>
+                            <div
+                                id="workbench-output-stage"
+                                class="workbench-output-card workbench-output-stage"
+                                aria-live="polite"
+                            >
+                                <div class="workbench-output-head">
+                                    <div>
+                                        <p class="eyebrow">
+                                            Generated surface
+                                        </p>
+                                        <h3>Output focus</h3>
+                                    </div>
+                                    <span
+                                        id="workbench-output-stage-badge"
+                                        class="workbench-output-badge"
+                                        >No output</span
+                                    >
+                                </div>
+                                <div
+                                    id="workbench-output-stage-surface"
+                                    class="workbench-output-surface workbench-output-stage-surface empty-state"
+                                    data-workbench-output-surface="stage"
+                                >
+                                    Draw a rough layout, add spoken context,
+                                    then press <strong>Make</strong>. Output
+                                    can become the primary surface here.
+                                </div>
+                                <div class="workbench-output-footer">
+                                    <p
+                                        id="workbench-output-stage-meta"
+                                        class="helper-text"
+                                    >
+                                        Switch to Split or Output to inspect and
+                                        mark generated surfaces at usable size.
+                                    </p>
+                                    <a
+                                        id="workbench-output-stage-open"
+                                        class="ghost-link-button"
+                                        href="#"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        hidden
+                                        >Open output</a
+                                    >
+                                </div>
                             </div>
                             <div class="canvas-note">
                                 <p>

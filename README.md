@@ -373,7 +373,7 @@ Checkpoint mode now adds:
 - A first deterministic Materialize loop exists, but the richer live AI rewrite loop is still not finished.
 - The core workflow does not depend on a separate paid OpenAI API key.
 - Board-side voice notes now exist, but the richer voice+sketch checkpoint/event-log loop is still not finished.
-- Strict headless browser regression still skips on this host unless you force `CANVAX_BROWSER_STRICT=1`.
+- Headless board and Preview browser regression now pass when the local service and Chrome are available.
 
 ## Repo Layout
 
