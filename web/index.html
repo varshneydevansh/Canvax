@@ -918,11 +918,11 @@
                                         >
                                             +
                                         </button>
-                                        <button
-                                            id="flow-zoom-reset"
-                                            class="ghost-button"
-                                            type="button"
-                                            title="Reset spatial map zoom"
+                                    <button
+                                        id="flow-zoom-reset"
+                                        class="ghost-button"
+                                        type="button"
+                                        title="Reset spatial map zoom"
                                         >
                                             Reset
                                         </button>
@@ -934,11 +934,33 @@
                                         Set current as entry
                                     </button>
                                     <button
+                                        id="add-spatial-note"
+                                        class="ghost-button"
+                                        type="button"
+                                        title="Add a free note card to the spatial map"
+                                    >
+                                        Add note
+                                    </button>
+                                    <button
+                                        id="add-spatial-file"
+                                        class="ghost-button"
+                                        type="button"
+                                        title="Add a reference file or image card to the spatial map"
+                                    >
+                                        Add file
+                                    </button>
+                                    <button
                                         id="auto-layout-flow"
                                         class="ghost-button"
                                     >
                                         Auto layout
                                     </button>
+                                    <input
+                                        id="spatial-file-input"
+                                        class="visually-hidden"
+                                        type="file"
+                                        accept="image/*,.md,.txt,.json,.html,.css,.js,.jsx,.ts,.tsx,.pdf"
+                                    />
                                 </div>
                             </div>
                             <div id="flow-shell" class="flow-shell">

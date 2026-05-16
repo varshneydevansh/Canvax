@@ -273,6 +273,9 @@ const dom = {
   flowZoomIn: document.querySelector("#flow-zoom-in"),
   flowZoomReset: document.querySelector("#flow-zoom-reset"),
   flowZoomValue: document.querySelector("#flow-zoom-value"),
+  addSpatialNote: document.querySelector("#add-spatial-note"),
+  addSpatialFile: document.querySelector("#add-spatial-file"),
+  spatialFileInput: document.querySelector("#spatial-file-input"),
   setEntryFrame: document.querySelector("#set-entry-frame"),
   autoLayoutFlow: document.querySelector("#auto-layout-flow"),
   backgroundUpload: document.querySelector("#background-upload"),
@@ -548,6 +551,17 @@ function bindEvents() {
   dom.flowZoomOut.addEventListener("click", () => updateFlowZoom(-0.1));
   dom.flowZoomIn.addEventListener("click", () => updateFlowZoom(0.1));
   dom.flowZoomReset.addEventListener("click", () => setFlowZoom(1));
+  dom.addSpatialNote.addEventListener("click", addSpatialNoteObject);
+  dom.addSpatialFile.addEventListener("click", () => {
+    dom.spatialFileInput.click();
+  });
+  dom.spatialFileInput.addEventListener("change", () => {
+    const file = dom.spatialFileInput.files?.[0];
+    if (file) {
+      void addSpatialFileObject(file);
+    }
+    dom.spatialFileInput.value = "";
+  });
   dom.openPreview.addEventListener("click", openPreviewWindow);
   dom.generateScreen.addEventListener("click", () => {
     void generateCurrentScreen();
@@ -2488,6 +2502,92 @@ function currentAssetCandidates() {
   return [...activeCandidates, ...otherCandidates].slice(0, 6);
 }
 
+function addSpatialNoteObject() {
+  const defaultText = state.board.goal || "Design note";
+  const text = window.prompt("Add a note to the spatial map", defaultText);
+  if (!cleanString(text)) {
+    return;
+  }
+  const title = compactDisplayText(text, 44) || "Map note";
+  addSpatialObject({
+    type: "map-note",
+    title,
+    subtitle: cleanString(text),
+    sourceKind: "manual-note",
+    status: "note",
+    meta: {
+      text: cleanString(text),
+      createdFrom: "workbench-map",
+    },
+  });
+}
+
+async function addSpatialFileObject(file) {
+  const isImage = file.type.startsWith("image/");
+  const thumbnailDataUrl =
+    isImage && file.size <= 1_500_000 ? await readFileAsDataUrl(file) : "";
+  addSpatialObject({
+    type: isImage ? "reference-image" : "reference-file",
+    title: file.name || "Reference file",
+    subtitle: `${file.type || "file"} • ${formatFileSize(file.size)}`,
+    sourceKind: "reference-file",
+    status: isImage ? "image reference" : "file reference",
+    meta: {
+      fileName: file.name || "",
+      mimeType: file.type || "",
+      size: file.size || 0,
+      thumbnailDataUrl,
+    },
+  });
+}
+
+function addSpatialObject(partial) {
+  const position = defaultSpatialObjectPosition(state.spatialObjects.length);
+  const object = normalizeSpatialObjects([
+    {
+      id: uid("spatial"),
+      type: partial.type || "map-note",
+      title: partial.title || "Spatial object",
+      subtitle: partial.subtitle || "",
+      sourceId: partial.sourceId || "",
+      sourceKind: partial.sourceKind || "manual",
+      frameIds: partial.frameIds || [],
+      x: partial.x ?? position.x,
+      y: partial.y ?? position.y,
+      width: partial.width || SPATIAL_OBJECT_WIDTH,
+      height: partial.height || SPATIAL_OBJECT_HEIGHT,
+      status: partial.status || "ready",
+      meta: partial.meta || {},
+    },
+  ])[0];
+  if (!object) {
+    return null;
+  }
+  state.spatialObjects = normalizeSpatialObjects([
+    ...state.spatialObjects,
+    object,
+  ]);
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  renderStatus(`Added ${object.title} to the spatial map`);
+  return object;
+}
+
+function removeSpatialObject(objectId) {
+  const object = spatialObjectById(objectId);
+  if (!object) {
+    return;
+  }
+  state.spatialObjects = state.spatialObjects.filter(
+    (candidate) => candidate.id !== objectId,
+  );
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  renderStatus(`Removed ${object.title} from the spatial map`);
+}
+
 function assetCandidateById(candidateId) {
   const candidates = state.assetCandidatePack?.candidates || [];
   return candidates.find((candidate) => candidate.id === candidateId) || null;
@@ -4221,23 +4321,36 @@ function renderSpatialObjectNode(object) {
       : object.frameIds?.length
         ? `${object.frameIds.length} frames`
         : "Board object";
+  const thumbnail = cleanString(object.meta?.thumbnailDataUrl);
   return `
-    <button
+    <article
       class="spatial-object-node ${escapeHtml(object.type || "note")} ${state.flowDrag?.objectId === object.id ? "dragging" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
       title="${escapeHtml(object.meta?.prompt || object.subtitle || object.title)}"
+      role="button"
+      tabindex="0"
     >
+      <button
+        class="spatial-object-remove"
+        type="button"
+        data-spatial-object-remove="${escapeHtml(object.id)}"
+        title="Remove this map object"
+        aria-label="Remove ${escapeHtml(object.title)}"
+      >
+        ×
+      </button>
       <div class="spatial-object-header" data-spatial-object-drag="${escapeHtml(object.id)}">
         <span>${escapeHtml(object.sourceKind || object.type || "object")}</span>
         <strong>${escapeHtml(compactDisplayText(object.title, 46))}</strong>
       </div>
+      ${thumbnail ? `<img class="spatial-object-thumbnail" src="${escapeHtml(thumbnail)}" alt="" />` : ""}
       <p>${escapeHtml(compactDisplayText(object.subtitle || object.status || "Spatial object", 68))}</p>
       <div class="spatial-object-footer">
         <span>${escapeHtml(frameTitle)}</span>
         <span>${escapeHtml(object.status || "ready")}</span>
       </div>
-    </button>
+    </article>
   `;
 }
 
@@ -5943,6 +6056,16 @@ function tryReleasePointerCapture(pointerId) {
 }
 
 function onFlowBoardClick(event) {
+  const removeSpatialButton = event.target.closest(
+    "[data-spatial-object-remove]",
+  );
+  if (removeSpatialButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    removeSpatialObject(removeSpatialButton.dataset.spatialObjectRemove);
+    return;
+  }
+
   const connectionItem = event.target.closest("[data-flow-connection-id]");
   if (connectionItem) {
     state.selectedConnectionId = connectionItem.dataset.flowConnectionId;
@@ -7343,6 +7466,17 @@ function readFileAsDataUrl(file) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+function formatFileSize(bytes) {
+  const size = Number(bytes) || 0;
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${Math.round(size / 102.4) / 10} KB`;
+  }
+  return `${Math.round(size / 1024 / 102.4) / 10} MB`;
 }
 
 function getCachedImage(src) {
@@ -10613,6 +10747,7 @@ async function runSelfTest() {
     results.push(assertAssetCandidateTrayPlacement());
     results.push(assertWorkbenchSpatialMap());
     results.push(assertSpatialObjectsFromOutputManifest());
+    results.push(assertManualSpatialObjectControls());
 
     setSelfTestProgress("undo redo and frame flow");
     const beforeUndo = currentFrame().elements.length;
@@ -11431,6 +11566,53 @@ function assertSpatialObjectsFromOutputManifest() {
   return assert(
     exported && rendered && frameBound,
     "Output manifest creates spatial objects for targets, artifacts, and changed files",
+  );
+}
+
+function assertManualSpatialObjectControls() {
+  const previous = {
+    workspaceMode: state.workspaceMode,
+    workbenchFocus: state.workbenchFocus,
+    viewMode: state.viewMode,
+    spatialObjects: structuredClone(state.spatialObjects),
+  };
+
+  setWorkspaceMode("simple");
+  setWorkbenchFocus("map");
+  const object = addSpatialObject({
+    type: "map-note",
+    title: "Self-test map note",
+    subtitle: "Manual spatial object",
+    sourceKind: "manual-note",
+    status: "note",
+    meta: { text: "Manual spatial object" },
+  });
+  const added = Boolean(
+    object &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${object.id}'] [data-spatial-object-remove]`,
+      ),
+  );
+  const exported = buildSpatialWorkspaceExport().objects.some(
+    (entry) => entry.id === object?.id && entry.sourceKind === "manual-note",
+  );
+  if (object) {
+    removeSpatialObject(object.id);
+  }
+  const removed = object
+    ? !state.spatialObjects.some((entry) => entry.id === object.id)
+    : false;
+
+  state.workspaceMode = previous.workspaceMode;
+  state.workbenchFocus = previous.workbenchFocus;
+  state.viewMode = previous.viewMode;
+  state.spatialObjects = previous.spatialObjects;
+  persistState();
+  renderAll();
+
+  return assert(
+    added && exported && removed,
+    "Manual spatial map note can be added, exported, and removed",
   );
 }
 

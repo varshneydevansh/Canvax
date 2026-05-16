@@ -501,6 +501,12 @@ preview / Codex output manifest
   -> state.spatialObjects
   -> Workbench Map implementation object cards
   -> live export spatialWorkspace.objects
+
+manual Map controls
+  -> note cards and reference file/image cards
+  -> state.spatialObjects
+  -> Workbench Map context object cards
+  -> live export spatialWorkspace.objects
 ```
 
 The persisted `flowZoom` controls the spatial map zoom. Pointer math divides map coordinates by that zoom before dragging cards, spatial objects, or drawing connection drafts, so saved positions remain stable regardless of the current zoom level.

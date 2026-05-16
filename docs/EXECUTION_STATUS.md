@@ -51,6 +51,7 @@ Status: In progress
 - [x] Workbench bottom designer dock with brush `-` / `+`, Image handoff, and tactile primary actions
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
+- [x] Workbench `Map` supports manual note cards and reference file/image cards as draggable/removable spatial context
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays
 - [ ] Full interaction regression pass with browser validation
@@ -58,7 +59,7 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, generated output objects, preview button, cached frame renders
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, manual context objects, generated output objects, preview button, cached frame renders
 still open:
   stricter browser validation, arbitrary-object infinite canvas, and long-session polish
 ```
@@ -134,6 +135,7 @@ Status: In progress
 - [x] `execute-build-request` provides a deterministic local smoke path from latest build request to frame-bound preview artifact and Codex output manifest
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
+- [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Workbench `Map` renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Rematerialize now reuses a stable per-frame artifact path and refreshes preview via versioned URLs
