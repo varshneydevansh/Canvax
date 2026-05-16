@@ -685,6 +685,7 @@ Each variant is a real Canvax frame:
 - it can be selected, drawn on, labeled, resized, connected, materialized, or built with Codex
 - it keeps lineage metadata pointing back to the source frame
 - it appears in Flow view as a connected branch
+- `Use variant` marks the selected branch as the primary variant and makes it the entry frame
 - it remains local-first and does not require an API key
 
 ```text

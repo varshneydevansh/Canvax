@@ -245,6 +245,7 @@ const dom = {
   focusGenerate: document.querySelector("#focus-generate"),
   focusBuildReal: document.querySelector("#focus-build-real"),
   focusCreateVariants: document.querySelector("#focus-create-variants"),
+  focusPromoteVariant: document.querySelector("#focus-promote-variant"),
   focusImagePack: document.querySelector("#focus-image-pack"),
   focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
   focusApply: document.querySelector("#focus-apply"),
@@ -535,6 +536,9 @@ function bindEvents() {
   });
   dom.focusCreateVariants.addEventListener("click", () => {
     createVariantFramesFromCurrent();
+  });
+  dom.focusPromoteVariant.addEventListener("click", () => {
+    promoteCurrentVariantToPrimary();
   });
   dom.focusImagePack.addEventListener("click", () => {
     void saveImagePromptPackForHost();
@@ -2239,6 +2243,11 @@ function renderFocusPad() {
   dom.focusBuildReal.disabled = Boolean(state.buildRealInFlight);
   dom.buildRealScreen.disabled = Boolean(state.buildRealInFlight);
   dom.buildRealScreenPanel.disabled = Boolean(state.buildRealInFlight);
+  dom.focusPromoteVariant.hidden = !frame.variant?.label;
+  dom.focusPromoteVariant.disabled = !frame.variant?.label;
+  dom.focusPromoteVariant.textContent = frame.variant?.promotedAt
+    ? "Primary variant"
+    : "Use variant";
   dom.focusImagePack.disabled = Boolean(state.focusApplyInFlight);
   dom.focusVoiceToggle.textContent =
     state.voice.status === "listening" ? "Stop talking" : "Start talking";
@@ -3337,6 +3346,10 @@ function renderSizeControl() {
       : "Current brush size";
 }
 
+function isPromotedVariant(frame) {
+  return Boolean(frame?.variant?.promotedAt);
+}
+
 function renderFrameList() {
   dom.frameCount.textContent = `${state.frames.length} ${state.frames.length === 1 ? "frame" : "frames"}`;
   dom.frameList.innerHTML = state.frames
@@ -3351,7 +3364,7 @@ function renderFrameList() {
         includeGlobal: frame.id === state.activeFrameId,
       });
       const variantLabel = frame.variant?.label
-        ? `Variant · ${frame.variant.label}`
+        ? `${isPromotedVariant(frame) ? "Primary variant" : "Variant"} · ${frame.variant.label}`
         : "";
       const subtitle = [variantLabel || viewport.label, timeLabel(frame.updatedAt)]
         .filter(Boolean)
@@ -4463,10 +4476,10 @@ function renderFlowBoard() {
           <div class="flow-card-header" data-flow-drag="${frame.id}">
             <div class="flow-card-title">
               <strong>${escapeHtml(frame.title)}</strong>
-              <span>${frame.variant?.label ? `Variant · ${escapeHtml(frame.variant.label)}` : escapeHtml(viewport.label)} • ${frame.captures.length} capture${frame.captures.length === 1 ? "" : "s"}</span>
+              <span>${frame.variant?.label ? `${isPromotedVariant(frame) ? "Primary variant" : "Variant"} · ${escapeHtml(frame.variant.label)}` : escapeHtml(viewport.label)} • ${frame.captures.length} capture${frame.captures.length === 1 ? "" : "s"}</span>
             </div>
             ${frame.id === state.entryFrameId ? '<span class="flow-card-badge">Entry</span>' : ""}
-            ${frame.variant?.label ? '<span class="flow-card-badge">Variant</span>' : ""}
+            ${frame.variant?.label ? `<span class="flow-card-badge">${isPromotedVariant(frame) ? "Primary" : "Variant"}</span>` : ""}
           </div>
           <div class="flow-card-preview">
             ${thumbnail ? `<img src="${thumbnail}" alt="" />` : ""}
@@ -7398,6 +7411,72 @@ function createVariantFramesFromCurrent(options = {}) {
     });
   }
   return createdFrames;
+}
+
+function promoteCurrentVariantToPrimary(options = {}) {
+  const { silent = false, sync = true } = options;
+  const frame = currentFrame();
+  if (!frame?.variant?.sourceFrameId) {
+    if (!silent) {
+      renderStatus("Select a variant frame before using it as primary");
+    }
+    return false;
+  }
+
+  const now = new Date().toISOString();
+  const sourceFrameId = frame.variant.sourceFrameId;
+  state.frames.forEach((candidate) => {
+    if (
+      candidate.id !== frame.id &&
+      candidate.variant?.sourceFrameId === sourceFrameId
+    ) {
+      delete candidate.variant.promotedAt;
+      delete candidate.variant.primary;
+    }
+  });
+
+  frame.variant = {
+    ...frame.variant,
+    primary: true,
+    promotedAt: now,
+  };
+
+  const note = `Primary variant chosen from ${frame.variant.sourceFrameTitle || frame.variant.sourceFrameId} at ${formatDateTime(now)}.`;
+  if (!frame.layout.includes("Primary variant chosen")) {
+    frame.layout = [frame.layout, note].filter(Boolean).join("\n\n");
+  }
+
+  const connection = state.connections.find(
+    (candidate) =>
+      candidate.fromFrameId === sourceFrameId && candidate.toFrameId === frame.id,
+  );
+  if (connection) {
+    connection.notes = [connection.notes, "Chosen as primary variant."]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  state.entryFrameId = frame.id;
+  state.activeFrameId = frame.id;
+  state.viewMode = "frame";
+  state.selectedConnectionId = connection?.id || null;
+  clearElementSelection();
+  touchFrame(frame, {
+    capture: false,
+    status: "Variant promoted to primary",
+  });
+  if (!silent) {
+    dom.workspaceStatus.textContent =
+      `${frame.title} is now the primary variant. Build with Codex from this branch to bind real code/output.`;
+  }
+  if (sync) {
+    void saveExportToWorkspace({ silent: true });
+    void saveCheckpointToWorkspace("promote-variant", {
+      silent: true,
+      note: `${frame.title} was chosen as the primary variant.`,
+    });
+  }
+  return true;
 }
 
 function deleteFrame() {
@@ -11556,11 +11635,26 @@ async function runSelfTest() {
         "create variants connects branches in flow view",
       ),
     );
+    state.activeFrameId = variantFrames[1].id;
+    const promoted = promoteCurrentVariantToPrimary({
+      silent: true,
+      sync: false,
+    });
+    results.push(
+      assert(
+        promoted &&
+          state.entryFrameId === variantFrames[1].id &&
+          variantFrames[1].variant?.primary === true &&
+          Boolean(variantFrames[1].variant?.promotedAt),
+        "variant branch can be promoted to primary",
+      ),
+    );
     state.frames = state.frames.filter((frame) => !variantFrameIds.has(frame.id));
     state.connections = state.connections.filter(
       (connection) => !variantFrameIds.has(connection.toFrameId),
     );
     state.activeFrameId = variantSourceId;
+    state.entryFrameId = variantSourceId;
     state.viewMode = "frame";
     state.selectedConnectionId = null;
     persistState();

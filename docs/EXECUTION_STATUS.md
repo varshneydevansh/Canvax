@@ -147,6 +147,7 @@ Status: In progress
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Workbench `Map` renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Workbench bottom command composer now lets users type/paste dictation, Talk, Note, Make, and Apply without reopening the top tray
+- [x] Variant branches can now be promoted to primary, which sets the variant as the entry frame and preserves lineage for Codex handoff
 - [x] Rematerialize now reuses a stable per-frame artifact path and refreshes preview via versioned URLs
 - [x] Preview target resolution now prefers the currently selected frame when multiple generated targets exist
 - [x] Freeze/autosnap now silently rematerialize a frame that already has a generated target

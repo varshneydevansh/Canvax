@@ -708,6 +708,8 @@ Preview now has a `Rewrite handoff` lane beside the rewrite queue. It shows whet
 
 These are not static thumbnails. They are normal Canvax frames with copied sketch elements, a visible variant label, lineage metadata, and Flow connections back to the source frame.
 
+Select a variant and use `Use variant` when that branch should become the primary direction. Canvax marks the frame as a primary variant, makes it the entry frame, and preserves the lineage metadata for Codex handoff.
+
 ```text
 active frame
   -> clone editable sketch

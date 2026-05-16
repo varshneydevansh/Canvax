@@ -138,6 +138,7 @@ Canvax today
 - Advanced mode keeps the full frame, flow, manifest, capture, and inspector surface, but now uses the same dark dotted Canvax visual system as Workbench. The mode switch and deck labels make it read as a technical inspector layer for the same workbench rather than a different app.
 - Workbench now supports `Sketch`, `Split`, `Output`, and `Map` focus modes. The compact output card remains a status/quick-correction target, the large output stage can become the primary correction surface, and Map exposes the frame/variant graph as a zoomable spatial workbench without opening Advanced.
 - Live exports now include a `spatialWorkspace` object with map zoom, card positions, entry/active frame ids, links, manual note/reference objects, asset candidate objects, generated preview targets, generated artifacts, and changed-file objects, so Codex can treat frame layout, references, and implementation outputs as project memory rather than just a linear list.
+- Variant branches can now be promoted with `Use variant`, which marks the selected branch as primary and makes it the entry frame while preserving lineage.
 - Eraser strokes now render on an isolated ink layer so they remove drawn ink without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition maps.
 - Frame thumbnail rendering is cache-versioned and static board assets are served with no-store headers, reducing stale UI/thumbnail confusion after local updates.
 

@@ -436,15 +436,15 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.2: Add Variants Lane
 
-- **Status**: Initial local version shipped.
+- **Status**: Expanded initial local version shipped. Variant frames can now be promoted to the primary branch.
 - **Location**: `web/app.js`, `web/index.html`
 - **Description**: Let Canvax create multiple editable directions from one sketch and show them as connected Flow branches.
 - **Complexity**: 7/10
 - **Dependencies**: Task 5.1
 - **Acceptance Criteria**:
   - Variants have labels, notes, and lineage. **Done for deterministic local branches.**
-  - User can choose one as primary. **Partially done by selecting any variant frame and continuing from it.**
-  - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the selected variant; direct "make primary" UI still pending.**
+  - User can choose one as primary. **Done with `Use variant`, which marks the selected variant as primary and makes it the entry frame.**
+  - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the promoted variant; automatic route/component binding still depends on the Codex build pass.**
 - **Validation**:
   - Generate three deterministic local variants. **Covered by board self-test.**
 
