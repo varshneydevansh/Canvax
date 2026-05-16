@@ -280,15 +280,15 @@ next
 
 ### 4. Prototype Play Mode
 
-Flow links exist, and Preview now has an initial `Play flow` mode that starts from the entry frame and lets the user click outgoing transition labels to move through connected frames. It is not yet a polished hotspot-based product prototype.
+Flow links exist, and Preview now has `Play flow` mode that starts from the entry frame, lets the user click outgoing transition labels, and overlays initial clickable hotspots directly on the sketch/output viewport. It is not yet a full component-level prototype authoring system because users cannot draw persistent custom hotspot regions yet.
 
 Needed:
 
 - Play button for connected frames. **Initial Preview `Play flow` shipped.**
-- Click targets or hotspot regions on the frame canvas.
-- Transition labels that become interactive prototype behavior.
+- Click targets or hotspot regions on the frame canvas. **Initial generated hotspots from Flow links shipped in Preview Play mode.**
+- Transition labels that become interactive prototype behavior. **Initial transition labels now drive side-panel steps and viewport hotspot labels.**
 - Automatic next-screen suggestions when a user links or clicks a component.
-- Preview playback that can switch between sketch prototype and generated implementation.
+- Preview playback that can switch between sketch prototype and generated implementation. **Initial hotspots render on both sketch and connected output surfaces.**
 
 ### 5. Design System Extraction And `DESIGN.md`
 

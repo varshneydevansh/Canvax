@@ -100,17 +100,8 @@ function init() {
     window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
   }
   dom.manualPreviewUrl.value = state.manualPreviewUrl;
-  dom.followActive.setAttribute(
-    "aria-pressed",
-    String(state.followActiveFrame),
-  );
-  dom.followActive.textContent = state.followActiveFrame
-    ? "Following active frame"
-    : "Manual frame selection";
+  renderFollowActiveControls();
   renderPlayModeButton();
-  dom.followBadge.textContent = state.followActiveFrame
-    ? "Auto-follow on"
-    : "Auto-follow off";
   bindInteractionFeedback();
   renderCompareMode();
 
@@ -126,6 +117,7 @@ function init() {
   dom.followActive.addEventListener("click", toggleFollowActive);
   dom.playFlow.addEventListener("click", togglePlayMode);
   dom.prototypePlayPanel.addEventListener("click", onPrototypePlayClick);
+  dom.compareStage.addEventListener("click", onPrototypeHotspotClick);
   dom.compareModeButtons.addEventListener("click", onCompareModeClick);
   dom.savePreviewUrl.addEventListener("click", () => {
     void saveManualPreviewUrl();
@@ -264,16 +256,7 @@ function toggleFollowActive() {
     FOLLOW_ACTIVE_KEY,
     state.followActiveFrame ? "1" : "0",
   );
-  dom.followActive.setAttribute(
-    "aria-pressed",
-    String(state.followActiveFrame),
-  );
-  dom.followActive.textContent = state.followActiveFrame
-    ? "Following active frame"
-    : "Manual frame selection";
-  dom.followBadge.textContent = state.followActiveFrame
-    ? "Auto-follow on"
-    : "Auto-follow off";
+  renderFollowActiveControls();
   renderPlayModeButton();
   syncSelectedFrame();
   renderAll();
@@ -296,9 +279,23 @@ function togglePlayMode() {
     window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
   }
   window.localStorage.setItem(PLAY_MODE_KEY, state.playMode ? "1" : "0");
+  renderFollowActiveControls();
   renderPlayModeButton();
   syncSelectedFrame();
   renderAll();
+}
+
+function renderFollowActiveControls() {
+  dom.followActive.setAttribute(
+    "aria-pressed",
+    String(state.followActiveFrame),
+  );
+  dom.followActive.textContent = state.followActiveFrame
+    ? "Following active frame"
+    : "Manual frame selection";
+  dom.followBadge.textContent = state.followActiveFrame
+    ? "Auto-follow on"
+    : "Auto-follow off";
 }
 
 function renderPlayModeButton() {
@@ -310,27 +307,42 @@ function renderPlayModeButton() {
 function onPrototypePlayClick(event) {
   const nextButton = event.target.closest("[data-play-frame]");
   if (nextButton) {
-    state.selectedFrameId = nextButton.dataset.playFrame;
-    state.followActiveFrame = false;
-    state.playMode = true;
-    window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
-    window.localStorage.setItem(PLAY_MODE_KEY, "1");
-    renderPlayModeButton();
-    renderAll();
+    selectPrototypeFrame(nextButton.dataset.playFrame);
     return;
   }
   const entryButton = event.target.closest("[data-play-entry]");
   if (entryButton) {
     const liveExport = currentLiveExport();
-    state.selectedFrameId =
-      liveExport?.entryFrameId || liveExport?.activeFrameId || state.selectedFrameId;
-    state.followActiveFrame = false;
-    state.playMode = true;
-    window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
-    window.localStorage.setItem(PLAY_MODE_KEY, "1");
-    renderPlayModeButton();
-    renderAll();
+    selectPrototypeFrame(
+      liveExport?.entryFrameId ||
+        liveExport?.activeFrameId ||
+        state.selectedFrameId,
+    );
   }
+}
+
+function onPrototypeHotspotClick(event) {
+  const hotspot = event.target.closest("[data-prototype-hotspot-frame]");
+  if (!hotspot) {
+    return;
+  }
+  event.preventDefault();
+  selectPrototypeFrame(hotspot.dataset.prototypeHotspotFrame);
+}
+
+function selectPrototypeFrame(frameId) {
+  const frames = currentLiveExport()?.frames || [];
+  if (!frameId || !frames.some((frame) => frame.id === frameId)) {
+    return;
+  }
+  state.selectedFrameId = frameId;
+  state.followActiveFrame = false;
+  state.playMode = true;
+  window.localStorage.setItem(FOLLOW_ACTIVE_KEY, "0");
+  window.localStorage.setItem(PLAY_MODE_KEY, "1");
+  renderFollowActiveControls();
+  renderPlayModeButton();
+  renderAll();
 }
 
 function syncSelectedFrame() {
@@ -574,6 +586,7 @@ function renderSelectedFrame() {
         ? `<div class="viewport-content viewport-placeholder">Sketch preview ready for ${escapeHtml(frame.title || "current frame")}</div>`
         : `<img class="viewport-image viewport-content" src="${escapeHtml(imageUrl)}" alt="Saved sketch for ${escapeHtml(frame.title || "current frame")}" />`,
       changeRegions: refinement?.changedRegions || [],
+      hotspots: state.playMode ? buildPrototypeHotspotsForFrame(frame) : [],
     });
     dom.sketchViewer.className = "surface-viewer";
     dom.sketchViewer.innerHTML = stage;
@@ -721,6 +734,7 @@ function renderImplementationPreview() {
       ? `<div class="viewport-content viewport-placeholder" data-target-url="${escapeHtml(renderUrl)}">Connected implementation preview ready</div>`
       : `<iframe class="viewport-iframe viewport-content" src="${escapeHtml(renderUrl)}" title="Connected implementation preview"></iframe>`,
     changeRegions: refinement?.changedRegions || [],
+    hotspots: state.playMode ? buildPrototypeHotspotsForFrame(frame) : [],
   });
   dom.implementationViewer.className = "surface-viewer";
   dom.implementationViewer.innerHTML = stage;
@@ -1344,12 +1358,14 @@ function buildViewportStage({
   viewport,
   inner,
   changeRegions = [],
+  hotspots = [],
   capacity = null,
 }) {
   const scale = computeViewportScale(viewport, capacity);
   const stageWidth = Math.max(160, Math.round(viewport.width * scale));
   const stageHeight = Math.max(160, Math.round(viewport.height * scale));
   const overlayMarkup = buildChangeOverlayMarkup(changeRegions, scale);
+  const hotspotMarkup = buildPrototypeHotspotMarkup(hotspots, viewport, scale);
 
   return `
     <div
@@ -1361,7 +1377,94 @@ function buildViewportStage({
           ${inner}
         </div>
         ${overlayMarkup}
+        ${hotspotMarkup}
       </div>
+    </div>
+  `;
+}
+
+function buildPrototypeHotspotsForFrame(frame) {
+  const liveExport = currentLiveExport();
+  return buildPrototypeHotspots({
+    frame,
+    frames: liveExport?.frames || [],
+    connections: liveExport?.connections || [],
+  });
+}
+
+function buildPrototypeHotspots({ frame, frames, connections }) {
+  if (!frame || !Array.isArray(connections)) {
+    return [];
+  }
+
+  const outgoing = connections.filter(
+    (connection) => connection.fromFrameId === frame.id,
+  );
+  if (!outgoing.length) {
+    return [];
+  }
+
+  return outgoing.map((connection, index) => {
+    const target = Array.isArray(frames)
+      ? frames.find((candidate) => candidate.id === connection.toFrameId)
+      : null;
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const width = 0.25;
+    const height = 0.1;
+    const x = Math.min(0.72, 0.42 + column * 0.28);
+    const y = Math.min(0.86, 0.58 + row * 0.13);
+
+    return {
+      id: connection.id || `${frame.id}-${connection.toFrameId}-${index}`,
+      targetFrameId: connection.toFrameId,
+      label: connection.label || "Continue",
+      targetTitle: target?.title || connection.toTitle || connection.toFrameId,
+      x,
+      y,
+      width,
+      height,
+    };
+  });
+}
+
+function buildPrototypeHotspotMarkup(hotspots, viewport, scale) {
+  if (!Array.isArray(hotspots) || !hotspots.length) {
+    return "";
+  }
+
+  return `
+    <div class="prototype-hotspot-layer" aria-label="Prototype click targets">
+      ${hotspots
+        .map((hotspot, index) => {
+          const left = Math.max(0, Number(hotspot.x) || 0) * viewport.width;
+          const top = Math.max(0, Number(hotspot.y) || 0) * viewport.height;
+          const width = Math.max(
+            96,
+            (Number(hotspot.width) || 0.18) * viewport.width,
+          );
+          const height = Math.max(
+            44,
+            (Number(hotspot.height) || 0.08) * viewport.height,
+          );
+          const clampedWidth = Math.min(width, viewport.width - left);
+          const clampedHeight = Math.min(height, viewport.height - top);
+          return `
+            <button
+              class="prototype-hotspot"
+              type="button"
+              style="left:${Math.round(left * scale)}px; top:${Math.round(top * scale)}px; width:${Math.round(Math.max(44, clampedWidth * scale))}px; height:${Math.round(Math.max(36, clampedHeight * scale))}px;"
+              data-prototype-hotspot-frame="${escapeHtml(hotspot.targetFrameId)}"
+              aria-label="${escapeHtml(`Go to ${hotspot.targetTitle || `Frame ${index + 1}`}`)}"
+              title="${escapeHtml(hotspot.label || "Continue")}"
+            >
+              <span>${index + 1}</span>
+              <strong>${escapeHtml(hotspot.label || "Continue")}</strong>
+              <small>${escapeHtml(hotspot.targetTitle || hotspot.targetFrameId)}</small>
+            </button>
+          `;
+        })
+        .join("")}
     </div>
   `;
 }
@@ -1649,6 +1752,26 @@ async function runPreviewSelfTest() {
         dom.playFlow.textContent.trim().length > 0 &&
           dom.prototypePlayPanel.textContent.trim().length > 0,
         "preview prototype play controls render",
+      ),
+    );
+    const syntheticHotspots = buildPrototypeHotspots({
+      frame: { id: "frame-preview-selftest" },
+      frames: [{ id: "frame-next", title: "Next frame" }],
+      connections: [
+        {
+          id: "link-preview-selftest",
+          fromFrameId: "frame-preview-selftest",
+          toFrameId: "frame-next",
+          label: "Continue",
+        },
+      ],
+    });
+    results.push(
+      assert(
+        syntheticHotspots.length === 1 &&
+          syntheticHotspots[0]?.targetFrameId === "frame-next" &&
+          syntheticHotspots[0]?.label === "Continue",
+        "preview prototype hotspots derive from flow links",
       ),
     );
   } catch (error) {

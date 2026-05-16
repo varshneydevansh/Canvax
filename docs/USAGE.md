@@ -158,7 +158,7 @@ Use it to:
 
 Codex should read both the frame sketches and the flow graph.
 
-Preview also has `Play flow` for these links. It starts from the entry frame and shows outgoing transitions as clickable steps so a connected storyboard can be reviewed without returning to Advanced mode. This is initial frame-link playback, not hotspot-level prototype playback yet.
+Preview also has `Play flow` for these links. It starts from the entry frame and shows outgoing transitions as clickable steps so a connected storyboard can be reviewed without returning to Advanced mode. When Play mode is active, Preview also places generated hotspot buttons over the sketch and connected output viewport so the storyboard can be clicked directly like a lightweight prototype.
 
 ```mermaid
 flowchart LR

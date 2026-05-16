@@ -153,6 +153,7 @@ Status: In progress
 - [x] Preview now forces safe same-target reloads with a digest-based revision key when the connected output context changes
 - [x] Board and Preview now surface frame-level output status badges so stale/synced/materialized states are visible while sketching continues
 - [x] Preview includes initial `Play flow` frame-link playback from the entry frame through outgoing transitions
+- [x] Preview Play mode now overlays generated clickable hotspots on sketch/output viewports from outgoing Flow links
 
 ```text
 Preview today:
