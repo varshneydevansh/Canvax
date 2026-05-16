@@ -326,6 +326,8 @@ Use the rewrite request when you have already generated or built something and w
 
 That file is local-first and does not require an API key. It exists so Codex can read one focused "what needs to change next" handoff instead of piecing the rewrite intent together from the live export, task pack, preview manifest, voice notes, and output annotations separately.
 
+The JSON also includes `revisionGraph`, which maps each relevant frame revision to frame-bound output targets, artifacts, changed files, stale status, and rewrite queue reasons. Codex should use that graph before rewriting so it understands which generated revision belongs to which sketch revision.
+
 ```mermaid
 flowchart LR
     S["Sketch elements"] --> C["Coordinate summary"]

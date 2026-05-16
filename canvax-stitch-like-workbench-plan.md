@@ -63,6 +63,7 @@ Current completed baseline:
 - A host capability registry tells the UI/export whether the current path is local no-API handoff, Codex browser, host image generation, or native microphone bridge.
 - `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
 - `canvax-rewrite-request-latest.*` is exported for live output refinement from queued frames, voice notes, correction marks, and connected output manifests.
+- Rewrite requests include a `revisionGraph` so Codex can map frame revisions to output targets, artifacts, changed files, stale state, and queue reasons before rewriting.
 - `execute-rewrite-request` can consume the latest rewrite request into a refreshed frame-bound local artifact and Codex output manifest, giving the live-refinement loop a no-API smoke path.
 - `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
 - `canvax-asset-candidates-latest.*` is exported as a prompt-ready image/asset candidate format with source frame, bounds, prompts, and output slots.

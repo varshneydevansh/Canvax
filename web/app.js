@@ -8249,6 +8249,13 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
     (frame) => frame.id === state.activeFrameId || queuedFrameIds.has(frame.id),
   );
   const manifest = state.serverStatus.previewManifest || null;
+  const outputManifest = manifest
+    ? {
+        targets: collectManifestTargets(manifest),
+        artifacts: collectManifestArtifacts(manifest),
+        changes: collectManifestChanges(manifest),
+      }
+    : null;
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-rewrite-request",
@@ -8272,13 +8279,12 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       codexOutputManifestPath: "artifacts/canvax/codex-output.json",
     },
     rewriteQueue,
-    outputManifest: manifest
-      ? {
-          targets: collectManifestTargets(manifest),
-          artifacts: collectManifestArtifacts(manifest),
-          changes: collectManifestChanges(manifest),
-        }
-      : null,
+    outputManifest,
+    revisionGraph: buildOutputRevisionGraph(
+      relevantFrames,
+      manifest,
+      rewriteQueue,
+    ),
     voice: buildVoiceExport(state.frames),
     frames: relevantFrames.map((frame) => ({
       id: frame.id,
@@ -8301,6 +8307,112 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
     })),
     instruction:
       "Use this request with the live Canvax export. Prioritize queued frames, correction marks, voice notes, and frame-bound output targets. Update real files or generated artifacts, then publish artifacts through artifacts/canvax/codex-output.json.",
+  };
+}
+
+function buildOutputRevisionGraph(frames, manifest, rewriteQueue = []) {
+  const normalizedFrames = Array.isArray(frames) ? frames : [];
+  const targets = collectManifestTargets(manifest);
+  const artifacts = collectManifestArtifacts(manifest);
+  const changes = collectManifestChanges(manifest);
+  const globalTargets = targets.filter(
+    (target) =>
+      (!Array.isArray(target.frameIds) || !target.frameIds.length) &&
+      !cleanString(target.sourceFrameId),
+  );
+  const frameNodes = normalizedFrames.map((frame) => {
+    const relatedTargets = targets.filter((target) =>
+      itemHasFrameBinding(target, frame.id),
+    );
+    const relatedArtifacts = artifacts.filter((artifact) =>
+      itemHasFrameBinding(artifact, frame.id),
+    );
+    const relatedChanges = changes.filter((change) =>
+      itemHasFrameBinding(change, frame.id),
+    );
+    const status = describeFrameOutputStatus(frame, {
+      includeGlobal: true,
+      manifest,
+    });
+    const queueItems = rewriteQueue.filter((item) => item.frameId === frame.id);
+    return {
+      frameId: frame.id,
+      title: frame.title,
+      frameRevision: frame.updatedAt || "",
+      captureCount: frame.captureCount || 0,
+      outputAnnotationCount: frame.outputAnnotationCount || 0,
+      status: status?.label || (relatedTargets.length ? "Output bound" : "No output"),
+      stale: status?.label === "Output stale",
+      queueReasons: queueItems.map((item) => item.reason),
+      targets: relatedTargets.map((target) => summarizeOutputTarget(target)),
+      artifacts: relatedArtifacts.map((artifact) =>
+        summarizeOutputArtifact(artifact),
+      ),
+      changes: relatedChanges.map((change) => summarizeOutputChange(change)),
+      globalTargetIds: relatedTargets.length
+        ? []
+        : globalTargets.map((target) => target.id || target.previewPath || target.url),
+    };
+  });
+  return {
+    kind: "canvax-output-revision-graph",
+    generatedAt: new Date().toISOString(),
+    frameCount: frameNodes.length,
+    targetCount: targets.length,
+    artifactCount: artifacts.length,
+    changeCount: changes.length,
+    frames: frameNodes,
+    edges: frameNodes.flatMap((frame) =>
+      frame.targets.map((target) => ({
+        from: `frame:${frame.frameId}@${frame.frameRevision}`,
+        to: `target:${target.id}@${target.revision}`,
+        relation: frame.stale ? "stale-output" : "frame-output",
+      })),
+    ),
+  };
+}
+
+function summarizeOutputTarget(target) {
+  const revision =
+    target.versionTag ||
+    target.generatedAt ||
+    target.sourceFrameUpdatedAt ||
+    target.previewPath ||
+    target.url ||
+    "";
+  return {
+    id: target.id || "",
+    label: target.label || "",
+    type: target.type || "",
+    source: target.source || "",
+    revision,
+    generatedAt: target.generatedAt || "",
+    sourceFrameUpdatedAt: target.sourceFrameUpdatedAt || "",
+    previewPath: target.previewPath || "",
+    url: target.url || target.resolvedUrl || "",
+    refinementIteration: target.refinement?.iteration || 0,
+    refinementSummary: target.refinement?.summary || target.changeSummary || "",
+  };
+}
+
+function summarizeOutputArtifact(artifact) {
+  return {
+    id: artifact.id || "",
+    label: artifact.label || "",
+    kind: artifact.kind || "",
+    path: artifact.path || "",
+    generatedAt: artifact.generatedAt || "",
+    sourceFrameUpdatedAt: artifact.sourceFrameUpdatedAt || "",
+  };
+}
+
+function summarizeOutputChange(change) {
+  return {
+    id: change.id || "",
+    label: change.label || "",
+    kind: change.kind || "",
+    path: change.path || "",
+    summary: change.summary || "",
   };
 }
 
@@ -11165,7 +11277,9 @@ async function runSelfTest() {
         exportPackage.rewriteRequest?.kind === "canvax-rewrite-request" &&
           exportPackage.rewriteRequest.requiresOpenAiApiKey === false &&
           Array.isArray(exportPackage.rewriteRequest.frames) &&
-          Array.isArray(exportPackage.rewriteRequest.rewriteQueue),
+          Array.isArray(exportPackage.rewriteRequest.rewriteQueue) &&
+          exportPackage.rewriteRequest.revisionGraph?.kind ===
+            "canvax-output-revision-graph",
         "export package includes no-API rewrite request",
       ),
     );

@@ -243,7 +243,7 @@ Needed:
 - A live task queue for frames needing rewrite attention.
 - A focused rewrite request artifact. **Initial `canvax-rewrite-request-latest.*` shipped.**
 - A deterministic local executor for that request. **Initial `execute-rewrite-request` shipped.**
-- A frame revision to output revision dependency graph.
+- A frame revision to output revision dependency graph. **Initial `revisionGraph` in rewrite requests shipped.**
 - A "changed sketch region -> affected generated component" map.
 - A visible rewrite progress lane in Preview. **Initial `Rewrite handoff` lane shipped for request/executor/manifest state.**
 - Conflict handling when the user sketches while Codex is still rewriting.

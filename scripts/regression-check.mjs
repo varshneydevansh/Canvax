@@ -94,7 +94,10 @@ await validateOptionalJsonSchema(
     Number.isInteger(value?.schemaVersion) &&
     value.schemaVersion >= 1 &&
     Array.isArray(value?.rewriteQueue) &&
-    Array.isArray(value?.frames),
+    Array.isArray(value?.frames) &&
+    (!value.revisionGraph ||
+      (value.revisionGraph.kind === "canvax-output-revision-graph" &&
+        Array.isArray(value.revisionGraph.frames))),
   "rewrite request schema is valid",
 );
 await validateOptionalJsonSchema(

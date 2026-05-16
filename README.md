@@ -107,6 +107,7 @@ flowchart LR
 - Adds frame-level output status badges in the board and Preview, so stale, synced, materialized, and global-target states stay visible across longer flows.
 - Adds a rewrite queue in the board and Preview, so frames that need first output, a frame binding, a target, or a refresh are surfaced explicitly instead of being inferred from scattered badges.
 - Writes `canvax-rewrite-request-latest.*` as a focused refinement handoff for queued frames, stale outputs, voice notes, and correction marks.
+- Adds a rewrite `revisionGraph` so Codex can map frame revisions to output revisions before changing generated work.
 - Includes `npm run execute-rewrite` as a deterministic no-API smoke path that turns the latest rewrite request into a refreshed frame-bound preview artifact and Codex output manifest.
 - Shows a Preview `Rewrite handoff` lane for request/export state, local executor artifacts, and manifest binding state.
 - Reloads same-URL Preview targets with a digest-based revision key when connected implementation context changes, which keeps local app previews closer to live Codex edits.
@@ -138,6 +139,7 @@ This commit line now includes the following major layers working together:
 - `Materialize` with stable per-frame targets and refinement deltas
 - rewrite queue and frame-level output status badges
 - rewrite request export plus local rewrite executor for frame-bound preview refresh
+- rewrite revision graph for frame-to-output dependency tracking
 - Preview rewrite handoff lane for request/executor/manifest progress
 - Workbench surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
 - Workbench action modes for build, refinement, spec, image prompt, and variation workflows

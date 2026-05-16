@@ -105,6 +105,7 @@ Status: In progress
 - [x] Output activity now rebuilds from recent session events, so refreshes do not wipe the visible collaboration history
 - [x] Board/checkpoint/live export now surface a rewrite queue that tells Codex which frames need first output, a frame binding, a target, or a refresh
 - [x] Board saves `canvax-rewrite-request-latest.*` so Codex gets one focused refinement handoff for sketch, voice, correction marks, queued frames, and connected outputs
+- [x] Rewrite requests include a `revisionGraph` mapping frame revisions to output targets, artifacts, changed files, stale state, and queue reasons
 - [x] Board exports now include task and image prompt packs with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
 - [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
 - [x] Canvas image elements now carry pasted/generated assets through selection, composition summaries, Materialize payloads, and live exports
