@@ -32,6 +32,7 @@ const codexOutputRoot = resolve(projectRoot, "artifacts", "canvax");
 const checkpointsRoot = resolve(codexOutputRoot, "checkpoints");
 const checkpointsIndexPath = resolve(checkpointsRoot, "checkpoints.json");
 const buildRequestsRoot = resolve(codexOutputRoot, "build-requests");
+const assetCandidatesRoot = resolve(codexOutputRoot, "asset-candidates");
 const runtimeRoot = resolve(projectRoot, ".canvax");
 const runtimePath = resolve(runtimeRoot, "runtime.json");
 const serverLogPath = resolve(runtimeRoot, "server.log");
@@ -55,6 +56,14 @@ const imagePromptPackJsonPath = resolve(
 const imagePromptPackMarkdownPath = resolve(
   exportsRoot,
   "canvax-image-prompt-pack-latest.md",
+);
+const assetCandidatesJsonPath = resolve(
+  exportsRoot,
+  "canvax-asset-candidates-latest.json",
+);
+const assetCandidatesMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-asset-candidates-latest.md",
 );
 const transcriptBridgePath = resolve(exportsRoot, "canvax-transcript-bridge.json");
 const transcriptBridgeMarkdownPath = resolve(
@@ -126,6 +135,7 @@ function buildTransportDescriptor(overrides = {}) {
       taskPack: "exports/canvax-task-pack-latest.json",
       buildRealRequest: "exports/canvax-build-real-latest.json",
       imagePromptPack: "exports/canvax-image-prompt-pack-latest.json",
+      assetCandidates: "exports/canvax-asset-candidates-latest.json",
     },
     liveMirror: {
       type: "browser-storage",
@@ -297,6 +307,9 @@ async function runCli() {
           buildRealRequestJsonPath,
           buildRealRequestMarkdownPath,
           buildRequestsRoot,
+          assetCandidatesJsonPath,
+          assetCandidatesMarkdownPath,
+          assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -320,6 +333,9 @@ async function runCli() {
         buildRealRequestJsonPath,
         buildRealRequestMarkdownPath,
         buildRequestsRoot,
+        assetCandidatesJsonPath,
+        assetCandidatesMarkdownPath,
+        assetCandidatesRoot,
         latestCheckpointPath,
         checkpointsIndexPath,
         sessionEventsPath,
@@ -344,6 +360,9 @@ async function runCli() {
           buildRealRequestJsonPath,
           buildRealRequestMarkdownPath,
           buildRequestsRoot,
+          assetCandidatesJsonPath,
+          assetCandidatesMarkdownPath,
+          assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -496,6 +515,9 @@ async function runServer(port) {
           buildRealRequestJsonPath,
           buildRealRequestMarkdownPath,
           buildRequestsRoot,
+          assetCandidatesJsonPath,
+          assetCandidatesMarkdownPath,
+          assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
           sessionEventsPath,
@@ -531,6 +553,13 @@ async function runServer(port) {
         url.pathname === "/api/save-build-request"
       ) {
         return handleSaveBuildRequest(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/save-asset-candidates"
+      ) {
+        return handleSaveAssetCandidates(request, response);
       }
 
       if (
@@ -915,6 +944,111 @@ function buildServerBuildRequestMarkdown(request) {
   } else {
     lines.push("- Publish the generated route/component back with write-codex-output.");
   }
+  return lines.join("\n");
+}
+
+async function handleSaveAssetCandidates(request, response) {
+  const payload = await readJson(request);
+  const source =
+    payload.pack && typeof payload.pack === "object" ? payload.pack : payload;
+
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return writeJson(response, 400, {
+      error: "Asset candidate payload is missing.",
+    });
+  }
+
+  const candidates = Array.isArray(source.candidates)
+    ? source.candidates
+    : [];
+  if (!candidates.length) {
+    return writeJson(response, 400, {
+      error: "Asset candidate payload requires at least one candidate.",
+    });
+  }
+
+  const createdAt = cleanString(source.createdAt) || new Date().toISOString();
+  const requestId = `${buildTimestamp()}-${slugify(source.board?.project || "asset-candidates")}`;
+  const requestRoot = resolve(assetCandidatesRoot, requestId);
+  const requestJsonPath = resolve(requestRoot, "asset-candidates.json");
+  const requestMarkdownPath = resolve(requestRoot, "asset-candidates.md");
+  const nextPack = {
+    ...source,
+    schemaVersion: Number(source.schemaVersion) || HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-asset-candidates",
+    createdAt,
+    requiresOpenAiApiKey: false,
+    archive: {
+      requestId,
+      jsonPath: toWorkspaceRelativePath(requestJsonPath),
+      markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+    },
+  };
+  const markdown =
+    typeof payload.markdown === "string" && payload.markdown.trim()
+      ? payload.markdown
+      : buildServerAssetCandidatesMarkdown(nextPack);
+  const jsonBody = `${JSON.stringify(nextPack, null, 2)}\n`;
+  const markdownBody = markdown.endsWith("\n") ? markdown : `${markdown}\n`;
+
+  await mkdir(requestRoot, { recursive: true });
+  await mkdir(exportsRoot, { recursive: true });
+  await writeFile(requestJsonPath, jsonBody);
+  await writeFile(requestMarkdownPath, markdownBody);
+  await writeFile(assetCandidatesJsonPath, jsonBody);
+  await writeFile(assetCandidatesMarkdownPath, markdownBody);
+
+  await appendFile(
+    sessionEventsPath,
+    `${JSON.stringify({
+      type: "asset-candidates",
+      id: requestId,
+      at: createdAt,
+      candidateCount: candidates.length,
+      jsonPath: toWorkspaceRelativePath(requestJsonPath),
+      markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+      latestJsonPath: toWorkspaceRelativePath(assetCandidatesJsonPath),
+      latestMarkdownPath: toWorkspaceRelativePath(assetCandidatesMarkdownPath),
+    })}\n`,
+  );
+
+  return writeJson(response, 200, {
+    saved: true,
+    assetCandidatePack: nextPack,
+    requestId,
+    candidateCount: candidates.length,
+    jsonPath: toWorkspaceRelativePath(requestJsonPath),
+    markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+    latestJsonPath: toWorkspaceRelativePath(assetCandidatesJsonPath),
+    latestMarkdownPath: toWorkspaceRelativePath(assetCandidatesMarkdownPath),
+    assetCandidatesRoot,
+  });
+}
+
+function buildServerAssetCandidatesMarkdown(pack) {
+  const lines = [
+    "# Canvax Asset Candidates",
+    "",
+    `- Kind: ${pack.kind}`,
+    `- Created: ${pack.createdAt}`,
+    `- Requires OpenAI API key: ${pack.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Candidates: ${Array.isArray(pack.candidates) ? pack.candidates.length : 0}`,
+    "",
+    "## Candidates",
+  ];
+  (pack.candidates || []).forEach((candidate, index) => {
+    lines.push(
+      "",
+      `### ${index + 1}. ${candidate.title || candidate.id || "Candidate"}`,
+      "",
+      `- Type: ${candidate.type || "asset"}`,
+      `- Source frame: ${candidate.sourceFrameTitle || candidate.sourceFrameId || "unknown"}`,
+      `- Status: ${candidate.status || "prompt-ready"}`,
+      `- Bounds: ${candidate.bounds ? JSON.stringify(candidate.bounds) : "whole frame"}`,
+      "",
+      candidate.prompt || "No prompt provided.",
+    );
+  });
   return lines.join("\n");
 }
 
@@ -1359,6 +1493,8 @@ async function handlePreviewState(response) {
       liveVoiceMarkdownPath,
       buildRealRequestJsonPath,
       buildRealRequestMarkdownPath,
+      assetCandidatesJsonPath,
+      assetCandidatesMarkdownPath,
       transcriptBridgePath,
       transcriptBridgeMarkdownPath,
       checkpointLatestPath: latestCheckpointPath,
@@ -4794,6 +4930,9 @@ function buildRuntime(port) {
     buildRealRequestJsonPath,
     buildRealRequestMarkdownPath,
     buildRequestsRoot,
+    assetCandidatesJsonPath,
+    assetCandidatesMarkdownPath,
+    assetCandidatesRoot,
     latestCheckpointPath,
     checkpointsIndexPath,
     sessionEventsPath,

@@ -289,7 +289,7 @@ Needed:
 
 ### 6. Image Model And Asset Workflow
 
-Canvax can describe image directions, hold reference underlays, and export an image prompt pack with coordinates and an HTML/CSS placement scaffold. It does not yet manage generated image candidates as first-class board assets.
+Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, and write prompt-ready asset candidate records. It still does not directly generate or place final images by itself.
 
 Target behavior:
 
@@ -302,6 +302,7 @@ Current stepping stone:
 ```text
 done
   rough sketch -> labels/voice -> image prompt pack -> coordinates + scaffold
+  image prompt pack -> asset candidate records with output slots
 
 next
   prompt pack -> host image generation -> candidate images -> place back on canvas
@@ -313,7 +314,7 @@ Needed:
 - Image candidate import and placement back into the board.
 - Variant comparison for image generations.
 - Style-lock packs for books, comics, posters, decks, and brand systems.
-- A local artifact format for generated image candidates.
+- A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format shipped.**
 - Drag/attach generated image candidates back onto frames.
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
 

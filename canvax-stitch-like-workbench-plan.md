@@ -60,13 +60,14 @@ Current completed baseline:
 - A host capability registry tells the UI/export whether the current path is local no-API handoff, Codex browser, host image generation, or native microphone bridge.
 - `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
 - `canvax-image-prompt-pack-latest.*` is exported for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
+- `canvax-asset-candidates-latest.*` is exported as a prompt-ready image/asset candidate format with source frame, bounds, prompts, and output slots.
 - Eraser strokes are isolated to the ink layer so they erase sketch marks without wiping the paper/grid layer, and they are excluded from materialized output geometry and image prompt composition.
 - Static Canvax assets are served with no-store headers to prevent stale browser UI after local service updates.
-- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, opt-in materialized review aids, flow links, task/image prompt packs, materialize, output activity, rewrite queue, and large-session export consistency.
+- Self-test coverage includes tool rendering, drawing controls, select/move/resize, eraser layer behavior, Workbench dock brush sizing, opt-in materialized review aids, flow links, task/image prompt packs, asset candidate packs, materialize, output activity, rewrite queue, and large-session export consistency.
 
 Still open:
 
-- first-class generated image candidate management
+- final generated image candidate import and placement
 - true infinite spatial canvas
 - direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped; Codex still has to execute the implementation pass and publish the result.
 - native Codex microphone/image-generation host bridge
@@ -358,7 +359,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 4.1: Add Image Prompt Pack Lane
 
-- **Status**: Shipped initial version with prompt text, normalized coordinates, safe zones, and HTML/CSS placement scaffold. Candidate image import remains open.
+- **Status**: Shipped initial version with prompt text, normalized coordinates, safe zones, HTML/CSS placement scaffold, and prompt-ready asset candidate records. Final candidate image import remains open.
 - **Location**: `web/app.js`, `scripts/canvax.mjs`, `docs/FEATURES.md`
 - **Description**: Convert selected sketch regions, labels, references, and transcript into structured image prompts with negative prompts, aspect ratio, safe text zones, and style rules.
 - **Complexity**: 6/10
@@ -366,6 +367,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 - **Acceptance Criteria**:
   - Works without API key.
   - Exports prompt pack files.
+  - Exports asset candidate files.
   - Can target UI assets, posters, illustrations, book spreads, icons, and marketing images.
 - **Validation**:
   - Generate prompt pack from a sketch with labeled asset regions.

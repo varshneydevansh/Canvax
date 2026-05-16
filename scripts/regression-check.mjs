@@ -21,6 +21,11 @@ const imagePromptPackJsonPath = resolve(
   "exports",
   "canvax-image-prompt-pack-latest.json",
 );
+const assetCandidatesJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-asset-candidates-latest.json",
+);
 const latestCheckpointPath = resolve(
   projectRoot,
   "exports",
@@ -49,6 +54,7 @@ const results = [];
 
 await validateCodexOutputDryRun();
 await validateRunningPreviewState();
+await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
   upstreamProposalPath,
   "upstream proposal doc is present",
@@ -92,6 +98,17 @@ await validateOptionalJsonSchema(
     value.schemaVersion >= 1 &&
     Array.isArray(value?.frames),
   "image prompt pack schema is valid",
+);
+await validateOptionalJsonSchema(
+  assetCandidatesJsonPath,
+  (value) =>
+    value?.kind === "canvax-asset-candidates" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.candidates) &&
+    value.candidates.length > 0,
+  "asset candidates schema is valid",
 );
 await validateOptionalJsonSchema(
   latestCheckpointPath,
@@ -236,6 +253,91 @@ async function validateRunningPreviewState() {
   } catch (error) {
     results.push({
       name: "preview-state payload is valid when the Canvax service is running",
+      passed: false,
+      detail: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+async function validateAssetCandidatesEndpoint() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/canvax.mjs",
+      "--status",
+      "--json",
+    ]);
+    const status = JSON.parse(stdout);
+    const serviceState = await detectCanvaxServiceState();
+    const liveUrl =
+      status?.running && typeof status.url === "string" && status.url
+        ? status.url
+        : serviceState.url;
+    if (!liveUrl) {
+      results.push({
+        name: "asset candidates endpoint writes no-API artifact",
+        passed: true,
+        skipped: true,
+        detail: serviceState.detail,
+      });
+      return;
+    }
+
+    const samplePack = {
+      schemaVersion: 1,
+      kind: "canvax-asset-candidates",
+      createdAt: new Date().toISOString(),
+      requiresOpenAiApiKey: false,
+      board: {
+        project: "Canvax regression",
+      },
+      candidates: [
+        {
+          id: "asset-regression-frame",
+          type: "frame-composite",
+          status: "prompt-ready",
+          sourceFrameId: "frame-regression",
+          sourceFrameTitle: "Regression frame",
+          title: "Regression image candidate",
+          prompt: "Validate Canvax asset candidate persistence.",
+          negativePrompt: "No paid API call.",
+          bounds: null,
+          placement: "whole frame",
+          aspectRatio: "16:9",
+          outputSlots: [
+            {
+              label: "Generated image",
+              imagePath: "",
+              accepted: false,
+              notes: "Regression placeholder.",
+            },
+          ],
+        },
+      ],
+    };
+    const response = await fetch(`${liveUrl}/api/save-asset-candidates`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pack: samplePack,
+        markdown: "# Regression asset candidates\n",
+      }),
+    });
+    const payload = await response.json();
+    const passed = Boolean(
+      response.ok &&
+        payload?.assetCandidatePack?.kind === "canvax-asset-candidates" &&
+        payload.assetCandidatePack.requiresOpenAiApiKey === false &&
+        payload.candidateCount === 1 &&
+        typeof payload.latestJsonPath === "string",
+    );
+    results.push({
+      name: "asset candidates endpoint writes no-API artifact",
+      passed,
+      detail: passed ? payload.latestJsonPath : "invalid asset response",
+    });
+  } catch (error) {
+    results.push({
+      name: "asset candidates endpoint writes no-API artifact",
       passed: false,
       detail: error instanceof Error ? error.message : "Unknown error",
     });

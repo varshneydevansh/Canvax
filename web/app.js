@@ -860,6 +860,10 @@ function normalizeColor(input, fallback = palette[0]) {
 }
 
 function createDefaultGenerationConfig() {
+  const taskPack = buildTaskPack(selectedFrames, rewriteQueue);
+  const imagePromptPack = buildImagePromptPack(selectedFrames);
+  const assetCandidatePack = buildAssetCandidatePack(imagePromptPack);
+
   return {
     direction: "product",
     style: "studio",
@@ -7134,8 +7138,9 @@ async function buildExportPackage(frameSelection = state.frames) {
     voice: buildVoiceExport(frameSelection),
     prompt: buildPromptMarkdown(),
     frames: selectedFrames,
-    taskPack: buildTaskPack(selectedFrames, rewriteQueue),
-    imagePromptPack: buildImagePromptPack(selectedFrames),
+    taskPack,
+    imagePromptPack,
+    assetCandidatePack,
   };
 }
 
@@ -7242,6 +7247,118 @@ function buildImagePromptPack(frames) {
       };
     }),
   };
+}
+
+function buildAssetCandidatePack(imagePromptPack) {
+  const frames = Array.isArray(imagePromptPack?.frames)
+    ? imagePromptPack.frames
+    : [];
+  return {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-asset-candidates",
+    createdAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    sourcePromptPackPath: "exports/canvax-image-prompt-pack-latest.json",
+    intendedHost:
+      "Codex/ChatGPT image generation host lane, if available in the current chat.",
+    board: structuredClone(imagePromptPack?.board || state.board),
+    designContext:
+      imagePromptPack?.designContext || currentDesignContextForExport(),
+    usage:
+      "Use these prompt-ready records as image generation candidates. Paste or attach generated outputs back to the matching frame/region when available.",
+    candidates: frames.flatMap((frame) => buildFrameAssetCandidates(frame)),
+  };
+}
+
+function buildFrameAssetCandidates(frame) {
+  const composition = frame.composition || {};
+  const elements = Array.isArray(composition.elements)
+    ? composition.elements
+    : [];
+  const regionElements = elements.filter(isAssetCandidateElement).slice(0, 4);
+  const frameCandidate = {
+    id: `asset-${frame.id}-frame`,
+    type: "frame-composite",
+    status: "prompt-ready",
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    frameIndex: frame.index,
+    title: `${frame.title} full-frame candidate`,
+    prompt: frame.prompt,
+    negativePrompt: frame.negativePrompt,
+    bounds: null,
+    placement: "whole frame",
+    aspectRatio: frame.viewport?.aspectRatio || "",
+    htmlCssScaffold: frame.htmlCssScaffold,
+    sourceSketch: frame.sketchReference || {},
+    outputSlots: [
+      {
+        label: "Generated image",
+        imagePath: "",
+        accepted: false,
+        notes:
+          "Paste, drop, or attach the generated image back to this frame when available.",
+      },
+    ],
+  };
+
+  return [
+    frameCandidate,
+    ...regionElements.map((element) => {
+      const aspectRatio =
+        element.bounds?.w && element.bounds?.h
+          ? `${Math.max(1, Math.round(element.bounds.w * 1000))}:${Math.max(1, Math.round(element.bounds.h * 1000))}`
+          : frame.viewport?.aspectRatio || "";
+      return {
+        id: `asset-${frame.id}-${element.id}`,
+        type: "region",
+        status: "prompt-ready",
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
+        frameIndex: frame.index,
+        sourceElementId: element.id,
+        title: `${frame.title} ${element.role}`,
+        prompt: [
+          frame.prompt,
+          `Focus this candidate on the ${element.role} at ${element.placement}.`,
+          element.text ? `Respect label/text: ${element.text}.` : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+        negativePrompt: frame.negativePrompt,
+        bounds: element.bounds,
+        placement: element.placement,
+        aspectRatio,
+        htmlCssScaffold: frame.htmlCssScaffold,
+        sourceSketch: frame.sketchReference || {},
+        outputSlots: [
+          {
+            label: "Generated region image",
+            imagePath: "",
+            accepted: false,
+            notes:
+              "Paste, drop, or attach the generated region image back onto this element/region.",
+          },
+        ],
+      };
+    }),
+  ];
+}
+
+function isAssetCandidateElement(element) {
+  const role = String(element?.role || "").toLowerCase();
+  if (!element || !element.bounds) {
+    return false;
+  }
+  return (
+    role.includes("image") ||
+    role.includes("avatar") ||
+    role.includes("spotlight") ||
+    role.includes("asset") ||
+    role.includes("illustration") ||
+    role.includes("visual") ||
+    role.includes("large content region")
+  );
 }
 
 function currentFrameById(frameId) {
@@ -7621,21 +7738,88 @@ function buildImagePromptPackMarkdown(pack) {
   return lines.join("\n");
 }
 
-async function saveImagePromptPackForHost() {
-  renderStatus("Saving no-API image prompt pack...");
+function buildAssetCandidatePackMarkdown(pack) {
+  if (!pack) {
+    return "";
+  }
+  const candidates = Array.isArray(pack.candidates) ? pack.candidates : [];
+  const lines = [
+    `# ${(pack.board?.project || "Canvax").trim()} asset candidates`,
+    "",
+    `- Requires OpenAI API key: ${pack.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Intended host: ${pack.intendedHost}`,
+    `- Source prompt pack: ${pack.sourcePromptPackPath}`,
+    `- Candidates: ${candidates.length}`,
+    "",
+    "## How To Use",
+    "Use these prompt-ready candidates with the current Codex/ChatGPT image-generation host when available. Canvax stores the prompt, bounds, source frame, and empty output slots without calling a paid API.",
+  ];
+  candidates.forEach((candidate, index) => {
+    lines.push("");
+    lines.push(`## ${index + 1}. ${candidate.title}`);
+    lines.push("");
+    lines.push(`- Type: ${candidate.type}`);
+    lines.push(`- Source frame: ${candidate.sourceFrameTitle}`);
+    lines.push(`- Status: ${candidate.status}`);
+    lines.push(`- Placement: ${candidate.placement}`);
+    lines.push(`- Bounds: ${candidate.bounds ? JSON.stringify(candidate.bounds) : "whole frame"}`);
+    lines.push(`- Aspect ratio: ${candidate.aspectRatio || "not specified"}`);
+    lines.push("");
+    lines.push(candidate.prompt || "No prompt provided.");
+  });
+  return lines.join("\n");
+}
+
+async function saveImagePromptPackForHost(options = {}) {
+  const { silent = false } = options;
+  if (!silent) {
+    renderStatus("Saving no-API image prompt and asset candidate packs...");
+  }
+  const exportPackage = await buildExportPackage();
   const result = await saveExportToWorkspace({ silent: true });
   if (!result) {
-    renderStatus("Image prompt pack save failed");
-    return;
+    if (!silent) {
+      renderStatus("Image prompt pack save failed");
+    }
+    return null;
+  }
+  const assetCandidatePack = buildAssetCandidatePack(
+    exportPackage.imagePromptPack,
+  );
+  const assetResponse = await fetch("/api/save-asset-candidates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      pack: assetCandidatePack,
+      markdown: buildAssetCandidatePackMarkdown(assetCandidatePack),
+    }),
+  });
+  const assetData = await assetResponse.json();
+  if (!assetResponse.ok) {
+    if (!silent) {
+      renderStatus("Asset candidate save failed");
+      dom.workspaceStatus.textContent =
+        assetData.error || "Asset candidate save failed.";
+    }
+    return {
+      exportResult: result,
+      assetCandidateResult: null,
+    };
   }
   const path =
-    result.imagePromptPackMarkdownPath ||
+    assetData.latestMarkdownPath ||
     "exports/canvax-image-prompt-pack-latest.md";
-  dom.workspaceStatus.textContent = `Image prompt pack ready at ${path}`;
+  dom.workspaceStatus.textContent = `Image prompt and asset candidate packs ready at ${path}`;
   state.focusLastAppliedText =
-    "Image prompt pack ready. Ask Codex/ChatGPT image generation to use it.";
+    "Image prompt and asset candidate packs ready. Ask Codex/ChatGPT image generation to use them.";
   renderFocusPad();
-  renderStatus("Image prompt pack ready for host image generation");
+  if (!silent) {
+    renderStatus("Asset candidates ready for host image generation");
+  }
+  return {
+    exportResult: result,
+    assetCandidateResult: assetData,
+  };
 }
 
 async function writeStarterDesignContext() {
@@ -9655,6 +9839,16 @@ async function runSelfTest() {
         "export package includes no-API image prompt pack",
       ),
     );
+    results.push(
+      assert(
+        exportPackage.assetCandidatePack?.kind ===
+          "canvax-asset-candidates" &&
+          exportPackage.assetCandidatePack.requiresOpenAiApiKey === false &&
+          Array.isArray(exportPackage.assetCandidatePack.candidates) &&
+          exportPackage.assetCandidatePack.candidates.length > 0,
+        "export package includes no-API asset candidate pack",
+      ),
+    );
     const eraserId = currentFrame().elements.find((element) =>
       isEraserElement(element),
     )?.id;
@@ -9667,6 +9861,30 @@ async function runSelfTest() {
       assert(
         !eraserId || !imagePromptCompositionIds.has(eraserId),
         "image prompt pack excludes eraser strokes",
+      ),
+    );
+    const assetCandidateResponse = await fetch("/api/save-asset-candidates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pack: exportPackage.assetCandidatePack,
+        markdown: buildAssetCandidatePackMarkdown(
+          exportPackage.assetCandidatePack,
+        ),
+      }),
+    });
+    const assetCandidateResult = await assetCandidateResponse.json();
+    results.push(
+      assert(
+        assetCandidateResponse.ok &&
+          assetCandidateResult?.assetCandidatePack?.kind ===
+          "canvax-asset-candidates" &&
+          assetCandidateResult.assetCandidatePack.requiresOpenAiApiKey ===
+            false &&
+          assetCandidateResult.candidateCount > 0,
+        "asset candidates save as first-class no-API artifact",
+        assetCandidateResult?.latestMarkdownPath ||
+          "Asset candidate save did not return a latest markdown path.",
       ),
     );
     const checkpointPayload = buildCheckpointPayload("manual-push", {

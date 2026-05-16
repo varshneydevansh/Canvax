@@ -317,6 +317,30 @@ Use the image prompt pack when the output is a poster, children-book spread, ill
 - The HTML/CSS scaffold is a spatial guide for generation, not final frontend code.
 - `DESIGN.md` is included when present, so image or UI work can inherit a reusable style contract instead of relying only on the current sketch.
 
+The same `Image pack` action also writes asset candidate records:
+
+- `exports/canvax-asset-candidates-latest.json`
+- `exports/canvax-asset-candidates-latest.md`
+- archived copies under `artifacts/canvax/asset-candidates/...`
+
+Asset candidates are prompt-ready records, not generated images. They preserve:
+
+- source frame and region
+- prompt and negative prompt
+- normalized bounds
+- aspect ratio
+- HTML/CSS scaffold
+- empty output slots where generated images can be attached later
+
+```text
+sketch + labels + voice
+  -> Image pack
+  -> image prompt pack
+  -> asset candidate records
+  -> host image generation
+  -> generated image placed back on the matching frame/region
+```
+
 Older compatibility files may also be written:
 
 - `exports/canvax-storyboard-latest.json`

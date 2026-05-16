@@ -690,6 +690,47 @@ flowchart TD
 
 The first implementation is deterministic and local. It creates branchable design surfaces that Codex can later build from, rather than claiming to be a semantic AI variant generator.
 
+## Asset Candidate Records
+
+`Image pack` now writes two related local handoffs:
+
+- image prompt pack
+- asset candidate pack
+
+The asset candidate pack is stored at:
+
+- `exports/canvax-asset-candidates-latest.json`
+- `exports/canvax-asset-candidates-latest.md`
+- `artifacts/canvax/asset-candidates/...`
+
+Each candidate is a prompt-ready asset slot:
+
+- source frame
+- optional source region
+- prompt and negative prompt
+- normalized bounds
+- aspect ratio
+- HTML/CSS scaffold
+- output slot for a generated image path later
+
+```mermaid
+flowchart LR
+    A[Frame sketch] --> B[Image prompt pack]
+    B --> C[Asset candidate records]
+    C --> D[Host image generation]
+    D --> E[Generated image candidate]
+    E --> F[Attach back to frame/region]
+
+    classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
+    classDef pack fill:#fff7e6,stroke:#f0a202,color:#211815;
+    classDef image fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
+    class A sketch;
+    class B,C pack;
+    class D,E,F image;
+```
+
+This keeps image workflows local-first while giving future ChatGPT/Codex image-generation bridges a concrete target format.
+
 ```text
 Generate screen
   sketch geometry  -> placement hints

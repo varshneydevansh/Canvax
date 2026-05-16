@@ -255,6 +255,34 @@ Self-test coverage verifies:
 - each has a visible label element
 - each is connected as a branch in Flow view
 
+## Asset Candidate Implementation
+
+`Image pack` now builds an asset candidate pack from the image prompt pack.
+
+Runtime path:
+
+```text
+buildImagePromptPack()
+  -> buildAssetCandidatePack()
+  -> POST /api/save-asset-candidates
+  -> exports/canvax-asset-candidates-latest.json
+  -> exports/canvax-asset-candidates-latest.md
+  -> artifacts/canvax/asset-candidates/<request>/
+```
+
+Candidate types:
+
+- `frame-composite`: full-frame image direction
+- `region`: a prompt-ready image/avatar/visual region from the composition map
+
+The pack is intentionally no-API. It is the durable target format for future host image-generation bridges and manual ChatGPT image workflows.
+
+Regression coverage:
+
+- export package contains a no-API asset candidate pack
+- browser self-test saves the candidate pack through the service
+- `scripts/regression-check.mjs` validates `exports/canvax-asset-candidates-latest.json` when present
+
 ## Where To Change What
 
 ### Add or change a drawing tool
