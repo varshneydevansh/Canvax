@@ -6743,8 +6743,12 @@ function renderFlowBoard() {
 
 function renderSpatialLanesMarkup(lanes) {
   return lanes
-    .map(
-      (lane) => `
+    .map((lane) => {
+      const guideMarkup =
+        lane.id === SPATIAL_OUTPUT_LANE_ID && !lane.collapsed
+          ? renderOutputShelfGuideMarkup()
+          : "";
+      return `
         <section
           class="spatial-lane spatial-lane-${escapeHtml(classToken(lane.kind))} ${lane.collapsed ? "collapsed" : ""}"
           style="left:${lane.position.x}px; top:${lane.position.y}px; width:${lane.size.width}px; height:${lane.size.height}px;"
@@ -6755,10 +6759,37 @@ function renderSpatialLanesMarkup(lanes) {
             <strong>${lane.collapsed ? "Collapsed" : `${lane.memberObjectIds.length} item${lane.memberObjectIds.length === 1 ? "" : "s"}`}</strong>
           </div>
           <p>${escapeHtml(lane.description)}</p>
+          ${guideMarkup}
         </section>
-      `,
-    )
+      `;
+    })
     .join("");
+}
+
+function renderOutputShelfGuideMarkup() {
+  const guideItems = [
+    ["Output preview", "Generated screen or local app preview."],
+    ["Output file", "Generated spec, HTML, prompt, or asset file."],
+    ["Code update", "Workspace file changed by Codex."],
+  ];
+  return `
+    <div class="spatial-lane-guide" aria-hidden="true">
+      <strong>These are references, not frames.</strong>
+      <span>Open useful outputs, pin them near a frame, or clear stale cards after a new direction.</span>
+      <div class="spatial-lane-guide-grid">
+        ${guideItems
+          .map(
+            ([label, detail]) => `
+              <span class="spatial-lane-guide-item">
+                <b>${escapeHtml(label)}</b>
+                ${escapeHtml(detail)}
+              </span>
+            `,
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
 }
 
 function renderHistoryLaneToggle(lanes = buildSpatialWorkspaceLanes()) {
@@ -16354,6 +16385,14 @@ function assertSpatialObjectsFromOutputManifest() {
   const outputLaneRendered = Boolean(
     dom.flowBoard.querySelector(".spatial-lane-output"),
   );
+  const outputGuideText =
+    dom.flowBoard.querySelector(".spatial-lane-output .spatial-lane-guide")
+      ?.textContent || "";
+  const outputGuideRendered =
+    outputGuideText.includes("These are references, not frames") &&
+    outputGuideText.includes("Output preview") &&
+    outputGuideText.includes("Output file") &&
+    outputGuideText.includes("Code update");
   toggleOutputLane();
   const collapsedOutputExport = buildSpatialWorkspaceExport().lanes.some(
     (lane) =>
@@ -16425,6 +16464,7 @@ function assertSpatialObjectsFromOutputManifest() {
       friendlyLabels &&
       outputLaneExported &&
       outputLaneRendered &&
+      outputGuideRendered &&
       collapsedOutputExport &&
       collapsedOutputRendered &&
       collapsedOutputCardsHidden &&
@@ -16444,6 +16484,7 @@ function assertSpatialObjectsFromOutputManifest() {
       friendlyLabels,
       outputLaneExported,
       outputLaneRendered,
+      outputGuideRendered,
       collapsedOutputExport,
       collapsedOutputRendered,
       collapsedOutputCardsHidden,

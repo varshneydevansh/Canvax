@@ -189,9 +189,9 @@ Behavior:
 - exposes Title, Note, and Status fields for a single selected Map object, plus per-type read-only details such as generated target path, asset placement bounds, checkpoint contents, variant state, group contents, or reference file metadata, so designers can inspect and clarify objects without editing raw manifests
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
 - renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
-- labels generated preview cards as generated previews/files instead of raw manifest target jargon, and the Map help text explains that those cards are prior Materialize/Build outputs rather than extra frames
+- labels generated preview cards as generated previews/files instead of raw manifest target jargon, and the Map help text plus inline Output shelf legend explain that those cards are prior Materialize/Build outputs rather than extra frames
 - provides `Clear outputs` in `Map` to hide generated preview/artifact/change cards when the exploration board gets cluttered
-- groups generated preview/artifact/change cards inside a collapsible `Output shelf` lane so Make/Build results read as generated references, not new frames
+- groups generated preview/artifact/change cards inside a collapsible `Output shelf` lane so Make/Build results read as generated references, not new frames; the lane legend defines `Output preview`, `Output file`, and `Code update` directly on the spatial map
 - renders recent checkpoints inside a named spatial history lane in `Map`, so collaboration moments sit beside frames, variants, references, and generated outputs while still reading like a timeline
 - provides `Hide history` / `Show history` in `Map` to collapse checkpoint cards without deleting them, and exports the lane state as `spatialWorkspace.lanes[].collapsed`
 - provides Map focus chips for `All`, `Output`, `Assets`, `Notes`, and `History`, so designers can reduce spatial clutter without deleting cards; the active focus exports as `spatialWorkspace.objectFilter`
