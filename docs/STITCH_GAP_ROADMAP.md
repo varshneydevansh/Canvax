@@ -257,7 +257,7 @@ Needed:
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
-Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/lasso-selectable/nudgeable/duplicable/deletable spatial objects, selected-set dragging and resizing through a combined transform box, single-object Title/Note/Status editing with type-specific details, group duplication with contained Map-object copies, movable/resizable labeled group regions with lightweight contents inspection, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards inside a named collapsible history lane, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
+Canvax has frames, Flow view, a large `Free canvas` viewport preset, Workbench `Map`, selectable/lasso-selectable/nudgeable/duplicable/deletable spatial objects, selected-set dragging and resizing through a combined transform box, single-object Title/Note/Status editing with type-specific details, group duplication with contained Map-object copies, movable/resizable labeled group regions with lightweight contents inspection, manual note/reference cards, asset candidate spatial objects, generated output/artifact/change spatial objects, checkpoint history cards inside a named collapsible history lane, object focus filters for output/assets/notes/history, background drag-pan, cursor-centered wheel/pinch zoom, and cleaner generated-output review aids. Map is the first persistent spatial project layer, but Canvax is not yet an infinite design canvas with fully nested groups, branches, prompts, and code artifacts.
 
 Needed:
 
@@ -265,7 +265,7 @@ Needed:
 - Pan/zoom controls that feel stable on Mac trackpads. **Initial background drag-pan, button zoom, and cursor-centered pinch/ctrl-wheel zoom are shipped; advanced inertial/grouped canvas behavior remains open.**
 - Spatial groups for explorations, branches, reference boards, and generated variants. **Initial variant branches now exist as editable Flow-connected frames and as `variant-branch` Map objects exported through `spatialWorkspace.variantBranches` and `spatialWorkspace.objects`; labeled group regions, manual notes, reference files/images, asset candidates, generated output targets, generated artifacts, and changed files now appear as draggable/selectable/multi-selectable/lasso-selectable Map objects; selected Map objects expose visible Copy context/Duplicate/Delete/Clear actions plus Title/Note/Status editing and per-type details, can copy a no-API Markdown handoff, can be dragged and resized as a selected set, nudged, duplicated, deleted, and exported as `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`; duplicating a group region duplicates contained Map objects; group regions move contained frame cards/spatial objects and export containment plus selected group contents for Codex.**
 - Multiple generated directions visible at once.
-- Better timeline/history navigation for long sessions. **Initial checkpoint history lane now ships as a visible Map lane with Hide/Show control and exported `spatialWorkspace.lanes[].collapsed` state; richer reorder/filter/pin history controls remain open.**
+- Better timeline/history navigation for long sessions. **Initial checkpoint history lane now ships as a visible Map lane with Hide/Show control, object focus filters can isolate history from output/assets/notes, and exported state includes `spatialWorkspace.lanes[].collapsed` plus `spatialWorkspace.objectFilter`; richer reorder/pin history controls remain open.**
 
 Current stepping stone:
 
@@ -283,7 +283,7 @@ done
   Codex output manifest -> generated target/artifact/change spatial objects in Map
 
 next
-  true infinite canvas -> richer nested group editing + history-lane reorder/filter/pin controls
+  true infinite canvas -> richer nested group editing + history-lane reorder/pin controls
 ```
 
 ### 4. Prototype Play Mode

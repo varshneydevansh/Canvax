@@ -2581,6 +2581,59 @@ input.color-hex-input[data-invalid="true"] {
     flex-wrap: wrap;
 }
 
+.map-filter-chips {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    max-width: 100%;
+    padding: 0.24rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.18);
+    border-radius: 999px;
+    background: rgba(24, 17, 14, 0.14);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.08);
+}
+
+.map-filter-chips > span {
+    padding: 0 0.42rem 0 0.55rem;
+    color: rgba(255, 248, 236, 0.68);
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.filter-chip {
+    min-height: 2rem;
+    padding: 0 0.68rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(255, 248, 236, 0.78);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 750;
+    transition:
+        background 160ms ease,
+        color 160ms ease,
+        transform 160ms ease;
+}
+
+.filter-chip:hover {
+    background: rgba(255, 248, 236, 0.1);
+    color: rgba(255, 248, 236, 0.96);
+}
+
+.filter-chip:active {
+    transform: translateY(1px);
+}
+
+.filter-chip.active {
+    background: rgba(255, 248, 236, 0.92);
+    color: var(--ink);
+}
+
 #workspace-follow-status,
 #transport-status {
     overflow-wrap: anywhere;
