@@ -21,6 +21,7 @@ const SPATIAL_OBJECT_WIDTH = 232;
 const SPATIAL_OBJECT_HEIGHT = 132;
 const SPATIAL_OBJECT_MIN_WIDTH = 168;
 const SPATIAL_OBJECT_MIN_HEIGHT = 96;
+const SPATIAL_GROUP_FROM_SELECTION_PADDING = 36;
 const SPATIAL_OUTPUT_LANE_ID = "output-lane";
 const SPATIAL_HISTORY_LANE_ID = "history-lane";
 const SPATIAL_HISTORY_LANE_GAP = 28;
@@ -364,6 +365,8 @@ const dom = {
   mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapPinObject: document.querySelector("#map-pin-object"),
+  mapGroupSelection: document.querySelector("#map-group-selection"),
+  mapUngroupSelection: document.querySelector("#map-ungroup-selection"),
   mapSendObjectBack: document.querySelector("#map-send-object-back"),
   mapBringObjectFront: document.querySelector("#map-bring-object-front"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
@@ -717,6 +720,8 @@ function bindEvents() {
     void copySelectedSpatialObjectContext();
   });
   dom.mapPinObject.addEventListener("click", toggleSelectedSpatialObjectPin);
+  dom.mapGroupSelection.addEventListener("click", createSpatialGroupFromSelection);
+  dom.mapUngroupSelection.addEventListener("click", ungroupSelectedSpatialGroups);
   dom.mapSendObjectBack.addEventListener("click", sendSelectedSpatialObjectsBack);
   dom.mapBringObjectFront.addEventListener(
     "click",
@@ -3554,6 +3559,71 @@ function addSpatialGroupObject() {
       createdFrom: "workbench-map",
     },
   });
+}
+
+function canCreateSpatialGroupFromSelection() {
+  return selectedSpatialObjectsForTransform().length >= 2;
+}
+
+function selectedSpatialGroups() {
+  return selectedSpatialObjects().filter((object) => object.type === "map-group");
+}
+
+function createSpatialGroupFromSelection() {
+  const selectedObjects = selectedSpatialObjectsForTransform();
+  if (selectedObjects.length < 2) {
+    renderStatus("Select at least two Map objects to group");
+    return null;
+  }
+  const bounds = unionBounds(selectedObjects.map(spatialObjectBounds));
+  if (!bounds) {
+    renderStatus("Could not read selected Map object bounds");
+    return null;
+  }
+  const padding = SPATIAL_GROUP_FROM_SELECTION_PADDING;
+  const group = addSpatialObject({
+    type: "map-group",
+    title: `Group of ${selectedObjects.length}`,
+    subtitle: "Created from selected Map objects. Move the group to move its contents together.",
+    sourceKind: "spatial-group",
+    status: "group",
+    x: Math.max(32, bounds.left - padding),
+    y: Math.max(32, bounds.top - padding),
+    width: Math.max(SPATIAL_OBJECT_MIN_WIDTH, bounds.width + padding * 2),
+    height: Math.max(SPATIAL_OBJECT_MIN_HEIGHT, bounds.height + padding * 2),
+    meta: {
+      createdFrom: "map-selection",
+      groupedObjectIds: selectedObjects.map((object) => object.id),
+    },
+  });
+  if (group) {
+    renderStatus(`Grouped ${selectedObjects.length} Map objects`);
+  }
+  return group;
+}
+
+function ungroupSelectedSpatialGroups() {
+  const groups = selectedSpatialGroups();
+  if (!groups.length) {
+    renderStatus("Select a Map group to ungroup");
+    return 0;
+  }
+  const groupIds = new Set(groups.map((group) => group.id));
+  const selectedIds = currentSelectedSpatialObjectIds().filter(
+    (id) => !groupIds.has(id),
+  );
+  state.spatialObjects = state.spatialObjects.filter(
+    (object) => !groupIds.has(object.id),
+  );
+  setSelectedSpatialObjects(selectedIds, selectedIds.at(-1) || null);
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    `Ungrouped ${groups.length} Map group${groups.length === 1 ? "" : "s"}`,
+  );
+  return groups.length;
 }
 
 async function addSpatialFileObject(file) {
@@ -6836,6 +6906,8 @@ function renderMapSelectionActions() {
   dom.mapPinObject.disabled = !hasSelection;
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
+  dom.mapGroupSelection.disabled = !canCreateSpatialGroupFromSelection();
+  dom.mapUngroupSelection.disabled = selectedSpatialGroups().length === 0;
   dom.mapSendObjectBack.disabled = !canReorderSelectedSpatialObjects("back");
   dom.mapBringObjectFront.disabled = !canReorderSelectedSpatialObjects("front");
   dom.mapDuplicateObject.disabled = !hasSelection;
@@ -6856,7 +6928,7 @@ function renderMapSelectionActions() {
     dom.mapSelectedObjectTitle.textContent =
       `${selectedObjects.length} Map objects selected`;
     dom.mapSelectedObjectDetail.textContent =
-      "Arrow keys move the selection. Use Bring front / Send back, duplicate, delete, clear, or copy combined context.";
+      "Arrow keys move the selection. Use Group, Bring front / Send back, duplicate, delete, clear, or copy combined context.";
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
@@ -9559,6 +9631,16 @@ function onWindowKeyDown(event) {
   if (state.viewMode === "flow" && !shouldIgnoreDeleteShortcut(event.target)) {
     const selectedMapObject = selectedSpatialObject();
     if (selectedMapObject) {
+      if (isMeta && event.key.toLowerCase() === "g" && event.shiftKey) {
+        event.preventDefault();
+        ungroupSelectedSpatialGroups();
+        return;
+      }
+      if (isMeta && event.key.toLowerCase() === "g") {
+        event.preventDefault();
+        createSpatialGroupFromSelection();
+        return;
+      }
       if (isMeta && event.key.toLowerCase() === "d") {
         event.preventDefault();
         duplicateSelectedSpatialObject();
@@ -16489,6 +16571,10 @@ function assertManualSpatialObjectControls() {
     dom.mapSelectedObjectTitle.textContent === object.title &&
     !dom.mapCopyObjectContext.disabled &&
     !dom.mapPinObject.disabled &&
+    Boolean(dom.mapGroupSelection) &&
+    dom.mapGroupSelection.disabled &&
+    Boolean(dom.mapUngroupSelection) &&
+    dom.mapUngroupSelection.disabled &&
     Boolean(dom.mapSendObjectBack) &&
     Boolean(dom.mapBringObjectFront) &&
     (!dom.mapSendObjectBack.disabled || !dom.mapBringObjectFront.disabled) &&
@@ -16719,6 +16805,35 @@ function assertManualSpatialObjectControls() {
     ) &&
     outsideAfterResize.width > outsideBeforeResize.width &&
     objectAfterResize.width > objectBeforeResize.width;
+  const groupSelectionButtonEnabled = !dom.mapGroupSelection.disabled;
+  const groupFromSelection = createSpatialGroupFromSelection();
+  const groupFromSelectionRecord = groupFromSelection
+    ? spatialObjectById(groupFromSelection.id)
+    : null;
+  const groupFromSelectionExport = buildSpatialWorkspaceExport();
+  const groupFromSelectionExported = groupFromSelectionExport.groups.find(
+    (entry) => entry.id === groupFromSelection?.id,
+  );
+  const groupedFromSelection =
+    Boolean(groupSelectionButtonEnabled && groupFromSelectionRecord) &&
+    state.selectedSpatialObjectId === groupFromSelection?.id &&
+    groupFromSelectionRecord.meta?.createdFrom === "map-selection" &&
+    groupFromSelectionRecord.meta?.groupedObjectIds?.includes(object?.id) &&
+    groupFromSelectionRecord.meta?.groupedObjectIds?.includes(outsideObject?.id) &&
+    Boolean(
+      groupFromSelectionExported?.memberObjectIds.includes(object?.id || "") &&
+        groupFromSelectionExported?.memberObjectIds.includes(
+          outsideObject?.id || "",
+        ),
+    ) &&
+    !dom.mapUngroupSelection.disabled;
+  const ungroupedSelection =
+    ungroupSelectedSpatialGroups() === 1 &&
+    !spatialObjectById(groupFromSelection?.id || "") &&
+    Boolean(
+      spatialObjectById(object?.id || "") &&
+        spatialObjectById(outsideObject?.id || ""),
+    );
   if (object) {
     selectSpatialObject(object.id, { render: false });
   }
@@ -16865,13 +16980,15 @@ function assertManualSpatialObjectControls() {
       multiNudged &&
       lassoSelected &&
       selectionResized &&
+      groupedFromSelection &&
+      ungroupedSelection &&
       groupDuplicatedWithMembers &&
       groupDragMovedMembers &&
       resized &&
       selectedObjectExported &&
       exported &&
       removed,
-    "Manual spatial map note and group can be selected, nudged, duplicated, deleted, moved with members, resized, exported, and removed",
+    "Manual spatial map note and group can be selected, grouped, ungrouped, nudged, duplicated, deleted, moved with members, resized, exported, and removed",
     JSON.stringify({
       added,
       selectedRendered,
@@ -16893,6 +17010,9 @@ function assertManualSpatialObjectControls() {
       lassoSelected,
       lassoHitCount: lassoHits.length,
       selectionResized,
+      groupSelectionButtonEnabled,
+      groupedFromSelection,
+      ungroupedSelection,
       transformBoxRendered,
       groupDuplicatedWithMembers,
       groupDragMovedMembers,

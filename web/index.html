@@ -1161,6 +1161,22 @@
                                         Pin
                                     </button>
                                     <button
+                                        id="map-group-selection"
+                                        class="ghost-button"
+                                        type="button"
+                                        title="Wrap selected Map objects in a group region (Cmd/Ctrl+G)"
+                                    >
+                                        Group
+                                    </button>
+                                    <button
+                                        id="map-ungroup-selection"
+                                        class="ghost-button"
+                                        type="button"
+                                        title="Remove selected Map group regions without deleting their contents (Shift+Cmd/Ctrl+G)"
+                                    >
+                                        Ungroup
+                                    </button>
+                                    <button
                                         id="map-send-object-back"
                                         class="ghost-button"
                                         type="button"
@@ -1845,6 +1861,12 @@
                                 <strong>Group</strong> makes that relationship
                                 persistent so clicking one grouped item selects
                                 the full set.
+                            </li>
+                            <li>
+                                In <strong>Map</strong>, <strong>Group</strong>
+                                wraps selected Map objects in a region.
+                                <strong>Ungroup</strong> removes the region
+                                without deleting the objects inside.
                             </li>
                             <li>
                                 <strong>Duplicate sel</strong> creates an offset
