@@ -71,6 +71,8 @@ This repo now includes that practical transcript bridge. When `/canvax` is activ
 
 Use `--scope session` when the spoken instruction applies to the whole board. The board imports queued transcript entries into its voice notes through preview-state polling, and Codex should also read `exports/canvax-transcript-bridge.json` if the board has not imported it yet.
 
+If the user asks how this becomes native to ChatGPT/Codex, use `docs/CHATGPT_APP_BRIDGE.md` as the boundary. The local skill remains the current working path; a future host bridge would expose Canvax through MCP/App tools such as `get_latest_frame`, `create_task_pack`, `create_image_prompt_pack`, `attach_generated_asset`, `publish_codex_output`, and `append_transcript`. Do not claim that localhost Canvax can directly control ChatGPT, invoke ChatGPT Images, or read the Codex microphone without that host bridge.
+
 ## Use saved exports
 
 Prefer these files when they exist:
@@ -105,6 +107,8 @@ npm run execute-rewrite
 That writes a refreshed frame-bound preview artifact under `artifacts/preview/codex-rewrite/frames/...` and publishes the standard Codex output manifest. It is local and does not require an API key.
 
 If the user asks for image generation, illustration, poster composition, book spreads, or "where should the image model place things", read `exports/canvax-image-prompt-pack-latest.json` or `.md` after the live export. This pack is no-API by design: it gives Codex/ChatGPT host capabilities the prompt, coordinates, safe zones, and HTML/CSS placement scaffold without requiring Canvax to call a paid API.
+
+When host image generation is available in the current chat/client, use the image prompt pack and asset candidate pack as the source of truth, then attach the resulting file back through Canvax as an editable image element or asset candidate choice. When host image generation is not available, still produce the prompt pack and placement map; do not introduce an `OPENAI_API_KEY` requirement.
 
 If `exports/canvax-checkpoint-latest.json` exists and the user seems to be referring to a specific recent moment in the board workflow, prefer that checkpoint because it merges sketch, voice, and output context for that handoff moment.
 
