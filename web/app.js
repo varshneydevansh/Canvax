@@ -384,6 +384,7 @@ const dom = {
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapMakeEditable: document.querySelector("#map-make-editable"),
   mapPinObject: document.querySelector("#map-pin-object"),
+  mapLockObject: document.querySelector("#map-lock-object"),
   mapGroupSelection: document.querySelector("#map-group-selection"),
   mapUngroupSelection: document.querySelector("#map-ungroup-selection"),
   mapSelectGroupContents: document.querySelector("#map-select-group-contents"),
@@ -763,6 +764,7 @@ function bindEvents() {
     createEditableFrameFromSelectedOutput();
   });
   dom.mapPinObject.addEventListener("click", toggleSelectedSpatialObjectPin);
+  dom.mapLockObject.addEventListener("click", toggleSelectedSpatialObjectLock);
   dom.mapGroupSelection.addEventListener("click", createSpatialGroupFromSelection);
   dom.mapUngroupSelection.addEventListener("click", ungroupSelectedSpatialGroups);
   dom.mapSelectGroupContents.addEventListener(
@@ -3254,6 +3256,7 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
   const existing = objects[existingIndex];
   const manualFields = existing.meta?.manualFields || {};
   const pinned = isSpatialObjectPinned(existing);
+  const locked = isSpatialObjectLocked(existing);
   const manualPrompt = manualFields.prompt
     ? cleanString(existing.meta?.prompt)
     : "";
@@ -3282,6 +3285,7 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
           }
         : {}),
       ...(pinned ? { pinned: true } : {}),
+      ...(locked ? { locked: true } : {}),
       ...(Object.keys(manualFields).length ? { manualFields } : {}),
     },
   };
@@ -3792,7 +3796,8 @@ function addSpatialGroupObject() {
 }
 
 function canCreateSpatialGroupFromSelection() {
-  return selectedSpatialObjectsForTransform().length >= 2;
+  const selectedObjects = selectedSpatialObjectsForTransform();
+  return selectedObjects.length >= 2 && !hasLockedSpatialObjects(selectedObjects);
 }
 
 function selectedSpatialGroups() {
@@ -3803,6 +3808,10 @@ function createSpatialGroupFromSelection() {
   const selectedObjects = selectedSpatialObjectsForTransform();
   if (selectedObjects.length < 2) {
     renderStatus("Select at least two Map objects to group");
+    return null;
+  }
+  if (hasLockedSpatialObjects(selectedObjects)) {
+    renderLockedSpatialObjectStatus("group them");
     return null;
   }
   const bounds = unionBounds(selectedObjects.map(spatialObjectBounds));
@@ -3836,6 +3845,10 @@ function ungroupSelectedSpatialGroups() {
   const groups = selectedSpatialGroups();
   if (!groups.length) {
     renderStatus("Select a Map group to ungroup");
+    return 0;
+  }
+  if (hasLockedSpatialObjects(groups)) {
+    renderLockedSpatialObjectStatus("ungroup them");
     return 0;
   }
   const groupIds = new Set(groups.map((group) => group.id));
@@ -3886,6 +3899,10 @@ function fitSelectedSpatialGroupsToContents() {
   const groups = selectedSpatialGroups();
   if (!groups.length) {
     renderStatus("Select a Map group to fit around its contents");
+    return 0;
+  }
+  if (hasLockedSpatialObjects(groups)) {
+    renderLockedSpatialObjectStatus("fit group bounds");
     return 0;
   }
   let fittedCount = 0;
@@ -3988,7 +4005,11 @@ function addSpatialObject(partial) {
 function removeSpatialObject(objectId) {
   const object = spatialObjectById(objectId);
   if (!object) {
-    return;
+    return false;
+  }
+  if (isSpatialObjectLocked(object)) {
+    renderStatus(`Unlock ${object.title} before removing it`);
+    return false;
   }
   state.spatialObjects = state.spatialObjects.filter(
     (candidate) => candidate.id !== objectId,
@@ -4000,6 +4021,7 @@ function removeSpatialObject(objectId) {
   renderFlowBoard();
   renderSpec();
   renderStatus(`Removed ${object.title} from the spatial map`);
+  return true;
 }
 
 function removeSelectedSpatialObjects() {
@@ -4007,17 +4029,25 @@ function removeSelectedSpatialObjects() {
   if (!selectedIds.length) {
     return 0;
   }
+  const lockedIds = selectedIds.filter((id) =>
+    isSpatialObjectLocked(spatialObjectById(id)),
+  );
+  if (lockedIds.length) {
+    renderLockedSpatialObjectStatus("delete them");
+    return 0;
+  }
+  const removableIds = selectedIds;
   state.spatialObjects = state.spatialObjects.filter(
-    (object) => !selectedIds.includes(object.id),
+    (object) => !removableIds.includes(object.id),
   );
   setSelectedSpatialObjects([]);
   persistState();
   renderFlowBoard();
   renderSpec();
   renderStatus(
-    `Removed ${selectedIds.length} Map object${selectedIds.length === 1 ? "" : "s"} from the spatial map`,
+    `Removed ${removableIds.length} Map object${removableIds.length === 1 ? "" : "s"} from the spatial map`,
   );
-  return selectedIds.length;
+  return removableIds.length;
 }
 
 function selectedSpatialObject() {
@@ -4086,6 +4116,9 @@ function spatialLaneOrderLabel(object) {
 }
 
 function canReorderSelectedSpatialObjects(direction) {
+  if (hasLockedSpatialObjects()) {
+    return false;
+  }
   const selectedIds = new Set(currentSelectedSpatialObjectIds());
   if (!selectedIds.size) {
     return false;
@@ -4159,6 +4192,9 @@ function spatialLaneObjects(descriptor) {
 }
 
 function canReorderSelectedSpatialLane(direction) {
+  if (hasLockedSpatialObjects()) {
+    return false;
+  }
   const descriptor = selectedSpatialLaneDescriptor();
   if (!descriptor) {
     return false;
@@ -4209,6 +4245,22 @@ function isSpatialObjectVisibleInCurrentMap(object) {
 
 function isSpatialObjectPinned(object) {
   return Boolean(object?.meta?.pinned);
+}
+
+function isSpatialObjectLocked(object) {
+  return Boolean(object?.meta?.locked);
+}
+
+function hasLockedSpatialObjects(objects = selectedSpatialObjects()) {
+  return objects.some(isSpatialObjectLocked);
+}
+
+function canMutateSpatialObjects(objects = selectedSpatialObjects()) {
+  return Boolean(objects.length) && !hasLockedSpatialObjects(objects);
+}
+
+function renderLockedSpatialObjectStatus(action = "change") {
+  renderStatus(`Unlock selected Map object${currentSelectedSpatialObjectIds().length === 1 ? "" : "s"} to ${action}`);
 }
 
 function isSpatialObjectVisibleForFilter(object, filter = state.mapObjectFilter) {
@@ -4303,7 +4355,7 @@ function clearSpatialObjectSelection(options = {}) {
 }
 
 function moveSpatialObjectByDelta(object, deltaX, deltaY) {
-  if (!object) {
+  if (!object || isSpatialObjectLocked(object)) {
     return null;
   }
   const memberOrigins =
@@ -4345,6 +4397,10 @@ function nudgeSelectedSpatialObject(deltaX, deltaY) {
   if (!objects.length) {
     return false;
   }
+  if (hasLockedSpatialObjects(objects)) {
+    renderLockedSpatialObjectStatus("move them");
+    return false;
+  }
   objects.forEach((object) => moveSpatialObjectByDelta(object, deltaX, deltaY));
   persistState();
   renderFlowBoard();
@@ -4367,6 +4423,10 @@ function bringSelectedSpatialObjectsFront() {
 }
 
 function reorderSelectedSpatialObjects(direction) {
+  if (hasLockedSpatialObjects()) {
+    renderLockedSpatialObjectStatus("reorder them");
+    return false;
+  }
   const selectedIds = currentSelectedSpatialObjectIds();
   const selectedSet = new Set(selectedIds);
   if (!selectedSet.size) {
@@ -4445,6 +4505,10 @@ function reorderSelectedSpatialLane(direction) {
   const selectedSet = new Set(currentSelectedSpatialObjectIds());
   if (!descriptor || !selectedSet.size) {
     renderStatus("Select output or history cards to reorder a lane");
+    return false;
+  }
+  if (hasLockedSpatialObjects()) {
+    renderLockedSpatialObjectStatus("reorder their lane");
     return false;
   }
   const laneObjects = spatialLaneObjects(descriptor);
@@ -4527,6 +4591,9 @@ function selectedSpatialTransformObjects() {
 }
 
 function selectedSpatialTransformBounds() {
+  if (hasLockedSpatialObjects(selectedSpatialTransformObjects())) {
+    return null;
+  }
   const bounds = selectedSpatialTransformObjects().map(spatialObjectBounds);
   return bounds.length > 1 ? unionBounds(bounds) : null;
 }
@@ -4546,6 +4613,13 @@ function applySpatialLassoSelection(bounds, options = {}) {
 
 function resizeSpatialSelectionFromDrag(drag, deltaX, deltaY) {
   if (!drag?.originBounds || !Array.isArray(drag.objectOrigins)) {
+    return null;
+  }
+  if (
+    drag.objectOrigins.some((origin) =>
+      isSpatialObjectLocked(spatialObjectById(origin.id)),
+    )
+  ) {
     return null;
   }
   const nextBounds = resizedBoundsFromHandle(
@@ -4592,7 +4666,7 @@ function applySpatialSelectionResize(originBounds, nextBounds, objectOrigins) {
     : 1;
   objectOrigins.forEach((origin) => {
     const object = spatialObjectById(origin.id);
-    if (!object) {
+    if (!object || isSpatialObjectLocked(object)) {
       return;
     }
     object.x = Math.max(
@@ -4616,11 +4690,19 @@ function applySpatialSelectionResize(originBounds, nextBounds, objectOrigins) {
 
 function duplicateSelectedSpatialObject() {
   const objects = selectedSpatialObjectsForTransform();
+  if (hasLockedSpatialObjects(objects)) {
+    renderLockedSpatialObjectStatus("duplicate them");
+    return null;
+  }
   if (objects.length > 1) {
     return duplicateSpatialObjectSet(objects);
   }
   const object = objects[0] || selectedSpatialObject();
   if (!object) {
+    return null;
+  }
+  if (isSpatialObjectLocked(object)) {
+    renderLockedSpatialObjectStatus("duplicate it");
     return null;
   }
   if (object.type === "map-group") {
@@ -4648,7 +4730,7 @@ function duplicateSpatialObjectSet(objects) {
   const copiedSourceIds = new Set();
   const duplicates = [];
   objects.forEach((object) => {
-    if (!object || copiedSourceIds.has(object.id)) {
+    if (!object || isSpatialObjectLocked(object) || copiedSourceIds.has(object.id)) {
       return;
     }
     const duplicate = cloneSpatialObjectForDuplicate(object);
@@ -4658,7 +4740,7 @@ function duplicateSpatialObjectSet(objects) {
     }
     if (object.type === "map-group" && duplicate) {
       spatialObjectsInsideGroup(object).forEach((child) => {
-        if (copiedSourceIds.has(child.id)) {
+        if (isSpatialObjectLocked(child) || copiedSourceIds.has(child.id)) {
           return;
         }
         const childDuplicate = cloneSpatialObjectForDuplicate(child, {
@@ -4695,11 +4777,17 @@ function duplicateSpatialObjectSet(objects) {
 }
 
 function duplicateSpatialGroupObject(group) {
+  if (isSpatialObjectLocked(group)) {
+    renderLockedSpatialObjectStatus("duplicate it");
+    return null;
+  }
   const groupDuplicate = cloneSpatialObjectForDuplicate(group);
   if (!groupDuplicate) {
     return null;
   }
-  const containedObjects = spatialObjectsInsideGroup(group);
+  const containedObjects = spatialObjectsInsideGroup(group).filter(
+    (object) => !isSpatialObjectLocked(object),
+  );
   const containedDuplicates = containedObjects
     .map((object) =>
       cloneSpatialObjectForDuplicate(object, {
@@ -4816,6 +4904,7 @@ function cloneSpatialObjectMetaForManualCopy(object) {
     delete meta.previewPath;
   }
   delete meta.pinned;
+  delete meta.locked;
   return meta;
 }
 
@@ -4884,6 +4973,7 @@ function buildSpatialObjectContextText(object) {
     `- Source: ${object.sourceKind || "manual"}`,
     `- Status: ${spatialObjectFooterStatus(object)}`,
     `- Pinned: ${isSpatialObjectPinned(object) ? "yes" : "no"}`,
+    `- Locked: ${isSpatialObjectLocked(object) ? "yes" : "no"}`,
     `- Frame: ${frameLabel}`,
     `- Layer: ${spatialObjectLayerLabel(object) || "unlayered"}`,
     `- Lane order: ${spatialLaneOrderLabel(object) || "not in a lane"}`,
@@ -7656,13 +7746,20 @@ function renderSpatialObjectNode(object) {
   const actionMarkup = spatialObjectActionMarkup(object);
   const isSelected = currentSelectedSpatialObjectIds().includes(object.id);
   const isPinned = isSpatialObjectPinned(object);
+  const isLocked = isSpatialObjectLocked(object);
+  const badgeMarkup = [
+    isPinned ? '<span class="spatial-object-pin-badge">Pinned</span>' : "",
+    isLocked ? '<span class="spatial-object-lock-badge">Locked</span>' : "",
+  ]
+    .filter(Boolean)
+    .join("");
   const normalizedSourceKind = normalizeSpatialSourceKind(object.sourceKind);
   const sourceClass = normalizedSourceKind
     ? `source-${classToken(normalizedSourceKind)}`
     : "";
   return `
     <article
-      class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""} ${isPinned ? "pinned" : ""}"
+      class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""} ${isPinned ? "pinned" : ""} ${isLocked ? "locked" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
       data-spatial-object-source="${escapeHtml(normalizedSourceKind)}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
@@ -7675,18 +7772,23 @@ function renderSpatialObjectNode(object) {
         class="spatial-object-remove"
         type="button"
         data-spatial-object-remove="${escapeHtml(object.id)}"
-        title="Remove this map object"
+        title="${isLocked ? "Unlock before removing this map object" : "Remove this map object"}"
         aria-label="Remove ${escapeHtml(object.title)}"
+        ${isLocked ? "disabled" : ""}
       >
         ×
       </button>
-      ${isPinned ? '<span class="spatial-object-pin-badge">Pinned</span>' : ""}
-      <span
-        class="spatial-object-resize"
-        data-spatial-object-resize="${escapeHtml(object.id)}"
-        title="Resize this map object"
-        aria-hidden="true"
-      ></span>
+      ${badgeMarkup ? `<div class="spatial-object-badges">${badgeMarkup}</div>` : ""}
+      ${
+        isLocked
+          ? ""
+          : `<span
+              class="spatial-object-resize"
+              data-spatial-object-resize="${escapeHtml(object.id)}"
+              title="Resize this map object"
+              aria-hidden="true"
+            ></span>`
+      }
       <div class="spatial-object-header" data-spatial-object-drag="${escapeHtml(object.id)}">
         <span>${escapeHtml(sourceLabel)}</span>
         <strong>${escapeHtml(compactDisplayText(spatialObjectTitle(object), 46))}</strong>
@@ -7957,6 +8059,8 @@ function renderMapSelectionActions() {
   const selectedObjects =
     state.viewMode === "flow" ? selectedSpatialObjects() : [];
   const hasSelection = selectedObjects.length > 0;
+  const hasLockedSelection = hasLockedSpatialObjects(selectedObjects);
+  const canMutateSelection = canMutateSpatialObjects(selectedObjects);
   const copyText = buildSpatialSelectionContextText(selectedObjects);
   const canMakeEditable = canCreateEditableFrameFromSelectedOutput();
   dom.mapSelectionActions.hidden = !hasSelection;
@@ -7967,17 +8071,26 @@ function renderMapSelectionActions() {
   dom.mapPinObject.disabled = !hasSelection;
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
+  dom.mapLockObject.disabled = !hasSelection;
+  dom.mapLockObject.textContent =
+    hasSelection && selectedObjects.every(isSpatialObjectLocked) ? "Unlock" : "Lock";
   dom.mapGroupSelection.disabled = !canCreateSpatialGroupFromSelection();
   const selectedGroups = selectedSpatialGroups();
-  dom.mapUngroupSelection.disabled = selectedGroups.length === 0;
+  dom.mapUngroupSelection.disabled =
+    selectedGroups.length === 0 || hasLockedSpatialObjects(selectedGroups);
   dom.mapSelectGroupContents.disabled = selectedGroups.length === 0;
-  dom.mapFitGroup.disabled = selectedGroups.length === 0;
-  dom.mapLaneEarlier.disabled = !canReorderSelectedSpatialLane("earlier");
-  dom.mapLaneLater.disabled = !canReorderSelectedSpatialLane("later");
-  dom.mapSendObjectBack.disabled = !canReorderSelectedSpatialObjects("back");
-  dom.mapBringObjectFront.disabled = !canReorderSelectedSpatialObjects("front");
-  dom.mapDuplicateObject.disabled = !hasSelection;
-  dom.mapDeleteObject.disabled = !hasSelection;
+  dom.mapFitGroup.disabled =
+    selectedGroups.length === 0 || hasLockedSpatialObjects(selectedGroups);
+  dom.mapLaneEarlier.disabled =
+    hasLockedSelection || !canReorderSelectedSpatialLane("earlier");
+  dom.mapLaneLater.disabled =
+    hasLockedSelection || !canReorderSelectedSpatialLane("later");
+  dom.mapSendObjectBack.disabled =
+    hasLockedSelection || !canReorderSelectedSpatialObjects("back");
+  dom.mapBringObjectFront.disabled =
+    hasLockedSelection || !canReorderSelectedSpatialObjects("front");
+  dom.mapDuplicateObject.disabled = !canMutateSelection;
+  dom.mapDeleteObject.disabled = !canMutateSelection;
   dom.mapClearSelection.disabled = !hasSelection;
   if (!hasSelection || !object) {
     dom.mapSelectedObjectTitle.textContent = "No object selected";
@@ -7990,6 +8103,7 @@ function renderMapSelectionActions() {
     dom.mapMakeEditable.hidden = true;
     dom.mapMakeEditable.disabled = true;
     dom.mapPinObject.textContent = "Pin";
+    dom.mapLockObject.textContent = "Lock";
     return;
   }
 
@@ -7997,7 +8111,9 @@ function renderMapSelectionActions() {
     dom.mapSelectedObjectTitle.textContent =
       `${selectedObjects.length} Map objects selected`;
     dom.mapSelectedObjectDetail.textContent =
-      "Arrow keys move the selection. Use Lane earlier/later for output/history order, Group, Bring front / Send back, duplicate, delete, clear, or copy combined context.";
+      hasLockedSelection
+        ? "Locked selections can be copied or unlocked, but not moved, resized, reordered, duplicated, grouped, or deleted."
+        : "Arrow keys move the selection. Use Lane earlier/later for output/history order, Group, Bring front / Send back, duplicate, delete, clear, or copy combined context.";
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
@@ -8016,6 +8132,7 @@ function renderMapSelectionActions() {
     spatialObjectLayerLabel(object),
     spatialLaneOrderLabel(object),
     isSpatialObjectPinned(object) ? "Pinned" : "",
+    isSpatialObjectLocked(object) ? "Locked" : "",
   ];
   if (object.type === "map-group") {
     details.push(spatialGroupMemberSummary(object));
@@ -8060,6 +8177,7 @@ function mapObjectInspectorRows(object) {
     { label: "Kind", value: spatialObjectSourceLabel(object) },
     { label: "Frame", value: spatialObjectFrameLabel(object) },
     { label: "Pinned", value: isSpatialObjectPinned(object) ? "yes" : "no" },
+    { label: "Locked", value: isSpatialObjectLocked(object) ? "yes" : "no" },
   ];
   if (cleanString(meta.prompt)) {
     rows.push({ label: "Prompt", value: cleanString(meta.prompt) });
@@ -8208,6 +8326,32 @@ function toggleSelectedSpatialObjectPin() {
     shouldPin
       ? `Pinned ${selectedObjects.length} Map object${selectedObjects.length === 1 ? "" : "s"}`
       : `Unpinned ${selectedObjects.length} Map object${selectedObjects.length === 1 ? "" : "s"}`,
+  );
+  return true;
+}
+
+function toggleSelectedSpatialObjectLock() {
+  const selectedObjects = selectedSpatialObjects();
+  if (!selectedObjects.length) {
+    return false;
+  }
+  const shouldLock = !selectedObjects.every(isSpatialObjectLocked);
+  selectedObjects.forEach((object) => {
+    object.meta = { ...(object.meta || {}) };
+    if (shouldLock) {
+      object.meta.locked = true;
+    } else {
+      delete object.meta.locked;
+    }
+  });
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    shouldLock
+      ? `Locked ${selectedObjects.length} Map object${selectedObjects.length === 1 ? "" : "s"}`
+      : `Unlocked ${selectedObjects.length} Map object${selectedObjects.length === 1 ? "" : "s"}`,
   );
   return true;
 }
@@ -10324,6 +10468,10 @@ function onFlowBoardPointerDown(event) {
     if (!bounds || objects.length < 2) {
       return;
     }
+    if (hasLockedSpatialObjects(objects)) {
+      renderLockedSpatialObjectStatus("resize them");
+      return;
+    }
     state.flowDrag = {
       kind: "spatial-selection-resize",
       pointerId: event.pointerId,
@@ -10352,6 +10500,10 @@ function onFlowBoardPointerDown(event) {
     const objectId = objectResizeHandle.dataset.spatialObjectResize;
     const object = spatialObjectById(objectId);
     if (!object) {
+      return;
+    }
+    if (isSpatialObjectLocked(object)) {
+      renderStatus(`Unlock ${object.title} before resizing it`);
       return;
     }
     selectSpatialObject(objectId, { render: false });
@@ -10388,6 +10540,10 @@ function onFlowBoardPointerDown(event) {
       return;
     }
     const dragObjects = selectedSpatialObjectsForTransform();
+    if (hasLockedSpatialObjects(dragObjects)) {
+      renderLockedSpatialObjectStatus("move them");
+      return;
+    }
     state.flowDrag = {
       kind: "spatial-selection",
       objectId,
@@ -10559,7 +10715,7 @@ function onWindowPointerMove(event) {
     ensureFlowWorkspaceMargin(candidateMinX, candidateMinY);
     (state.flowDrag.objectOrigins || []).forEach((origin) => {
       const object = spatialObjectById(origin.id);
-      if (!object) {
+      if (!object || isSpatialObjectLocked(object)) {
         return;
       }
       const nextX = Math.max(32, origin.x + deltaX / state.flowZoom);
@@ -10582,7 +10738,7 @@ function onWindowPointerMove(event) {
     );
   } else if (state.flowDrag.kind === "spatial-object-resize") {
     const object = spatialObjectById(state.flowDrag.objectId);
-    if (!object) {
+    if (!object || isSpatialObjectLocked(object)) {
       return;
     }
     object.width = Math.max(
@@ -13258,6 +13414,7 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     sourceId: object.sourceId,
     status: object.status,
     pinned: isSpatialObjectPinned(object),
+    locked: isSpatialObjectLocked(object),
     layerIndex: spatialObjectLayerIndex(object),
     layerLabel: spatialObjectLayerLabel(object),
     laneId: object.meta?.laneId || "",
@@ -13461,6 +13618,7 @@ function buildSpatialGroupDragMemberOrigins(group) {
       .filter(
         (object) =>
           object.id !== group.id &&
+          !isSpatialObjectLocked(object) &&
           rectContainsRectCenter(groupRect, spatialObjectRect(object)),
       )
       .map((object) => ({
@@ -13489,7 +13647,7 @@ function moveSpatialGroupMembers(memberOrigins, deltaX, deltaY) {
 
   (memberOrigins.objects || []).forEach((origin) => {
     const object = spatialObjectById(origin.id);
-    if (!object) {
+    if (!object || isSpatialObjectLocked(object)) {
       return;
     }
     object.x = Math.max(32, origin.x + deltaX);
@@ -18434,6 +18592,7 @@ function assertManualSpatialObjectControls() {
     dom.mapSelectedObjectTitle.textContent === object.title &&
     !dom.mapCopyObjectContext.disabled &&
     !dom.mapPinObject.disabled &&
+    !dom.mapLockObject.disabled &&
     Boolean(dom.mapGroupSelection) &&
     dom.mapGroupSelection.disabled &&
     Boolean(dom.mapUngroupSelection) &&
@@ -18498,6 +18657,35 @@ function assertManualSpatialObjectControls() {
         entry.pinned === true &&
         entry.contextMarkdown.includes("- Pinned: yes"),
     );
+  const lockedXBefore = objectRecord?.x || 0;
+  const locked =
+    toggleSelectedSpatialObjectLock() &&
+    objectRecord?.meta?.locked === true &&
+    dom.mapLockObject.textContent === "Unlock" &&
+    Boolean(
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${object?.id}'].locked .spatial-object-lock-badge`,
+      ),
+    ) &&
+    dom.mapDuplicateObject.disabled &&
+    dom.mapDeleteObject.disabled &&
+    buildSpatialWorkspaceExport().objects.some(
+      (entry) =>
+        entry.id === object?.id &&
+        entry.locked === true &&
+        entry.contextMarkdown.includes("- Locked: yes"),
+    );
+  const lockedNudgeBlocked =
+    !nudgeSelectedSpatialObject(12, 0) && objectRecord?.x === lockedXBefore;
+  const lockedDeleteBlocked =
+    removeSelectedSpatialObjects() === 0 &&
+    Boolean(spatialObjectById(object?.id || ""));
+  const unlocked =
+    toggleSelectedSpatialObjectLock() &&
+    objectRecord?.meta?.locked !== true &&
+    dom.mapLockObject.textContent === "Lock" &&
+    !dom.mapDuplicateObject.disabled &&
+    !dom.mapDeleteObject.disabled;
   setMapObjectFilter("outputs");
   const pinnedVisibleAcrossFilter =
     state.mapObjectFilter === "outputs" &&
@@ -18518,6 +18706,7 @@ function assertManualSpatialObjectControls() {
       "Use this map note as a Codex refinement instruction",
     ) &&
     contextText.includes("- Pinned: yes") &&
+    contextText.includes("- Locked: no") &&
     contextText.includes("- Layer: Layer") &&
     contextText.includes("Prompt / Context");
   const activeViewport =
@@ -18913,6 +19102,10 @@ function assertManualSpatialObjectControls() {
       selectionActionsVisible &&
       propertyEdited &&
       pinned &&
+      locked &&
+      lockedNudgeBlocked &&
+      lockedDeleteBlocked &&
+      unlocked &&
       pinnedVisibleAcrossFilter &&
       contextExported &&
       spatialContextExported &&
@@ -18939,13 +19132,17 @@ function assertManualSpatialObjectControls() {
       selectedObjectExported &&
       exported &&
       removed,
-    "Manual spatial map note and group can be selected, grouped, ungrouped, nudged, duplicated, deleted, moved with members, resized, exported, and removed",
+    "Manual spatial map note and group can be selected, locked, grouped, ungrouped, nudged, duplicated, deleted, moved with members, resized, exported, and removed",
     JSON.stringify({
       added,
       selectedRendered,
       selectionActionsVisible,
       propertyEdited,
       pinned,
+      locked,
+      lockedNudgeBlocked,
+      lockedDeleteBlocked,
+      unlocked,
       pinnedVisibleAcrossFilter,
       contextExported,
       spatialContextExported,

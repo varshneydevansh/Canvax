@@ -3157,20 +3157,45 @@ select,
         0 1.8rem 3.2rem rgba(240, 162, 2, 0.14);
 }
 
-.spatial-object-pin-badge {
+.spatial-object-node.locked {
+    border-color: rgba(24, 17, 14, 0.36);
+    cursor: default;
+    box-shadow:
+        0 0 0 0.14rem rgba(24, 17, 14, 0.08),
+        0 0.85rem 1.8rem rgba(24, 17, 14, 0.1);
+}
+
+.spatial-object-badges {
     position: absolute;
     top: 0.48rem;
     right: 2.22rem;
     z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    justify-content: flex-end;
+    pointer-events: none;
+}
+
+.spatial-object-pin-badge,
+.spatial-object-lock-badge {
     padding: 0.16rem 0.44rem;
     border-radius: 999px;
-    background: rgba(240, 162, 2, 0.18);
-    color: #7b350f;
     font-family: "Menlo", "SF Mono", monospace;
     font-size: 0.54rem;
     font-weight: 900;
     letter-spacing: 0.12em;
     text-transform: uppercase;
+}
+
+.spatial-object-pin-badge {
+    background: rgba(240, 162, 2, 0.18);
+    color: #7b350f;
+}
+
+.spatial-object-lock-badge {
+    background: rgba(24, 17, 14, 0.12);
+    color: #2f2925;
 }
 
 .spatial-object-remove {
@@ -3191,6 +3216,11 @@ select,
 .spatial-object-remove:hover {
     border-color: rgba(255, 93, 58, 0.35);
     color: var(--accent-deep);
+}
+
+.spatial-object-remove:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
 }
 
 .spatial-object-resize {
@@ -3505,6 +3535,10 @@ select,
     gap: 0.22rem;
     padding-right: 1.7rem;
     cursor: grab;
+}
+
+.spatial-object-node.locked .spatial-object-header {
+    cursor: default;
 }
 
 .spatial-object-header span {
