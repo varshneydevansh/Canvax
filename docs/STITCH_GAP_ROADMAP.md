@@ -424,7 +424,7 @@ Needed:
 - Keep the local companion working.
 - Preserve the file/manifest transport as a fallback.
 - Add an App Server style transport layer for richer Codex clients.
-- Document the minimum upstream API Canvax needs:
+- Document the minimum upstream API Canvax needs. **Baseline shipped in `docs/CHATGPT_APP_BRIDGE.md`:**
   - open a thread-bound canvas
   - receive live image/sketch snapshots
   - send generated artifacts/previews back into the same thread

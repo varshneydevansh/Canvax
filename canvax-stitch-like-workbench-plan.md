@@ -407,14 +407,14 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 4.3: Plan ChatGPT Apps SDK / MCP Bridge
 
-- **Status**: Open documentation task.
-- **Location**: `docs/upstream-proposal.md`, new `docs/CHATGPT_APP_BRIDGE.md`
+- **Status**: Shipped documentation baseline in `docs/CHATGPT_APP_BRIDGE.md`. Implementation remains future work.
+- **Location**: `docs/upstream-proposal.md`, `docs/CHATGPT_APP_BRIDGE.md`
 - **Description**: Document how Canvax could become a ChatGPT App: MCP server tools for `get_latest_frame`, `create_task_pack`, `attach_generated_asset`, and optional iframe UI.
 - **Complexity**: 4/10
 - **Dependencies**: Task 4.2
 - **Acceptance Criteria**:
-  - Clear boundary between Codex skill, Codex plugin, ChatGPT App, and local browser board.
-  - No claim that a localhost page can directly control ChatGPT proprietary UI.
+  - Clear boundary between Codex skill, Codex plugin, ChatGPT App, and local browser board. **Documented.**
+  - No claim that a localhost page can directly control ChatGPT proprietary UI. **Documented.**
 - **Validation**:
   - Docs review against official Apps SDK docs.
 

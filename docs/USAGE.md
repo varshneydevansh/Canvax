@@ -476,7 +476,7 @@ Today, Canvax is not yet:
 - a finished voice-plus-sketch checkpoint/event-log surface
 - a full Stitch/Canva-style infinite canvas
 
-Those deeper integrations are part of the roadmap in `canvax-live-collaboration-plan.md`.
+Those deeper integrations are part of the roadmap in `canvax-live-collaboration-plan.md`. The host bridge boundary and proposed MCP/App tools are documented in `docs/CHATGPT_APP_BRIDGE.md`.
 
 The current voice path is browser speech recognition when available, or pasted macOS/Codex dictation text when it is not. A native Codex version could reuse the Codex microphone reader directly, but that requires first-party Codex client integration or an app/plugin bridge that exposes transcript events to Canvax.
 

@@ -240,6 +240,7 @@ Then sketch in the board opened through Codex Browser Use / Atlas, and continue 
 - [Brand guide](docs/BRANDING.md)
 - [Development guide](docs/DEVELOPMENT.md)
 - [Codex Browser workflow](docs/CODEX_BROWSER_WORKFLOW.md)
+- [ChatGPT App and Codex bridge](docs/CHATGPT_APP_BRIDGE.md)
 - [Upstream proposal](docs/upstream-proposal.md)
 - [Demo script](docs/canvax-demo-script.md)
 - [Execution status](docs/EXECUTION_STATUS.md)

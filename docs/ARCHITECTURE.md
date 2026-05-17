@@ -377,6 +377,7 @@ flowchart LR
 - `README.md`: public project overview
 - `docs/INSTALL.md`: installation and setup
 - `docs/USAGE.md`: operator-facing usage guide
+- `docs/CHATGPT_APP_BRIDGE.md`: future MCP/App bridge contract for ChatGPT/Codex host tools, image-generation handoff, transcript forwarding, and native client boundaries
 - `canvax-live-collaboration-plan.md`: roadmap and future collaboration design
 
 ## State Model
