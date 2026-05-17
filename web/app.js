@@ -14079,6 +14079,17 @@ async function runSelfTest() {
         "Workbench bottom command composer renders",
       ),
     );
+    const moreActions = document.querySelector(".focus-more-actions");
+    const moreActionGrid = document.querySelector(".focus-more-action-grid");
+    results.push(
+      assert(
+        Boolean(moreActions) &&
+          Boolean(moreActionGrid) &&
+          Boolean(moreActionGrid.querySelector("#focus-image-pack")) &&
+          Boolean(moreActionGrid.querySelector("#focus-auto-rewrite")),
+        "Workbench secondary actions are grouped",
+      ),
+    );
 
     resetFrameForSelfTest();
     setSelfTestProgress("drawing tools");

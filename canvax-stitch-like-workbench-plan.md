@@ -58,6 +58,7 @@ Current completed baseline:
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
 - The Workbench tray now uses a compact three-column command strip so the active canvas is visible in the first viewport instead of being pushed below the fold.
 - Workbench quick-prompt chips add common refinement intent such as font, drama, mobile variant, spacing, and image candidates without opening Advanced mode.
+- Workbench secondary actions now sit behind a `More actions` disclosure so the default composer focuses on the everyday frame/free-canvas/build/preview loop instead of showing every power tool at once.
 - Action mode selection is available in Workbench and is exported into task/image prompt packs.
 - Surface presets now include slide, book spread, storyboard, and comic page in addition to UI/poster/free-canvas presets, so the same loop can support product screens, decks, illustration planning, and sequential art.
 - `DESIGN.md` is detected when present and included as project design context in handoffs.

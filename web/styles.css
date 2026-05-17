@@ -1374,7 +1374,6 @@ body[data-workspace-mode="simple"] .focus-command-row > * {
 body[data-workspace-mode="simple"] #focus-undo,
 body[data-workspace-mode="simple"] #focus-redo,
 body[data-workspace-mode="simple"] #focus-generate,
-body[data-workspace-mode="simple"] #focus-image-pack,
 body[data-workspace-mode="simple"] #focus-voice-toggle,
 body[data-workspace-mode="simple"] #focus-apply {
     display: none;
@@ -1382,6 +1381,62 @@ body[data-workspace-mode="simple"] #focus-apply {
 
 body[data-workspace-mode="simple"] #focus-preview {
     grid-column: auto;
+}
+
+.focus-more-actions {
+    position: relative;
+    min-width: 0;
+}
+
+.focus-more-actions summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0.52rem 0.7rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.14);
+    color: rgba(255, 248, 236, 0.86);
+    background: rgba(255, 248, 236, 0.1);
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+
+.focus-more-actions summary::-webkit-details-marker {
+    display: none;
+}
+
+.focus-more-actions summary::after {
+    content: "+";
+    margin-left: 0.45rem;
+    font-family: var(--font-mono);
+}
+
+.focus-more-actions[open] summary::after {
+    content: "−";
+}
+
+.focus-more-action-grid {
+    position: absolute;
+    right: 0;
+    z-index: 7;
+    display: grid;
+    width: min(22rem, calc(100vw - 2rem));
+    gap: 0.42rem;
+    margin-top: 0.5rem;
+    padding: 0.55rem;
+    border-radius: 1.1rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.14);
+    background:
+        linear-gradient(135deg, rgba(255, 93, 58, 0.13), transparent 42%),
+        rgba(28, 23, 21, 0.96);
+    box-shadow: 0 1.2rem 2.6rem rgba(0, 0, 0, 0.32);
+}
+
+.focus-more-action-grid .ghost-button {
+    width: 100%;
+    min-height: 2.35rem;
 }
 
 .focus-pad-voice {

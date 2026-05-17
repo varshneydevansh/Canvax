@@ -34,6 +34,11 @@ The intended loop is:
 5. switch to `Advanced` only when you need frames, flows, captures, or manifest detail
 6. tell Codex to use the current Canvax
 
+Everyday Workbench actions stay visible first. Less common actions such as
+connected sections, variants, image packs, and Live rewrite sit under
+`More actions` so the default surface stays closer to draw, talk, make, and
+apply.
+
 When Codex Desktop has Browser Use / Atlas available, open the board and Preview in the in-app browser. That is the lowest-friction mode because Codex can inspect the same visual surfaces you are using while it edits code, runs checks, and publishes output context back into Canvax.
 
 ```text
