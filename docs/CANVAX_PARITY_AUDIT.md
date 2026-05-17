@@ -47,19 +47,20 @@ verification gates. It is the source of truth before claiming the goal is done.
 
 ## Latest Verification
 
-Verified locally on May 17, 2026 after the Map Prompt / Context inspector and compact spatial-context handoff pass:
+Verified locally on May 18, 2026 after the Workbench focus wording, ChatGPT/App bridge documentation, and atomic latest-handoff write hardening passes:
 
 ```text
 npm run check      -> pass
 npm run regression -> pass
-npm run e2e-workflow -> pass
+npm run e2e-workflow -> pass through npm run regression
 ```
 
 The regression run includes service lifecycle checks, the no-API e2e workflow,
 board browser self-test with 91 assertions, Preview browser self-test with 16
 assertions, responsive board/Preview screenshots at 1440, 1024, 768, and 430
 pixel widths, plus the Map viewport/tidy, lane-order, object prompt/context,
-and compact spatial-context assertions.
+compact spatial-context assertions, opt-in materialized review overlays, and
+latest handoff schema validation.
 
 ## Current Verdict
 
