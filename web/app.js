@@ -364,6 +364,8 @@ const dom = {
   mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapPinObject: document.querySelector("#map-pin-object"),
+  mapSendObjectBack: document.querySelector("#map-send-object-back"),
+  mapBringObjectFront: document.querySelector("#map-bring-object-front"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
   mapDeleteObject: document.querySelector("#map-delete-object"),
   mapClearSelection: document.querySelector("#map-clear-selection"),
@@ -715,6 +717,11 @@ function bindEvents() {
     void copySelectedSpatialObjectContext();
   });
   dom.mapPinObject.addEventListener("click", toggleSelectedSpatialObjectPin);
+  dom.mapSendObjectBack.addEventListener("click", sendSelectedSpatialObjectsBack);
+  dom.mapBringObjectFront.addEventListener(
+    "click",
+    bringSelectedSpatialObjectsFront,
+  );
   dom.mapDuplicateObject.addEventListener("click", duplicateSelectedSpatialObject);
   dom.mapDeleteObject.addEventListener("click", () => {
     removeSelectedSpatialObjects();
@@ -3662,6 +3669,67 @@ function selectedSpatialObjects() {
     .filter(Boolean);
 }
 
+function spatialObjectLayerPeers(object) {
+  if (!object) {
+    return [];
+  }
+  const isGroupLayer = object.type === "map-group";
+  return state.spatialObjects.filter((candidate) =>
+    isGroupLayer
+      ? candidate.type === "map-group"
+      : candidate.type !== "map-group",
+  );
+}
+
+function spatialObjectLayerIndex(object) {
+  return spatialObjectLayerPeers(object).findIndex(
+    (candidate) => candidate.id === object?.id,
+  );
+}
+
+function spatialObjectLayerLabel(object) {
+  const peers = spatialObjectLayerPeers(object);
+  const index = spatialObjectLayerIndex(object);
+  if (!peers.length || index < 0) {
+    return "";
+  }
+  const layerName = object.type === "map-group" ? "Group layer" : "Layer";
+  return `${layerName} ${index + 1} of ${peers.length}`;
+}
+
+function canReorderSelectedSpatialObjects(direction) {
+  const selectedIds = new Set(currentSelectedSpatialObjectIds());
+  if (!selectedIds.size) {
+    return false;
+  }
+  return [true, false].some((groupLayer) =>
+    canReorderSpatialLayerSubset(
+      state.spatialObjects,
+      selectedIds,
+      (object) =>
+        groupLayer ? object.type === "map-group" : object.type !== "map-group",
+      direction,
+    ),
+  );
+}
+
+function canReorderSpatialLayerSubset(objects, selectedIds, predicate, direction) {
+  const layerObjects = objects.filter(predicate);
+  const selectedIndexes = layerObjects
+    .map((object, index) => (selectedIds.has(object.id) ? index : -1))
+    .filter((index) => index >= 0);
+  if (!selectedIndexes.length || selectedIndexes.length === layerObjects.length) {
+    return false;
+  }
+  const sortedIndexes = [...selectedIndexes].sort((a, b) => a - b);
+  if (direction === "front") {
+    return sortedIndexes.some(
+      (index, offset) => index !== layerObjects.length - sortedIndexes.length + offset,
+    );
+  }
+  return sortedIndexes.some((index, offset) => index !== offset);
+}
+
 function isSpatialObjectVisibleInCurrentMap(object) {
   if (!object) {
     return false;
@@ -3824,6 +3892,88 @@ function nudgeSelectedSpatialObject(deltaX, deltaY) {
       : `Moved ${objects.length} Map objects`,
   );
   return true;
+}
+
+function sendSelectedSpatialObjectsBack() {
+  return reorderSelectedSpatialObjects("back");
+}
+
+function bringSelectedSpatialObjectsFront() {
+  return reorderSelectedSpatialObjects("front");
+}
+
+function reorderSelectedSpatialObjects(direction) {
+  const selectedIds = currentSelectedSpatialObjectIds();
+  const selectedSet = new Set(selectedIds);
+  if (!selectedSet.size) {
+    return false;
+  }
+  let nextObjects = [...state.spatialObjects];
+  let changed = false;
+  [true, false].forEach((groupLayer) => {
+    const result = reorderSpatialLayerSubset(
+      nextObjects,
+      selectedSet,
+      (object) =>
+        groupLayer ? object.type === "map-group" : object.type !== "map-group",
+      direction,
+    );
+    nextObjects = result.objects;
+    changed = changed || result.changed;
+  });
+  if (!changed) {
+    renderStatus("Selected Map objects are already at that layer edge");
+    return false;
+  }
+  const primaryId = state.selectedSpatialObjectId;
+  state.spatialObjects = nextObjects;
+  setSelectedSpatialObjects(
+    selectedIds.filter((id) => spatialObjectById(id)),
+    primaryId,
+  );
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    direction === "front"
+      ? `Brought ${selectedIds.length} Map object${selectedIds.length === 1 ? "" : "s"} to front`
+      : `Sent ${selectedIds.length} Map object${selectedIds.length === 1 ? "" : "s"} to back`,
+  );
+  return true;
+}
+
+function reorderSpatialLayerSubset(objects, selectedSet, predicate, direction) {
+  const layerObjects = objects.filter(predicate);
+  const selectedLayerObjects = layerObjects.filter((object) =>
+    selectedSet.has(object.id),
+  );
+  if (
+    !selectedLayerObjects.length ||
+    selectedLayerObjects.length === layerObjects.length
+  ) {
+    return { objects, changed: false };
+  }
+  const remainingLayerObjects = layerObjects.filter(
+    (object) => !selectedSet.has(object.id),
+  );
+  const reorderedLayerObjects =
+    direction === "front"
+      ? [...remainingLayerObjects, ...selectedLayerObjects]
+      : [...selectedLayerObjects, ...remainingLayerObjects];
+  const changed = layerObjects.some(
+    (object, index) => object.id !== reorderedLayerObjects[index]?.id,
+  );
+  if (!changed) {
+    return { objects, changed: false };
+  }
+  let layerIndex = 0;
+  return {
+    changed: true,
+    objects: objects.map((object) =>
+      predicate(object) ? reorderedLayerObjects[layerIndex++] : object,
+    ),
+  };
 }
 
 function spatialObjectsIntersectingBounds(bounds) {
@@ -4201,6 +4351,7 @@ function buildSpatialObjectContextText(object) {
     `- Status: ${spatialObjectFooterStatus(object)}`,
     `- Pinned: ${isSpatialObjectPinned(object) ? "yes" : "no"}`,
     `- Frame: ${frameLabel}`,
+    `- Layer: ${spatialObjectLayerLabel(object) || "unlayered"}`,
     `- Position: ${Math.round(object.x)}, ${Math.round(object.y)}`,
     `- Size: ${Math.round(object.width || SPATIAL_OBJECT_WIDTH)} x ${Math.round(object.height || SPATIAL_OBJECT_HEIGHT)}`,
   ];
@@ -6685,6 +6836,8 @@ function renderMapSelectionActions() {
   dom.mapPinObject.disabled = !hasSelection;
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
+  dom.mapSendObjectBack.disabled = !canReorderSelectedSpatialObjects("back");
+  dom.mapBringObjectFront.disabled = !canReorderSelectedSpatialObjects("front");
   dom.mapDuplicateObject.disabled = !hasSelection;
   dom.mapDeleteObject.disabled = !hasSelection;
   dom.mapClearSelection.disabled = !hasSelection;
@@ -6703,7 +6856,7 @@ function renderMapSelectionActions() {
     dom.mapSelectedObjectTitle.textContent =
       `${selectedObjects.length} Map objects selected`;
     dom.mapSelectedObjectDetail.textContent =
-      "Arrow keys move the selection. Duplicate, delete, clear, or copy combined context.";
+      "Arrow keys move the selection. Use Bring front / Send back, duplicate, delete, clear, or copy combined context.";
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
@@ -6716,6 +6869,7 @@ function renderMapSelectionActions() {
     spatialObjectSourceLabel(object),
     spatialObjectFooterStatus(object),
     frameLabel,
+    spatialObjectLayerLabel(object),
     isSpatialObjectPinned(object) ? "Pinned" : "",
   ];
   if (object.type === "map-group") {
@@ -9410,6 +9564,16 @@ function onWindowKeyDown(event) {
         duplicateSelectedSpatialObject();
         return;
       }
+      if (isMeta && event.key === "]") {
+        event.preventDefault();
+        bringSelectedSpatialObjectsFront();
+        return;
+      }
+      if (isMeta && event.key === "[") {
+        event.preventDefault();
+        sendSelectedSpatialObjectsBack();
+        return;
+      }
 
       const arrowDeltas = {
         ArrowUp: [0, -1],
@@ -11792,6 +11956,8 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     sourceId: object.sourceId,
     status: object.status,
     pinned: isSpatialObjectPinned(object),
+    layerIndex: spatialObjectLayerIndex(object),
+    layerLabel: spatialObjectLayerLabel(object),
     laneId: object.meta?.laneId || "",
     frameIds: object.frameIds || [],
     groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
@@ -16323,6 +16489,9 @@ function assertManualSpatialObjectControls() {
     dom.mapSelectedObjectTitle.textContent === object.title &&
     !dom.mapCopyObjectContext.disabled &&
     !dom.mapPinObject.disabled &&
+    Boolean(dom.mapSendObjectBack) &&
+    Boolean(dom.mapBringObjectFront) &&
+    (!dom.mapSendObjectBack.disabled || !dom.mapBringObjectFront.disabled) &&
     !dom.mapDuplicateObject.disabled &&
     !dom.mapDeleteObject.disabled;
   const propertyEdited =
@@ -16377,12 +16546,31 @@ function assertManualSpatialObjectControls() {
     contextText.includes("Renamed map note") &&
     contextText.includes("Manual spatial object property note") &&
     contextText.includes("- Pinned: yes") &&
+    contextText.includes("- Layer: Layer") &&
     contextText.includes("Prompt / Context");
   const groupContextText = buildSpatialObjectContextText(groupRecord);
   const groupInspectorExported =
     groupContextText.includes("Group contents") &&
     groupContextText.includes("Renamed map note") &&
     groupContextText.includes(activeFrame.title);
+  const layerMovedFront =
+    Boolean(objectRecord) &&
+    bringSelectedSpatialObjectsFront() &&
+    spatialObjectLayerIndex(objectRecord) ===
+      spatialObjectLayerPeers(objectRecord).length - 1 &&
+    !dom.mapSendObjectBack.disabled;
+  const layerMovedBack =
+    Boolean(objectRecord) &&
+    sendSelectedSpatialObjectsBack() &&
+    spatialObjectLayerIndex(objectRecord) === 0 &&
+    !dom.mapBringObjectFront.disabled;
+  const layerExported = buildSpatialWorkspaceExport().objects.some(
+    (entry) =>
+      entry.id === object?.id &&
+      entry.layerIndex === 0 &&
+      entry.layerLabel.startsWith("Layer 1 of ") &&
+      entry.contextMarkdown.includes("- Layer: Layer 1 of "),
+  );
   const objectXBeforeNudge = objectRecord?.x || 0;
   let nudgePrevented = false;
   onWindowKeyDown({
@@ -16666,6 +16854,9 @@ function assertManualSpatialObjectControls() {
       pinnedVisibleAcrossFilter &&
       contextExported &&
       groupInspectorExported &&
+      layerMovedFront &&
+      layerMovedBack &&
+      layerExported &&
       nudged &&
       duplicated &&
       duplicateDeleted &&
@@ -16690,6 +16881,9 @@ function assertManualSpatialObjectControls() {
       pinnedVisibleAcrossFilter,
       contextExported,
       groupInspectorExported,
+      layerMovedFront,
+      layerMovedBack,
+      layerExported,
       nudged,
       duplicated,
       duplicateDeleted,
