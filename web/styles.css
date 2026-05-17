@@ -3339,8 +3339,9 @@ select,
     justify-content: center;
 }
 
-.spatial-object-open-link {
-    width: 100%;
+.spatial-object-open-link,
+.spatial-object-editable-button {
+    flex: 1 1 7rem;
     min-height: 2rem;
     padding: 0.38rem 0.65rem;
     font-size: 0.72rem;

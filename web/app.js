@@ -364,6 +364,7 @@ const dom = {
   mapObjectStatus: document.querySelector("#map-object-status"),
   mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
+  mapMakeEditable: document.querySelector("#map-make-editable"),
   mapPinObject: document.querySelector("#map-pin-object"),
   mapGroupSelection: document.querySelector("#map-group-selection"),
   mapUngroupSelection: document.querySelector("#map-ungroup-selection"),
@@ -720,6 +721,9 @@ function bindEvents() {
   dom.toggleHistoryLane.addEventListener("click", toggleHistoryLane);
   dom.mapCopyObjectContext.addEventListener("click", () => {
     void copySelectedSpatialObjectContext();
+  });
+  dom.mapMakeEditable.addEventListener("click", () => {
+    createEditableFrameFromSelectedOutput();
   });
   dom.mapPinObject.addEventListener("click", toggleSelectedSpatialObjectPin);
   dom.mapGroupSelection.addEventListener("click", createSpatialGroupFromSelection);
@@ -6981,6 +6985,16 @@ function spatialObjectActionMarkup(object) {
   if (!href || !isManifestSpatialObject(object)) {
     return "";
   }
+  const editableAction = canCreateEditableFrameFromOutputObject(object)
+    ? `
+        <button
+          class="ghost-button compact spatial-object-editable-button"
+          type="button"
+          data-make-output-editable="${escapeHtml(object.id)}"
+          title="Create an editable frame from this generated output"
+        >Make editable</button>
+      `
+    : "";
   return `
     <div class="spatial-object-actions">
       <a
@@ -6990,6 +7004,7 @@ function spatialObjectActionMarkup(object) {
         rel="noopener noreferrer"
         title="Open the generated output reference"
       >Open output</a>
+      ${editableAction}
     </div>
   `;
 }
@@ -7004,6 +7019,191 @@ function spatialObjectHref(object) {
   return workspacePath ? `/workspace/${workspacePath}` : "";
 }
 
+function canCreateEditableFrameFromOutputObject(object) {
+  if (!object || !isManifestSpatialObject(object)) {
+    return false;
+  }
+  if (
+    object.sourceKind !== "generated-target" &&
+    object.type !== "generated-output"
+  ) {
+    return false;
+  }
+  return Boolean(outputObjectSourceFrame(object));
+}
+
+function selectedEditableOutputObject() {
+  const selectedObjects = selectedSpatialObjects();
+  if (selectedObjects.length !== 1) {
+    return null;
+  }
+  const [object] = selectedObjects;
+  return canCreateEditableFrameFromOutputObject(object) ? object : null;
+}
+
+function canCreateEditableFrameFromSelectedOutput() {
+  return Boolean(selectedEditableOutputObject());
+}
+
+function outputObjectSourceFrame(object) {
+  const frameId =
+    object?.frameIds?.find((id) => Boolean(frameById(id))) ||
+    state.activeFrameId ||
+    currentFrame()?.id;
+  return frameById(frameId) || currentFrame();
+}
+
+function outputObjectTargetLabel(object) {
+  const meta = object?.meta || {};
+  return (
+    cleanString(meta.previewPath) ||
+    cleanString(meta.path) ||
+    cleanString(meta.url) ||
+    cleanString(object?.subtitle) ||
+    spatialObjectTitle(object)
+  );
+}
+
+function nextVariantIndexForSource(sourceFrameId) {
+  const currentIndexes = state.frames
+    .filter((frame) => frame.variant?.sourceFrameId === sourceFrameId)
+    .map((frame) => Number(frame.variant?.index) || 0);
+  return Math.max(0, ...currentIndexes) + 1;
+}
+
+function createEditableFrameFromSelectedOutput(options = {}) {
+  const object = selectedEditableOutputObject();
+  return createEditableFrameFromOutputObject(object, options);
+}
+
+function createEditableFrameFromOutputObjectId(objectId, options = {}) {
+  return createEditableFrameFromOutputObject(spatialObjectById(objectId), options);
+}
+
+function createEditableFrameFromOutputObject(object, options = {}) {
+  const { silent = false, sync = true } = options;
+  if (!canCreateEditableFrameFromOutputObject(object)) {
+    if (!silent) {
+      renderStatus("Select an output preview before making it editable");
+    }
+    return null;
+  }
+
+  const source = outputObjectSourceFrame(object);
+  const targetLabel = outputObjectTargetLabel(object);
+  const sourceIndex = Math.max(0, state.frames.indexOf(source));
+  const createdAt = new Date().toISOString();
+  const variantIndex = nextVariantIndexForSource(source.id);
+  const recipe = {
+    label: "Output edit",
+    direction:
+      "Use the generated output as the reference target while sketching corrections on this editable frame.",
+  };
+  const elements = cloneElementsForVariant(source.elements, recipe, variantIndex - 1);
+  elements.push({
+    id: uid("label"),
+    type: "label",
+    text: `Output target: ${compactDisplayText(targetLabel, 72)}`,
+    x: 56,
+    y: 112,
+    color: "#2364aa",
+    size: 16,
+    alpha: 0.92,
+    composite: "source-over",
+    attachedTo: "",
+    anchor: null,
+  });
+
+  const frame = createFrame({
+    title: `${source.title} · Output edit`,
+    viewport: source.viewport,
+    objective: [
+      source.objective || state.board.goal,
+      `Editable output iteration from ${spatialObjectTitle(object)}.`,
+      `Generated output target: ${targetLabel}.`,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    layout: [
+      source.layout,
+      `Lineage: editable output branch ${variantIndex} of ${source.title}. Sketch changes here, then use Apply or Build with Codex against the generated target.`,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    motion: source.motion,
+    assets: [
+      source.assets,
+      `Output reference: ${targetLabel}.`,
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+    mobile: source.mobile,
+    backgroundImage: source.backgroundImage,
+    flowPosition: {
+      x: source.flowPosition.x + FLOW_CARD_WIDTH + 160,
+      y: source.flowPosition.y + variantIndex * (FLOW_CARD_HEIGHT + 42),
+    },
+    elements,
+    outputAnnotations: [],
+    thumbnail: source.thumbnail,
+    captures: [],
+    variant: {
+      sourceFrameId: source.id,
+      sourceFrameTitle: source.title,
+      label: "Output edit",
+      direction: recipe.direction,
+      index: variantIndex,
+      createdAt,
+    },
+  });
+
+  state.frames.splice(sourceIndex + 1, 0, frame);
+  state.connections.push(
+    normalizeConnection({
+      fromFrameId: source.id,
+      toFrameId: frame.id,
+      label: "output edit",
+      notes: `Editable frame created from generated output target: ${targetLabel}.`,
+    }),
+  );
+  createSpatialObjectsForVariantFrames(source, [frame]);
+  const variantObject = spatialObjectById(`variant-object-${frame.id}`);
+  if (variantObject) {
+    variantObject.title = "Output edit branch";
+    variantObject.subtitle = `Editable branch from ${spatialObjectTitle(object)}`;
+    variantObject.status = "editable output branch";
+    variantObject.meta = {
+      ...variantObject.meta,
+      outputObjectId: object.id,
+      outputSourceKind: object.sourceKind || "",
+      outputTarget: targetLabel,
+      outputHref: spatialObjectHref(object),
+    };
+  }
+
+  state.activeFrameId = frame.id;
+  state.viewMode = "frame";
+  state.workbenchFocus = "sketch";
+  clearSpatialObjectSelection({ render: false });
+  clearElementSelection();
+  persistState();
+  renderAll();
+  if (!silent) {
+    renderStatus("Editable output frame created");
+    dom.workspaceStatus.textContent =
+      "Editable output frame created. Sketch corrections here, then Apply or Build with Codex.";
+  }
+  scheduleLivePreviewSync();
+  if (sync) {
+    void saveExportToWorkspace({ silent: true });
+    void saveCheckpointToWorkspace("make-output-editable", {
+      silent: true,
+      note: `Editable output frame created from ${targetLabel}.`,
+    });
+  }
+  return frame;
+}
+
 function renderMapSelectionActions() {
   if (!dom.mapSelectionActions) {
     return;
@@ -7013,9 +7213,12 @@ function renderMapSelectionActions() {
     state.viewMode === "flow" ? selectedSpatialObjects() : [];
   const hasSelection = selectedObjects.length > 0;
   const copyText = buildSpatialSelectionContextText(selectedObjects);
+  const canMakeEditable = canCreateEditableFrameFromSelectedOutput();
   dom.mapSelectionActions.hidden = !hasSelection;
   dom.mapPropertyEditor.hidden = !hasSelection || selectedObjects.length !== 1;
   dom.mapCopyObjectContext.disabled = !copyText;
+  dom.mapMakeEditable.hidden = !canMakeEditable;
+  dom.mapMakeEditable.disabled = !canMakeEditable;
   dom.mapPinObject.disabled = !hasSelection;
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
@@ -7036,6 +7239,8 @@ function renderMapSelectionActions() {
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
     dom.mapObjectTypeDetails.innerHTML = "";
+    dom.mapMakeEditable.hidden = true;
+    dom.mapMakeEditable.disabled = true;
     dom.mapPinObject.textContent = "Pin";
     return;
   }
@@ -7049,6 +7254,8 @@ function renderMapSelectionActions() {
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
     dom.mapObjectTypeDetails.innerHTML = "";
+    dom.mapMakeEditable.hidden = true;
+    dom.mapMakeEditable.disabled = true;
     return;
   }
 
@@ -9231,6 +9438,18 @@ function onFlowBoardClick(event) {
     event.preventDefault();
     event.stopPropagation();
     promoteVariantFrameFromMap(promoteVariantHandle.dataset.promoteVariantFrame);
+    return;
+  }
+
+  const makeOutputEditableHandle = event.target.closest(
+    "[data-make-output-editable]",
+  );
+  if (makeOutputEditableHandle) {
+    event.preventDefault();
+    event.stopPropagation();
+    createEditableFrameFromOutputObjectId(
+      makeOutputEditableHandle.dataset.makeOutputEditable,
+    );
     return;
   }
 
@@ -16278,6 +16497,9 @@ function assertWorkbenchSpatialMap() {
 function assertSpatialObjectsFromOutputManifest() {
   const frameId = currentFrame().id;
   const previous = {
+    frames: structuredClone(state.frames),
+    connections: structuredClone(state.connections),
+    activeFrameId: state.activeFrameId,
     workspaceMode: state.workspaceMode,
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
@@ -16427,6 +16649,38 @@ function assertSpatialObjectsFromOutputManifest() {
     dom.mapObjectTypeDetails.textContent.includes(
       "Self-test preview target",
     );
+  const editableOutputActionVisible =
+    Boolean(generatedTargetObject) &&
+    !dom.mapMakeEditable.hidden &&
+    !dom.mapMakeEditable.disabled &&
+    Boolean(
+      dom.flowBoard.querySelector(
+        `[data-make-output-editable='${generatedTargetObject.id}']`,
+      ),
+    );
+  const editableOutputFrame = createEditableFrameFromOutputObject(
+    generatedTargetObject,
+    {
+      silent: true,
+      sync: false,
+    },
+  );
+  const editableOutputFrameCreated =
+    Boolean(editableOutputFrame) &&
+    editableOutputFrame.variant?.sourceFrameId === frameId &&
+    editableOutputFrame.variant?.label === "Output edit" &&
+    state.connections.some(
+      (connection) =>
+        connection.fromFrameId === frameId &&
+        connection.toFrameId === editableOutputFrame.id &&
+        connection.label === "output edit",
+    ) &&
+    state.spatialObjects.some(
+      (object) =>
+        object.id === `variant-object-${editableOutputFrame.id}` &&
+        object.sourceKind === "variant-branch" &&
+        object.meta?.outputObjectId === generatedTargetObject.id,
+    );
   const frameBound = spatialExport.objects
     .filter(isManifestSpatialObject)
     .every((object) => object.frameIds.includes(frameId));
@@ -16440,6 +16694,9 @@ function assertSpatialObjectsFromOutputManifest() {
     isManifestSpatialObject,
   );
 
+  state.frames = previous.frames;
+  state.connections = previous.connections;
+  state.activeFrameId = previous.activeFrameId;
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
@@ -16472,6 +16729,8 @@ function assertSpatialObjectsFromOutputManifest() {
       expandedOutputAgain &&
       outputOpenLinks &&
       typeInspectorRendered &&
+      editableOutputActionVisible &&
+      editableOutputFrameCreated &&
       frameBound &&
       legacyCleaned &&
       clearedCount >= 3 &&
@@ -16492,6 +16751,8 @@ function assertSpatialObjectsFromOutputManifest() {
       expandedOutputAgain,
       outputOpenLinks,
       typeInspectorRendered,
+      editableOutputActionVisible,
+      editableOutputFrameCreated,
       inspectorText: dom.mapObjectTypeDetails.textContent,
       frameBound,
       legacyCleaned,

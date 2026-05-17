@@ -192,6 +192,7 @@ Behavior:
 - labels generated preview cards as generated previews/files instead of raw manifest target jargon, and the Map help text plus inline Output shelf legend explain that those cards are prior Materialize/Build outputs rather than extra frames
 - provides `Clear outputs` in `Map` to hide generated preview/artifact/change cards when the exploration board gets cluttered
 - groups generated preview/artifact/change cards inside a collapsible `Output shelf` lane so Make/Build results read as generated references, not new frames; the lane legend defines `Output preview`, `Output file`, and `Code update` directly on the spatial map
+- lets designers turn an output preview card into an editable `Output edit` frame, preserving the source frame, generated target path, flow connection, and variant branch object so corrections can happen on a normal sketch frame instead of only on a passive output card
 - renders recent checkpoints inside a named spatial history lane in `Map`, so collaboration moments sit beside frames, variants, references, and generated outputs while still reading like a timeline
 - provides `Hide history` / `Show history` in `Map` to collapse checkpoint cards without deleting them, and exports the lane state as `spatialWorkspace.lanes[].collapsed`
 - provides Map focus chips for `All`, `Output`, `Assets`, `Notes`, and `History`, so designers can reduce spatial clutter without deleting cards; the active focus exports as `spatialWorkspace.objectFilter`
