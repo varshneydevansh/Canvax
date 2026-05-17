@@ -15423,6 +15423,7 @@ async function runSelfTest() {
         ),
       );
     }
+    results.push(await assertStrokeOnlyGenerateScreen());
     setSelfTestProgress("build real request");
     const buildRealResult = await buildRealScreenWithCodex({
       silent: true,
@@ -17291,6 +17292,105 @@ async function assertAssetCandidateTrayPlacement() {
     placed,
     "asset candidate tray places, attaches, accepts, and summarizes editable image slots",
   );
+}
+
+async function assertStrokeOnlyGenerateScreen() {
+  const previousFrames = structuredClone(state.frames);
+  const previousActiveFrameId = state.activeFrameId;
+  const previousServerStatus = structuredClone(state.serverStatus);
+  const previousSelection = selectionIds();
+  const previousSelectedElementId = state.selectedElementId;
+  const strokeFrame = createFrame({
+    title: "Stroke-only semantic generation",
+    viewport: "desktop",
+    objective:
+      "Make this rough stroke sketch feel like a premium generated product surface.",
+    layout:
+      "Use the oval as the hero visual cue, the arrow as motion guidance, and the loose path as energy.",
+    motion: "Arrow means pull the eye from copy toward the generated visual.",
+    elements: [
+      {
+        id: "semantic-stroke-path",
+        type: "path",
+        points: [
+          { x: 140, y: 220 },
+          { x: 260, y: 180 },
+          { x: 380, y: 250 },
+          { x: 520, y: 210 },
+        ],
+        color: "#ff5d3a",
+        size: 18,
+        alpha: 1,
+        composite: "source-over",
+      },
+      {
+        id: "semantic-stroke-oval",
+        type: "ellipse",
+        start: { x: 840, y: 260 },
+        end: { x: 1180, y: 620 },
+        color: "#0c8d7b",
+        size: 12,
+        alpha: 1,
+        composite: "source-over",
+      },
+      {
+        id: "semantic-stroke-arrow",
+        type: "arrow",
+        start: { x: 520, y: 680 },
+        end: { x: 760, y: 560 },
+        color: "#2364aa",
+        size: 10,
+        alpha: 1,
+        composite: "source-over",
+      },
+      {
+        id: "semantic-stroke-label",
+        type: "label",
+        text: "Turn this loose sketch into a premium product launch surface",
+        x: 120,
+        y: 170,
+        color: "#18110e",
+        size: 22,
+        alpha: 1,
+        composite: "source-over",
+      },
+    ],
+  });
+
+  try {
+    state.frames = [...state.frames, strokeFrame];
+    state.activeFrameId = strokeFrame.id;
+    clearElementSelection();
+    persistState();
+    renderAll();
+    const result = await generateCurrentScreen({
+      silent: true,
+      announce: false,
+      openPreview: false,
+      skipCheckpoint: true,
+    });
+    const html = result?.previewPath
+      ? await fetch(`/workspace/${result.previewPath}`, {
+          cache: "no-store",
+        }).then((response) => (response.ok ? response.text() : ""))
+      : "";
+    return assert(
+      Boolean(result?.previewPath) &&
+        html.includes('data-semantic-screen="true"') &&
+        html.includes("semantic-hero") &&
+        html.includes("Generated from"),
+      "generate screen creates semantic output from stroke-first sketches",
+      result?.previewPath || "no generated preview path",
+    );
+  } finally {
+    state.frames = previousFrames;
+    state.activeFrameId = previousActiveFrameId;
+    state.serverStatus = previousServerStatus;
+    setSelectedElements(previousSelection, previousSelectedElementId);
+    pruneFrameRenderCache(state.frames);
+    persistState();
+    renderAll();
+  }
 }
 
 async function createSelfTestImageFile() {

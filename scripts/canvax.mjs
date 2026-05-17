@@ -4033,6 +4033,14 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         margin-bottom: 0.25rem;
       }
 
+      .semantic-edit-note small {
+        display: block;
+        margin-top: 0.45rem;
+        color: var(--muted);
+        font-size: 0.78rem;
+        letter-spacing: 0.02em;
+      }
+
       .note-layer {
         z-index: 3;
         pointer-events: none;
@@ -4371,12 +4379,21 @@ function buildGeneratedHeroScreenMarkup({
   freeLabels,
   refinement,
 }) {
-  const rects = frame.elements
-    .filter((element) => element.type === "rect" && element.bounds)
+  const visibleElements = frame.elements.filter(
+    (element) => element.composite !== "destination-out",
+  );
+  const boundedElements = visibleElements
+    .filter(
+      (element) =>
+        element.type !== "label" &&
+        element.bounds &&
+        elementArea(element) > 36,
+    )
     .sort((left, right) => elementArea(right) - elementArea(left));
-  if (!rects.length) {
-    return "";
-  }
+  const rects = boundedElements.filter((element) => element.type === "rect");
+  const arrows = boundedElements.filter((element) => element.type === "arrow");
+  const images = boundedElements.filter((element) => element.type === "image");
+  const ovals = boundedElements.filter((element) => element.type === "ellipse");
 
   const viewportWidth = Number(frame.viewportWidth) || 1440;
   const viewportHeight = Number(frame.viewportHeight) || 1024;
@@ -4388,6 +4405,17 @@ function buildGeneratedHeroScreenMarkup({
     (attachedLabels.get(element.id) || [])
       .map((labelEntry) => cleanString(labelEntry.text))
       .filter(Boolean);
+  const hasSemanticSource = Boolean(
+    boundedElements.length ||
+      allLabelTexts.length ||
+      cleanString(frame.objective) ||
+      cleanString(frame.layout) ||
+      cleanString(frame.motion) ||
+      cleanString(board.goal),
+  );
+  if (!hasSemanticSource) {
+    return "";
+  }
   const topNav = rects.find((element) => {
     const bounds = element.bounds || {};
     return (
@@ -4416,6 +4444,14 @@ function buildGeneratedHeroScreenMarkup({
         bounds.left < viewportWidth * 0.45 &&
         bounds.height > viewportHeight * 0.18
       );
+    }) ||
+    boundedElements.find((element) => {
+      const bounds = element.bounds || {};
+      return (
+        element.id !== topNav?.id &&
+        !["arrow", "line"].includes(element.type) &&
+        bounds.left < viewportWidth * 0.58
+      );
     });
   const visualPanel =
     rects.find((element) => {
@@ -4426,6 +4462,19 @@ function buildGeneratedHeroScreenMarkup({
         bounds.left > viewportWidth * 0.42 &&
         bounds.width > viewportWidth * 0.22 &&
         bounds.height > viewportHeight * 0.18
+      );
+    }) ||
+    images[0] ||
+    ovals.find((element) => {
+      const bounds = element.bounds || {};
+      return bounds.left > viewportWidth * 0.35;
+    }) ||
+    boundedElements.find((element) => {
+      const bounds = element.bounds || {};
+      return (
+        element.id !== topNav?.id &&
+        element.id !== copyPanel?.id &&
+        bounds.left > viewportWidth * 0.35
       );
     }) ||
     rects.find(
@@ -4449,7 +4498,14 @@ function buildGeneratedHeroScreenMarkup({
     rects.find((element) => {
       const labels = labelTextsForElement(element).join(" ").toLowerCase();
       return /\b(proof|stat|loop|metric|pass|saved|users)\b/.test(labels);
-    }) || buttons[2];
+    }) ||
+    boundedElements.find(
+      (element) =>
+        element.id !== topNav?.id &&
+        element.id !== copyPanel?.id &&
+        element.id !== visualPanel?.id,
+    ) ||
+    buttons[2];
 
   const navLabels = labelTextsForElement(topNav || {});
   const copyLabels = labelTextsForElement(copyPanel || {});
@@ -4485,16 +4541,35 @@ function buildGeneratedHeroScreenMarkup({
     cleanString(frame.assets) ||
     "Generated surface follows the latest sketch and notes.";
   const proofTitle = proofLabels[0] || "2-pass edit loop";
+  const sourceSummary = summarizeGeneratedSketchSource({
+    boundedElements,
+    arrows,
+    images,
+    ovals,
+    freeLabels,
+  });
   const editNote =
     freeLabels
       .map((labelEntry) => cleanString(labelEntry.text))
       .find((text) => /\b(pen|move|shift|edit|lift|resize|closer)\b/i.test(text)) ||
+    (arrows.length
+      ? "Directional marks were treated as layout and interaction guidance."
+      : "") ||
     cleanString(refinement.summary) ||
     "Sketch edits can move layout intent into the generated surface.";
   const proofItems = [
     [proofTitle, "Sketch-to-preview"],
-    [`${Math.max(1, refinement.counts?.regionCount || 1)} regions`, "Updated from edit"],
-    [generation.focus === "conversion" ? "CTA-ready" : "Live", "Generated surface"],
+    [
+      `${Math.max(
+        1,
+        refinement.counts?.regionCount || boundedElements.length || 1,
+      )} regions`,
+      "Read from sketch",
+    ],
+    [
+      generation.focus === "conversion" ? "CTA-ready" : "Live",
+      "Generated surface",
+    ],
   ];
 
   return `
@@ -4555,11 +4630,45 @@ function buildGeneratedHeroScreenMarkup({
           <aside class="semantic-edit-note">
             <strong>${escapeHtml(refinement.changed ? `Refinement ${refinement.iteration}` : "Live edit")}</strong>
             <span>${escapeHtml(truncateText(editNote || previewDetail, 150))}</span>
+            <small>${escapeHtml(sourceSummary)}</small>
           </aside>
         </div>
       </div>
     </section>
   `;
+}
+
+function summarizeGeneratedSketchSource({
+  boundedElements,
+  arrows,
+  images,
+  ovals,
+  freeLabels,
+}) {
+  const parts = [];
+  const shapeCount = Math.max(0, boundedElements.length - arrows.length);
+  if (shapeCount) {
+    parts.push(`${shapeCount} shape${shapeCount === 1 ? "" : "s"}`);
+  }
+  if (arrows.length) {
+    parts.push(
+      `${arrows.length} direction mark${arrows.length === 1 ? "" : "s"}`,
+    );
+  }
+  if (images.length) {
+    parts.push(`${images.length} image slot${images.length === 1 ? "" : "s"}`);
+  }
+  if (ovals.length) {
+    parts.push(`${ovals.length} oval cue${ovals.length === 1 ? "" : "s"}`);
+  }
+  if (freeLabels.length) {
+    parts.push(
+      `${freeLabels.length} note${freeLabels.length === 1 ? "" : "s"}`,
+    );
+  }
+  return parts.length
+    ? `Generated from ${parts.join(", ")}.`
+    : "Generated from frame intent and board notes.";
 }
 
 function parseGeneratedNavItems(navLabels, brand) {

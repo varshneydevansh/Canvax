@@ -171,7 +171,7 @@ Materialize
   sketch geometry -> styled HTML mock -> Preview
 
 Generate screen
-  sketch intent + labels + notes -> semantic screen renderer -> polished HTML route -> Preview
+  sketch intent + labels + notes + loose strokes -> semantic screen renderer -> polished HTML route -> Preview
 ```
 
 ```mermaid
@@ -194,7 +194,7 @@ flowchart LR
     class F,G preview;
 ```
 
-Use `Generate screen` for hero-like website/app screens where Canvax should infer sections, hierarchy, calls to action, and visual tone. Use `Materialize` when you want a quicker mock that stays closer to raw canvas geometry.
+Use `Generate screen` for hero-like website/app screens where Canvax should infer sections, hierarchy, calls to action, and visual tone. It now works from both rectangle-heavy wireframes and stroke-first sketches with arrows, ovals, image slots, and free labels. Use `Materialize` when you want a quicker mock that stays closer to raw canvas geometry.
 
 ## Build With Codex Development Path
 
@@ -420,7 +420,7 @@ After interaction changes, check these manually:
 - Flow view can create and remove links
 - live export still writes to `exports/`
 - materialized previews silently refresh after freeze when a frame already has a generated target
-- generated-screen previews produce semantic, polished routes for hero-like frames instead of only absolute-positioned sketch geometry
+- generated-screen previews produce semantic, polished routes for hero-like frames from both wireframe boxes and loose stroke-first sketches instead of only absolute-positioned sketch geometry
 - brand assets still load from `web/assets/canvax-logo.svg` in both the board and Preview
 - Codex output manifest can be refreshed from git status with `node scripts/write-codex-output.mjs --from-git-status`
 - board and Preview show live workspace-follow status while git changes are present

@@ -120,7 +120,7 @@ flowchart LR
 - Reloads same-URL Preview targets with a digest-based revision key when connected implementation context changes, which keeps local app previews closer to live Codex edits.
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
 - Lets you save preview compare snapshots into the workspace for later review.
-- Adds a `Generate screen` mode with direction, style, and focus controls for richer local website/app screen generation.
+- Adds a `Generate screen` mode with direction, style, and focus controls for richer local website/app screen generation from both box wireframes and rough stroke-first sketches.
 - Adds `Build code` / `Build with Codex`, which writes a no-API frame-to-code request and immediately runs the local build executor so Workbench and Preview get a frame-bound preview, implementation starter bundle, and `canvax-component-map.json` ownership map before Codex replaces or ports it into real app/page files.
 - Materializes the active frame into a styled local HTML preview artifact without changing the sketch board.
 - Reuses a stable per-frame materialized preview target so repeated updates refresh the same output surface instead of spawning unrelated preview routes.

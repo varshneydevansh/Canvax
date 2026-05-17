@@ -370,6 +370,7 @@ Current coverage:
 - `npm run service-lifecycle` starts Canvax on a throwaway port with an isolated runtime root, verifies non-Canvax occupied-port diagnostics, reuse and port-mismatch behavior, restarts on a second port, and stops the service without disrupting the default board.
 - `npm run e2e-workflow` synthesizes a rough sketch, voice note, correction mark, image prompt pack, asset candidates, build request, rewrite request, build preview, rewrite preview, and dry-run Codex manifest bindings as one no-API proof chain.
 - In-browser self-test covers drawing tools, selection, eraser layer behavior, rail sizing, Workbench focus modes, Workbench spatial map rendering/export, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue, and a long-session Map stress fixture with many captured frames, voice notes, asset candidates, generated preview targets, artifacts, changed files, and checkpoint cards.
+- In-browser self-test also covers `Generate screen` from a stroke-first frame, proving that loose paths, arrows, ovals, and labels can enter the semantic renderer without requiring a rectangle-heavy wireframe.
 - Headless responsive smoke now opens the board and Preview at 1440, 1024, 768, and 430 pixel widths to catch collapsed core panels before manual review, and it writes viewport screenshots plus an index under `artifacts/canvax/browser-snapshots/latest/` for visual review.
 
 Needed:
@@ -380,6 +381,7 @@ Needed:
 ### P0: Make Current Baseline Trustworthy
 
 - Keep runtime bugs in `Generate screen`, `Materialize`, and preview manifest paths at zero-regression through self-test and `npm run check`.
+- Keep `Generate screen` semantic for both box-based wireframes and stroke-first sketches so rough designer input does not degrade into raw geometry output.
 - Keep Workbench `Sketch`, `Split`, and `Output` focus modes stable while adding real Codex build actions.
 - Keep button feedback consistent across board, Workbench dock, and Preview.
 - Continue responsive clipping fixes for compact side panels and dense metadata rows.

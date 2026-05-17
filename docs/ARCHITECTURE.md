@@ -309,7 +309,7 @@ Canvax/
 `scripts/canvax.mjs` owns both local generation paths:
 
 - `Materialize`: a geometry-preserving styled preview
-- `Generate screen`: a semantic renderer path for richer screen output
+- `Generate screen`: a semantic renderer path for richer screen output from both box wireframes and stroke-first sketches
 - `Build with Codex`: a real-code handoff path that writes a build request and output contract for Codex to execute, then runs the local no-API executor so Workbench/Preview get an immediate frame-bound preview plus implementation starter bundle
 - `scripts/execute-build-request.mjs`: a deterministic local executor that turns the latest build request into a frame-bound preview artifact, `implementation/` bundle, `canvax-component-map.json` ownership map, and published `artifacts/canvax/codex-output.json`
 - `scripts/execute-rewrite-request.mjs`: a deterministic local smoke executor that turns the latest rewrite request into a refreshed frame-bound preview artifact, maps correction regions to generated component selectors when a frame-to-code map is attached, and publishes `artifacts/canvax/codex-output.json`
@@ -319,8 +319,12 @@ Canvax/
 same endpoint
   /api/materialize-frame
       |
-      +-- mode: materialize       -> geometry-first styled artifact
-      `-- mode: generate-screen   -> semantic screen renderer
+      +-- mode: materialize
+      |       `-> geometry-first styled artifact
+      `-- mode: generate-screen
+              `-> semantic screen renderer
+                  reads boxes, loose strokes, arrows, ovals,
+                  image slots, labels, notes, and voice
 
 separate endpoint
   /api/save-build-request         -> Codex-readable real implementation request

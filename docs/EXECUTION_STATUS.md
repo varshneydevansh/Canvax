@@ -164,6 +164,7 @@ Status: In progress
 - [x] First `Materialize` action that writes a styled local HTML preview artifact from the active frame
 - [x] `Generate screen` mode above quick Materialize, with board-side recipe controls and generated-screen target labeling
 - [x] `Generate screen` now has a semantic hero/page renderer for polished website-style output instead of only literal sketch geometry
+- [x] `Generate screen` now also handles stroke-first sketches, arrows, ovals, image slots, and free labels instead of falling back to a raw geometry dump when there are few or no rectangles
 - [x] `Build with Codex` writes a no-API real implementation request plus frame-to-code output contract for Codex to execute
 - [x] `canvax-rewrite-request-latest.*` writes the live output-refinement request alongside the task pack and image prompt pack
 - [x] `Build with Codex` now calls the deterministic local `execute-build-request` path from the board, creating a frame-bound preview artifact and Codex output manifest without a terminal step
@@ -206,7 +207,7 @@ Preview today:
   changes
   rewrite queue
   refinement overlays
-  semantic generated screens
+  semantic generated screens from both wireframe boxes and loose strokes
 ```
 
 ```mermaid

@@ -653,6 +653,7 @@ Behavior:
   - output style
   - focus
 - uses a semantic hero renderer for hero-like website frames, so the output is no longer just a literal absolute-positioned wireframe
+- reads loose strokes, arrows, ovals, image slots, and free labels as semantic source material when the sketch is not a clean box wireframe
 - infers brand, nav, headline, body copy, CTAs, proof chips, preview card, and edit/refinement note from labels and frame notes
 - keeps original sketch and free-note overlays hidden by default in generated outputs; `Show original sketch` and `Show design notes` are explicit review aids
 - writes back into the same Preview loop as Materialize
@@ -661,6 +662,7 @@ Behavior:
 What Generate screen is for:
 
 - turning a sketch into something that feels more like a real website or app screen
+- starting from rough designer scratchpad marks before the layout is clean enough to be a formal wireframe
 - trying stronger design directions without leaving the Canvax loop
 
 ## Build With Codex
@@ -867,6 +869,7 @@ This keeps image workflows local-first while giving future ChatGPT/Codex image-g
 ```text
 Generate screen
   sketch geometry  -> placement hints
+  loose strokes    -> energy, direction, and visual anchors
   labels           -> semantic meaning
   notes/voice      -> copy and behavior
   recipe           -> visual direction

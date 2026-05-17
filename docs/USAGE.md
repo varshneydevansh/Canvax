@@ -789,8 +789,8 @@ flowchart LR
 For hero-like website frames, Generate screen now uses semantic screen inference:
 
 ```text
-draw rough blocks
-  -> label brand/headline/CTA/preview
+draw rough blocks, strokes, arrows, ovals, or image slots
+  -> label brand/headline/CTA/preview when useful
   -> Generate screen
   -> polished hero artifact
   -> draw or label a correction
