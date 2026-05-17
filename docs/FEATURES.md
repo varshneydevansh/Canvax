@@ -192,9 +192,9 @@ Behavior:
 - uses the selected Map object's Prompt / Context field as the explicit instruction handoff for Codex or a host image tool, so generated outputs, image assets, references, notes, and groups can say what they should become without editing raw JSON
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
 - renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
-- labels generated preview cards as `Codex output`, `Output file`, or `Code update` instead of raw manifest target jargon, canonicalizes older raw source labels, infers frame binding from current and legacy generated-output paths, and the Map help text plus inline Output shelf legend explain that those cards are prior Materialize/Build outputs rather than extra frames
+- labels generated output cards as `Generated preview`, `Generated file`, or `Code change`, adds a `Reference` badge, canonicalizes older raw source labels, infers frame binding from current and legacy generated-output paths, and the Map help text plus inline Output shelf legend explain that those cards are prior Materialize/Build outputs rather than extra frames
 - provides `Clear outputs` in `Map` to hide generated preview/artifact/change cards when the exploration board gets cluttered
-- groups generated preview/artifact/change cards inside a collapsible `Output shelf` lane so Make/Build results read as generated references, not new frames; the lane legend defines `Output preview`, `Output file`, and `Code update` directly on the spatial map
+- groups generated preview/artifact/change cards inside a collapsible `Output shelf` lane so Make/Build results read as generated references, not new frames; the lane legend defines `Generated preview`, `Generated file`, and `Code change` directly on the spatial map
 - lets designers turn an output preview card into an editable `Output edit` frame, preserving the source frame, generated target path, flow connection, variant branch object, `spatialWorkspace.variantBranches[].outputBinding`, and task/rewrite/build `outputEditBinding` so corrections can happen on a normal sketch frame while Codex still knows the exact generated output being revised
 - saves output correction marks with normalized changed-region bounds, and treats Erase on the output surface as deletion of intersecting correction marks instead of a new exported eraser stroke
 - renders recent checkpoints inside a named spatial history lane in `Map`, so collaboration moments sit beside frames, variants, references, and generated outputs while still reading like a timeline
@@ -209,7 +209,7 @@ Behavior:
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
-- `Hide tray` collapses the context tray so the canvas becomes the primary design surface
+- `Hide tray` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible
 - `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
 - `Live rewrite` is an opt-in mode that runs the same local no-API rewrite executor after autosnap/freeze saves the latest handoff
 - `Preview` remains available without exposing the rest of Advanced mode
@@ -269,9 +269,9 @@ left timeline, central stage, and right inspector because those controls are for
 technical handoff rather than quick sketching. The mode switch describes the
 active role, and Advanced labels its frame stack, frame workspace/flow map, and
 handoff inspector so the density reads as an inspector deck instead of a
-different app. The Advanced command deck is intentionally solid and non-sticky,
-so canvas/grid content does not visually bleed through or slide under controls
-while scrolling.
+different app. The Advanced command deck is intentionally solid and sticky, so
+canvas/grid content does not visually bleed through the controls while long
+frame or Map pages scroll.
 
 ### Task, Rewrite, And Image Prompt Packs
 

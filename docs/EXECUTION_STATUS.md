@@ -67,7 +67,7 @@ Status: In progress
 - [x] Workbench `Map` spatial objects can be selected, Shift-click multi-selected, Shift-drag lasso-selected, moved as a selected set, resized as a selected set from a combined transform box, edited through a visible Copy context/Pin/Lock/Group/Ungroup/Select contents/Fit group/Send back/Bring front/Duplicate/Delete/Clear action strip, copied as no-API Markdown context, keyboard-nudged, grouped with `Cmd/Ctrl+G`, ungrouped with `Shift+Cmd/Ctrl+G`, reordered with `Cmd/Ctrl+[` and `Cmd/Ctrl+]`, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, locked against accidental move/resize/group/reorder/duplicate/delete, group-duplicated with contained unlocked Map objects, and exported as active `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `locked`, `layerIndex`, `layerLabel`, and `contextMarkdown`
 - [x] Workbench `Map` single-object selection exposes a lightweight property editor for Title, Note, Status, and Prompt / Context plus per-type read-only details for generated outputs, asset candidates, checkpoints, variants, groups, references, and changes; manual overrides persist across generated/asset/checkpoint object resyncs
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
-- [x] Workbench `Map` groups generated preview/file/code-change cards inside a named `Output shelf` lane so generated targets are readable as output references, not extra frames, and older raw manifest labels render as `Codex output`, `Output file`, or `Code update`
+- [x] Workbench `Map` groups generated preview/file/code-change cards inside a named `Output shelf` lane so generated targets are readable as output references, not extra frames, and older raw manifest labels render as `Generated preview`, `Generated file`, or `Code change` with a `Reference` badge
 - [x] Output correction marks now export normalized changed-region bounds, and Erase on the generated-output overlay deletes intersecting correction marks instead of saving invisible eraser strokes into handoff data
 - [x] Workbench `Map` can collapse or expand the generated `Output shelf` lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
 - [x] Workbench `Map` can move selected output/history cards earlier or later inside their lane, and that lane order exports through `meta.laneIndex`, object context, and `spatialWorkspace.lanes[].memberObjectIds`
@@ -77,8 +77,9 @@ Status: In progress
 - [x] Workbench `Map` includes an object focus filter for all objects, outputs, assets, notes, or history, and exports the active focus through `spatialWorkspace.objectFilter`
 - [x] Workbench `Map` can pin selected objects so important outputs, assets, notes, or checkpoints remain visible across focus filters and collapsed history
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
-- [x] Advanced command deck is a solid inspector header using the same Workbench visual language; it no longer sticks over the frame/map content while scrolling
+- [x] Advanced command deck is a solid sticky inspector header using the same Workbench visual language, so frame/map content does not blur through the controls during long scrolls
 - [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon
+- [x] Collapsed Workbench keeps a compact frame/surface/action/focus summary visible while the tray is hidden
 - [x] Preview manifest normalization deduplicates/caps old notes, targets, artifacts, and change entries before the board renders output context
 - [x] Browser regression includes headless board/Preview responsive smoke at 1440, 1024, 768, and 430 pixel widths
 - [x] Browser regression writes visual review snapshots for board and Preview at those responsive widths
@@ -94,7 +95,7 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/multi-selected/lasso-selected/nudged/duplicated/deleted/pinned/locked Map objects, selected-set Map dragging/resizing, no-API selected-object/selection context copy, group duplication with contained unlocked Map object copies, manual context objects, readable generated output objects, generated-output shelf lane with collapse/expand, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
+  focus pad, board, tools, selection, editable image assets, flow, collapsed Workbench context summary, Workbench Map, movable group containers, selected/multi-selected/lasso-selected/nudged/duplicated/deleted/pinned/locked Map objects, selected-set Map dragging/resizing, no-API selected-object/selection context copy, group duplication with contained unlocked Map object copies, manual context objects, readable generated output reference objects, generated-output shelf lane with collapse/expand, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
   richer nested object editing, deeper structured per-type inspectors, deeper multi-lane/timeline editing, and full arbitrary-object infinite canvas behavior
 ```
@@ -201,9 +202,9 @@ Status: In progress
 - [x] Workbench/Advanced Map now reconciles generated output/artifact spatial cards, including legacy stale-card cleanup, frame-path binding inference, deleted-frame filtering, and latest per-frame/per-kind output grouping so old materialized targets do not flood the canvas
 - [x] Workbench/Advanced Map now infers frame binding from legacy materialized paths like `artifacts/preview/materialized/<frame-id>/...`, so deleted-frame output cards are filtered instead of reappearing as global/unknown outputs
 - [x] Workbench/Advanced Map now wraps generated output/artifact/change cards in a designer-readable collapsible `Output shelf` lane and uses friendlier generated preview titles
-- [x] Workbench/Advanced Map output preview cards now expose `Make editable`, creating a normal editable frame branch from the generated target instead of leaving the output as a passive reference only; the generated target binding now travels through task packs, rewrite requests, build requests, output contracts, and executor context JSON
+- [x] Workbench/Advanced Map output preview cards now expose `Edit as frame`, creating a normal editable frame branch from the generated target instead of leaving the output as a passive reference only; the generated target binding now travels through task packs, rewrite requests, build requests, output contracts, and executor context JSON
 - [x] Workbench/Advanced Map selected objects can now be sent backward or brought forward, and live export/context Markdown includes the resulting layer order
-- [x] Advanced command deck is solid/readable and non-sticky, so grid/canvas texture does not bleed through or slide under the controls while scrolling
+- [x] Advanced command deck is solid/readable and sticky, so grid/canvas texture does not bleed through the controls during long frame/map scrolls
 
 ```text
 Preview today:

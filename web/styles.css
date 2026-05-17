@@ -424,9 +424,9 @@ body[data-workspace-mode="advanced"] .panel {
 }
 
 body[data-workspace-mode="advanced"] .toolbar {
-    position: relative;
-    top: auto;
-    z-index: 28;
+    position: sticky;
+    top: 0.85rem;
+    z-index: 48;
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
@@ -452,12 +452,17 @@ body[data-workspace-mode="advanced"] .toolbar::before {
     content: "";
     position: absolute;
     inset: 0;
-    z-index: -1;
+    z-index: 0;
     border-radius: inherit;
     background:
         linear-gradient(180deg, rgba(58, 42, 38, 0.98), rgba(33, 24, 21, 1)),
         #211815;
     box-shadow: inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.08);
+}
+
+body[data-workspace-mode="advanced"] .toolbar > * {
+    position: relative;
+    z-index: 1;
 }
 
 body[data-workspace-mode="advanced"] .toolbar::after {
@@ -1125,6 +1130,36 @@ button:disabled {
 
 .workspace-mode-control {
     flex: 0 0 auto;
+}
+
+.workbench-focus-summary {
+    display: none;
+    flex: 1 1 26rem;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    overflow: hidden;
+}
+
+.workbench-focus-summary span {
+    min-width: 0;
+    max-width: 11rem;
+    overflow: hidden;
+    padding: 0.42rem 0.66rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 248, 236, 0.1);
+    color: rgba(255, 248, 236, 0.86);
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body[data-workspace-mode="simple"][data-workbench-tray="collapsed"]
+    .workbench-focus-summary {
+    display: flex;
 }
 
 .mode-guide {
@@ -3177,6 +3212,7 @@ select,
     pointer-events: none;
 }
 
+.spatial-object-reference-badge,
 .spatial-object-pin-badge,
 .spatial-object-lock-badge {
     padding: 0.16rem 0.44rem;
@@ -3186,6 +3222,11 @@ select,
     font-weight: 900;
     letter-spacing: 0.12em;
     text-transform: uppercase;
+}
+
+.spatial-object-reference-badge {
+    background: rgba(255, 93, 58, 0.14);
+    color: #9c2c1a;
 }
 
 .spatial-object-pin-badge {
@@ -3292,7 +3333,8 @@ select,
         rgba(255, 249, 242, 0.96);
 }
 
-.spatial-object-node.generated-output .spatial-object-header span {
+.spatial-object-node.generated-output .spatial-object-header span,
+.spatial-object-node.source-generated-target .spatial-object-header span {
     color: #c5371f;
 }
 

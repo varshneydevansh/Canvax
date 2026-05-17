@@ -260,6 +260,11 @@ const dom = {
   workspaceModeGuide: document.querySelector("#workspace-mode-guide"),
   workbenchFocusButtons: document.querySelector("#workbench-focus-buttons"),
   workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
+  workbenchFocusSummary: document.querySelector("#workbench-focus-summary"),
+  workbenchSummaryFrame: document.querySelector("#workbench-summary-frame"),
+  workbenchSummarySurface: document.querySelector("#workbench-summary-surface"),
+  workbenchSummaryAction: document.querySelector("#workbench-summary-action"),
+  workbenchSummaryFocus: document.querySelector("#workbench-summary-focus"),
   workbenchRail: document.querySelector("#workbench-rail"),
   workbenchComposer: document.querySelector("#workbench-composer"),
   workbenchComposerInput: document.querySelector("#workbench-composer-input"),
@@ -2170,8 +2175,14 @@ function populateViewportSelect() {
         `<option value="${id}">${viewport.label} · ${viewport.width}×${viewport.height}</option>`,
     )
     .join("");
+  const focusMarkup = Object.entries(viewportPresets)
+    .map(
+      ([id, viewport]) =>
+        `<option value="${id}">${viewport.label}</option>`,
+    )
+    .join("");
   dom.viewportSelect.innerHTML = markup;
-  dom.focusViewportSelect.innerHTML = markup;
+  dom.focusViewportSelect.innerHTML = focusMarkup;
   dom.focusActionModeSelect.innerHTML = actionModes
     .map(
       (mode) =>
@@ -2262,6 +2273,7 @@ function renderWorkspaceMode() {
           (entry) => entry.id === button.dataset.workbenchFocus,
         )?.description || "";
     });
+  renderWorkbenchFocusSummary();
   renderFocusPad();
 }
 
@@ -2284,6 +2296,39 @@ function renderWorkspaceModeGuide(mode = state.workspaceMode) {
       `,
     )
     .join("");
+}
+
+function renderWorkbenchFocusSummary() {
+  if (!dom.workbenchFocusSummary) {
+    return;
+  }
+  const frame = currentFrame();
+  const frameIndex = Math.max(
+    0,
+    state.frames.findIndex((candidate) => candidate.id === frame.id),
+  );
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const actionMode = currentActionMode();
+  const focusMode =
+    workbenchFocusModes.find((entry) => entry.id === state.workbenchFocus) ||
+    workbenchFocusModes[0];
+
+  dom.workbenchSummaryFrame.textContent = `${frameIndex + 1}. ${frame.title}`;
+  dom.workbenchSummarySurface.textContent =
+    frame.viewport === "free"
+      ? `${viewport.label} ${viewport.width}×${viewport.height}`
+      : viewport.label;
+  dom.workbenchSummaryAction.textContent = actionMode.label;
+  dom.workbenchSummaryFocus.textContent = focusMode.label;
+  dom.workbenchFocusSummary.title = [
+    frame.title,
+    `${viewport.label} ${viewport.width}×${viewport.height}`,
+    actionMode.description || actionMode.label,
+    focusMode.description || focusMode.label,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  dom.workbenchFocusSummary.hidden = state.workspaceMode !== "simple";
 }
 
 function toggleWorkbenchTray() {
@@ -2590,6 +2635,7 @@ function renderFocusPad() {
   dom.focusSurfaceChip.textContent = `${viewport.label} · ${viewport.width}×${viewport.height}`;
   dom.focusActionChip.textContent = actionMode.label;
   dom.focusActionChip.title = actionMode.description;
+  renderWorkbenchFocusSummary();
   const hostSummary = describeHostCapabilities();
   dom.focusHostChip.textContent = hostSummary.label;
   dom.focusHostChip.title = hostSummary.detail;
@@ -7601,9 +7647,9 @@ function renderSpatialLanesMarkup(lanes) {
 
 function renderOutputShelfGuideMarkup() {
   const guideItems = [
-    ["Output preview", "A Make/Build result attached to a frame."],
-    ["Output file", "A generated spec, HTML, prompt, or asset file."],
-    ["Code update", "A workspace file changed by Codex."],
+    ["Generated preview", "A Make/Build result attached to a frame."],
+    ["Generated file", "A generated spec, HTML, prompt, or asset file."],
+    ["Code change", "A workspace file changed by Codex."],
   ];
   return `
     <div class="spatial-lane-guide" aria-hidden="true">
@@ -7747,7 +7793,11 @@ function renderSpatialObjectNode(object) {
   const isSelected = currentSelectedSpatialObjectIds().includes(object.id);
   const isPinned = isSpatialObjectPinned(object);
   const isLocked = isSpatialObjectLocked(object);
+  const isOutputReference = isManifestSpatialObject(object);
   const badgeMarkup = [
+    isOutputReference
+      ? '<span class="spatial-object-reference-badge">Reference</span>'
+      : "",
     isPinned ? '<span class="spatial-object-pin-badge">Pinned</span>' : "",
     isLocked ? '<span class="spatial-object-lock-badge">Locked</span>' : "",
   ]
@@ -7834,7 +7884,7 @@ function spatialObjectActionMarkup(object) {
           type="button"
           data-make-output-editable="${escapeHtml(object.id)}"
           title="Create an editable frame from this generated output"
-        >Make editable</button>
+        >Edit as frame</button>
       `
     : "";
   return `
@@ -8395,11 +8445,11 @@ function spatialObjectTitle(object) {
 function spatialObjectSourceLabel(object) {
   switch (normalizeSpatialSourceKind(object?.sourceKind)) {
     case "generated-target":
-      return "Codex output";
+      return "Generated preview";
     case "generated-artifact":
-      return "Output file";
+      return "Generated file";
     case "workspace-change":
-      return "Code update";
+      return "Code change";
     case "checkpoint":
       return "Checkpoint";
     case "asset-candidate":
@@ -8495,14 +8545,14 @@ function spatialObjectFooterStatus(object) {
   const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
   if (sourceKind === "generated-target") {
     return object.status === "materialized-preview"
-      ? "materialized preview"
-      : humanizeStatus(object.status || "preview");
+      ? "local preview"
+      : "preview reference";
   }
   if (sourceKind === "generated-artifact") {
-    return humanizeStatus(object.status || "artifact");
+    return "output file";
   }
   if (sourceKind === "workspace-change") {
-    return "changed";
+    return "workspace change";
   }
   if (sourceKind === "variant-branch") {
     return frameById(object.frameIds?.[0])?.variant?.primary
@@ -16606,6 +16656,23 @@ async function runSelfTest() {
         "Workbench secondary actions are grouped",
       ),
     );
+    const previousTrayCollapsed = state.workbenchTrayCollapsed;
+    state.workspaceMode = "simple";
+    state.workbenchTrayCollapsed = true;
+    renderWorkspaceMode();
+    results.push(
+      assert(
+        document.body.dataset.workbenchTray === "collapsed" &&
+          !dom.workbenchFocusSummary.hidden &&
+          dom.workbenchFocusSummary.textContent.includes(currentFrame().title) &&
+          dom.workbenchFocusSummary.textContent.includes(
+            currentActionMode().label,
+          ),
+        "Collapsed Workbench keeps current frame/action context visible",
+      ),
+    );
+    state.workbenchTrayCollapsed = previousTrayCollapsed;
+    renderWorkspaceMode();
 
     resetFrameForSelfTest();
     setSelfTestProgress("drawing tools");
@@ -18073,10 +18140,13 @@ function assertSpatialObjectsFromOutputManifest() {
     ...dom.flowBoard.querySelectorAll(".spatial-object-header span"),
   ].map((node) => node.textContent.trim());
   const friendlyLabels =
-    labels.includes("Codex output") &&
-    labels.includes("Output file") &&
-    labels.includes("Code update") &&
-    !labels.includes("Generated-target");
+    labels.includes("Generated preview") &&
+    labels.includes("Generated file") &&
+    labels.includes("Code change") &&
+    !labels.some((label) => label.toLowerCase() === "generated-target");
+  const referenceBadges =
+    dom.flowBoard.querySelectorAll(".spatial-object-reference-badge").length >=
+    3;
   const outputOpenLinks =
     dom.flowBoard.querySelectorAll(".spatial-object-open-link").length >= 2;
   const generatedTargetObject = spatialExport.objects.find(
@@ -18105,9 +18175,9 @@ function assertSpatialObjectsFromOutputManifest() {
       ?.textContent || "";
   const outputGuideRendered =
     outputGuideText.includes("generated references, not extra frames") &&
-    outputGuideText.includes("Output preview") &&
-    outputGuideText.includes("Output file") &&
-    outputGuideText.includes("Code update");
+    outputGuideText.includes("Generated preview") &&
+    outputGuideText.includes("Generated file") &&
+    outputGuideText.includes("Code change");
   toggleOutputLane();
   const collapsedOutputExport = buildSpatialWorkspaceExport().lanes.some(
     (lane) =>
@@ -18333,6 +18403,7 @@ function assertSpatialObjectsFromOutputManifest() {
     exported &&
       rendered &&
       friendlyLabels &&
+      referenceBadges &&
       legacyActiveTargetBound &&
       legacyDeletedTargetHidden &&
       outputLaneExported &&
@@ -18364,6 +18435,7 @@ function assertSpatialObjectsFromOutputManifest() {
       exported,
       rendered,
       friendlyLabels,
+      referenceBadges,
       legacyActiveTargetBound,
       legacyDeletedTargetHidden,
       outputLaneExported,
