@@ -13251,6 +13251,7 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     type: object.type,
     title: object.title,
     subtitle: object.subtitle,
+    prompt: cleanString(object.meta?.prompt),
     sourceKind: object.sourceKind,
     sourceId: object.sourceId,
     status: object.status,
@@ -17947,6 +17948,12 @@ function assertSpatialObjectsFromOutputManifest() {
     generatedPromptEdited &&
     resyncedGeneratedTarget?.meta?.prompt === generatedPrompt &&
     resyncedGeneratedTarget?.meta?.manualFields?.prompt === true &&
+    buildSpatialWorkspaceExport().objects.some(
+      (entry) =>
+        entry.id === generatedTargetObject?.id &&
+        entry.prompt === generatedPrompt &&
+        entry.contextMarkdown.includes(generatedPrompt),
+    ) &&
     buildSpatialObjectContextText(resyncedGeneratedTarget).includes(
       generatedPrompt,
     );
@@ -18386,6 +18393,8 @@ function assertManualSpatialObjectControls() {
         entry.id === object?.id &&
         entry.title === "Renamed map note" &&
         entry.status === "ready-for-codex" &&
+        entry.prompt ===
+          "Use this map note as a Codex refinement instruction" &&
         entry.contextMarkdown.includes(
           "Use this map note as a Codex refinement instruction",
         ) &&
