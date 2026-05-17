@@ -66,11 +66,21 @@ const workspaceModes = [
     id: "simple",
     label: "Workbench",
     description: "Sketch, talk, generate, and apply.",
+    guide: [
+      ["Sketch", "Draw rough placement on the current surface."],
+      ["Talk", "Dictate, paste, or add the intent beside the sketch."],
+      ["Make / Apply", "Generate locally, preview, or hand the moment to Codex."],
+    ],
   },
   {
     id: "advanced",
     label: "Advanced",
-    description: "Inspector deck for frames, flow, manifests, and diagnostics.",
+    description: "Inspector deck for frames, flow, handoff state, and diagnostics.",
+    guide: [
+      ["Project rail", "Frames, captures, and workspace actions."],
+      ["Canvas deck", "Frame tools, Flow map, Map objects, and generated output cards."],
+      ["Handoff inspector", "Notes, voice, manifests, captures, and generation controls."],
+    ],
   },
 ];
 
@@ -247,6 +257,7 @@ const dom = {
   workspaceModeButtons: document.querySelector("#workspace-mode-buttons"),
   workspaceModeLabel: document.querySelector("#workspace-mode-label"),
   workspaceModeDescription: document.querySelector("#workspace-mode-description"),
+  workspaceModeGuide: document.querySelector("#workspace-mode-guide"),
   workbenchFocusButtons: document.querySelector("#workbench-focus-buttons"),
   workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
   workbenchRail: document.querySelector("#workbench-rail"),
@@ -2172,6 +2183,7 @@ function renderWorkspaceMode() {
   dom.workspaceModeDescription.textContent =
     workspaceModes.find((entry) => entry.id === mode)?.description ||
     workspaceModes[0].description;
+  renderWorkspaceModeGuide(mode);
   dom.focusPad.hidden = mode !== "simple" || state.workbenchTrayCollapsed;
   dom.workbenchTrayToggle.hidden = mode !== "simple";
   dom.workbenchTrayToggle.textContent = state.workbenchTrayCollapsed
@@ -2200,6 +2212,27 @@ function renderWorkspaceMode() {
         )?.description || "";
     });
   renderFocusPad();
+}
+
+function renderWorkspaceModeGuide(mode = state.workspaceMode) {
+  if (!dom.workspaceModeGuide) {
+    return;
+  }
+  const entry =
+    workspaceModes.find((workspaceMode) => workspaceMode.id === mode) ||
+    workspaceModes[0];
+  dom.workspaceModeGuide.dataset.mode = entry.id;
+  dom.workspaceModeGuide.innerHTML = entry.guide
+    .map(
+      ([label, detail], index) => `
+        <div class="mode-guide-card">
+          <span>${index + 1}</span>
+          <strong>${escapeHtml(label)}</strong>
+          <p>${escapeHtml(detail)}</p>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function toggleWorkbenchTray() {
@@ -15744,6 +15777,7 @@ async function runSelfTest() {
         "viewport presets render",
       ),
     );
+    results.push(assertWorkspaceModeGuide());
     results.push(
       assert(
         ["slide", "bookSpread", "storyboard", "comicPage"].every(
@@ -16719,6 +16753,43 @@ function colorDistance(a, b) {
     (a?.[1] || 0) - (b?.[1] || 0),
     (a?.[2] || 0) - (b?.[2] || 0),
     (a?.[3] || 0) - (b?.[3] || 0),
+  );
+}
+
+function assertWorkspaceModeGuide() {
+  const previous = {
+    workspaceMode: state.workspaceMode,
+    viewMode: state.viewMode,
+    workbenchFocus: state.workbenchFocus,
+    voiceScope: state.voice.scope,
+    tool: state.tool,
+  };
+
+  setWorkspaceMode("simple");
+  const workbenchText = dom.workspaceModeGuide.textContent || "";
+  const workbenchCards =
+    dom.workspaceModeGuide.querySelectorAll(".mode-guide-card").length;
+  setWorkspaceMode("advanced");
+  const advancedText = dom.workspaceModeGuide.textContent || "";
+  const advancedCards =
+    dom.workspaceModeGuide.querySelectorAll(".mode-guide-card").length;
+
+  state.workspaceMode = previous.workspaceMode;
+  state.viewMode = previous.viewMode;
+  state.workbenchFocus = previous.workbenchFocus;
+  state.voice.scope = previous.voiceScope;
+  state.tool = previous.tool;
+  persistState();
+  renderAll();
+
+  return assert(
+    workbenchCards === 3 &&
+      advancedCards === 3 &&
+      workbenchText.includes("Sketch") &&
+      workbenchText.includes("Make / Apply") &&
+      advancedText.includes("Project rail") &&
+      advancedText.includes("Handoff inspector"),
+    "workspace mode guide explains Workbench and Advanced roles",
   );
 }
 

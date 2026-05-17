@@ -1124,6 +1124,87 @@ button:disabled {
     flex: 0 0 auto;
 }
 
+.mode-guide {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.mode-guide-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.18rem 0.48rem;
+    min-width: 0;
+    padding: 0.62rem 0.68rem;
+    border-radius: 1rem;
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+    background: rgba(255, 249, 241, 0.58);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.18);
+}
+
+.mode-guide-card span {
+    grid-row: span 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: 999px;
+    color: #fff8ec;
+    background: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+
+.mode-guide-card strong,
+.mode-guide-card p {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mode-guide-card strong {
+    color: var(--ink);
+    font-size: 0.84rem;
+}
+
+.mode-guide-card p {
+    display: -webkit-box;
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+    line-height: 1.28;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+body[data-workspace-mode="simple"] .mode-guide,
+body[data-workspace-mode="advanced"] .mode-guide {
+    border-radius: 1.25rem;
+}
+
+body[data-workspace-mode="simple"] .mode-guide-card,
+body[data-workspace-mode="advanced"] .mode-guide-card {
+    border-color: rgba(255, 248, 236, 0.12);
+    background:
+        linear-gradient(135deg, rgba(255, 93, 58, 0.1), transparent 52%),
+        rgba(255, 248, 236, 0.08);
+}
+
+body[data-workspace-mode="simple"] .mode-guide-card strong,
+body[data-workspace-mode="advanced"] .mode-guide-card strong {
+    color: #fff8ec;
+}
+
+body[data-workspace-mode="simple"] .mode-guide-card p,
+body[data-workspace-mode="advanced"] .mode-guide-card p {
+    color: rgba(255, 248, 236, 0.68);
+}
+
+body[data-workspace-mode="simple"][data-workbench-tray="collapsed"] .mode-guide {
+    display: none;
+}
+
 .designer-focus-toggle {
     flex: 0 0 auto;
     color: rgba(255, 248, 236, 0.88);
@@ -4267,6 +4348,10 @@ select,
 
     .mode-strip {
         align-items: stretch;
+    }
+
+    .mode-guide {
+        grid-template-columns: 1fr;
     }
 
     .canvas-note {

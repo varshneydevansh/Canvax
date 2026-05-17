@@ -167,6 +167,7 @@ Behavior:
 
 - hides the timeline, inspector, advanced toolbar, artifacts, rewrite queue, and transport details
 - keeps the active frame canvas as the main surface
+- shows a mode guide that explains the default loop as `Sketch`, `Talk`, and `Make / Apply`, while Advanced uses the same component to explain `Project rail`, `Canvas deck`, and `Handoff inspector`
 - shows a surface selector so mobile, tablet, desktop, poster, slide, book spread, storyboard, comic page, square, or free canvas can be chosen without opening Advanced mode
 - shows an action selector for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
