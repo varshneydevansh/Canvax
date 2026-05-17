@@ -1177,6 +1177,22 @@
                                         Ungroup
                                     </button>
                                     <button
+                                        id="map-select-group-contents"
+                                        class="ghost-button"
+                                        type="button"
+                                        title="Select Map objects contained by the selected group region"
+                                    >
+                                        Select contents
+                                    </button>
+                                    <button
+                                        id="map-fit-group"
+                                        class="ghost-button"
+                                        type="button"
+                                        title="Resize selected group regions around their current contents"
+                                    >
+                                        Fit group
+                                    </button>
+                                    <button
                                         id="map-send-object-back"
                                         class="ghost-button"
                                         type="button"
@@ -1867,6 +1883,10 @@
                                 wraps selected Map objects in a region.
                                 <strong>Ungroup</strong> removes the region
                                 without deleting the objects inside.
+                                <strong>Select contents</strong> points back to
+                                the contained Map objects, and
+                                <strong>Fit group</strong> resizes the region
+                                around its contents.
                             </li>
                             <li>
                                 <strong>Duplicate sel</strong> creates an offset

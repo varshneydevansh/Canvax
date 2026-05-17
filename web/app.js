@@ -367,6 +367,8 @@ const dom = {
   mapPinObject: document.querySelector("#map-pin-object"),
   mapGroupSelection: document.querySelector("#map-group-selection"),
   mapUngroupSelection: document.querySelector("#map-ungroup-selection"),
+  mapSelectGroupContents: document.querySelector("#map-select-group-contents"),
+  mapFitGroup: document.querySelector("#map-fit-group"),
   mapSendObjectBack: document.querySelector("#map-send-object-back"),
   mapBringObjectFront: document.querySelector("#map-bring-object-front"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
@@ -722,6 +724,11 @@ function bindEvents() {
   dom.mapPinObject.addEventListener("click", toggleSelectedSpatialObjectPin);
   dom.mapGroupSelection.addEventListener("click", createSpatialGroupFromSelection);
   dom.mapUngroupSelection.addEventListener("click", ungroupSelectedSpatialGroups);
+  dom.mapSelectGroupContents.addEventListener(
+    "click",
+    selectSelectedSpatialGroupContents,
+  );
+  dom.mapFitGroup.addEventListener("click", fitSelectedSpatialGroupsToContents);
   dom.mapSendObjectBack.addEventListener("click", sendSelectedSpatialObjectsBack);
   dom.mapBringObjectFront.addEventListener(
     "click",
@@ -3624,6 +3631,81 @@ function ungroupSelectedSpatialGroups() {
     `Ungrouped ${groups.length} Map group${groups.length === 1 ? "" : "s"}`,
   );
   return groups.length;
+}
+
+function selectSelectedSpatialGroupContents() {
+  const groups = selectedSpatialGroups();
+  if (!groups.length) {
+    renderStatus("Select a Map group to select its contents");
+    return 0;
+  }
+  const memberIds = normalizeStringArray(
+    groups.flatMap((group) => {
+      const members = spatialGroupMemberDetails(group);
+      return [...members.objects, ...members.groups].map((object) => object.id);
+    }),
+  ).filter((id) => !groups.some((group) => group.id === id));
+  if (!memberIds.length) {
+    renderStatus("Selected group contains no selectable Map objects");
+    return 0;
+  }
+  setSelectedSpatialObjects(memberIds, memberIds.at(-1) || null);
+  state.selectedConnectionId = null;
+  renderFlowBoard();
+  renderSpec();
+  renderStatus(
+    `Selected ${memberIds.length} grouped Map object${memberIds.length === 1 ? "" : "s"}`,
+  );
+  return memberIds.length;
+}
+
+function fitSelectedSpatialGroupsToContents() {
+  const groups = selectedSpatialGroups();
+  if (!groups.length) {
+    renderStatus("Select a Map group to fit around its contents");
+    return 0;
+  }
+  let fittedCount = 0;
+  const padding = SPATIAL_GROUP_FROM_SELECTION_PADDING;
+  groups.forEach((group) => {
+    const bounds = spatialGroupContentBounds(group);
+    if (!bounds) {
+      return;
+    }
+    group.x = Math.max(32, bounds.left - padding);
+    group.y = Math.max(32, bounds.top - padding);
+    group.width = Math.max(SPATIAL_OBJECT_MIN_WIDTH, bounds.width + padding * 2);
+    group.height = Math.max(
+      SPATIAL_OBJECT_MIN_HEIGHT,
+      bounds.height + padding * 2,
+    );
+    fittedCount += 1;
+  });
+  if (!fittedCount) {
+    renderStatus("Selected group has no contents to fit");
+    return 0;
+  }
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    `Fit ${fittedCount} Map group${fittedCount === 1 ? "" : "s"} to contents`,
+  );
+  return fittedCount;
+}
+
+function spatialGroupContentBounds(group) {
+  const members = spatialGroupMemberDetails(group);
+  const bounds = [
+    ...members.frames.map((frame) => {
+      const rect = flowCardRect(frame);
+      return makeBounds(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+    }),
+    ...members.objects.map(spatialObjectBounds),
+    ...members.groups.map(spatialObjectBounds),
+  ].filter(Boolean);
+  return unionBounds(bounds);
 }
 
 async function addSpatialFileObject(file) {
@@ -6907,7 +6989,10 @@ function renderMapSelectionActions() {
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
   dom.mapGroupSelection.disabled = !canCreateSpatialGroupFromSelection();
-  dom.mapUngroupSelection.disabled = selectedSpatialGroups().length === 0;
+  const selectedGroups = selectedSpatialGroups();
+  dom.mapUngroupSelection.disabled = selectedGroups.length === 0;
+  dom.mapSelectGroupContents.disabled = selectedGroups.length === 0;
+  dom.mapFitGroup.disabled = selectedGroups.length === 0;
   dom.mapSendObjectBack.disabled = !canReorderSelectedSpatialObjects("back");
   dom.mapBringObjectFront.disabled = !canReorderSelectedSpatialObjects("front");
   dom.mapDuplicateObject.disabled = !hasSelection;
@@ -16575,6 +16660,10 @@ function assertManualSpatialObjectControls() {
     dom.mapGroupSelection.disabled &&
     Boolean(dom.mapUngroupSelection) &&
     dom.mapUngroupSelection.disabled &&
+    Boolean(dom.mapSelectGroupContents) &&
+    dom.mapSelectGroupContents.disabled &&
+    Boolean(dom.mapFitGroup) &&
+    dom.mapFitGroup.disabled &&
     Boolean(dom.mapSendObjectBack) &&
     Boolean(dom.mapBringObjectFront) &&
     (!dom.mapSendObjectBack.disabled || !dom.mapBringObjectFront.disabled) &&
@@ -16639,6 +16728,44 @@ function assertManualSpatialObjectControls() {
     groupContextText.includes("Group contents") &&
     groupContextText.includes("Renamed map note") &&
     groupContextText.includes(activeFrame.title);
+  if (group) {
+    selectSpatialObject(group.id, { render: true });
+  }
+  const groupActionButtonsEnabled =
+    Boolean(group) &&
+    !dom.mapUngroupSelection.disabled &&
+    !dom.mapSelectGroupContents.disabled &&
+    !dom.mapFitGroup.disabled;
+  const groupContentsSelected =
+    selectSelectedSpatialGroupContents() >= 1 &&
+    currentSelectedSpatialObjectIds().includes(object?.id || "");
+  if (group) {
+    selectSpatialObject(group.id, { render: true });
+  }
+  const groupBeforeFit = groupRecord
+    ? {
+        x: groupRecord.x,
+        y: groupRecord.y,
+        width: groupRecord.width,
+        height: groupRecord.height,
+      }
+    : null;
+  const fitSelectedGroup =
+    fitSelectedSpatialGroupsToContents() === 1 &&
+    Boolean(
+      groupBeforeFit &&
+        groupRecord &&
+        (groupRecord.x !== groupBeforeFit.x ||
+          groupRecord.y !== groupBeforeFit.y ||
+          groupRecord.width !== groupBeforeFit.width ||
+          groupRecord.height !== groupBeforeFit.height),
+    ) &&
+    spatialGroupMemberDetails(groupRecord).objects.some(
+      (entry) => entry.id === object?.id,
+    );
+  if (object) {
+    selectSpatialObject(object.id, { render: true });
+  }
   const layerMovedFront =
     Boolean(objectRecord) &&
     bringSelectedSpatialObjectsFront() &&
@@ -16969,6 +17096,9 @@ function assertManualSpatialObjectControls() {
       pinnedVisibleAcrossFilter &&
       contextExported &&
       groupInspectorExported &&
+      groupActionButtonsEnabled &&
+      groupContentsSelected &&
+      fitSelectedGroup &&
       layerMovedFront &&
       layerMovedBack &&
       layerExported &&
@@ -16998,6 +17128,9 @@ function assertManualSpatialObjectControls() {
       pinnedVisibleAcrossFilter,
       contextExported,
       groupInspectorExported,
+      groupActionButtonsEnabled,
+      groupContentsSelected,
+      fitSelectedGroup,
       layerMovedFront,
       layerMovedBack,
       layerExported,
