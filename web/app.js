@@ -3445,10 +3445,18 @@ function inferFrameIdFromManifestPath(item) {
     item?.resolvedUrl,
     item?.htmlPath,
   ].map(cleanString);
+  const patterns = [
+    /(?:^|\/)frames\/([^/?#]+)/,
+    /(?:^|\/)materialized\/(frame-[^/?#]+)/,
+    /(?:^|\/)large-session\/(frame-[^/?#]+)/,
+    /(?:^|\/)(frame-[^/?#]+)(?:\/|$)/,
+  ];
   for (const value of values) {
-    const match = value.match(/(?:^|\/)frames\/([^/?#]+)/);
-    if (match?.[1]) {
-      return decodeURIComponent(match[1]);
+    for (const pattern of patterns) {
+      const match = value.match(pattern);
+      if (match?.[1]) {
+        return decodeURIComponent(match[1]);
+      }
     }
   }
   return "";
@@ -16630,6 +16638,21 @@ function assertSpatialObjectsFromOutputManifest() {
           frameIds: [frameId],
           changeSummary: "Self-test preview target",
         },
+        {
+          id: "legacy-active-target",
+          label: "Legacy active materialized",
+          type: "materialized-preview",
+          previewPath: `artifacts/preview/materialized/${frameId}/index.html`,
+          changeSummary: "Legacy materialized path still belongs to this frame",
+        },
+        {
+          id: "legacy-deleted-target",
+          label: "Legacy deleted materialized",
+          type: "materialized-preview",
+          previewPath:
+            "artifacts/preview/materialized/frame-deleted-old/index.html",
+          changeSummary: "Should be hidden because its frame no longer exists",
+        },
       ],
       artifacts: [
         {
@@ -16680,6 +16703,15 @@ function assertSpatialObjectsFromOutputManifest() {
     dom.flowBoard.querySelectorAll(".spatial-object-open-link").length >= 2;
   const generatedTargetObject = spatialExport.objects.find(
     (object) => object.sourceKind === "generated-target",
+  );
+  const legacyActiveTargetBound = spatialExport.objects.some(
+    (object) =>
+      object.sourceId === "legacy-active-target" &&
+      object.frameIds.includes(frameId) &&
+      object.title === `${currentFrame().title} preview`,
+  );
+  const legacyDeletedTargetHidden = !spatialExport.objects.some(
+    (object) => object.sourceId === "legacy-deleted-target",
   );
   const outputLaneExported = spatialExport.lanes.some(
     (lane) =>
@@ -16864,6 +16896,8 @@ function assertSpatialObjectsFromOutputManifest() {
     exported &&
       rendered &&
       friendlyLabels &&
+      legacyActiveTargetBound &&
+      legacyDeletedTargetHidden &&
       outputLaneExported &&
       outputLaneRendered &&
       outputGuideRendered &&
@@ -16888,6 +16922,8 @@ function assertSpatialObjectsFromOutputManifest() {
       exported,
       rendered,
       friendlyLabels,
+      legacyActiveTargetBound,
+      legacyDeletedTargetHidden,
       outputLaneExported,
       outputLaneRendered,
       outputGuideRendered,

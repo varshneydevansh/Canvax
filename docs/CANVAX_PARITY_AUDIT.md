@@ -47,7 +47,7 @@ verification gates. It is the source of truth before claiming the goal is done.
 
 ## Latest Verification
 
-Verified locally on May 17, 2026 after the output-edit request-binding pass:
+Verified locally on May 17, 2026 after the output-edit request-binding and legacy-output cleanup pass:
 
 ```text
 npm run check      -> pass
