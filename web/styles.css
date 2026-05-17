@@ -428,8 +428,8 @@ body[data-workspace-mode="advanced"] .toolbar {
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
-        linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 24%),
-        linear-gradient(225deg, rgba(35, 100, 170, 0.06), transparent 34%),
+        linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent 24%),
+        linear-gradient(225deg, rgba(35, 100, 170, 0.1), transparent 34%),
         linear-gradient(180deg, #3a2a26 0%, #211815 100%);
     background-color: #211815;
     background-clip: border-box;
@@ -439,6 +439,7 @@ body[data-workspace-mode="advanced"] .toolbar {
         0 1.35rem 2.4rem rgba(0, 0, 0, 0.46),
         0 0 0 0.0625rem rgba(255, 248, 236, 0.12),
         inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.12);
+    outline: 0.0625rem solid rgba(255, 248, 236, 0.16);
     opacity: 1;
     mix-blend-mode: normal;
     isolation: isolate;
@@ -475,7 +476,7 @@ body[data-workspace-mode="advanced"] .toolbar-main {
     border-top: 0.0625rem solid rgba(255, 248, 236, 0.1);
     background:
         linear-gradient(90deg, rgba(255, 248, 236, 0.045), transparent 62%),
-        #271d1a;
+        #2a201d;
     border-radius: 1rem;
     padding: 0.75rem;
 }

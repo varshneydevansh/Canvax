@@ -117,6 +117,7 @@ flowchart LR
 - Adds a rewrite queue in the board and Preview, so frames that need first output, a frame binding, a target, or a refresh are surfaced explicitly instead of being inferred from scattered badges.
 - Writes `canvax-rewrite-request-latest.*` as a focused refinement handoff for queued frames, stale outputs, voice notes, and correction marks.
 - Adds a rewrite `revisionGraph` so Codex can map frame revisions to output revisions before changing generated work.
+- Stores output correction marks with normalized changed-region bounds, and makes output eraser gestures remove correction marks instead of exporting invisible eraser strokes.
 - Includes `npm run execute-rewrite` as a deterministic no-API smoke path that turns the latest rewrite request into a refreshed frame-bound preview artifact and Codex output manifest.
 - Workbench `Apply to Codex` now calls the same local rewrite executor after saving the checkpoint, so sketch/voice/output-correction passes can refresh the attached preview without a terminal step.
 - Shows a Preview `Rewrite handoff` lane for request/export state, local executor artifacts, and manifest binding state.

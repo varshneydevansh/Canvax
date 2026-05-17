@@ -1,7 +1,7 @@
 const STORAGE_KEY = "canvax-studio-v1";
 const STORAGE_VERSION = 3;
 const HANDOFF_SCHEMA_VERSION = 1;
-const FRAME_RENDERER_VERSION = 4;
+const FRAME_RENDERER_VERSION = 5;
 const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
 const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
 const TRANSPORT_MODE = "local-companion";
@@ -1777,6 +1777,10 @@ function normalizeOutputAnnotation(annotation, index = 0) {
   }
   const composite =
     annotation.composite === "destination-out" ? "destination-out" : "source-over";
+  const size = Number.isFinite(annotation.size)
+    ? Math.max(1, Math.min(48, annotation.size))
+    : 8;
+  const bounds = outputAnnotationBounds({ points, size });
 
   return {
     id:
@@ -1789,13 +1793,13 @@ function normalizeOutputAnnotation(annotation, index = 0) {
       composite === "destination-out"
         ? ERASER_COLOR
         : normalizeColor(annotation.color, palette[0]),
-    size: Number.isFinite(annotation.size)
-      ? Math.max(1, Math.min(48, annotation.size))
-      : 8,
+    size,
     alpha: Number.isFinite(annotation.alpha)
       ? Math.max(0.05, Math.min(1, annotation.alpha))
       : 1,
     composite,
+    bounds,
+    normalizedBounds: bounds,
     targetId:
       typeof annotation.targetId === "string" ? annotation.targetId.trim() : "",
     targetLabel:
@@ -1825,6 +1829,39 @@ function normalizeOutputAnnotationPoint(point) {
   return {
     x: clamp(x, 0, 1),
     y: clamp(y, 0, 1),
+  };
+}
+
+function outputAnnotationBounds(annotation) {
+  const points = Array.isArray(annotation?.points)
+    ? annotation.points.filter(
+        (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y),
+      )
+    : [];
+  if (!points.length) {
+    return null;
+  }
+  const size = Number.isFinite(annotation?.size)
+    ? Math.max(1, Math.min(48, annotation.size))
+    : 8;
+  const pad = Math.max(0.004, Math.min(0.045, size / 1600));
+  const left = clamp(Math.min(...points.map((point) => point.x)) - pad, 0, 1);
+  const top = clamp(Math.min(...points.map((point) => point.y)) - pad, 0, 1);
+  const right = clamp(Math.max(...points.map((point) => point.x)) + pad, 0, 1);
+  const bottom = clamp(Math.max(...points.map((point) => point.y)) + pad, 0, 1);
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    right,
+    bottom,
+    w: width,
+    h: height,
+    width,
+    height,
   };
 }
 
@@ -3506,12 +3543,12 @@ function designerManifestTitle(kind, item, index = 0) {
 
   if (kind === "target") {
     if (source === "generated-screen-preview") {
-      return `${targetLabel} generated screen`;
+      return `${targetLabel} output preview`;
     }
     if (source === "materialized-preview") {
-      return `${targetLabel} preview`;
+      return `${targetLabel} output preview`;
     }
-    return rawLabel || `${targetLabel} output`;
+    return rawLabel || `${targetLabel} output preview`;
   }
 
   if (kind === "artifact") {
@@ -5460,6 +5497,16 @@ function onWorkbenchOutputPointerUp(event) {
   }
   const frame = currentFrame();
   pushOutputAnnotationHistory(frame);
+  if (isOutputAnnotationEraser(normalized)) {
+    const removed = eraseOutputAnnotations(frame, normalized);
+    touchFrame(frame, {
+      capture: false,
+      status: removed
+        ? `Removed ${removed} output correction mark${removed === 1 ? "" : "s"}`
+        : "No output correction mark under eraser",
+    });
+    return;
+  }
   frame.outputAnnotations = [...(frame.outputAnnotations || []), normalized].slice(
     -80,
   );
@@ -5476,6 +5523,66 @@ function isOutputAnnotationMeaningful(annotation) {
   const first = annotation.points[0];
   const last = annotation.points.at(-1);
   return Math.hypot(last.x - first.x, last.y - first.y) > 0.006;
+}
+
+function isOutputAnnotationEraser(annotation) {
+  return annotation?.composite === "destination-out";
+}
+
+function eraseOutputAnnotations(frame, eraserAnnotation) {
+  const eraserBounds =
+    eraserAnnotation?.normalizedBounds ||
+    eraserAnnotation?.bounds ||
+    outputAnnotationBounds(eraserAnnotation);
+  if (!frame || !eraserBounds) {
+    return 0;
+  }
+  const before = Array.isArray(frame.outputAnnotations)
+    ? frame.outputAnnotations
+    : [];
+  const remaining = before.filter((annotation) => {
+    if (isOutputAnnotationEraser(annotation)) {
+      return false;
+    }
+    return !rectsOverlap(
+      annotation.normalizedBounds ||
+        annotation.bounds ||
+        outputAnnotationBounds(annotation),
+      eraserBounds,
+    );
+  });
+  frame.outputAnnotations = remaining;
+  state.outputAnnotationDraft = null;
+  renderWorkbenchOutputAnnotations();
+  return before.length - remaining.length;
+}
+
+function rectsOverlap(a, b) {
+  if (!a || !b) {
+    return false;
+  }
+  const leftA = Number.isFinite(a.left) ? a.left : a.x;
+  const topA = Number.isFinite(a.top) ? a.top : a.y;
+  const rightA = Number.isFinite(a.right)
+    ? a.right
+    : leftA + (Number.isFinite(a.width) ? a.width : a.w || 0);
+  const bottomA = Number.isFinite(a.bottom)
+    ? a.bottom
+    : topA + (Number.isFinite(a.height) ? a.height : a.h || 0);
+  const leftB = Number.isFinite(b.left) ? b.left : b.x;
+  const topB = Number.isFinite(b.top) ? b.top : b.y;
+  const rightB = Number.isFinite(b.right)
+    ? b.right
+    : leftB + (Number.isFinite(b.width) ? b.width : b.w || 0);
+  const bottomB = Number.isFinite(b.bottom)
+    ? b.bottom
+    : topB + (Number.isFinite(b.height) ? b.height : b.h || 0);
+  return (
+    leftA <= rightB &&
+    rightA >= leftB &&
+    topA <= bottomB &&
+    bottomA >= topB
+  );
 }
 
 function renderWorkbenchOutputAnnotations() {
@@ -7197,14 +7304,14 @@ function renderSpatialLanesMarkup(lanes) {
 
 function renderOutputShelfGuideMarkup() {
   const guideItems = [
-    ["Output preview", "Generated screen or local app preview."],
-    ["Output file", "Generated spec, HTML, prompt, or asset file."],
-    ["Code update", "Workspace file changed by Codex."],
+    ["Output preview", "A Make/Build result attached to a frame."],
+    ["Output file", "A generated spec, HTML, prompt, or asset file."],
+    ["Code update", "A workspace file changed by Codex."],
   ];
   return `
     <div class="spatial-lane-guide" aria-hidden="true">
-      <strong>These are references, not frames.</strong>
-      <span>Open useful outputs, pin them near a frame, or clear stale cards after a new direction.</span>
+      <strong>These are generated references, not extra frames.</strong>
+      <span>Open an output, make it editable, pin it near a frame, or clear stale cards after a new direction.</span>
       <div class="spatial-lane-guide-grid">
         ${guideItems
           .map(
@@ -7910,7 +8017,7 @@ function spatialObjectTitle(object) {
 function spatialObjectSourceLabel(object) {
   switch (normalizeSpatialSourceKind(object?.sourceKind)) {
     case "generated-target":
-      return "Output preview";
+      return "Codex output";
     case "generated-artifact":
       return "Output file";
     case "workspace-change":
@@ -7937,8 +8044,8 @@ function spatialObjectBodyText(object, frameTitle = "") {
           !["Board object", "Global output", "Previous frame output"].includes(
             frameTitle,
           )
-        ? `Generated preview for ${frameTitle}. It is an output card, not another frame. Sketch corrections, then Apply to Codex.`
-        : "Generated preview from the output manifest. It is not another frame; remove it if it belongs to an older iteration.";
+        ? `Generated result for ${frameTitle}. It is a reference card, not another frame. Open it, make it editable, sketch corrections, then Apply to Codex.`
+        : "Generated result from the output manifest. It is a reference card, not another frame; remove it if it belongs to an older iteration.";
   }
 
   if (sourceKind === "generated-artifact") {
@@ -14231,6 +14338,10 @@ function summarizeFrameForCheckpoint(frame, index) {
 }
 
 function summarizeOutputAnnotation(annotation) {
+  const bounds =
+    annotation.normalizedBounds ||
+    annotation.bounds ||
+    outputAnnotationBounds(annotation);
   return {
     id: annotation.id,
     type: annotation.type || "path",
@@ -14244,6 +14355,8 @@ function summarizeOutputAnnotation(annotation) {
     size: annotation.size || 8,
     alpha: annotation.alpha ?? 1,
     composite: annotation.composite || "source-over",
+    bounds,
+    normalizedBounds: bounds,
     targetId: annotation.targetId || "",
     targetLabel: annotation.targetLabel || "",
     targetVersionTag: annotation.targetVersionTag || "",
@@ -16065,6 +16178,7 @@ async function runSelfTest() {
     );
     results.push(assertEraserPreservesPaperLayer());
     results.push(assertEraserRemovesInk());
+    results.push(assertOutputAnnotationEraserRemovesMarks());
     results.push(assertWorkbenchRailSizeControls());
     setSelfTestProgress("image and asset candidates");
     results.push(await assertImageAssetPlacement());
@@ -16881,6 +16995,44 @@ function assertEraserRemovesInk() {
   );
 }
 
+function assertOutputAnnotationEraserRemovesMarks() {
+  const frame = currentFrame();
+  const previousAnnotations = structuredClone(frame.outputAnnotations || []);
+  const mark = normalizeOutputAnnotation({
+    id: "selftest-output-correction",
+    points: [
+      { x: 0.22, y: 0.24 },
+      { x: 0.34, y: 0.32 },
+    ],
+    color: "#ff3b1f",
+    size: 14,
+    composite: "source-over",
+  });
+  const eraser = normalizeOutputAnnotation({
+    id: "selftest-output-eraser",
+    points: [
+      { x: 0.28, y: 0.28 },
+      { x: 0.31, y: 0.3 },
+    ],
+    color: ERASER_COLOR,
+    size: 34,
+    composite: "destination-out",
+  });
+  frame.outputAnnotations = [mark].filter(Boolean);
+  const removed = eraseOutputAnnotations(frame, eraser);
+  const passed =
+    Boolean(mark?.normalizedBounds) &&
+    Boolean(eraser?.normalizedBounds) &&
+    removed === 1 &&
+    frame.outputAnnotations.length === 0;
+  frame.outputAnnotations = previousAnnotations;
+  state.outputAnnotationDraft = null;
+  return assert(
+    passed,
+    "output eraser deletes correction marks instead of exporting erase strokes",
+  );
+}
+
 function sampleFramePixel(frame, point) {
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const canvas = document.createElement("canvas");
@@ -17395,7 +17547,7 @@ function assertSpatialObjectsFromOutputManifest() {
     ...dom.flowBoard.querySelectorAll(".spatial-object-header span"),
   ].map((node) => node.textContent.trim());
   const friendlyLabels =
-    labels.includes("Output preview") &&
+    labels.includes("Codex output") &&
     labels.includes("Output file") &&
     labels.includes("Code update") &&
     !labels.includes("Generated-target");
@@ -17408,7 +17560,7 @@ function assertSpatialObjectsFromOutputManifest() {
     (object) =>
       object.sourceId === "legacy-active-target" &&
       object.frameIds.includes(frameId) &&
-      object.title === `${currentFrame().title} preview`,
+      object.title === `${currentFrame().title} output preview`,
   );
   const legacyDeletedTargetHidden = !spatialExport.objects.some(
     (object) => object.sourceId === "legacy-deleted-target",
@@ -17426,7 +17578,7 @@ function assertSpatialObjectsFromOutputManifest() {
     dom.flowBoard.querySelector(".spatial-lane-output .spatial-lane-guide")
       ?.textContent || "";
   const outputGuideRendered =
-    outputGuideText.includes("These are references, not frames") &&
+    outputGuideText.includes("generated references, not extra frames") &&
     outputGuideText.includes("Output preview") &&
     outputGuideText.includes("Output file") &&
     outputGuideText.includes("Code update");
