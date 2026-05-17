@@ -412,9 +412,9 @@ body[data-workspace-mode="advanced"]::before {
 
 body[data-workspace-mode="advanced"] .panel {
     background:
-        linear-gradient(135deg, rgba(255, 93, 58, 0.1), transparent 36%),
-        linear-gradient(225deg, rgba(35, 100, 170, 0.11), transparent 42%),
-        rgba(255, 248, 236, 0.09);
+        linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 36%),
+        linear-gradient(225deg, rgba(35, 100, 170, 0.08), transparent 42%),
+        #2a211f;
     border-color: rgba(255, 248, 236, 0.14);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -422,15 +422,15 @@ body[data-workspace-mode="advanced"] .panel {
 }
 
 body[data-workspace-mode="advanced"] .toolbar {
-    position: relative;
-    top: auto;
-    z-index: 5;
+    position: sticky;
+    top: 0.75rem;
+    z-index: 18;
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
-        linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent 26%),
-        linear-gradient(225deg, rgba(35, 100, 170, 0.08), transparent 34%),
-        linear-gradient(180deg, #332723 0%, #211a18 100%);
+        linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent 24%),
+        linear-gradient(225deg, rgba(35, 100, 170, 0.1), transparent 34%),
+        linear-gradient(180deg, #3a2a26 0%, #211815 100%);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     box-shadow:
@@ -458,8 +458,8 @@ body[data-workspace-mode="advanced"] .toolbar-main {
     padding-top: 0.75rem;
     border-top: 0.0625rem solid rgba(255, 248, 236, 0.1);
     background:
-        linear-gradient(90deg, rgba(255, 248, 236, 0.05), transparent 62%),
-        #2b211e;
+        linear-gradient(90deg, rgba(255, 248, 236, 0.045), transparent 62%),
+        #271d1a;
     border-radius: 1rem;
     padding: 0.75rem;
 }
@@ -503,8 +503,8 @@ body[data-workspace-mode="advanced"] .generation-section .compact-block {
 
 body[data-workspace-mode="advanced"] .mode-strip {
     background:
-        linear-gradient(135deg, rgba(255, 93, 58, 0.1), transparent 42%),
-        #2b211e;
+        linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent 42%),
+        #30231f;
     border-radius: 1.2rem;
     box-shadow: inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.06);
 }
@@ -3142,6 +3142,23 @@ select,
             transparent 46%
         ),
         rgba(24, 17, 14, 0.18);
+}
+
+.spatial-lane-output {
+    border-color: rgba(255, 93, 58, 0.32);
+    background:
+        linear-gradient(90deg, rgba(255, 93, 58, 0.13), transparent 70%),
+        radial-gradient(
+            circle at top left,
+            rgba(35, 100, 170, 0.16),
+            transparent 46%
+        ),
+        rgba(24, 17, 14, 0.2);
+}
+
+.spatial-lane-output .spatial-lane-header strong {
+    background: rgba(255, 93, 58, 0.16);
+    color: rgba(255, 248, 236, 0.94);
 }
 
 .spatial-lane.collapsed {

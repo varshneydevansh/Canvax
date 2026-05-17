@@ -21,6 +21,7 @@ const SPATIAL_OBJECT_WIDTH = 232;
 const SPATIAL_OBJECT_HEIGHT = 132;
 const SPATIAL_OBJECT_MIN_WIDTH = 168;
 const SPATIAL_OBJECT_MIN_HEIGHT = 96;
+const SPATIAL_OUTPUT_LANE_ID = "output-lane";
 const SPATIAL_HISTORY_LANE_ID = "history-lane";
 const SPATIAL_HISTORY_LANE_GAP = 28;
 const SPATIAL_HISTORY_LANE_PADDING = 32;
@@ -2897,7 +2898,7 @@ function syncSpatialObjectsFromHandoffs() {
     upsertSpatialObject(nextObjects, existingIds, {
       id,
       type: "generated-output",
-      title: target.label || "Generated output",
+      title: designerManifestTitle("target", target, index),
       subtitle:
         target.previewPath ||
         target.resolvedUrl ||
@@ -2916,6 +2917,9 @@ function syncSpatialObjectsFromHandoffs() {
         previewPath: target.previewPath || "",
         description: target.description || "",
         summary: target.changeSummary || target.refinement?.summary || "",
+        sourceLabel: target.label || "",
+        laneId: SPATIAL_OUTPUT_LANE_ID,
+        laneIndex: index,
       },
     });
   });
@@ -2930,7 +2934,7 @@ function syncSpatialObjectsFromHandoffs() {
       id,
       type:
         artifact.kind === "preview" ? "generated-output" : "generated-artifact",
-      title: artifact.label || "Generated artifact",
+      title: designerManifestTitle("artifact", artifact, index),
       subtitle:
         artifact.path ||
         artifact.resolvedUrl ||
@@ -2949,6 +2953,9 @@ function syncSpatialObjectsFromHandoffs() {
         path: artifact.path || "",
         description: artifact.description || "",
         summary: artifact.changeSummary || artifact.refinement?.summary || "",
+        sourceLabel: artifact.label || "",
+        laneId: SPATIAL_OUTPUT_LANE_ID,
+        laneIndex: mapTargets.length + index,
       },
     });
   });
@@ -2976,6 +2983,9 @@ function syncSpatialObjectsFromHandoffs() {
         path: change.path || "",
         summary: change.summary || "",
         url: change.resolvedUrl || "",
+        sourceLabel: change.label || "",
+        laneId: SPATIAL_OUTPUT_LANE_ID,
+        laneIndex: mapTargets.length + mapArtifacts.length + index,
       },
     });
   });
@@ -3295,6 +3305,43 @@ function frameIdsFromManifestItem(item) {
   return [
     ...new Set([...frameIds, sourceFrameId, inferredFrameId].filter(Boolean)),
   ];
+}
+
+function manifestItemFrameTitle(item) {
+  const directTitle = cleanString(
+    item?.frameTitle || item?.sourceFrameTitle || item?.targetFrameTitle,
+  );
+  if (directTitle) {
+    return directTitle;
+  }
+  const frameId = frameIdsFromManifestItem(item)[0];
+  return frameId ? frameById(frameId)?.title || "" : "";
+}
+
+function designerManifestTitle(kind, item, index = 0) {
+  const frameTitle = manifestItemFrameTitle(item);
+  const source = cleanString(item?.type || item?.kind || item?.source);
+  const rawLabel = cleanString(item?.label || item?.title);
+  const targetLabel = frameTitle || "Board";
+
+  if (kind === "target") {
+    if (source === "generated-screen-preview") {
+      return `${targetLabel} generated screen`;
+    }
+    if (source === "materialized-preview") {
+      return `${targetLabel} preview`;
+    }
+    return rawLabel || `${targetLabel} output`;
+  }
+
+  if (kind === "artifact") {
+    if (source === "preview") {
+      return `${targetLabel} output file`;
+    }
+    return rawLabel || cleanString(item?.path) || `Generated file ${index + 1}`;
+  }
+
+  return rawLabel || `${targetLabel} output`;
 }
 
 function inferFrameIdFromManifestPath(item) {
@@ -6856,8 +6903,8 @@ function spatialObjectBodyText(object, frameTitle = "") {
           !["Board object", "Global output", "Previous frame output"].includes(
             frameTitle,
           )
-        ? `Preview connected to ${frameTitle}. Sketch corrections, then Apply to Codex.`
-        : "Preview target from the output manifest. Remove it if it belongs to an older frame.";
+        ? `Generated preview for ${frameTitle}. It is an output card, not another frame. Sketch corrections, then Apply to Codex.`
+        : "Generated preview from the output manifest. It is not another frame; remove it if it belongs to an older iteration.";
   }
 
   if (object?.sourceKind === "generated-artifact") {
@@ -6865,12 +6912,16 @@ function spatialObjectBodyText(object, frameTitle = "") {
       object.meta?.description ||
       object.meta?.path ||
       object.subtitle ||
-      "Generated file from the Codex output manifest"
+      "Generated file from the Codex output manifest. Use it as reference or open it from the output shelf."
     );
   }
 
   if (object?.sourceKind === "workspace-change") {
-    return object.meta?.summary || object.subtitle || "Workspace file change";
+    return (
+      object.meta?.summary ||
+      object.subtitle ||
+      "Workspace file change linked to the current output shelf."
+    );
   }
 
   if (object?.sourceKind === "asset-candidate") {
@@ -11595,16 +11646,49 @@ function buildSpatialObjectFilterExport() {
 }
 
 function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
-  const checkpointObjects = spatialObjects.filter(isCheckpointSpatialObject);
-  if (!checkpointObjects.length) {
-    return [];
+  const outputLane = buildSpatialWorkspaceLane({
+    id: SPATIAL_OUTPUT_LANE_ID,
+    kind: "output",
+    title: "Output shelf",
+    description:
+      "Generated preview, file, and code-change cards from Make or Build. These are not extra frames; open, pin, move, or clear them when they become stale.",
+    objects: spatialObjects.filter(isManifestSpatialObject),
+    collapsed: false,
+    contextTitle: "Output shelf",
+  });
+  const historyLane = buildSpatialWorkspaceLane({
+    id: SPATIAL_HISTORY_LANE_ID,
+    kind: "history",
+    title: "History lane",
+    description: Boolean(state.historyLaneCollapsed)
+      ? "Checkpoint trail is compressed to keep the Map focused. Expand it when you need to inspect saved collaboration moments."
+      : "Checkpoint trail for the current collaboration session. Drag cards out if a saved moment belongs with another frame, variant, or output.",
+    objects: spatialObjects.filter(isCheckpointSpatialObject),
+    collapsed: Boolean(state.historyLaneCollapsed),
+    contextTitle: "History lane",
+  });
+
+  return [outputLane, historyLane].filter(Boolean);
+}
+
+function buildSpatialWorkspaceLane({
+  id,
+  kind,
+  title,
+  description,
+  objects,
+  collapsed = false,
+  contextTitle = title,
+}) {
+  const laneObjects = Array.isArray(objects) ? objects : [];
+  if (!laneObjects.length) {
+    return null;
   }
 
-  const bounds = unionBounds(checkpointObjects.map(spatialObjectBounds));
+  const bounds = unionBounds(laneObjects.map(spatialObjectBounds));
   if (!bounds) {
-    return [];
+    return null;
   }
-  const collapsed = Boolean(state.historyLaneCollapsed);
 
   const laneBounds = makeBounds(
     Math.max(16, bounds.left - SPATIAL_HISTORY_LANE_PADDING),
@@ -11615,38 +11699,35 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
       : bounds.bottom + SPATIAL_HISTORY_LANE_PADDING,
   );
 
-  return [
-    {
-      id: SPATIAL_HISTORY_LANE_ID,
-      kind: "history",
-      title: "History lane",
-      description:
-        collapsed
-          ? "Checkpoint trail is compressed to keep the Map focused. Expand it when you need to inspect saved collaboration moments."
-          : "Checkpoint trail for the current collaboration session. Drag cards out if a saved moment belongs with another frame, variant, or output.",
-      memberObjectIds: checkpointObjects.map((object) => object.id),
-      collapsed,
-      position: {
-        x: laneBounds.left,
-        y: laneBounds.top,
-      },
-      size: {
-        width: laneBounds.width,
-        height: laneBounds.height,
-      },
-      contextMarkdown: [
-        "## History lane",
-        "",
-        `State: ${collapsed ? "collapsed" : "expanded"}`,
-        "",
-        "Saved collaboration checkpoints:",
-        ...checkpointObjects.map(
-          (object) =>
-            `- ${spatialObjectTitle(object)} (${spatialObjectFooterStatus(object)})`,
-        ),
-      ].join("\n"),
+  return {
+    id,
+    kind,
+    title,
+    description,
+    memberObjectIds: laneObjects.map((object) => object.id),
+    collapsed,
+    position: {
+      x: laneBounds.left,
+      y: laneBounds.top,
     },
-  ];
+    size: {
+      width: laneBounds.width,
+      height: laneBounds.height,
+    },
+    contextMarkdown: [
+      `## ${contextTitle}`,
+      "",
+      `State: ${collapsed ? "collapsed" : "expanded"}`,
+      "",
+      description,
+      "",
+      "Objects:",
+      ...laneObjects.map(
+        (object) =>
+          `- ${spatialObjectTitle(object)} (${spatialObjectFooterStatus(object)})`,
+      ),
+    ].join("\n"),
+  };
 }
 
 function buildSpatialWorkspaceObject(object, spatialGrouping) {
@@ -11659,6 +11740,7 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     sourceId: object.sourceId,
     status: object.status,
     pinned: isSpatialObjectPinned(object),
+    laneId: object.meta?.laneId || "",
     frameIds: object.frameIds || [],
     groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
     position: { x: object.x, y: object.y },
@@ -15871,6 +15953,15 @@ function assertSpatialObjectsFromOutputManifest() {
   const generatedTargetObject = spatialExport.objects.find(
     (object) => object.sourceKind === "generated-target",
   );
+  const outputLaneExported = spatialExport.lanes.some(
+    (lane) =>
+      lane.id === SPATIAL_OUTPUT_LANE_ID &&
+      lane.title === "Output shelf" &&
+      lane.memberObjectIds.includes(generatedTargetObject?.id),
+  );
+  const outputLaneRendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-lane-output"),
+  );
   if (generatedTargetObject) {
     selectSpatialObject(generatedTargetObject.id, { render: true });
   }
@@ -15915,6 +16006,8 @@ function assertSpatialObjectsFromOutputManifest() {
     exported &&
       rendered &&
       friendlyLabels &&
+      outputLaneExported &&
+      outputLaneRendered &&
       outputOpenLinks &&
       typeInspectorRendered &&
       frameBound &&
@@ -15927,6 +16020,8 @@ function assertSpatialObjectsFromOutputManifest() {
       exported,
       rendered,
       friendlyLabels,
+      outputLaneExported,
+      outputLaneRendered,
       outputOpenLinks,
       typeInspectorRendered,
       inspectorText: dom.mapObjectTypeDetails.textContent,
@@ -16821,6 +16916,14 @@ async function exerciseLargeSessionSelfTest(results) {
         ".spatial-object-node.generated-output .spatial-object-header span",
       ),
     ].map((node) => node.textContent.trim().toLowerCase());
+    const outputLaneVisible = Boolean(
+      dom.flowBoard.querySelector(".spatial-lane-output"),
+    );
+    const outputLaneExported = spatialExport.lanes.some(
+      (lane) =>
+        lane.id === SPATIAL_OUTPUT_LANE_ID &&
+        lane.memberObjectIds.some((id) => id.startsWith("target-object-")),
+    );
 
     results.push(
       assert(
@@ -16859,6 +16962,12 @@ async function exerciseLargeSessionSelfTest(results) {
         generatedLabels.length > 0 &&
           generatedLabels.every((label) => label !== "generated-target"),
         "large-session generated output cards use designer-readable labels",
+      ),
+    );
+    results.push(
+      assert(
+        outputLaneVisible && outputLaneExported,
+        "large-session generated output cards sit in the output shelf lane",
       ),
     );
   } finally {
