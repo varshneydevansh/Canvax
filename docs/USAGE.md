@@ -424,6 +424,7 @@ asset candidate
 
 After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it to:
 
+- copy the candidate prompt plus exact placement contract when you want to paste it into a ChatGPT/Codex image-generation host
 - place an editable image slot back onto the matching source frame or region
 - attach a generated image file to that slot after using a host image-generation tool
 - attach a generated image by path when Codex or another local tool writes it under the workspace, using a workspace-relative path, `/workspace/...` URL, absolute path inside the Canvax project root, or data image URL

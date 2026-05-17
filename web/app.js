@@ -650,6 +650,11 @@ function bindEvents() {
     applyWorkbenchPromptChip(button.dataset.workbenchPrompt);
   });
   dom.assetCandidateTray.addEventListener("click", (event) => {
+    const copyButton = event.target.closest("[data-asset-candidate-copy]");
+    if (copyButton) {
+      void copyAssetCandidatePrompt(copyButton.dataset.assetCandidateCopy);
+      return;
+    }
     const acceptButton = event.target.closest("[data-asset-candidate-accept]");
     if (acceptButton) {
       acceptAssetCandidate(acceptButton.dataset.assetCandidateAccept);
@@ -5287,6 +5292,9 @@ function renderAssetCandidateTray() {
                 ${escapeHtml(placementMap.surface || "canvas")} · ${Math.round(pixelBounds.width || 0)}×${Math.round(pixelBounds.height || 0)} px · ${slotCount || 1} output slot${(slotCount || 1) === 1 ? "" : "s"}
               </p>
               <div class="asset-candidate-actions">
+                <button class="ghost-button compact" type="button" data-asset-candidate-copy="${escapeHtml(candidate.id)}">
+                  Copy prompt
+                </button>
                 <button class="ghost-button compact" type="button" data-asset-candidate-place="${escapeHtml(candidate.id)}">
                   Place slot
                 </button>
@@ -5318,6 +5326,67 @@ function renderAssetCandidateTray() {
         .join("")}
     </div>
   `;
+}
+
+function buildAssetCandidateClipboardText(candidate) {
+  if (!candidate) {
+    return "";
+  }
+  const frame = currentFrameById(candidate.sourceFrameId) || currentFrame();
+  const placementMap =
+    candidate.placementMap || buildAssetCandidatePlacementMap(candidate, frame);
+  const pixelBounds = placementMap.pixelBounds || {};
+  const cssPlacement = placementMap.cssPlacement || {};
+  const safeZones = Array.isArray(placementMap.safeZones)
+    ? placementMap.safeZones
+    : [];
+  const lines = [
+    `# Canvax Asset Candidate: ${candidate.title || candidate.id}`,
+    "",
+    `- Candidate ID: ${candidate.id}`,
+    `- Source frame: ${candidate.sourceFrameTitle || frame?.title || candidate.sourceFrameId || "Unknown frame"}`,
+    `- Type: ${candidate.type || "asset"}`,
+    `- Placement: ${placementMap.placement || candidate.placement || "whole frame"}`,
+    `- Surface: ${placementMap.surface || frame?.viewport || "canvas"}`,
+    `- Pixel bounds: ${Math.round(pixelBounds.x || 0)}, ${Math.round(pixelBounds.y || 0)}, ${Math.round(pixelBounds.width || 0)} x ${Math.round(pixelBounds.height || 0)}`,
+    `- CSS placement: left ${cssPlacement.left || "0%"}, top ${cssPlacement.top || "0%"}, width ${cssPlacement.width || "100%"}, height ${cssPlacement.height || "100%"}`,
+    `- Target selector: ${placementMap.targetSelector || ""}`,
+    "",
+    "## Prompt",
+    "",
+    candidate.prompt || "Generate imagery for this Canvax asset slot.",
+  ];
+  if (candidate.negativePrompt) {
+    lines.push("", "## Negative Prompt", "", candidate.negativePrompt);
+  }
+  if (safeZones.length) {
+    lines.push("", "## Safe Zones");
+    safeZones.slice(0, 6).forEach((zone) => {
+      lines.push(
+        `- ${zone.label || zone.kind || "zone"}: ${JSON.stringify(zone.bounds || zone)}`,
+      );
+    });
+  }
+  if (placementMap.htmlScaffold) {
+    lines.push("", "## HTML Placement Scaffold", "", placementMap.htmlScaffold);
+  }
+  lines.push(
+    "",
+    "Use this with the current ChatGPT/Codex image-generation host when available. Canvax itself does not call an image API or require OPENAI_API_KEY.",
+  );
+  return lines.join("\n").trim();
+}
+
+async function copyAssetCandidatePrompt(candidateId) {
+  const candidate = assetCandidateById(candidateId);
+  const text = buildAssetCandidateClipboardText(candidate);
+  const copied = await writeTextToClipboard(text);
+  renderStatus(
+    copied
+      ? "Asset candidate prompt copied with placement contract"
+      : "Could not copy asset candidate prompt",
+  );
+  return copied;
 }
 
 function candidateBoundsToFrameBounds(candidate, frame = currentFrame()) {
@@ -19411,6 +19480,14 @@ async function assertAssetCandidateTrayPlacement() {
   });
   const normalizedCandidate = assetCandidateById(candidateId);
   renderAssetCandidateTray();
+  const copyPromptButtonRendered = Boolean(
+    dom.assetCandidateTray.querySelector(
+      `[data-asset-candidate-copy="${candidateId}"]`,
+    ),
+  );
+  const clipboardPromptText = buildAssetCandidateClipboardText(
+    normalizedCandidate,
+  );
   const pathImportInputRendered = Boolean(
     dom.assetCandidateTray.querySelector(
       `[data-asset-candidate-path="${pathCandidateId}"]`,
@@ -19437,6 +19514,9 @@ async function assertAssetCandidateTrayPlacement() {
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const placed =
     !dom.assetCandidateTray.hidden &&
+    copyPromptButtonRendered &&
+    clipboardPromptText.includes("Generate a visual for the selected Canvax region.") &&
+    clipboardPromptText.includes("Target selector:") &&
     pathImportInputRendered &&
     normalizedCandidate?.placementMap?.kind === "canvax-asset-placement" &&
     normalizedCandidate?.outputSlots?.[0]?.slotId ===
@@ -19481,7 +19561,7 @@ async function assertAssetCandidateTrayPlacement() {
 
   return assert(
     placed,
-    "asset candidate tray places, imports by path, attaches, accepts, and summarizes editable image slots",
+    "asset candidate tray copies prompts, places, imports by path, attaches, accepts, and summarizes editable image slots",
   );
 }
 

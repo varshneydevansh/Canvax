@@ -92,6 +92,7 @@ Status: In progress
 - [x] Optional `Live rewrite` mode runs the local no-API rewrite executor after autosnap/freeze handoff saves
 - [x] Live rewrite queues the newest autosnap/freeze handoff when a rewrite is already in flight, so rapid sketching does not silently drop the latest local refresh request
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays
+- [x] Asset candidate tray can copy a single candidate prompt plus exact pixel/CSS placement contract for a ChatGPT/Codex image-generation host
 - [ ] Remaining rough edges in true infinite-canvas object editing
 
 ```text

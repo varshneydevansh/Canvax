@@ -849,6 +849,7 @@ placementMap
 
 Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
 
+- copy the candidate prompt plus pixel/CSS placement contract for ChatGPT/Codex image-generation hosts
 - place an editable image placeholder on the source frame or candidate bounds
 - attach a generated image file into that same region
 - attach a generated image from a workspace-relative path, `/workspace/...` URL, absolute path inside the Canvax project root, or data image URL

@@ -126,6 +126,7 @@ Canvax today
 - Reference image underlays are supported through the explicit `Reference underlay` upload.
 - Pasted or dropped images can now become editable image elements, so generated candidates or reference crops can be placed back on a frame instead of only sitting behind the sketch.
 - Saved asset candidates now appear in a compact Workbench tray. Designers can place a candidate as an editable image slot on its source frame/region or attach a generated file back into that slot while preserving `assetCandidateId`.
+- Each asset candidate card can copy its prompt plus exact pixel/CSS placement contract for a ChatGPT/Codex image-generation host without opening raw JSON.
 - Asset candidate cards now show attached-image thumbnails, review status, selection, and an accept action so generated image choices become explicit no-API handoff state. Accepted choices also export through `reviewSummary.acceptedCandidates`, giving Codex a direct list of chosen image/illustration candidates.
 - Asset candidates now normalize into a `placementMap` contract with slot id, normalized bounds, source-viewport pixel bounds, CSS placement, a target selector, HTML slot scaffold, and output-slot records. This gives Codex or a host image tool exact placement data for UI image regions, poster art, book spreads, and illustration candidates without requiring Canvax to call a paid API.
 - Autosnap and manual freeze write live handoff files.
