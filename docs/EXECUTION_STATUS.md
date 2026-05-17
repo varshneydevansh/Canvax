@@ -68,7 +68,7 @@ Status: In progress
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
 - [x] Workbench `Map` groups generated preview/file/code-change cards inside a named `Output shelf` lane so generated targets are readable as output references, not extra frames
 - [x] Workbench `Map` can collapse or expand the generated `Output shelf` lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
-- [x] Workbench `Map` can turn a generated output preview card into an editable `Output edit` frame with source-frame lineage, generated target path, a flow connection, output-target metadata on the matching variant branch object, and `spatialWorkspace.variantBranches[].outputBinding`
+- [x] Workbench `Map` can turn a generated output preview card into an editable `Output edit` frame with source-frame lineage, generated target path, a flow connection, output-target metadata on the matching variant branch object, `spatialWorkspace.variantBranches[].outputBinding`, and task/rewrite/build `outputEditBinding`
 - [x] Workbench `Map` renders recent checkpoints inside a visible spatial history lane for longer collaboration sessions, exported through `spatialWorkspace.lanes`
 - [x] Workbench `Map` can collapse or expand the checkpoint history lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
 - [x] Workbench `Map` includes an object focus filter for all objects, outputs, assets, notes, or history, and exports the active focus through `spatialWorkspace.objectFilter`
@@ -195,7 +195,7 @@ Status: In progress
 - [x] Selected frame elements can now become persistent prototype hotspots that Preview Play uses as real click regions
 - [x] Workbench/Advanced Map now reconciles generated output/artifact spatial cards, including legacy stale-card cleanup, frame-path binding inference, deleted-frame filtering, and latest per-frame/per-kind output grouping so old materialized targets do not flood the canvas
 - [x] Workbench/Advanced Map now wraps generated output/artifact/change cards in a designer-readable collapsible `Output shelf` lane and uses friendlier generated preview titles
-- [x] Workbench/Advanced Map output preview cards now expose `Make editable`, creating a normal editable frame branch from the generated target instead of leaving the output as a passive reference only
+- [x] Workbench/Advanced Map output preview cards now expose `Make editable`, creating a normal editable frame branch from the generated target instead of leaving the output as a passive reference only; the generated target binding now travels through task packs, rewrite requests, build requests, output contracts, and executor context JSON
 - [x] Workbench/Advanced Map selected objects can now be sent backward or brought forward, and live export/context Markdown includes the resulting layer order
 - [x] Advanced command deck is solid/readable as a sticky inspector header, so grid/canvas texture does not bleed through or sit under the controls
 

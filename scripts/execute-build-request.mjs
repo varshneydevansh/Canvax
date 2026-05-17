@@ -169,6 +169,8 @@ function buildContextPayload(request, previewPath, implementationFiles = []) {
     source: "scripts/execute-build-request.mjs",
     requiresOpenAiApiKey: false,
     previewPath,
+    outputEditBinding:
+      request.outputEditBinding || request.frame?.outputEditBinding || null,
     frameCodeMap: frameCodeMap
       ? {
           path: frameCodeMap.relativePath,

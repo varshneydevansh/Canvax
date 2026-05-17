@@ -424,12 +424,12 @@ body[data-workspace-mode="advanced"] .panel {
 body[data-workspace-mode="advanced"] .toolbar {
     position: sticky;
     top: 0.75rem;
-    z-index: 18;
+    z-index: 28;
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
-        linear-gradient(135deg, rgba(255, 93, 58, 0.12), transparent 24%),
-        linear-gradient(225deg, rgba(35, 100, 170, 0.1), transparent 34%),
+        linear-gradient(135deg, rgba(255, 93, 58, 0.1), transparent 24%),
+        linear-gradient(225deg, rgba(35, 100, 170, 0.08), transparent 34%),
         linear-gradient(180deg, #3a2a26 0%, #211815 100%);
     background-color: #211815;
     background-clip: padding-box;
@@ -441,6 +441,16 @@ body[data-workspace-mode="advanced"] .toolbar {
         inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.12);
     isolation: isolate;
     overflow: visible;
+}
+
+body[data-workspace-mode="advanced"] .toolbar::before {
+    content: "";
+    position: absolute;
+    inset: -0.75rem -0.55rem -0.85rem;
+    z-index: -1;
+    border-radius: 1.7rem;
+    background: #211815;
+    box-shadow: 0 1.6rem 2.8rem rgba(0, 0, 0, 0.32);
 }
 
 body[data-workspace-mode="advanced"] .toolbar::after {

@@ -94,7 +94,7 @@ flowchart LR
 - Adds designer surface presets for slides, book spreads, storyboards, and comic pages alongside UI, poster, square, and free-canvas presets.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Exports Workbench Map group containment so Codex can read which frames, references, assets, generated outputs, artifacts, and changes belong to each exploration group.
-- Turns a generated output preview card into an editable `Output edit` frame, so a result can become a normal sketch/correction branch instead of staying a passive reference.
+- Turns a generated output preview card into an editable `Output edit` frame, so a result can become a normal sketch/correction branch while task, rewrite, build, and executor payloads still point at the exact generated output target.
 - Promotes an editable variant branch into the primary direction with `Use variant`, while keeping lineage visible for Codex through `spatialWorkspace.variantBranches`.
 - Adds Preview `Play flow` so connected frames can be clicked through from the entry frame as a lightweight storyboard prototype, including generated hotspot overlays on sketch and output surfaces.
 - Lets selected drawn elements become persistent prototype hotspots, so a button/image/region you sketch can navigate to a target frame in Preview Play.

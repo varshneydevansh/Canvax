@@ -231,6 +231,10 @@ function buildContextPayload({
     frameId,
     frameTitle,
     queueItem: selected.queueItem || null,
+    outputEditBinding:
+      selected.requestFrame?.outputEditBinding ||
+      selected.frame?.outputEditBinding ||
+      null,
     affectedRegions,
     affectedComponents,
     frameCodeMap: frameCodeMap

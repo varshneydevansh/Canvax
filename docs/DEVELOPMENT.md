@@ -202,6 +202,8 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.
 
+When a generated output preview is converted with `Make editable`, the new branch frame carries `frame.variant.outputObjectId`, `outputTarget`, and `outputHref`. Export builders derive `outputEditBinding` from those fields and include it in the live export, task pack, rewrite request, build request, output contract, and executor context JSON. Regression self-test verifies that the editable output branch stays connected to the exact generated target through both the rewrite and build handoff paths.
+
 Runtime path:
 
 ```text

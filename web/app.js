@@ -1829,6 +1829,37 @@ function normalizeFrameVariant(value) {
   };
 }
 
+function frameOutputEditBinding(frame) {
+  const variant =
+    frame?.variant && typeof frame.variant === "object" ? frame.variant : null;
+  if (!variant) {
+    return null;
+  }
+  const objectId = cleanString(variant.outputObjectId);
+  const target = cleanString(variant.outputTarget);
+  const href = cleanString(variant.outputHref);
+  if (!objectId && !target && !href) {
+    return null;
+  }
+  const sourceFrameId = cleanString(variant.sourceFrameId);
+  return {
+    kind: "canvax-output-edit-binding",
+    objectId,
+    sourceKind: cleanString(variant.outputSourceKind),
+    target,
+    href,
+    sourceFrameId,
+    sourceFrameTitle:
+      cleanString(variant.sourceFrameTitle) ||
+      (sourceFrameId ? frameTitleById(sourceFrameId) : ""),
+    branchFrameId: cleanString(frame?.id),
+    branchFrameTitle: cleanString(frame?.title),
+    branchLabel: cleanString(variant.label) || "Output edit",
+    instruction:
+      "This frame is an editable correction branch over the referenced generated output. Apply sketch, voice, and output marks to that output target instead of treating the frame as a new unrelated screen.",
+  };
+}
+
 function normalizeFrame(frame, index) {
   return {
     id: frame.id || uid("frame"),
@@ -11974,6 +12005,7 @@ async function buildExportPackage(frameSelection = state.frames) {
       assets: frame.assets,
       mobile: frame.mobile,
       variant: frame.variant,
+      outputEditBinding: frameOutputEditBinding(frame),
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
       captureCount: frame.captures.length,
@@ -12084,6 +12116,9 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       motion: frame.motion,
       assets: frame.assets,
       mobile: frame.mobile,
+      variant: frame.variant || null,
+      outputEditBinding:
+        frame.outputEditBinding || frameOutputEditBinding(frame),
       captureCount: frame.captureCount,
       outputAnnotationCount: frame.outputAnnotationCount,
       outputAnnotations: frame.outputAnnotations || [],
@@ -12126,6 +12161,8 @@ function buildOutputRevisionGraph(frames, manifest, rewriteQueue = []) {
       frameRevision: frame.updatedAt || "",
       captureCount: frame.captureCount || 0,
       outputAnnotationCount: frame.outputAnnotationCount || 0,
+      outputEditBinding:
+        frame.outputEditBinding || frameOutputEditBinding(frame),
       status: status?.label || (relatedTargets.length ? "Output bound" : "No output"),
       stale: status?.label === "Output stale",
       queueReasons: queueItems.map((item) => item.reason),
@@ -12642,6 +12679,8 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
       assets: frame.assets,
       variants: frame.mobile,
       variant: frame.variant,
+      outputEditBinding:
+        frame.outputEditBinding || frameOutputEditBinding(frame),
       snapshotPath: frame.snapshotPath || "",
       outputAnnotationCount: frame.outputAnnotationCount || 0,
       composition: buildFrameComposition(currentFrameById(frame.id) || frame),
@@ -13037,7 +13076,10 @@ function buildTaskPackMarkdown(taskPack) {
     const variantSuffix = frame.variant?.label
       ? ` [variant: ${frame.variant.label} from ${frame.variant.sourceFrameTitle || frame.variant.sourceFrameId}]`
       : "";
-    lines.push(`- ${frame.index}. ${frame.title}${variantSuffix}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
+    const outputEditSuffix = frame.outputEditBinding
+      ? ` [output edit target: ${frame.outputEditBinding.target || frame.outputEditBinding.href || frame.outputEditBinding.objectId}]`
+      : "";
+    lines.push(`- ${frame.index}. ${frame.title}${variantSuffix}${outputEditSuffix}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
   });
   return lines.join("\n");
 }
@@ -13080,6 +13122,11 @@ function buildRewriteRequestMarkdown(request) {
     lines.push(
       `- ${frame.title}: ${frame.intent || "No intent"}; output marks: ${frame.outputAnnotationCount || 0}; captures: ${frame.captureCount || 0}`,
     );
+    if (frame.outputEditBinding) {
+      lines.push(
+        `  - Output edit target: ${frame.outputEditBinding.target || frame.outputEditBinding.href || frame.outputEditBinding.objectId}`,
+      );
+    }
   });
   return lines.join("\n");
 }
@@ -13097,6 +13144,8 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
   const actionMode = currentActionMode();
   const generation = normalizeGenerationConfig(state.board.generation);
   const frameId = frame.id;
+  const outputEditBinding =
+    activeTaskFrame?.outputEditBinding || frameOutputEditBinding(frame);
 
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -13117,6 +13166,7 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
     activeFrameId: frameId,
     frame: activeTaskFrame,
     imagePromptFrame,
+    outputEditBinding,
     voice: taskPack.voice || buildVoiceExport(state.frames),
     designContext: taskPack.designContext || currentDesignContextForExport(),
     generation,
@@ -13146,11 +13196,13 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
         frameTitle: frame.title,
         expectedTargetTypes: ["route", "component", "html-artifact"],
       },
+      outputEditBinding,
     },
     codexInstructions: [
       "Read this request, the live export, task pack, checkpoint, and DESIGN.md if present before changing files.",
       "Build actual app/page/component files in the current workspace, not only a Canvax materialized mock.",
       "Respect the sketch geometry, labels, voice notes, output correction marks, and generation recipe as design intent.",
+      "If outputEditBinding is present, use it as the concrete generated-output target for this correction branch.",
       "Run the relevant project checks after implementation.",
       "Publish the result back into Canvax with scripts/write-codex-output.mjs so Preview and Workbench can bind the generated output to this frame.",
     ],
@@ -13209,6 +13261,9 @@ function buildBuildRealRequestMarkdown(request) {
     `- Behavior: ${frame.behavior || "No behavior notes"}`,
     `- Assets: ${frame.assets || "No asset notes"}`,
     `- Variants: ${frame.variants || "No variant notes"}`,
+    request.outputEditBinding
+      ? `- Output edit target: ${request.outputEditBinding.target || request.outputEditBinding.href || request.outputEditBinding.objectId}`
+      : "",
     "",
     "## Composition Elements",
   ];
@@ -16716,6 +16771,61 @@ function assertSpatialObjectsFromOutputManifest() {
       branch.outputBinding?.objectId === generatedTargetObject.id &&
       branch.outputBinding?.target === generatedTargetObject.meta?.previewPath,
   );
+  const editableOutputViewport =
+    viewportPresets[editableOutputFrame?.viewport] || viewportPresets.desktop;
+  const editableOutputExportFrame = editableOutputFrame
+    ? {
+        id: editableOutputFrame.id,
+        index: 1,
+        title: editableOutputFrame.title,
+        viewport: editableOutputFrame.viewport,
+        viewportWidth: editableOutputViewport.width,
+        viewportHeight: editableOutputViewport.height,
+        objective: editableOutputFrame.objective,
+        layout: editableOutputFrame.layout,
+        motion: editableOutputFrame.motion,
+        assets: editableOutputFrame.assets,
+        mobile: editableOutputFrame.mobile,
+        variant: editableOutputFrame.variant,
+        updatedAt: editableOutputFrame.updatedAt,
+        captureCount: editableOutputFrame.captures.length,
+        outputAnnotationCount: editableOutputFrame.outputAnnotations.length,
+        outputAnnotations: editableOutputFrame.outputAnnotations.map(
+          summarizeOutputAnnotation,
+        ),
+        composition: buildFrameComposition(editableOutputFrame),
+      }
+    : null;
+  const editableOutputRewriteRequest = editableOutputExportFrame
+    ? buildRewriteRequest([editableOutputExportFrame], [])
+    : null;
+  const editableOutputTaskPack = editableOutputExportFrame
+    ? buildTaskPack([editableOutputExportFrame], [])
+    : null;
+  const editableOutputBuildRequest =
+    editableOutputFrame && editableOutputTaskPack
+      ? buildBuildRealRequest(
+          editableOutputFrame,
+          {
+            frames: [editableOutputExportFrame],
+            taskPack: editableOutputTaskPack,
+            imagePromptPack: { frames: [] },
+          },
+          {},
+        )
+      : null;
+  const outputEditBindingInRequests =
+    Boolean(generatedTargetObject) &&
+    editableOutputRewriteRequest?.frames?.[0]?.outputEditBinding?.objectId ===
+      generatedTargetObject.id &&
+    editableOutputRewriteRequest?.revisionGraph?.frames?.[0]?.outputEditBinding
+      ?.target === generatedTargetObject.meta?.previewPath &&
+    editableOutputTaskPack?.frames?.[0]?.outputEditBinding?.href ===
+      `/workspace/${generatedTargetObject.meta?.previewPath}` &&
+    editableOutputBuildRequest?.outputEditBinding?.objectId ===
+      generatedTargetObject.id &&
+    editableOutputBuildRequest?.outputContract?.outputEditBinding?.target ===
+      generatedTargetObject.meta?.previewPath;
   const frameBound = spatialExport.objects
     .filter(isManifestSpatialObject)
     .every((object) => object.frameIds.includes(frameId));
@@ -16767,6 +16877,7 @@ function assertSpatialObjectsFromOutputManifest() {
       editableOutputActionVisible &&
       editableOutputFrameCreated &&
       editableOutputBranchExported &&
+      outputEditBindingInRequests &&
       frameBound &&
       legacyCleaned &&
       clearedCount >= 3 &&
@@ -16788,6 +16899,7 @@ function assertSpatialObjectsFromOutputManifest() {
       outputOpenLinks,
       typeInspectorRendered,
       editableOutputActionVisible,
+      outputEditBindingInRequests,
       editableOutputFrameCreated,
       editableOutputBranchExported,
       inspectorText: dom.mapObjectTypeDetails.textContent,
