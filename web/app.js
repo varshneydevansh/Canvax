@@ -348,6 +348,11 @@ const dom = {
   flowZoomReset: document.querySelector("#flow-zoom-reset"),
   flowFitView: document.querySelector("#flow-fit-view"),
   flowZoomValue: document.querySelector("#flow-zoom-value"),
+  flowNavigator: document.querySelector("#flow-navigator"),
+  flowNavigatorStage: document.querySelector("#flow-navigator-stage"),
+  flowNavigatorItems: document.querySelector("#flow-navigator-items"),
+  flowNavigatorViewport: document.querySelector("#flow-navigator-viewport"),
+  flowNavigatorScale: document.querySelector("#flow-navigator-scale"),
   mapObjectFilterChips: document.querySelector("#map-object-filter-chips"),
   addSpatialNote: document.querySelector("#add-spatial-note"),
   addSpatialFile: document.querySelector("#add-spatial-file"),
@@ -706,6 +711,10 @@ function bindEvents() {
   dom.flowFitView.addEventListener("click", () => {
     fitFlowMapToContent();
   });
+  dom.flowShell.addEventListener("scroll", renderFlowNavigatorViewport, {
+    passive: true,
+  });
+  dom.flowNavigator.addEventListener("pointerdown", onFlowNavigatorPointerDown);
   dom.mapObjectFilterChips.addEventListener("click", (event) => {
     const button = event.target.closest("[data-map-object-filter]");
     if (!button) {
@@ -5472,6 +5481,120 @@ function fitFlowMapToContent(options = {}) {
   return true;
 }
 
+function flowNavigatorItems(layout = computeFlowSurfaceSize()) {
+  const itemBounds = [
+    ...state.frames.map((frame) => ({
+      id: frame.id,
+      kind:
+        frame.id === state.activeFrameId
+          ? "active-frame"
+          : frame.variant?.label
+            ? "variant-frame"
+            : "frame",
+      bounds: makeBounds(
+        frame.flowPosition.x,
+        frame.flowPosition.y,
+        frame.flowPosition.x + FLOW_CARD_WIDTH,
+        frame.flowPosition.y + FLOW_CARD_HEIGHT,
+      ),
+    })),
+    ...state.spatialObjects
+      .filter(isSpatialObjectVisibleInCurrentMap)
+      .map((object) => ({
+        id: object.id,
+        kind: normalizeSpatialSourceKind(object.sourceKind),
+        bounds: spatialObjectBounds(object),
+      })),
+  ];
+
+  return itemBounds
+    .map((item) => {
+      const bounds = item.bounds || makeBounds(0, 0, 1, 1);
+      return {
+        ...item,
+        x: percentage(bounds.left, layout.width),
+        y: percentage(bounds.top, layout.height),
+        width: percentage(bounds.width, layout.width),
+        height: percentage(bounds.height, layout.height),
+      };
+    })
+    .filter((item) => item.width > 0 && item.height > 0);
+}
+
+function renderFlowNavigator(layout = computeFlowSurfaceSize()) {
+  if (
+    !dom.flowNavigator ||
+    !dom.flowNavigatorItems ||
+    !dom.flowNavigatorViewport ||
+    !dom.flowNavigatorScale
+  ) {
+    return;
+  }
+  const items = flowNavigatorItems(layout);
+  dom.flowNavigator.hidden = state.viewMode !== "flow";
+  dom.flowNavigatorScale.textContent = `${Math.round((state.flowZoom || 1) * 100)}%`;
+  dom.flowNavigatorItems.innerHTML = items
+    .map(
+      (item) => `
+        <span
+          class="flow-navigator-item ${escapeHtml(classToken(item.kind))}"
+          style="left:${item.x}%; top:${item.y}%; width:${Math.max(1.5, item.width)}%; height:${Math.max(1.5, item.height)}%;"
+        ></span>
+      `,
+    )
+    .join("");
+  renderFlowNavigatorViewport(layout);
+}
+
+function renderFlowNavigatorViewport(layout = computeFlowSurfaceSize()) {
+  if (!dom.flowNavigatorViewport || !dom.flowShell) {
+    return;
+  }
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
+  const visibleLeft = dom.flowShell.scrollLeft / zoom;
+  const visibleTop = dom.flowShell.scrollTop / zoom;
+  const visibleWidth = dom.flowShell.clientWidth / zoom;
+  const visibleHeight = dom.flowShell.clientHeight / zoom;
+  dom.flowNavigatorViewport.style.left = `${percentage(visibleLeft, layout.width)}%`;
+  dom.flowNavigatorViewport.style.top = `${percentage(visibleTop, layout.height)}%`;
+  dom.flowNavigatorViewport.style.width = `${Math.min(100, percentage(visibleWidth, layout.width))}%`;
+  dom.flowNavigatorViewport.style.height = `${Math.min(100, percentage(visibleHeight, layout.height))}%`;
+}
+
+function percentage(value, total) {
+  if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, (value / total) * 100));
+}
+
+function onFlowNavigatorPointerDown(event) {
+  if (event.button > 0 || !dom.flowNavigatorStage || !dom.flowShell) {
+    return;
+  }
+  const rect = dom.flowNavigatorStage.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return;
+  }
+  event.preventDefault();
+  const layout = computeFlowSurfaceSize();
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
+  const normalizedX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+  const normalizedY = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+  const targetX = normalizedX * layout.width;
+  const targetY = normalizedY * layout.height;
+  dom.flowShell.scrollLeft = Math.max(
+    0,
+    Math.round(targetX * zoom - dom.flowShell.clientWidth / 2),
+  );
+  dom.flowShell.scrollTop = Math.max(
+    0,
+    Math.round(targetY * zoom - dom.flowShell.clientHeight / 2),
+  );
+  renderFlowNavigatorViewport(layout);
+  renderStatus("Moved Map viewport from navigator");
+}
+
 function renderSelectionActions() {
   const frame = currentFrame();
   const selected = currentSelectedElements(frame);
@@ -6875,6 +6998,7 @@ function renderFlowBoard() {
   renderOutputLaneToggle(spatialLanes);
   renderHistoryLaneToggle(spatialLanes);
   renderMapSelectionActions();
+  renderFlowNavigator(layout);
 }
 
 function renderSpatialLanesMarkup(lanes) {
@@ -16607,6 +16731,11 @@ function assertWorkbenchSpatialMap() {
       "[data-spatial-object-id='spatial-selftest-asset']",
     ),
   );
+  const navigatorRendered =
+    !dom.flowNavigator.hidden &&
+    dom.flowNavigatorItems.querySelectorAll(".flow-navigator-item").length >=
+      state.frames.length + 3 &&
+    dom.flowNavigatorViewport.style.width;
   const groupExported = spatialExport.groups.some(
     (group) =>
       group.id === "spatial-selftest-group" &&
@@ -16659,6 +16788,25 @@ function assertWorkbenchSpatialMap() {
       dom.flowShell.scrollTop > 0 ||
       dom.flowShell.scrollWidth <= dom.flowShell.clientWidth ||
       dom.flowShell.scrollHeight <= dom.flowShell.clientHeight);
+  dom.flowShell.scrollLeft = 0;
+  dom.flowShell.scrollTop = 0;
+  renderFlowNavigator();
+  const navigatorRect = dom.flowNavigatorStage.getBoundingClientRect();
+  let navigatorPrevented = false;
+  onFlowNavigatorPointerDown({
+    button: 0,
+    clientX: navigatorRect.left + navigatorRect.width * 0.82,
+    clientY: navigatorRect.top + navigatorRect.height * 0.55,
+    preventDefault() {
+      navigatorPrevented = true;
+    },
+  });
+  const navigatorPanned =
+    navigatorPrevented &&
+    (dom.flowShell.scrollLeft > 0 ||
+      dom.flowShell.scrollTop > 0 ||
+      dom.flowShell.scrollWidth <= dom.flowShell.clientWidth ||
+      dom.flowShell.scrollHeight <= dom.flowShell.clientHeight);
   const spatialMapDetail = JSON.stringify({
     mapVisible,
     zoomChanged,
@@ -16668,6 +16816,7 @@ function assertWorkbenchSpatialMap() {
     edgeExpanded,
     exportValid,
     objectRendered,
+    navigatorRendered,
     groupExported,
     groupedObject,
     assetFilterActive,
@@ -16675,6 +16824,7 @@ function assertWorkbenchSpatialMap() {
     assetFilterHidesOutput,
     outputFilterVisible,
     fitMapWorked,
+    navigatorPanned,
     fitMap: {
       zoom: state.flowZoom,
       scrollLeft: dom.flowShell.scrollLeft,
@@ -16713,7 +16863,9 @@ function assertWorkbenchSpatialMap() {
       assetFilterVisible &&
       assetFilterHidesOutput &&
       outputFilterVisible &&
-      fitMapWorked,
+      navigatorRendered &&
+      fitMapWorked &&
+      navigatorPanned,
     "Workbench spatial map renders, filters, and exports frames, objects, and group containment",
     spatialMapDetail,
   );

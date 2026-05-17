@@ -2694,6 +2694,123 @@ select,
     overscroll-behavior: contain;
 }
 
+.flow-navigator {
+    position: sticky;
+    z-index: 36;
+    top: 1rem;
+    left: calc(100% - 12rem);
+    display: grid;
+    width: 11rem;
+    margin: 1rem 1rem -8.8rem auto;
+    padding: 0.62rem;
+    gap: 0.48rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.18);
+    border-radius: 1rem;
+    color: #fff8ec;
+    background:
+        linear-gradient(135deg, rgba(255, 93, 58, 0.16), transparent 45%),
+        rgba(24, 17, 14, 0.86);
+    box-shadow:
+        0 1rem 2rem rgba(0, 0, 0, 0.24),
+        inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.08);
+    cursor: crosshair;
+    backdrop-filter: blur(0.7rem);
+    -webkit-backdrop-filter: blur(0.7rem);
+}
+
+.flow-navigator:hover {
+    border-color: rgba(255, 248, 236, 0.28);
+}
+
+.flow-navigator:active {
+    transform: translateY(1px);
+}
+
+.flow-navigator-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    font-size: 0.72rem;
+}
+
+.flow-navigator-head strong {
+    color: #fff8ec;
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.flow-navigator-head span {
+    color: rgba(255, 248, 236, 0.68);
+    font-size: 0.72rem;
+}
+
+.flow-navigator-stage {
+    position: relative;
+    overflow: hidden;
+    height: 6.2rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.12);
+    border-radius: 0.7rem;
+    background-image:
+        radial-gradient(rgba(255, 248, 236, 0.18) 1px, transparent 1px),
+        linear-gradient(135deg, rgba(12, 141, 123, 0.12), transparent);
+    background-size:
+        0.72rem 0.72rem,
+        100% 100%;
+}
+
+.flow-navigator-items,
+.flow-navigator-viewport,
+.flow-navigator-item {
+    position: absolute;
+}
+
+.flow-navigator-items {
+    inset: 0;
+}
+
+.flow-navigator-item {
+    min-width: 0.25rem;
+    min-height: 0.25rem;
+    border-radius: 0.16rem;
+    background: rgba(255, 248, 236, 0.5);
+}
+
+.flow-navigator-item.active-frame {
+    background: var(--accent);
+}
+
+.flow-navigator-item.variant-frame,
+.flow-navigator-item.variant-branch {
+    background: #f0a202;
+}
+
+.flow-navigator-item.generated-target,
+.flow-navigator-item.generated-artifact,
+.flow-navigator-item.workspace-change {
+    background: #2364aa;
+}
+
+.flow-navigator-item.asset-candidate,
+.flow-navigator-item.reference-file {
+    background: #0c8d7b;
+}
+
+.flow-navigator-item.checkpoint {
+    background: #b547b3;
+}
+
+.flow-navigator-viewport {
+    min-width: 0.5rem;
+    min-height: 0.5rem;
+    border: 0.12rem solid #fff8ec;
+    border-radius: 0.28rem;
+    background: rgba(255, 248, 236, 0.08);
+    box-shadow: 0 0 0 0.0625rem rgba(24, 17, 14, 0.35);
+}
+
 .flow-shell.is-panning {
     cursor: grabbing;
 }

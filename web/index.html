@@ -1287,6 +1287,32 @@
                                 </div>
                             </div>
                             <div id="flow-shell" class="flow-shell">
+                                <button
+                                    id="flow-navigator"
+                                    class="flow-navigator"
+                                    type="button"
+                                    title="Map navigator. Click inside to pan the spatial map."
+                                    aria-label="Spatial map navigator"
+                                >
+                                    <span class="flow-navigator-head">
+                                        <strong>Map</strong>
+                                        <span id="flow-navigator-scale">100%</span>
+                                    </span>
+                                    <span
+                                        id="flow-navigator-stage"
+                                        class="flow-navigator-stage"
+                                        aria-hidden="true"
+                                    >
+                                        <span
+                                            id="flow-navigator-items"
+                                            class="flow-navigator-items"
+                                        ></span>
+                                        <span
+                                            id="flow-navigator-viewport"
+                                            class="flow-navigator-viewport"
+                                        ></span>
+                                    </span>
+                                </button>
                                 <div id="flow-surface" class="flow-surface">
                                     <svg
                                         id="flow-svg"
