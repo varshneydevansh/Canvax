@@ -142,6 +142,7 @@ flowchart LR
 - Writes that rewrite queue into the live handoff payloads, so Codex can read which frames currently need attention next.
 - Installs a Codex skill so the canvas can be invoked from Codex as `/canvax` or `$canvax`.
 - Requires no extra OpenAI API key for the core sketch-to-Codex workflow.
+- Adds `npm run goal-audit`, which writes a strict prompt-to-artifact audit under `artifacts/canvax/goal-audit/latest/` and reports known remaining gaps instead of treating green tests as full parity.
 
 ## Current Baseline
 
@@ -162,6 +163,7 @@ This commit line now includes the following major layers working together:
 - rewrite request export plus local rewrite executor for frame-bound preview refresh
 - rewrite revision graph for frame-to-output dependency tracking
 - Preview rewrite handoff lane for request/executor/manifest progress
+- runnable goal audit that maps the active Stitch-plus objective to concrete source/docs evidence while still reporting open gaps
 - Workbench surface controls for desktop/mobile/tablet/free-canvas decisions without opening Advanced mode
 - Workbench action modes for build, refinement, spec, image prompt, and variation workflows
 - Workbench quick-prompt chips for common designer refinement moves
@@ -321,9 +323,12 @@ For local validation:
 ```bash
 npm run check
 npm run regression
+npm run goal-audit
 ```
 
 `npm run regression` now adds a headless browser pass against both the board and Preview self-test routes when a running Canvax service and local Chrome binary are available.
+
+`npm run goal-audit` writes `artifacts/canvax/goal-audit/latest/result.json` and `.md`. It can pass the local evidence checklist while still reporting `overallComplete: false`, which is intentional until native host bridges and high-fidelity production generation are actually proven.
 
 If you want that browser pass to fail hard instead of skipping on host-level Chrome timeouts, run:
 

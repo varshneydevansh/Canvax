@@ -22,8 +22,8 @@ real implementation.
 | Local semantic screen generation | Partial / stronger local | `Generate screen` creates polished local HTML from both rectangle-heavy wireframes and stroke-first sketches with arrows, ovals, image slots, and labels; browser self-test verifies the stroke-first path. | This is deterministic local rendering, not hosted AI design generation, and it does not replace a real production implementation pass. |
 | Live sketch-and-voice rewrite loop | Partial / stronger local | Voice segments, transcript bridge, Apply/Live rewrite, rewrite request, local rewrite executor, output annotations with normalized changed-region bounds, output eraser deletion semantics, affected-region to component-target mapping, in-flight Live rewrite queueing for newer handoffs, checkpoints, e2e workflow proof, and future host bridge boundary in `docs/CHATGPT_APP_BRIDGE.md`. | Not a continuous first-party Codex live co-edit loop; native Codex microphone and live ChatGPT/Codex host bridge require first-party integration. |
 | Richer image / asset candidate handling | Partial / stronger local | `Image pack`, `canvax-style-lock`, placement-map asset candidates, output slots, consolidated image generation brief with copy-ready host prompts, asset candidate tray, per-candidate prompt/placement copy, editable pasted/dropped images, file attach, workspace-path attach, thumbnails, accept/review state, Map asset objects, Copy context, per-object `contextMarkdown`, future host image handoff tools in `docs/CHATGPT_APP_BRIDGE.md`; no API key required. | Direct ChatGPT image generation / image editing is not available from localhost without host bridge; candidate review is local and prompt-based. |
-| Documentation proving workflow | Strong | `README.md`, `docs/USAGE.md`, `docs/FEATURES.md`, `docs/DESIGNER_WALKTHROUGH.md`, `docs/ARCHITECTURE.md`, `docs/CHATGPT_APP_BRIDGE.md`, `docs/EXECUTION_STATUS.md`, `docs/STITCH_GAP_ROADMAP.md`, `canvax-stitch-like-workbench-plan.md`, this audit. | Keep docs synchronized as features change and keep visual-review screenshots current. |
-| Tests proving rough sketch to real output, no paid API keys | Strong for local workflow | `npm run check`, `npm run regression`, `npm run e2e-workflow`, browser self-tests, service lifecycle tests, responsive snapshots. | Tests prove the local no-API pipeline and deterministic executors, not a hosted first-party ChatGPT image/Codex live surface. |
+| Documentation proving workflow | Strong | `README.md`, `docs/USAGE.md`, `docs/FEATURES.md`, `docs/DESIGNER_WALKTHROUGH.md`, `docs/ARCHITECTURE.md`, `docs/CHATGPT_APP_BRIDGE.md`, `docs/EXECUTION_STATUS.md`, `docs/STITCH_GAP_ROADMAP.md`, `canvax-stitch-like-workbench-plan.md`, this audit, and `npm run goal-audit` output. | Keep docs synchronized as features change and keep visual-review screenshots current. |
+| Tests proving rough sketch to real output, no paid API keys | Strong for local workflow | `npm run check`, `npm run regression`, `npm run e2e-workflow`, `npm run goal-audit`, browser self-tests, service lifecycle tests, responsive snapshots. | Tests prove the local no-API pipeline and deterministic executors, not a hosted first-party ChatGPT image/Codex live surface. |
 | No paid API key requirement | Strong | Export packs include `requiresOpenAiApiKey: false`; docs state host-driven/no-API boundary; tests validate no-API task/image/build/rewrite paths. | Future host image generation must remain optional and must not introduce an API-key dependency. |
 
 ## Prompt-To-Artifact Checklist
@@ -42,17 +42,18 @@ verification gates. It is the source of truth before claiming the goal is done.
 | Codex-built real app/screen generation with manifest binding | Build request, local executor, preview artifact, implementation bundle, React/framework handoff, frame-to-code map, Codex output manifest, editable output branch creation from a generated target, and request/executor target binding | `exports/canvax-build-real-latest.json`, `scripts/execute-build-request.mjs`, `scripts/execute-rewrite-request.mjs`, `web/app.js`, `npm run e2e-workflow` | High-fidelity production code generation is not proven by the deterministic smoke scaffold |
 | Live sketch-and-voice rewrite loop | Voice export, transcript bridge, rewrite request, Apply/Live rewrite, in-flight handoff queueing, output correction bounds, output eraser deletion semantics, changed region/component targeting, checkpoints | `exports/canvax-voice-latest.md`, `exports/canvax-rewrite-request-latest.json`, `scripts/execute-rewrite-request.mjs`, browser self-test, e2e rewrite proof | Continuous first-party Codex co-edit while sketching remains blocked on host integration |
 | Rich image/asset candidate handling | Image prompt pack, style-lock block, placement-map asset candidates, output slots, image generation brief, local file/path attach, per-candidate prompt/placement copy, accept/review, Map asset objects | `exports/canvax-image-prompt-pack-latest.json`, `exports/canvax-asset-candidates-latest.json`, `exports/canvax-image-generation-brief-latest.json`, `web/app.js`, endpoint regression and browser self-test | Direct ChatGPT image generation/editing remains host-provided, not localhost-provided |
-| Documentation/tests proving full rough-sketch-to-real-output workflow | Designer walkthrough, usage, features, architecture, ChatGPT/Codex bridge boundary, roadmap, execution status, audit, e2e workflow, browser regression | `README.md`, `docs/*.md`, `npm run check`, `npm run regression`, `npm run e2e-workflow` | Keep docs synchronized after every feature chunk |
+| Documentation/tests proving full rough-sketch-to-real-output workflow | Designer walkthrough, usage, features, architecture, ChatGPT/Codex bridge boundary, roadmap, execution status, audit, e2e workflow, browser regression, strict goal audit | `README.md`, `docs/*.md`, `npm run check`, `npm run regression`, `npm run e2e-workflow`, `npm run goal-audit` | Keep docs synchronized after every feature chunk |
 | End to end without requiring paid API keys | All local requests/packs mark `requiresOpenAiApiKey: false`; no app flow requires `OPENAI_API_KEY` | Regression and e2e checks validate no-API paths; docs state host-capability boundary | Future adapters must stay optional and cannot become a core requirement |
 
 ## Latest Verification
 
-Verified locally on May 18, 2026 after the Workbench focus wording, ChatGPT/App bridge documentation, and atomic latest-handoff write hardening passes:
+Verified locally on May 18, 2026 after the React/framework build handoff, no-API image generation brief, and strict prompt-to-artifact goal-audit passes:
 
 ```text
 npm run check      -> pass
 npm run regression -> pass
 npm run e2e-workflow -> pass through npm run regression
+npm run goal-audit -> evidence pass, overallComplete false
 ```
 
 The regression run includes service lifecycle checks, the no-API e2e workflow,
@@ -62,6 +63,12 @@ pixel widths, plus the Map viewport/tidy, lane-order, object prompt/context,
 compact spatial-context assertions, opt-in materialized review overlays,
 in-flight Live rewrite queueing, per-candidate image prompt copy, and latest
 handoff schema validation.
+
+The goal audit writes `artifacts/canvax/goal-audit/latest/result.json` and
+`artifacts/canvax/goal-audit/latest/result.md`. It is intentionally stricter
+than a green test run: the evidence checklist can pass while the overall goal
+remains incomplete because native host bridges and high-fidelity autonomous
+production generation are still not proven.
 
 ## Current Verdict
 
@@ -87,6 +94,7 @@ Run these before claiming a parity milestone:
 npm run check
 npm run regression
 npm run e2e-workflow
+npm run goal-audit
 ```
 
 For UI review, inspect the latest browser snapshot index:

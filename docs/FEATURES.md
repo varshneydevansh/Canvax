@@ -260,6 +260,8 @@ The board browser self-test also includes a dense long-session Map fixture. It r
 
 `npm run e2e-workflow` is the explicit rough-sketch-to-real-output proof. It creates a synthetic sketch frame with voice, correction marks, image prompt data, and asset candidates, then verifies the no-API build executor, dry-run Codex manifest binding, and rewrite executor as one chain. The proof manifest is written to `artifacts/canvax/e2e-workflow/latest/result.json`.
 
+`npm run goal-audit` is the strict completion guard. It maps the current Stitch-plus objective to concrete source/docs evidence and writes `artifacts/canvax/goal-audit/latest/result.{json,md}`. A passing evidence checklist is not the same as completed parity; the audit keeps `overallComplete: false` while native host bridges and high-fidelity production generation remain unproven.
+
 The CLI now has explicit port recovery behavior: matching Canvax services can be recovered from `/api/status` when runtime files are stale or missing, while non-Canvax listeners produce a structured `portOccupied` response instead of a silent timeout.
 
 ### Advanced

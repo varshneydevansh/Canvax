@@ -113,6 +113,14 @@ npm run e2e-workflow
 
 That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, and asset candidates. It then runs the deterministic build executor, dry-runs Codex output manifest binding, verifies the frame-to-code map, verifies the React-ready component and Vite/Next framework adapter handoffs, runs the rewrite executor from correction context, verifies correction-to-component targeting, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
 
+Strict goal audit:
+
+```bash
+npm run goal-audit
+```
+
+That script writes `artifacts/canvax/goal-audit/latest/result.json` and `.md`. It maps the active Stitch-plus objective to concrete source/docs evidence, then keeps `overallComplete: false` while first-party host bridges and high-fidelity autonomous production generation remain open. Treat it as a completion guard, not as a celebration gate.
+
 Useful service commands:
 
 ```bash
@@ -128,6 +136,7 @@ npm run service-lifecycle
 edit code
   -> run npm run check
   -> run npm run regression
+  -> run npm run goal-audit
   -> refresh board and Preview
   -> smoke test the affected workflow
 ```

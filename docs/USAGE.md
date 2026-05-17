@@ -484,6 +484,14 @@ Those deeper integrations are part of the roadmap in `canvax-live-collaboration-
 
 The current voice path is browser speech recognition when available, or pasted macOS/Codex dictation text when it is not. A native Codex version could reuse the Codex microphone reader directly, but that requires first-party Codex client integration or an app/plugin bridge that exposes transcript events to Canvax.
 
+If you need to verify whether Canvax is complete against the current Stitch-plus goal, run:
+
+```bash
+npm run goal-audit
+```
+
+That writes `artifacts/canvax/goal-audit/latest/result.json` and `.md`. It is expected to report local evidence while keeping the full goal incomplete until native host bridges and high-fidelity production generation are actually available.
+
 ## Preview Manifest Workflow
 
 The preview window can now read a richer preview manifest, not just a raw URL.

@@ -170,7 +170,13 @@ Run the regression snapshot pass:
 
 ```bash
 npm run regression
+npm run goal-audit
 ```
+
+`npm run goal-audit` writes the current prompt-to-artifact checklist under
+`artifacts/canvax/goal-audit/latest/`. Use it before claiming that the
+designer workflow has reached the full Stitch-plus objective; it will still
+report open host-bridge and production-generation gaps until those are real.
 
 Then inspect:
 

@@ -274,6 +274,7 @@ These are now follow-on tasks, not blockers for the current repo-level prototype
 9. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
 10. Treat Workbench as the working baseline: sketch, voice/manual notes, generated output, visual correction marks, and a floating designer rail before opening Advanced mode.
 11. Keep the core Canvax workflow local-first and Codex-first. Image generation should be exposed as host capability or optional adapter, not as a required API-key path.
+12. Run `npm run goal-audit` before claiming Stitch-plus completion. It writes `artifacts/canvax/goal-audit/latest/result.{json,md}` and currently reports `overallComplete: false` until the remaining host-bridge and production-generation gaps are closed.
 
 ```mermaid
 flowchart TD
