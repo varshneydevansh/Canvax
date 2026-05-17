@@ -197,6 +197,7 @@ Behavior:
 - provides `Hide history` / `Show history` in `Map` to collapse checkpoint cards without deleting them, and exports the lane state as `spatialWorkspace.lanes[].collapsed`
 - provides Map focus chips for `All`, `Output`, `Assets`, `Notes`, and `History`, so designers can reduce spatial clutter without deleting cards; the active focus exports as `spatialWorkspace.objectFilter`
 - lets designers pin important Map objects so they stay visible across focus filters and collapsed history, with pinned state exported on each `spatialWorkspace.objects[]` record
+- exports the current or last rendered Map viewport as `spatialWorkspace.viewport`, including zoom, scroll offset, visible bounds, and normalized center, so Codex can understand which part of a large board the designer is looking at
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching

@@ -12482,6 +12482,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         trailingSpace: FLOW_TRAILING_SPACE,
       },
     },
+    viewport: buildSpatialViewportExport(bounds),
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
     objectFilter: buildSpatialObjectFilterExport(),
@@ -12533,6 +12534,52 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         toTitle: frameTitleById(connection.toFrameId),
       })),
   };
+}
+
+function buildSpatialViewportExport(surfaceBounds) {
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
+  const shell = dom.flowShell;
+  const surfaceWidth = Math.max(1, surfaceBounds?.width || 1);
+  const surfaceHeight = Math.max(1, surfaceBounds?.height || 1);
+  const left = shell ? shell.scrollLeft / zoom : 0;
+  const top = shell ? shell.scrollTop / zoom : 0;
+  const width = shell ? shell.clientWidth / zoom : surfaceWidth;
+  const height = shell ? shell.clientHeight / zoom : surfaceHeight;
+  const visibleBounds = {
+    left: roundFinite(left),
+    top: roundFinite(top),
+    width: roundFinite(Math.min(surfaceWidth, width)),
+    height: roundFinite(Math.min(surfaceHeight, height)),
+    right: roundFinite(Math.min(surfaceWidth, left + width)),
+    bottom: roundFinite(Math.min(surfaceHeight, top + height)),
+    centerX: roundFinite(Math.min(surfaceWidth, left + width / 2)),
+    centerY: roundFinite(Math.min(surfaceHeight, top + height / 2)),
+  };
+  return {
+    active: state.viewMode === "flow",
+    source:
+      state.viewMode === "flow"
+        ? "current-map-viewport"
+        : "last-rendered-map-viewport",
+    zoom: roundFinite(zoom),
+    scroll: {
+      left: roundFinite(shell?.scrollLeft || 0),
+      top: roundFinite(shell?.scrollTop || 0),
+    },
+    visibleBounds,
+    normalizedVisibleBounds: {
+      left: roundFinite(visibleBounds.left / surfaceWidth),
+      top: roundFinite(visibleBounds.top / surfaceHeight),
+      width: roundFinite(visibleBounds.width / surfaceWidth),
+      height: roundFinite(visibleBounds.height / surfaceHeight),
+      centerX: roundFinite(visibleBounds.centerX / surfaceWidth),
+      centerY: roundFinite(visibleBounds.centerY / surfaceHeight),
+    },
+  };
+}
+
+function roundFinite(value) {
+  return Number.isFinite(value) ? roundNumber(value) : 0;
 }
 
 function buildSpatialObjectFilterExport() {
@@ -16807,6 +16854,12 @@ function assertWorkbenchSpatialMap() {
       dom.flowShell.scrollTop > 0 ||
       dom.flowShell.scrollWidth <= dom.flowShell.clientWidth ||
       dom.flowShell.scrollHeight <= dom.flowShell.clientHeight);
+  const viewportExport = buildSpatialWorkspaceExport().viewport;
+  const viewportExported =
+    viewportExport?.active === true &&
+    viewportExport.visibleBounds?.left >= 0 &&
+    viewportExport.normalizedVisibleBounds?.width > 0 &&
+    viewportExport.normalizedVisibleBounds?.height > 0;
   const spatialMapDetail = JSON.stringify({
     mapVisible,
     zoomChanged,
@@ -16825,6 +16878,8 @@ function assertWorkbenchSpatialMap() {
     outputFilterVisible,
     fitMapWorked,
     navigatorPanned,
+    viewportExported,
+    viewportExport,
     fitMap: {
       zoom: state.flowZoom,
       scrollLeft: dom.flowShell.scrollLeft,
@@ -16865,7 +16920,8 @@ function assertWorkbenchSpatialMap() {
       outputFilterVisible &&
       navigatorRendered &&
       fitMapWorked &&
-      navigatorPanned,
+      navigatorPanned &&
+      viewportExported,
     "Workbench spatial map renders, filters, and exports frames, objects, and group containment",
     spatialMapDetail,
   );

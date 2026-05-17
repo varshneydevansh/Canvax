@@ -312,6 +312,7 @@ Important files:
 The live JSON also includes `spatialWorkspace`, which records:
 
 - map zoom
+- active/last Map viewport bounds through `viewport`
 - frame/variant card positions
 - editable variant branch records through `variantBranches`
 - spatial group region positions
