@@ -140,6 +140,7 @@ Status: In progress
 - [x] Rewrite requests include a `revisionGraph` mapping frame revisions to output targets, artifacts, changed files, stale state, and queue reasons
 - [x] Workbench `Apply to Codex` now calls the local no-API rewrite executor after saving the checkpoint, so a refreshed frame-bound preview artifact can be attached without a terminal command
 - [x] Board exports now include task and image prompt packs with normalized coordinates, an HTML/CSS placement scaffold, and a no-API style lock for host-side image generation
+- [x] Task, image prompt, rewrite, and build handoffs now include compact selected-Map-object spatial context with prompts and context Markdown
 - [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
 - [x] Canvas image elements now carry pasted/generated assets through selection, composition summaries, Materialize payloads, and live exports
 

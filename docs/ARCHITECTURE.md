@@ -451,6 +451,7 @@ The dedicated task, rewrite, and image prompt pack files are narrower than the f
 - `canvax-task-pack-latest.*` is for Codex build/spec/app work.
 - `canvax-rewrite-request-latest.*` is for live refinement of queued frames, stale outputs, voice notes, correction marks, and frame-bound output targets.
 - `canvax-image-prompt-pack-latest.*` is for host-side image generation and includes normalized coordinates plus an HTML/CSS placement scaffold.
+- Each pack includes a compact `spatialContext` block with selected Map object ids, prompts, context Markdown, viewed map region, and active object filter so Codex can follow what the designer is pointing at without reading the full spatial graph.
 
 ```text
 full live export

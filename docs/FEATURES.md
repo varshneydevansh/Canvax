@@ -289,6 +289,7 @@ Purpose:
 - give Codex a focused rewrite request for connected outputs, queued frames, correction marks, and voice notes
 - give image-generation hosts a composition-preserving prompt pack
 - keep sketch, labels, notes, voice, output annotations, viewport, safe zones, and normalized coordinates together
+- carry the selected Map object prompt/context into task, rewrite, build, and image prompt handoffs
 - include a rewrite `revisionGraph` that maps frame revisions to frame-bound output targets, artifacts, changed files, stale status, and queue reasons
 
 ```text

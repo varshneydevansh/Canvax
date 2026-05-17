@@ -8531,18 +8531,19 @@ function computeFlowSurfaceSize(frames = state.frames) {
     ? Math.ceil(dom.flowShell.clientHeight / zoom) + FLOW_SURFACE_PADDING * 2
     : 820;
   const frameBounds = frames.reduce(
-    (accumulator, frame) => {
+    (accumulator, frame, index) => {
+      const position = flowPositionForFrame(frame, index);
       return {
         width: Math.max(
           accumulator.width,
-          frame.flowPosition.x +
+          position.x +
             FLOW_CARD_WIDTH +
             FLOW_SURFACE_PADDING +
             FLOW_TRAILING_SPACE,
         ),
         height: Math.max(
           accumulator.height,
-          frame.flowPosition.y +
+          position.y +
             FLOW_CARD_HEIGHT +
             FLOW_SURFACE_PADDING +
             FLOW_TRAILING_SPACE,
@@ -12884,6 +12885,7 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       rewriteQueue,
     ),
     voice: buildVoiceExport(state.frames),
+    spatialContext: buildSpatialHandoffContext(frames),
     frames: relevantFrames.map((frame) => ({
       id: frame.id,
       index: frame.index,
@@ -13066,7 +13068,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         type: frame.variant?.label ? "variant-frame" : "frame",
         viewport: frame.viewport,
         viewportLabel: viewport.label,
-        position: structuredClone(frame.flowPosition),
+        position: flowPositionForFrame(frame, index),
         size: {
           width: FLOW_CARD_WIDTH,
           height: FLOW_CARD_HEIGHT,
@@ -13271,10 +13273,36 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
   };
 }
 
+function buildSpatialHandoffContext(frameSelection = state.frames) {
+  const spatialWorkspace = buildSpatialWorkspaceExport(frameSelection);
+  const selectedObjects = Array.isArray(spatialWorkspace.selectedObjects)
+    ? spatialWorkspace.selectedObjects
+    : [];
+  return {
+    kind: "canvax-spatial-context",
+    note:
+      "Use selected Map object prompts, notes, positions, and contextMarkdown as explicit designer guidance for this handoff.",
+    viewport: spatialWorkspace.viewport,
+    objectFilter: spatialWorkspace.objectFilter,
+    selectedObjectId: spatialWorkspace.selectedObjectId,
+    selectedObjectIds: spatialWorkspace.selectedObjectIds,
+    selectedObject: spatialWorkspace.selectedObject,
+    selectedObjects,
+    prompts: selectedObjects
+      .map((object) => ({
+        objectId: object.id,
+        title: object.title,
+        prompt: object.prompt || "",
+        contextMarkdown: object.contextMarkdown || "",
+      }))
+      .filter((entry) => entry.prompt || entry.contextMarkdown),
+  };
+}
+
 function buildSpatialVariantBranches(frameSelection) {
   return frameSelection
     .filter((frame) => frame.variant?.sourceFrameId)
-    .map((frame) => {
+    .map((frame, index) => {
       const connection = state.connections.find(
         (candidate) =>
           candidate.fromFrameId === frame.variant.sourceFrameId &&
@@ -13308,7 +13336,7 @@ function buildSpatialVariantBranches(frameSelection) {
         editable: true,
         connectionId: connection?.id || "",
         connectionLabel: connection?.label || "",
-        position: structuredClone(frame.flowPosition),
+        position: flowPositionForFrame(frame, index),
         size: {
           width: FLOW_CARD_WIDTH,
           height: FLOW_CARD_HEIGHT,
@@ -13322,9 +13350,9 @@ function computeSpatialGroupMembership(frameSelection, spatialObjects) {
   const cardGroupIds = new Map();
   const objectGroupIds = new Map();
 
-  const cardItems = frameSelection.map((frame) => ({
+  const cardItems = frameSelection.map((frame, index) => ({
     id: frame.id,
-    rect: flowCardRect(frame),
+    rect: flowCardRect(frame, index),
   }));
   const objectItems = spatialObjects.map((object) => ({
     id: object.id,
@@ -13399,10 +13427,21 @@ function spatialObjectRect(object) {
   };
 }
 
-function flowCardRect(frame) {
+function flowPositionForFrame(frame, index = 0) {
+  const fallback = defaultFlowPosition(index);
+  const x = Number(frame?.flowPosition?.x);
+  const y = Number(frame?.flowPosition?.y);
   return {
-    x: Number(frame?.flowPosition?.x) || 0,
-    y: Number(frame?.flowPosition?.y) || 0,
+    x: Number.isFinite(x) ? x : fallback.x,
+    y: Number.isFinite(y) ? y : fallback.y,
+  };
+}
+
+function flowCardRect(frame, index = 0) {
+  const position = flowPositionForFrame(frame, index);
+  return {
+    x: position.x,
+    y: position.y,
     width: FLOW_CARD_WIDTH,
     height: FLOW_CARD_HEIGHT,
   };
@@ -13494,6 +13533,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
     activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
     rewriteQueue,
     voice: buildVoiceExport(state.frames),
+    spatialContext: buildSpatialHandoffContext(frames),
     imagePromptPackPath: "exports/canvax-image-prompt-pack-latest.json",
     frames: frames.map((frame) => ({
       id: frame.id,
@@ -13541,6 +13581,7 @@ function buildImagePromptPack(frames) {
       mood: state.board.designMood,
       generationRecipe,
     },
+    spatialContext: buildSpatialHandoffContext(frames),
     styleLock,
     usage:
       "Give this prompt pack to ChatGPT image generation. Use the coordinates and HTML/CSS scaffold to preserve placement.",
@@ -13983,6 +14024,41 @@ function buildImageHtmlCssScaffold(frame, composition) {
   return `<!-- Coordinate scaffold for image generation placement, not production UI. -->\n<div class="canvax-frame" style="position:relative;width:${width}px;height:${height}px;">\n${blocks}\n</div>\n<style>\n.canvax-frame{background:#fff8ec;overflow:hidden;}\n.el{position:absolute;border:2px solid #ff5d3a;border-radius:12px;color:#18110e;font:600 18px sans-serif;display:grid;place-items:center;padding:8px;}\n${css}\n</style>`;
 }
 
+function appendSpatialContextMarkdown(lines, spatialContext) {
+  if (!spatialContext || typeof spatialContext !== "object") {
+    return;
+  }
+  const selectedObjects = Array.isArray(spatialContext.selectedObjects)
+    ? spatialContext.selectedObjects
+    : [];
+  const prompts = Array.isArray(spatialContext.prompts)
+    ? spatialContext.prompts
+    : [];
+  if (!selectedObjects.length && !prompts.length) {
+    return;
+  }
+
+  lines.push("", "## Selected Map Context", "");
+  if (spatialContext.selectedObjectIds?.length) {
+    lines.push(
+      `- Selected objects: ${spatialContext.selectedObjectIds.join(", ")}`,
+    );
+  }
+  const viewport = spatialContext.viewport || {};
+  if (viewport.visibleBounds) {
+    lines.push(
+      `- Viewed map region: ${Math.round(viewport.visibleBounds.left || 0)}, ${Math.round(viewport.visibleBounds.top || 0)} to ${Math.round(viewport.visibleBounds.right || 0)}, ${Math.round(viewport.visibleBounds.bottom || 0)}`,
+    );
+  }
+  prompts.slice(0, 8).forEach((entry, index) => {
+    lines.push(
+      `- ${index + 1}. ${entry.title || entry.objectId}: ${
+        entry.prompt || compactDisplayText(entry.contextMarkdown || "", 180)
+      }`,
+    );
+  });
+}
+
 function buildTaskPackMarkdown(taskPack) {
   if (!taskPack) {
     return "";
@@ -13999,9 +14075,9 @@ function buildTaskPackMarkdown(taskPack) {
     "",
     "## Instruction",
     "Use this task pack with the live Canvax export to build, refine, write a spec, or generate image prompts. Prefer frame composition and voice notes over guessing.",
-    "",
-    "## Frames",
   ];
+  appendSpatialContextMarkdown(lines, taskPack.spatialContext);
+  lines.push("", "## Frames");
   taskPack.frames.forEach((frame) => {
     const variantSuffix = frame.variant?.label
       ? ` [variant: ${frame.variant.label} from ${frame.variant.sourceFrameTitle || frame.variant.sourceFrameId}]`
@@ -14035,9 +14111,9 @@ function buildRewriteRequestMarkdown(request) {
     `- Task pack: ${request.handoff?.taskPackJsonPath}`,
     `- Preview manifest: ${request.handoff?.previewManifestPath}`,
     `- Codex output manifest: ${request.handoff?.codexOutputManifestPath}`,
-    "",
-    "## Rewrite Queue",
   ];
+  appendSpatialContextMarkdown(lines, request.spatialContext);
+  lines.push("", "## Rewrite Queue");
   if (request.rewriteQueue?.length) {
     request.rewriteQueue.forEach((item) => {
       lines.push(
@@ -14097,6 +14173,9 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
     frame: activeTaskFrame,
     imagePromptFrame,
     outputEditBinding,
+    spatialContext:
+      taskPack.spatialContext ||
+      buildSpatialHandoffContext(exportPackage.frames),
     voice: taskPack.voice || buildVoiceExport(state.frames),
     designContext: taskPack.designContext || currentDesignContextForExport(),
     generation,
@@ -14182,6 +14261,9 @@ function buildBuildRealRequestMarkdown(request) {
     `- Task pack: \`${request.handoff.taskPackJsonPath}\``,
     `- Checkpoint: \`${request.handoff.checkpointPath}\``,
     `- Image prompt pack: \`${request.handoff.imagePromptPackPath}\``,
+  ];
+  appendSpatialContextMarkdown(lines, request.spatialContext);
+  lines.push(
     "",
     "## Active Frame",
     `- Frame id: \`${request.activeFrameId}\``,
@@ -14196,7 +14278,7 @@ function buildBuildRealRequestMarkdown(request) {
       : "",
     "",
     "## Composition Elements",
-  ];
+  );
 
   if (compositionElements.length) {
     compositionElements.forEach((element) => {
@@ -14254,6 +14336,7 @@ function buildImagePromptPackMarkdown(pack) {
     "## How To Use",
     "Use the prompt, composition map, and HTML/CSS scaffold as placement guidance for ChatGPT image generation. The scaffold is a spatial reference, not production code.",
   ];
+  appendSpatialContextMarkdown(lines, pack.spatialContext);
   appendStyleLockMarkdown(lines, pack.styleLock);
   pack.frames.forEach((frame) => {
     lines.push("");
@@ -18437,6 +18520,29 @@ function assertManualSpatialObjectControls() {
     contextText.includes("- Pinned: yes") &&
     contextText.includes("- Layer: Layer") &&
     contextText.includes("Prompt / Context");
+  const activeViewport =
+    viewportPresets[activeFrame.viewport] || viewportPresets.desktop;
+  const taskPackSpatialContext = buildTaskPack(
+    [
+      {
+        ...activeFrame,
+        index: 1,
+        viewportWidth: activeViewport.width,
+        viewportHeight: activeViewport.height,
+        composition: buildFrameComposition(activeFrame),
+      },
+    ],
+    [],
+  ).spatialContext;
+  const spatialContextExported =
+    taskPackSpatialContext?.selectedObject?.prompt ===
+      "Use this map note as a Codex refinement instruction" &&
+    taskPackSpatialContext.prompts?.some(
+      (entry) =>
+        entry.objectId === object?.id &&
+        entry.prompt ===
+          "Use this map note as a Codex refinement instruction",
+    );
   const groupContextText = buildSpatialObjectContextText(groupRecord);
   const groupInspectorExported =
     groupContextText.includes("Group contents") &&
@@ -18809,6 +18915,7 @@ function assertManualSpatialObjectControls() {
       pinned &&
       pinnedVisibleAcrossFilter &&
       contextExported &&
+      spatialContextExported &&
       groupInspectorExported &&
       groupActionButtonsEnabled &&
       groupContentsSelected &&
@@ -18841,6 +18948,7 @@ function assertManualSpatialObjectControls() {
       pinned,
       pinnedVisibleAcrossFilter,
       contextExported,
+      spatialContextExported,
       groupInspectorExported,
       groupActionButtonsEnabled,
       groupContentsSelected,
