@@ -6208,24 +6208,49 @@ function renderSpatialObjectNode(object) {
 }
 
 function spatialObjectActionMarkup(object) {
-  if (object?.sourceKind !== "variant-branch") {
+  if (object?.sourceKind === "variant-branch") {
+    const frameId = object.frameIds?.[0] || object.sourceId || "";
+    if (!frameId || !frameById(frameId)) {
+      return "";
+    }
+    const primary = Boolean(frameById(frameId)?.variant?.primary);
+    return `
+      <div class="spatial-object-actions">
+        <button
+          class="flow-variant-action ${primary ? "active" : ""}"
+          type="button"
+          data-promote-variant-frame="${escapeHtml(frameId)}"
+          title="${primary ? "This variant is the primary branch" : "Use this variant as the primary branch"}"
+        >${primary ? "Primary" : "Use variant"}</button>
+      </div>
+    `;
+  }
+
+  const href = spatialObjectHref(object);
+  if (!href || !isManifestSpatialObject(object)) {
     return "";
   }
-  const frameId = object.frameIds?.[0] || object.sourceId || "";
-  if (!frameId || !frameById(frameId)) {
-    return "";
-  }
-  const primary = Boolean(frameById(frameId)?.variant?.primary);
   return `
     <div class="spatial-object-actions">
-      <button
-        class="flow-variant-action ${primary ? "active" : ""}"
-        type="button"
-        data-promote-variant-frame="${escapeHtml(frameId)}"
-        title="${primary ? "This variant is the primary branch" : "Use this variant as the primary branch"}"
-      >${primary ? "Primary" : "Use variant"}</button>
+      <a
+        class="ghost-link-button compact spatial-object-open-link"
+        href="${escapeHtml(href)}"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open the generated output reference"
+      >Open output</a>
     </div>
   `;
+}
+
+function spatialObjectHref(object) {
+  const meta = object?.meta || {};
+  const directUrl = cleanString(meta.url);
+  if (directUrl) {
+    return directUrl;
+  }
+  const workspacePath = cleanString(meta.previewPath || meta.path);
+  return workspacePath ? `/workspace/${workspacePath}` : "";
 }
 
 function renderMapSelectionActions() {
@@ -6308,17 +6333,17 @@ function spatialObjectTitle(object) {
 function spatialObjectSourceLabel(object) {
   switch (object?.sourceKind) {
     case "generated-target":
-      return "Generated preview";
+      return "Output preview";
     case "generated-artifact":
-      return "Generated file";
+      return "Output file";
     case "workspace-change":
-      return "Code change";
+      return "Code update";
     case "checkpoint":
       return "Checkpoint";
     case "asset-candidate":
-      return "Image prompt";
+      return "Image slot";
     case "variant-branch":
-      return "Variant branch";
+      return "Design variant";
     case "spatial-group":
       return "Group";
     default:
@@ -15135,6 +15160,16 @@ function assertSpatialObjectsFromOutputManifest() {
     Boolean(dom.flowBoard.querySelector(".spatial-object-node.generated-output")) &&
     Boolean(dom.flowBoard.querySelector(".spatial-object-node.generated-artifact")) &&
     Boolean(dom.flowBoard.querySelector(".spatial-object-node.changed-file"));
+  const labels = [
+    ...dom.flowBoard.querySelectorAll(".spatial-object-header span"),
+  ].map((node) => node.textContent.trim());
+  const friendlyLabels =
+    labels.includes("Output preview") &&
+    labels.includes("Output file") &&
+    labels.includes("Code update") &&
+    !labels.includes("Generated-target");
+  const outputOpenLinks =
+    dom.flowBoard.querySelectorAll(".spatial-object-open-link").length >= 2;
   const frameBound = spatialExport.objects
     .filter(isManifestSpatialObject)
     .every((object) => object.frameIds.includes(frameId));
@@ -15166,6 +15201,8 @@ function assertSpatialObjectsFromOutputManifest() {
   return assert(
     exported &&
       rendered &&
+      friendlyLabels &&
+      outputOpenLinks &&
       frameBound &&
       legacyCleaned &&
       clearedCount >= 3 &&

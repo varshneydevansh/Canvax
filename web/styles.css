@@ -3062,6 +3062,13 @@ select,
     justify-content: center;
 }
 
+.spatial-object-open-link {
+    width: 100%;
+    min-height: 2rem;
+    padding: 0.38rem 0.65rem;
+    font-size: 0.72rem;
+}
+
 .map-selection-actions {
     display: flex;
     align-items: center;
