@@ -2913,6 +2913,24 @@ select,
     border-color: rgba(35, 100, 170, 0.4);
 }
 
+.spatial-object-node.variant-branch,
+.spatial-object-node.source-variant-branch {
+    border-color: rgba(240, 162, 2, 0.4);
+    background:
+        linear-gradient(135deg, rgba(240, 162, 2, 0.18), transparent 42%),
+        radial-gradient(
+            circle at top right,
+            rgba(255, 93, 58, 0.12),
+            transparent 44%
+        ),
+        rgba(255, 251, 245, 0.95);
+}
+
+.spatial-object-node.variant-branch .spatial-object-header span,
+.spatial-object-node.source-variant-branch .spatial-object-header span {
+    color: #9b5a00;
+}
+
 .spatial-object-node.checkpoint-event {
     border-color: rgba(24, 17, 14, 0.18);
     background:
@@ -3015,10 +3033,22 @@ select,
 
 .spatial-object-node.source-generated-target .spatial-object-footer span:last-child,
 .spatial-object-node.source-generated-artifact .spatial-object-footer span:last-child,
-.spatial-object-node.source-workspace-change .spatial-object-footer span:last-child {
+.spatial-object-node.source-workspace-change .spatial-object-footer span:last-child,
+.spatial-object-node.source-variant-branch .spatial-object-footer span:last-child {
     background: rgba(255, 93, 58, 0.1);
     color: #8d2817;
     font-weight: 800;
+}
+
+.spatial-object-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.spatial-object-actions .flow-variant-action {
+    width: 100%;
+    justify-content: center;
 }
 
 .map-selection-actions {

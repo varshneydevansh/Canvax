@@ -5890,6 +5890,7 @@ function renderSpatialObjectNode(object) {
   const sourceLabel = spatialObjectSourceLabel(object);
   const bodyText = spatialObjectBodyText(object, frameTitle);
   const footerStatus = spatialObjectFooterStatus(object);
+  const actionMarkup = spatialObjectActionMarkup(object);
   const isSelected = currentSelectedSpatialObjectIds().includes(object.id);
   const sourceClass = object.sourceKind
     ? `source-${classToken(object.sourceKind)}`
@@ -5930,7 +5931,29 @@ function renderSpatialObjectNode(object) {
         <span>${escapeHtml(frameTitle)}</span>
         <span>${escapeHtml(footerStatus)}</span>
       </div>
+      ${actionMarkup}
     </article>
+  `;
+}
+
+function spatialObjectActionMarkup(object) {
+  if (object?.sourceKind !== "variant-branch") {
+    return "";
+  }
+  const frameId = object.frameIds?.[0] || object.sourceId || "";
+  if (!frameId || !frameById(frameId)) {
+    return "";
+  }
+  const primary = Boolean(frameById(frameId)?.variant?.primary);
+  return `
+    <div class="spatial-object-actions">
+      <button
+        class="flow-variant-action ${primary ? "active" : ""}"
+        type="button"
+        data-promote-variant-frame="${escapeHtml(frameId)}"
+        title="${primary ? "This variant is the primary branch" : "Use this variant as the primary branch"}"
+      >${primary ? "Primary" : "Use variant"}</button>
+    </div>
   `;
 }
 
@@ -6005,6 +6028,9 @@ function spatialObjectTitle(object) {
   if (object?.sourceKind === "checkpoint") {
     return object.title || "Saved checkpoint";
   }
+  if (object?.sourceKind === "variant-branch") {
+    return object.title || "Variant branch";
+  }
   return object?.title || "Map object";
 }
 
@@ -6020,6 +6046,8 @@ function spatialObjectSourceLabel(object) {
       return "Checkpoint";
     case "asset-candidate":
       return "Image prompt";
+    case "variant-branch":
+      return "Variant branch";
     case "spatial-group":
       return "Group";
     default:
@@ -6050,6 +6078,14 @@ function spatialObjectBodyText(object, frameTitle = "") {
 
   if (object?.sourceKind === "workspace-change") {
     return object.meta?.summary || object.subtitle || "Workspace file change";
+  }
+
+  if (object?.sourceKind === "variant-branch") {
+    return (
+      object.meta?.direction ||
+      object.subtitle ||
+      "Editable generated direction. Move, resize, group, copy context, or use it as the primary branch."
+    );
   }
 
   if (object?.sourceKind === "checkpoint") {
@@ -6086,6 +6122,11 @@ function spatialObjectFooterStatus(object) {
   }
   if (object?.sourceKind === "workspace-change") {
     return "changed";
+  }
+  if (object?.sourceKind === "variant-branch") {
+    return frameById(object.frameIds?.[0])?.variant?.primary
+      ? "primary variant"
+      : "editable variant";
   }
   if (object?.sourceKind === "checkpoint") {
     return checkpointReasonLabel(object.status);
@@ -7909,6 +7950,16 @@ function onFlowBoardClick(event) {
     return;
   }
 
+  const promoteVariantHandle = event.target.closest(
+    "[data-promote-variant-frame]",
+  );
+  if (promoteVariantHandle) {
+    event.preventDefault();
+    event.stopPropagation();
+    promoteVariantFrameFromMap(promoteVariantHandle.dataset.promoteVariantFrame);
+    return;
+  }
+
   const spatialObjectNode = event.target.closest("[data-spatial-object-id]");
   if (spatialObjectNode) {
     const object = spatialObjectById(spatialObjectNode.dataset.spatialObjectId);
@@ -7931,16 +7982,6 @@ function onFlowBoardClick(event) {
       renderSpec();
       renderStatus(`Selected ${object.title} on the spatial map`);
     }
-    return;
-  }
-
-  const promoteVariantHandle = event.target.closest(
-    "[data-promote-variant-frame]",
-  );
-  if (promoteVariantHandle) {
-    event.preventDefault();
-    event.stopPropagation();
-    promoteVariantFrameFromMap(promoteVariantHandle.dataset.promoteVariantFrame);
     return;
   }
 
@@ -9239,6 +9280,7 @@ function createVariantFramesFromCurrent(options = {}) {
       }),
     );
   });
+  createSpatialObjectsForVariantFrames(source, createdFrames);
   state.activeFrameId = createdFrames[0].id;
   state.viewMode = "flow";
   state.selectedConnectionId =
@@ -9263,6 +9305,64 @@ function createVariantFramesFromCurrent(options = {}) {
     });
   }
   return createdFrames;
+}
+
+function createSpatialObjectsForVariantFrames(source, frames) {
+  const existingIds = new Set(state.spatialObjects.map((object) => object.id));
+  const nextObjects = [...state.spatialObjects];
+  frames.forEach((frame, index) => {
+    const id = `variant-object-${frame.id}`;
+    if (existingIds.has(id)) {
+      return;
+    }
+    nextObjects.push({
+      id,
+      type: "variant-branch",
+      title: `${frame.variant?.label || "Variant"} branch`,
+      subtitle: frame.variant?.direction || "Editable generated variant branch",
+      sourceId: frame.id,
+      sourceKind: "variant-branch",
+      frameIds: [frame.id],
+      x: frame.flowPosition.x + FLOW_CARD_WIDTH + 56,
+      y: frame.flowPosition.y + index * 6,
+      width: SPATIAL_OBJECT_WIDTH,
+      height: SPATIAL_OBJECT_HEIGHT,
+      status: frame.variant?.primary ? "primary" : "editable",
+      meta: {
+        sourceFrameId: source.id,
+        sourceFrameTitle: source.title,
+        variantFrameId: frame.id,
+        label: frame.variant?.label || "Variant",
+        direction: frame.variant?.direction || "",
+        index: frame.variant?.index || index + 1,
+      },
+    });
+  });
+  state.spatialObjects = normalizeSpatialObjects(nextObjects);
+}
+
+function syncVariantSpatialObjectState(sourceFrameId) {
+  state.spatialObjects = state.spatialObjects.map((object) => {
+    if (
+      object.sourceKind !== "variant-branch" ||
+      object.meta?.sourceFrameId !== sourceFrameId
+    ) {
+      return object;
+    }
+    const frame = frameById(object.frameIds?.[0] || object.sourceId);
+    return {
+      ...object,
+      status: frame?.variant?.primary ? "primary" : "editable",
+      title: frame?.variant?.label
+        ? `${frame.variant.label} branch`
+        : object.title,
+      meta: {
+        ...object.meta,
+        primary: Boolean(frame?.variant?.primary),
+        promotedAt: frame?.variant?.promotedAt || "",
+      },
+    };
+  });
 }
 
 function promoteCurrentVariantToPrimary(options = {}) {
@@ -9292,6 +9392,7 @@ function promoteCurrentVariantToPrimary(options = {}) {
     primary: true,
     promotedAt: now,
   };
+  syncVariantSpatialObjectState(sourceFrameId);
 
   const note = `Primary variant chosen from ${frame.variant.sourceFrameTitle || frame.variant.sourceFrameId} at ${formatDateTime(now)}.`;
   if (!frame.layout.includes("Primary variant chosen")) {
@@ -9381,6 +9482,11 @@ function deleteFrame() {
   const deletedFrameId = state.activeFrameId;
   removeConnectionsForFrame(state.activeFrameId);
   removeElementPrototypeTargetsForFrame(deletedFrameId);
+  state.spatialObjects = state.spatialObjects.filter(
+    (object) =>
+      object.sourceId !== deletedFrameId &&
+      !(object.frameIds || []).includes(deletedFrameId),
+  );
   state.frames = state.frames.filter(
     (frame) => frame.id !== state.activeFrameId,
   );
@@ -10646,6 +10752,7 @@ function buildSpatialVariantBranches(frameSelection) {
       );
       return {
         id: `variant-branch-${frame.id}`,
+        spatialObjectId: `variant-object-${frame.id}`,
         frameId: frame.id,
         title: frame.title,
         sourceFrameId: frame.variant.sourceFrameId,
@@ -14008,6 +14115,26 @@ async function runSelfTest() {
         "variant branches export as editable spatial branches",
       ),
     );
+    results.push(
+      assert(
+        variantFrames.every((frame) =>
+          variantSpatialExport.objects.some(
+            (object) =>
+              object.id === `variant-object-${frame.id}` &&
+              object.sourceKind === "variant-branch" &&
+              object.frameIds.includes(frame.id),
+          ),
+        ) &&
+          variantFrames.every((frame) =>
+            Boolean(
+              dom.flowBoard.querySelector(
+                `[data-spatial-object-id='variant-object-${frame.id}'].variant-branch`,
+              ),
+            ),
+          ),
+        "variant branches render and export as editable Map objects",
+      ),
+    );
     const promoted = promoteVariantFrameFromMap(variantFrames[1].id, {
       silent: true,
       sync: false,
@@ -14036,6 +14163,17 @@ async function runSelfTest() {
     );
     results.push(
       assert(
+        promotedVariantExport.objects.some(
+          (object) =>
+            object.id === `variant-object-${variantFrames[1].id}` &&
+            object.status === "primary" &&
+            object.meta?.primary === true,
+        ),
+        "primary variant state syncs to the variant Map object",
+      ),
+    );
+    results.push(
+      assert(
         Boolean(
           dom.flowBoard.querySelector(
             `[data-flow-frame-id='${variantFrames[1].id}'].primary-variant`,
@@ -14052,6 +14190,9 @@ async function runSelfTest() {
     state.frames = state.frames.filter((frame) => !variantFrameIds.has(frame.id));
     state.connections = state.connections.filter(
       (connection) => !variantFrameIds.has(connection.toFrameId),
+    );
+    state.spatialObjects = state.spatialObjects.filter(
+      (object) => !variantFrameIds.has(object.frameIds?.[0]),
     );
     state.activeFrameId = variantSourceId;
     state.entryFrameId = variantSourceId;

@@ -291,6 +291,7 @@ createVariantFramesFromCurrent()
   -> attach frame.variant lineage metadata
   -> insert three frames after the source frame
   -> connect all variants from the source in Flow view
+  -> create matching variant-branch Map objects
   -> sync the live export/checkpoint
 ```
 
@@ -301,6 +302,7 @@ The current recipes are:
 - `Adaptive`
 
 The important behavior is that each variant remains a normal editable frame. Do not turn variants into read-only images or one-off prompt text.
+The matching `variant-branch` Map object is a spatial handle for that frame, not a duplicate source of truth. It lets designers select, move, resize, group, copy context, or promote the branch from the Map while the frame remains editable.
 
 Self-test coverage verifies:
 
@@ -308,6 +310,8 @@ Self-test coverage verifies:
 - each has lineage pointing to the source frame
 - each has a visible label element
 - each is connected as a branch in Flow view
+- each has a matching exported/rendered `variant-branch` Map object
+- primary promotion syncs to both `spatialWorkspace.variantBranches` and the Map object
 
 ## Asset Candidate Implementation
 

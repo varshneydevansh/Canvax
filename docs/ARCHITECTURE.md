@@ -564,7 +564,7 @@ frame.variant + source connection
   -> editable branch metadata for Codex
 ```
 
-Each branch record includes source frame, variant frame, direction, connection id/label, editable status, position, size, and primary-promotion state.
+Each branch record includes source frame, variant frame, direction, connection id/label, editable status, position, size, matching `variant-branch` Map object id, and primary-promotion state. The matching Map object is also exported through `spatialWorkspace.objects` so Codex can treat a generated direction like any other selectable spatial object.
 
 Image/asset handoff files:
 
