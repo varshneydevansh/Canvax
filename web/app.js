@@ -346,6 +346,7 @@ const dom = {
   flowZoomOut: document.querySelector("#flow-zoom-out"),
   flowZoomIn: document.querySelector("#flow-zoom-in"),
   flowZoomReset: document.querySelector("#flow-zoom-reset"),
+  flowFitView: document.querySelector("#flow-fit-view"),
   flowZoomValue: document.querySelector("#flow-zoom-value"),
   mapObjectFilterChips: document.querySelector("#map-object-filter-chips"),
   addSpatialNote: document.querySelector("#add-spatial-note"),
@@ -702,6 +703,9 @@ function bindEvents() {
   dom.flowZoomOut.addEventListener("click", () => updateFlowZoom(-0.1));
   dom.flowZoomIn.addEventListener("click", () => updateFlowZoom(0.1));
   dom.flowZoomReset.addEventListener("click", () => setFlowZoom(1));
+  dom.flowFitView.addEventListener("click", () => {
+    fitFlowMapToContent();
+  });
   dom.mapObjectFilterChips.addEventListener("click", (event) => {
     const button = event.target.closest("[data-map-object-filter]");
     if (!button) {
@@ -2845,7 +2849,9 @@ function normalizeSpatialObjects(objects) {
       title: object.title || "Spatial object",
       subtitle: object.subtitle || "",
       sourceId: object.sourceId || "",
-      sourceKind: object.sourceKind || object.type || "manual",
+      sourceKind: normalizeSpatialSourceKind(
+        object.sourceKind || object.type || "manual",
+      ),
       frameIds: Array.isArray(object.frameIds) ? object.frameIds : [],
       x: Number.isFinite(object.x)
         ? object.x
@@ -2862,6 +2868,34 @@ function normalizeSpatialObjects(objects) {
       status: object.status || "",
       meta: object.meta && typeof object.meta === "object" ? object.meta : {},
     }));
+}
+
+function normalizeSpatialSourceKind(value) {
+  const source = cleanString(value).toLowerCase().replace(/[_\s]+/g, "-");
+  if (
+    [
+      "generated-target",
+      "generated-preview",
+      "output-target",
+      "output-preview",
+    ].includes(source)
+  ) {
+    return "generated-target";
+  }
+  if (
+    [
+      "generated-artifact",
+      "generated-file",
+      "output-artifact",
+      "output-file",
+    ].includes(source)
+  ) {
+    return "generated-artifact";
+  }
+  if (["workspace-change", "code-change", "code-update"].includes(source)) {
+    return "workspace-change";
+  }
+  return source || "manual";
 }
 
 function normalizeStringArray(values) {
@@ -3231,12 +3265,13 @@ function buildCheckpointSpatialObjectId(item, index = 0) {
 }
 
 function isManifestSpatialObject(object) {
+  const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
   if (
     [
       "generated-target",
       "generated-artifact",
       "workspace-change",
-    ].includes(object?.sourceKind)
+    ].includes(sourceKind)
   ) {
     return true;
   }
@@ -3960,7 +3995,10 @@ function isSpatialObjectVisibleForFilter(object, filter = state.mapObjectFilter)
     return true;
   }
   if (activeFilter === "outputs") {
-    return isManifestSpatialObject(object) || object.sourceKind === "variant-branch";
+    return (
+      isManifestSpatialObject(object) ||
+      normalizeSpatialSourceKind(object.sourceKind) === "variant-branch"
+    );
   }
   if (activeFilter === "assets") {
     return (
@@ -5386,6 +5424,52 @@ function setFlowZoom(nextZoom) {
 
 function updateFlowZoom(delta) {
   setFlowZoom(state.flowZoom + delta);
+}
+
+function flowMapContentBounds() {
+  const frameBounds = state.frames.map((frame) =>
+    makeBounds(
+      frame.flowPosition.x,
+      frame.flowPosition.y,
+      frame.flowPosition.x + FLOW_CARD_WIDTH,
+      frame.flowPosition.y + FLOW_CARD_HEIGHT,
+    ),
+  );
+  const objectBounds = state.spatialObjects
+    .filter(isSpatialObjectVisibleInCurrentMap)
+    .map(spatialObjectBounds);
+  return unionBounds([...frameBounds, ...objectBounds]);
+}
+
+function fitFlowMapToContent(options = {}) {
+  const { silent = false } = options;
+  const bounds = flowMapContentBounds();
+  const shell = dom.flowShell;
+  if (!bounds || !shell) {
+    if (!silent) {
+      renderStatus("No Map content to fit");
+    }
+    return false;
+  }
+  const shellWidth = Math.max(1, shell.clientWidth || 1);
+  const shellHeight = Math.max(1, shell.clientHeight || 1);
+  const padding = 96;
+  const zoomX = (shellWidth - padding * 2) / Math.max(1, bounds.width);
+  const zoomY = (shellHeight - padding * 2) / Math.max(1, bounds.height);
+  const nextZoom = Math.max(
+    0.35,
+    Math.min(1.25, Number(Math.min(zoomX, zoomY).toFixed(2))),
+  );
+  state.flowZoom = nextZoom;
+  persistState();
+  renderZoom();
+  renderFlowBoard();
+  shell.scrollLeft = Math.max(0, Math.round((bounds.left - padding) * nextZoom));
+  shell.scrollTop = Math.max(0, Math.round((bounds.top - padding) * nextZoom));
+  if (!silent) {
+    renderStatus("Fit Map to visible frames and objects");
+  }
+  return true;
 }
 
 function renderSelectionActions() {
@@ -6965,14 +7049,15 @@ function renderSpatialObjectNode(object) {
   const actionMarkup = spatialObjectActionMarkup(object);
   const isSelected = currentSelectedSpatialObjectIds().includes(object.id);
   const isPinned = isSpatialObjectPinned(object);
-  const sourceClass = object.sourceKind
-    ? `source-${classToken(object.sourceKind)}`
+  const normalizedSourceKind = normalizeSpatialSourceKind(object.sourceKind);
+  const sourceClass = normalizedSourceKind
+    ? `source-${classToken(normalizedSourceKind)}`
     : "";
   return `
     <article
       class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""} ${isPinned ? "pinned" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
-      data-spatial-object-source="${escapeHtml(object.sourceKind || "")}"
+      data-spatial-object-source="${escapeHtml(normalizedSourceKind)}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
       title="${escapeHtml(object.meta?.prompt || object.subtitle || object.title)}"
       role="button"
@@ -7071,8 +7156,9 @@ function canCreateEditableFrameFromOutputObject(object) {
   if (!object || !isManifestSpatialObject(object)) {
     return false;
   }
+  const sourceKind = normalizeSpatialSourceKind(object.sourceKind);
   if (
-    object.sourceKind !== "generated-target" &&
+    sourceKind !== "generated-target" &&
     object.type !== "generated-output"
   ) {
     return false;
@@ -7509,26 +7595,27 @@ function spatialObjectFrameLabel(object) {
 }
 
 function spatialObjectTitle(object) {
-  if (object?.sourceKind === "generated-target") {
+  const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
+  if (sourceKind === "generated-target") {
     return object.title || "Generated preview";
   }
-  if (object?.sourceKind === "generated-artifact") {
+  if (sourceKind === "generated-artifact") {
     return object.title || object.meta?.path || "Generated file";
   }
-  if (object?.sourceKind === "workspace-change") {
+  if (sourceKind === "workspace-change") {
     return object.title || object.meta?.path || "Changed file";
   }
-  if (object?.sourceKind === "checkpoint") {
+  if (sourceKind === "checkpoint") {
     return object.title || "Saved checkpoint";
   }
-  if (object?.sourceKind === "variant-branch") {
+  if (sourceKind === "variant-branch") {
     return object.title || "Variant branch";
   }
   return object?.title || "Map object";
 }
 
 function spatialObjectSourceLabel(object) {
-  switch (object?.sourceKind) {
+  switch (normalizeSpatialSourceKind(object?.sourceKind)) {
     case "generated-target":
       return "Output preview";
     case "generated-artifact":
@@ -7549,7 +7636,8 @@ function spatialObjectSourceLabel(object) {
 }
 
 function spatialObjectBodyText(object, frameTitle = "") {
-  if (object?.sourceKind === "generated-target") {
+  const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
+  if (sourceKind === "generated-target") {
     return object.meta?.summary
       ? object.meta.summary
       : frameTitle &&
@@ -7560,7 +7648,7 @@ function spatialObjectBodyText(object, frameTitle = "") {
         : "Generated preview from the output manifest. It is not another frame; remove it if it belongs to an older iteration.";
   }
 
-  if (object?.sourceKind === "generated-artifact") {
+  if (sourceKind === "generated-artifact") {
     return (
       object.meta?.description ||
       object.meta?.path ||
@@ -7569,7 +7657,7 @@ function spatialObjectBodyText(object, frameTitle = "") {
     );
   }
 
-  if (object?.sourceKind === "workspace-change") {
+  if (sourceKind === "workspace-change") {
     return (
       object.meta?.summary ||
       object.subtitle ||
@@ -7577,7 +7665,7 @@ function spatialObjectBodyText(object, frameTitle = "") {
     );
   }
 
-  if (object?.sourceKind === "asset-candidate") {
+  if (sourceKind === "asset-candidate") {
     const placement = object.meta?.placementMap || {};
     const pixelBounds = placement.pixelBounds || {};
     const slotCount = Array.isArray(object.meta?.outputSlots)
@@ -7594,7 +7682,7 @@ function spatialObjectBodyText(object, frameTitle = "") {
       .join(" · ");
   }
 
-  if (object?.sourceKind === "variant-branch") {
+  if (sourceKind === "variant-branch") {
     return (
       object.meta?.direction ||
       object.subtitle ||
@@ -7602,7 +7690,7 @@ function spatialObjectBodyText(object, frameTitle = "") {
     );
   }
 
-  if (object?.sourceKind === "checkpoint") {
+  if (sourceKind === "checkpoint") {
     const details = [
       object.meta?.captureCount
         ? `${object.meta.captureCount} capture${object.meta.captureCount === 1 ? "" : "s"}`
@@ -7626,23 +7714,24 @@ function spatialObjectBodyText(object, frameTitle = "") {
 }
 
 function spatialObjectFooterStatus(object) {
-  if (object?.sourceKind === "generated-target") {
+  const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
+  if (sourceKind === "generated-target") {
     return object.status === "materialized-preview"
       ? "materialized preview"
       : humanizeStatus(object.status || "preview");
   }
-  if (object?.sourceKind === "generated-artifact") {
+  if (sourceKind === "generated-artifact") {
     return humanizeStatus(object.status || "artifact");
   }
-  if (object?.sourceKind === "workspace-change") {
+  if (sourceKind === "workspace-change") {
     return "changed";
   }
-  if (object?.sourceKind === "variant-branch") {
+  if (sourceKind === "variant-branch") {
     return frameById(object.frameIds?.[0])?.variant?.primary
       ? "primary variant"
       : "editable variant";
   }
-  if (object?.sourceKind === "checkpoint") {
+  if (sourceKind === "checkpoint") {
     return checkpointReasonLabel(object.status);
   }
   return humanizeStatus(object.status || "ready");
@@ -16553,6 +16642,49 @@ function assertWorkbenchSpatialMap() {
     ) &&
     !dom.flowBoard.querySelector("[data-spatial-object-id='spatial-selftest-asset']");
   setMapObjectFilter("all");
+  const fitTarget = spatialObjectById("spatial-selftest-output");
+  if (fitTarget) {
+    fitTarget.x = 2400;
+    fitTarget.y = 1600;
+    renderFlowBoard();
+  }
+  setFlowZoom(1);
+  dom.flowShell.scrollLeft = 0;
+  dom.flowShell.scrollTop = 0;
+  const fitMapWorked =
+    Boolean(fitTarget) &&
+    fitFlowMapToContent({ silent: true }) &&
+    state.flowZoom < 1 &&
+    (dom.flowShell.scrollLeft > 0 ||
+      dom.flowShell.scrollTop > 0 ||
+      dom.flowShell.scrollWidth <= dom.flowShell.clientWidth ||
+      dom.flowShell.scrollHeight <= dom.flowShell.clientHeight);
+  const spatialMapDetail = JSON.stringify({
+    mapVisible,
+    zoomChanged,
+    wheelZoomChanged,
+    panned,
+    panEnded,
+    edgeExpanded,
+    exportValid,
+    objectRendered,
+    groupExported,
+    groupedObject,
+    assetFilterActive,
+    assetFilterVisible,
+    assetFilterHidesOutput,
+    outputFilterVisible,
+    fitMapWorked,
+    fitMap: {
+      zoom: state.flowZoom,
+      scrollLeft: dom.flowShell.scrollLeft,
+      scrollTop: dom.flowShell.scrollTop,
+      scrollWidth: dom.flowShell.scrollWidth,
+      scrollHeight: dom.flowShell.scrollHeight,
+      clientWidth: dom.flowShell.clientWidth,
+      clientHeight: dom.flowShell.clientHeight,
+    },
+  });
 
   state.frames = previous.frames;
   state.workspaceMode = previous.workspaceMode;
@@ -16580,8 +16712,10 @@ function assertWorkbenchSpatialMap() {
       assetFilterActive &&
       assetFilterVisible &&
       assetFilterHidesOutput &&
-      outputFilterVisible,
+      outputFilterVisible &&
+      fitMapWorked,
     "Workbench spatial map renders, filters, and exports frames, objects, and group containment",
+    spatialMapDetail,
   );
 }
 
