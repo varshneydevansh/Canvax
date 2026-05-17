@@ -2774,6 +2774,7 @@ select,
 
 .flow-card-node {
     position: absolute;
+    z-index: 2;
     width: var(--flow-card-width);
     min-height: var(--flow-card-height);
     appearance: none;
@@ -2831,6 +2832,7 @@ select,
 
 .spatial-object-node {
     position: absolute;
+    z-index: 2;
     display: grid;
     gap: 0.55rem;
     appearance: none;
@@ -3023,6 +3025,7 @@ select,
 }
 
 .spatial-object-node.map-group {
+    z-index: 1;
     align-content: start;
     border: 0.12rem dashed rgba(255, 93, 58, 0.38);
     background:
@@ -3033,6 +3036,63 @@ select,
         ),
         rgba(255, 251, 245, 0.52);
     box-shadow: inset 0 0 0 0.0625rem rgba(255, 251, 245, 0.44);
+}
+
+.spatial-lane {
+    position: absolute;
+    z-index: 0;
+    display: grid;
+    align-content: start;
+    gap: 0.55rem;
+    padding: 1rem;
+    border: 0.08rem dashed rgba(255, 248, 236, 0.22);
+    border-radius: 1.8rem;
+    background:
+        linear-gradient(90deg, rgba(255, 248, 236, 0.08), transparent 68%),
+        rgba(24, 17, 14, 0.16);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.08);
+    color: rgba(255, 248, 236, 0.84);
+    pointer-events: none;
+}
+
+.spatial-lane-history {
+    border-color: rgba(240, 162, 2, 0.35);
+    background:
+        linear-gradient(90deg, rgba(240, 162, 2, 0.12), transparent 70%),
+        radial-gradient(
+            circle at top left,
+            rgba(255, 93, 58, 0.16),
+            transparent 46%
+        ),
+        rgba(24, 17, 14, 0.18);
+}
+
+.spatial-lane-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: rgba(255, 248, 236, 0.92);
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.spatial-lane-header strong {
+    padding: 0.22rem 0.52rem;
+    border-radius: 999px;
+    background: rgba(255, 248, 236, 0.1);
+    color: rgba(255, 248, 236, 0.88);
+}
+
+.spatial-lane p {
+    max-width: 24rem;
+    margin: 0;
+    color: rgba(255, 248, 236, 0.66);
+    font-size: 0.78rem;
+    line-height: 1.35;
 }
 
 .spatial-object-node.map-group p {

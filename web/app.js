@@ -21,6 +21,9 @@ const SPATIAL_OBJECT_WIDTH = 232;
 const SPATIAL_OBJECT_HEIGHT = 132;
 const SPATIAL_OBJECT_MIN_WIDTH = 168;
 const SPATIAL_OBJECT_MIN_HEIGHT = 96;
+const SPATIAL_HISTORY_LANE_ID = "history-lane";
+const SPATIAL_HISTORY_LANE_GAP = 28;
+const SPATIAL_HISTORY_LANE_PADDING = 32;
 const FLOW_SURFACE_PADDING = 120;
 const FLOW_EDGE_EXPAND_MARGIN = 96;
 const FLOW_EDGE_EXPAND_STEP = 520;
@@ -2939,7 +2942,7 @@ function syncSpatialObjectsFromHandoffs() {
 
   mapCheckpoints.forEach((checkpoint, index) => {
     const id = buildCheckpointSpatialObjectId(checkpoint, index);
-    const position = defaultSpatialObjectPosition(nextObjects.length);
+    const position = defaultHistoryCheckpointPosition(index);
     upsertSpatialObject(nextObjects, existingIds, {
       id,
       type: "checkpoint-event",
@@ -2965,6 +2968,8 @@ function syncSpatialObjectsFromHandoffs() {
         captureCount: checkpoint.captureCount || 0,
         artifactCount: checkpoint.artifactCount || 0,
         changeCount: checkpoint.changeCount || 0,
+        laneId: SPATIAL_HISTORY_LANE_ID,
+        laneIndex: index,
       },
     });
   });
@@ -3218,6 +3223,18 @@ function defaultSpatialObjectPosition(index) {
       FLOW_CARD_HEIGHT +
       132 +
       row * (SPATIAL_OBJECT_HEIGHT + 36),
+  };
+}
+
+function defaultHistoryCheckpointPosition(index) {
+  return {
+    x:
+      FLOW_SURFACE_PADDING +
+      3 * (SPATIAL_OBJECT_WIDTH + 44) +
+      SPATIAL_HISTORY_LANE_PADDING,
+    y:
+      FLOW_SURFACE_PADDING +
+      index * (SPATIAL_OBJECT_HEIGHT + SPATIAL_HISTORY_LANE_GAP),
   };
 }
 
@@ -6160,7 +6177,10 @@ function renderFlowBoard() {
   const spatialObjectMarkup = spatialObjects
     .map((object) => renderSpatialObjectNode(object))
     .join("");
-  dom.flowBoard.innerHTML = `${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}${renderSpatialSelectionBoxMarkup()}${renderFlowLassoMarkup()}`;
+  const spatialLaneMarkup = renderSpatialLanesMarkup(
+    buildSpatialWorkspaceLanes(state.spatialObjects),
+  );
+  dom.flowBoard.innerHTML = `${spatialLaneMarkup}${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}${renderSpatialSelectionBoxMarkup()}${renderFlowLassoMarkup()}`;
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
@@ -6171,6 +6191,26 @@ function renderFlowBoard() {
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
   renderMapSelectionActions();
+}
+
+function renderSpatialLanesMarkup(lanes) {
+  return lanes
+    .map(
+      (lane) => `
+        <section
+          class="spatial-lane spatial-lane-${escapeHtml(classToken(lane.kind))}"
+          style="left:${lane.position.x}px; top:${lane.position.y}px; width:${lane.size.width}px; height:${lane.size.height}px;"
+          aria-hidden="true"
+        >
+          <div class="spatial-lane-header">
+            <span>${escapeHtml(lane.title)}</span>
+            <strong>${lane.memberObjectIds.length} item${lane.memberObjectIds.length === 1 ? "" : "s"}</strong>
+          </div>
+          <p>${escapeHtml(lane.description)}</p>
+        </section>
+      `,
+    )
+    .join("");
 }
 
 function renderFlowLassoMarkup() {
@@ -11140,6 +11180,7 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
       };
     }),
     variantBranches: buildSpatialVariantBranches(frameSelection),
+    lanes: buildSpatialWorkspaceLanes(state.spatialObjects),
     groups: spatialGrouping.groups,
     objects: state.spatialObjects.map((object) =>
       buildSpatialWorkspaceObject(object, spatialGrouping),
@@ -11155,6 +11196,53 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         toTitle: frameTitleById(connection.toFrameId),
       })),
   };
+}
+
+function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
+  const checkpointObjects = spatialObjects.filter(isCheckpointSpatialObject);
+  if (!checkpointObjects.length) {
+    return [];
+  }
+
+  const bounds = unionBounds(checkpointObjects.map(spatialObjectBounds));
+  if (!bounds) {
+    return [];
+  }
+
+  const laneBounds = makeBounds(
+    Math.max(16, bounds.left - SPATIAL_HISTORY_LANE_PADDING),
+    Math.max(16, bounds.top - SPATIAL_HISTORY_LANE_PADDING - 34),
+    bounds.right + SPATIAL_HISTORY_LANE_PADDING,
+    bounds.bottom + SPATIAL_HISTORY_LANE_PADDING,
+  );
+
+  return [
+    {
+      id: SPATIAL_HISTORY_LANE_ID,
+      kind: "history",
+      title: "History lane",
+      description:
+        "Checkpoint trail for the current collaboration session. Drag cards out if a saved moment belongs with another frame, variant, or output.",
+      memberObjectIds: checkpointObjects.map((object) => object.id),
+      position: {
+        x: laneBounds.left,
+        y: laneBounds.top,
+      },
+      size: {
+        width: laneBounds.width,
+        height: laneBounds.height,
+      },
+      contextMarkdown: [
+        "## History lane",
+        "",
+        "Saved collaboration checkpoints:",
+        ...checkpointObjects.map(
+          (object) =>
+            `- ${spatialObjectTitle(object)} (${spatialObjectFooterStatus(object)})`,
+        ),
+      ].join("\n"),
+    },
+  ];
 }
 
 function buildSpatialWorkspaceObject(object, spatialGrouping) {
@@ -15404,10 +15492,20 @@ function assertCheckpointSpatialObjects() {
     (object) =>
       object.sourceKind === "checkpoint" &&
       object.frameIds.includes(frameId) &&
-      object.meta.captureCount === 3,
+      object.meta.captureCount === 3 &&
+      object.meta.laneId === SPATIAL_HISTORY_LANE_ID,
+  );
+  const laneExported = spatialExport.lanes.some(
+    (lane) =>
+      lane.id === SPATIAL_HISTORY_LANE_ID &&
+      lane.kind === "history" &&
+      lane.memberObjectIds.some((id) => id.startsWith("checkpoint-object-")),
   );
   const rendered = Boolean(
     dom.flowBoard.querySelector(".spatial-object-node.checkpoint-event"),
+  );
+  const laneRendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-lane-history"),
   );
 
   state.workspaceMode = previous.workspaceMode;
@@ -15422,8 +15520,8 @@ function assertCheckpointSpatialObjects() {
   renderAll();
 
   return assert(
-    exported && rendered,
-    "Checkpoint history renders and exports as spatial history cards",
+    exported && laneExported && rendered && laneRendered,
+    "Checkpoint history renders and exports as a spatial history lane",
   );
 }
 

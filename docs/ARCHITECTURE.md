@@ -190,6 +190,7 @@ Purpose:
 - preserve collaboration moments outside volatile browser memory
 - include `spatialWorkspace` so Codex can read frame/variant map positions, active/entry frames, and links as project memory
 - include `spatialWorkspace.variantBranches` so Codex can separate editable generated variant branches from normal navigation/prototype links
+- include `spatialWorkspace.lanes` so checkpoint history can be read as a named spatial timeline instead of only a flat session list
 
 ### 3. Output binding transport
 
@@ -516,6 +517,11 @@ preview / Codex output manifest
   -> deduped latest frame-bound generated output cards
   -> live export spatialWorkspace.objects
 
+checkpoint history
+  -> state.spatialObjects checkpoint cards
+  -> Workbench Map history lane
+  -> live export spatialWorkspace.lanes
+
 manual Map controls
   -> labeled group regions, note cards, and reference file/image cards
   -> state.spatialObjects
@@ -537,6 +543,8 @@ Group containment is computed at export time from each group region's bounds and
 - `spatialWorkspace.groups[].memberGroupIds`
 - `spatialWorkspace.cards[].groupIds`
 - `spatialWorkspace.objects[].groupIds`
+
+Checkpoint history lanes are also derived at export/render time from checkpoint spatial objects. The lane is a visual and semantic grouping, not a destructive container: checkpoint cards can still be selected, moved, copied as context, or grouped with other Map objects, while `spatialWorkspace.lanes[]` gives Codex a stable history trail for long sessions.
 
 Selected frame elements can also carry `element.prototype` metadata. That metadata is exported through frame composition, and Preview Play converts the selected element bounds into clickable prototype hotspots.
 
