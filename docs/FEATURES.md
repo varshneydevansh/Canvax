@@ -1,6 +1,6 @@
 # Canvax Features And Behavior
 
-This document explains what each major Canvax surface and feature does today, how it behaves, and where the current boundaries are.
+This document explains what each major Canvax surface and feature does today, how it behaves, and where the current boundaries are. For the shortest designer-facing operating path, read `docs/DESIGNER_WALKTHROUGH.md`.
 
 ## Feature Map
 

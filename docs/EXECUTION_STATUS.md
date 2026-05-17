@@ -266,10 +266,11 @@ These are now follow-on tasks, not blockers for the current repo-level prototype
 4. Use `docs/STITCH_GAP_ROADMAP.md` as the current product gap list for Stitch-style UX, Codex-built screens, image assets, prototype play, infinite canvas, and `DESIGN.md` work.
 5. Use `docs/CANVAX_PARITY_AUDIT.md` before claiming that Canvax has reached the active better-than-Stitch goal.
 6. Use `docs/CODEX_BROWSER_WORKFLOW.md` as the preferred operator path for testing Canvax inside Codex Browser Use / Atlas before building native embedding.
-7. Use `docs/CHATGPT_APP_BRIDGE.md` as the host-integration boundary for future MCP/App tools, native transcript events, and ChatGPT/Codex image-result attachment.
-8. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
-9. Treat Workbench as the working baseline: sketch, voice/manual notes, generated output, visual correction marks, and a floating designer rail before opening Advanced mode.
-10. Keep the core Canvax workflow local-first and Codex-first. Image generation should be exposed as host capability or optional adapter, not as a required API-key path.
+7. Use `docs/DESIGNER_WALKTHROUGH.md` as the short everyday designer path and screenshot-review checklist.
+8. Use `docs/CHATGPT_APP_BRIDGE.md` as the host-integration boundary for future MCP/App tools, native transcript events, and ChatGPT/Codex image-result attachment.
+9. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
+10. Treat Workbench as the working baseline: sketch, voice/manual notes, generated output, visual correction marks, and a floating designer rail before opening Advanced mode.
+11. Keep the core Canvax workflow local-first and Codex-first. Image generation should be exposed as host capability or optional adapter, not as a required API-key path.
 
 ```mermaid
 flowchart TD

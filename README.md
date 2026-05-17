@@ -236,6 +236,7 @@ Then sketch in the board opened through Codex Browser Use / Atlas, and continue 
 - [Install guide](docs/INSTALL.md)
 - [Usage guide](docs/USAGE.md)
 - [Feature behavior guide](docs/FEATURES.md)
+- [Designer walkthrough](docs/DESIGNER_WALKTHROUGH.md)
 - [Architecture guide](docs/ARCHITECTURE.md)
 - [Brand guide](docs/BRANDING.md)
 - [Development guide](docs/DEVELOPMENT.md)

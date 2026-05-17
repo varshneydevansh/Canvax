@@ -2,7 +2,7 @@
 
 Updated: May 18, 2026
 
-This document compares the current Canvax repo against the Stitch-style design workflow and records what is done, what is missing, and what should improve next. For a stricter requirement-by-requirement audit with evidence and remaining gaps, see `docs/CANVAX_PARITY_AUDIT.md`.
+This document compares the current Canvax repo against the Stitch-style design workflow and records what is done, what is missing, and what should improve next. For a stricter requirement-by-requirement audit with evidence and remaining gaps, see `docs/CANVAX_PARITY_AUDIT.md`. For the short designer workflow and screenshot review path, see `docs/DESIGNER_WALKTHROUGH.md`.
 
 Canvax should not clone Stitch feature-for-feature. The stronger direction is:
 

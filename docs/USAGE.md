@@ -1,6 +1,6 @@
 # Use Canvax With Codex
 
-If you want the feature-by-feature behavior map first, read `docs/FEATURES.md` before this guide.
+If you want the feature-by-feature behavior map first, read `docs/FEATURES.md` before this guide. If you want the shortest designer-facing path, read `docs/DESIGNER_WALKTHROUGH.md`.
 
 ## Operator Loop
 
