@@ -104,14 +104,15 @@ Use this for children-book spreads, posters, comic panels, UI image slots, icons
 2. Draw regions for characters, backgrounds, props, panels, or image slots.
 3. Add labels or notes describing style, continuity, mood, and safe text areas.
 4. Press `Image` / `Image pack`.
-5. In the `Asset candidates` tray, use `Copy prompt` for one slot when you want to paste the exact prompt and placement contract into a ChatGPT/Codex image-generation host.
-6. Attach the generated file back to that candidate with `Attach image` or `Attach path`.
-7. Use `Accept` to mark the chosen image candidate.
+5. Use `exports/canvax-image-generation-brief-latest.md` when you want one copy-ready brief for ChatGPT/Codex image-generation hosts.
+6. In the `Asset candidates` tray, use `Copy prompt` for one slot when you want to paste only that candidate's prompt and placement contract.
+7. Attach the generated file back to that candidate with `Attach image` or `Attach path`.
+8. Use `Accept` to mark the chosen image candidate.
 
 The image path stays local-first:
 
 ```text
-Canvax exports prompt + placement + style lock
+Canvax exports prompt + placement + style lock + image brief
         |
         v
 host image tool generates an image when available

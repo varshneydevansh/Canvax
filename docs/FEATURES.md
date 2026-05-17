@@ -822,6 +822,8 @@ The asset candidate pack is stored at:
 
 - `exports/canvax-asset-candidates-latest.json`
 - `exports/canvax-asset-candidates-latest.md`
+- `exports/canvax-image-generation-brief-latest.json`
+- `exports/canvax-image-generation-brief-latest.md`
 - `artifacts/canvax/asset-candidates/...`
 
 Each candidate is a prompt-ready asset slot:
@@ -850,6 +852,14 @@ placementMap
   scaffold      minimal HTML slot for host image/code tools
 ```
 
+The image generation brief is the copy-ready host handoff. It combines:
+
+- candidate prompts and negative prompts
+- style-lock summary and continuity rules
+- normalized, pixel, and CSS placement contracts
+- output-slot status for reattaching generated images
+- a `hostPrompt` block per candidate for ChatGPT/Codex image-generation hosts
+
 Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
 
 - copy the candidate prompt plus pixel/CSS placement contract for ChatGPT/Codex image-generation hosts
@@ -867,6 +877,7 @@ Workbench now reads the latest candidate pack and renders a compact `Asset candi
 flowchart LR
     A[Frame sketch] --> B[Image prompt pack]
     B --> C[Asset candidate records]
+    C --> H[Image generation brief]
     C --> D[Workbench candidate tray]
     D --> E[Place editable slot]
     D --> F[Attach generated image]

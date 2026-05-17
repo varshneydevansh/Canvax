@@ -76,6 +76,14 @@ const assetCandidatesMarkdownPath = resolve(
   exportsRoot,
   "canvax-asset-candidates-latest.md",
 );
+const imageGenerationBriefJsonPath = resolve(
+  exportsRoot,
+  "canvax-image-generation-brief-latest.json",
+);
+const imageGenerationBriefMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-image-generation-brief-latest.md",
+);
 const transcriptBridgePath = resolve(exportsRoot, "canvax-transcript-bridge.json");
 const transcriptBridgeMarkdownPath = resolve(
   exportsRoot,
@@ -152,6 +160,8 @@ function buildTransportDescriptor(overrides = {}) {
       buildRealRequest: "exports/canvax-build-real-latest.json",
       imagePromptPack: "exports/canvax-image-prompt-pack-latest.json",
       assetCandidates: "exports/canvax-asset-candidates-latest.json",
+      imageGenerationBrief:
+        "exports/canvax-image-generation-brief-latest.json",
     },
     liveMirror: {
       type: "browser-storage",
@@ -330,6 +340,8 @@ async function runCli() {
           buildRequestsRoot,
           assetCandidatesJsonPath,
           assetCandidatesMarkdownPath,
+          imageGenerationBriefJsonPath,
+          imageGenerationBriefMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -361,6 +373,8 @@ async function runCli() {
         buildRequestsRoot,
         assetCandidatesJsonPath,
         assetCandidatesMarkdownPath,
+        imageGenerationBriefJsonPath,
+        imageGenerationBriefMarkdownPath,
         assetCandidatesRoot,
         latestCheckpointPath,
         checkpointsIndexPath,
@@ -396,6 +410,8 @@ async function runCli() {
           buildRequestsRoot,
           assetCandidatesJsonPath,
           assetCandidatesMarkdownPath,
+          imageGenerationBriefJsonPath,
+          imageGenerationBriefMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -1185,6 +1201,14 @@ async function handleSaveAssetCandidates(request, response) {
   const requestRoot = resolve(assetCandidatesRoot, requestId);
   const requestJsonPath = resolve(requestRoot, "asset-candidates.json");
   const requestMarkdownPath = resolve(requestRoot, "asset-candidates.md");
+  const requestImageBriefJsonPath = resolve(
+    requestRoot,
+    "image-generation-brief.json",
+  );
+  const requestImageBriefMarkdownPath = resolve(
+    requestRoot,
+    "image-generation-brief.md",
+  );
   const nextPack = {
     ...source,
     schemaVersion: Number(source.schemaVersion) || HANDOFF_SCHEMA_VERSION,
@@ -1203,15 +1227,41 @@ async function handleSaveAssetCandidates(request, response) {
     typeof payload.markdown === "string" && payload.markdown.trim()
       ? payload.markdown
       : buildServerAssetCandidatesMarkdown(nextPack);
+  const imageGenerationBrief = buildServerImageGenerationBrief(nextPack, {
+    requestId,
+    assetCandidatesJsonPath: toWorkspaceRelativePath(requestJsonPath),
+    assetCandidatesMarkdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+    latestAssetCandidatesJsonPath: toWorkspaceRelativePath(
+      assetCandidatesJsonPath,
+    ),
+    latestAssetCandidatesMarkdownPath: toWorkspaceRelativePath(
+      assetCandidatesMarkdownPath,
+    ),
+  });
   const jsonBody = `${JSON.stringify(nextPack, null, 2)}\n`;
   const markdownBody = markdown.endsWith("\n") ? markdown : `${markdown}\n`;
+  const imageBriefJsonBody = `${JSON.stringify(
+    imageGenerationBrief,
+    null,
+    2,
+  )}\n`;
+  const imageBriefMarkdownBody = `${buildServerImageGenerationBriefMarkdown(
+    imageGenerationBrief,
+  )}\n`;
 
   await mkdir(requestRoot, { recursive: true });
   await mkdir(exportsRoot, { recursive: true });
   await writeFile(requestJsonPath, jsonBody);
   await writeFile(requestMarkdownPath, markdownBody);
+  await writeFile(requestImageBriefJsonPath, imageBriefJsonBody);
+  await writeFile(requestImageBriefMarkdownPath, imageBriefMarkdownBody);
   await writeTextFileAtomic(assetCandidatesJsonPath, jsonBody);
   await writeTextFileAtomic(assetCandidatesMarkdownPath, markdownBody);
+  await writeTextFileAtomic(imageGenerationBriefJsonPath, imageBriefJsonBody);
+  await writeTextFileAtomic(
+    imageGenerationBriefMarkdownPath,
+    imageBriefMarkdownBody,
+  );
 
   await appendFile(
     sessionEventsPath,
@@ -1222,8 +1272,20 @@ async function handleSaveAssetCandidates(request, response) {
       candidateCount: candidates.length,
       jsonPath: toWorkspaceRelativePath(requestJsonPath),
       markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+      imageGenerationBriefJsonPath: toWorkspaceRelativePath(
+        requestImageBriefJsonPath,
+      ),
+      imageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
+        requestImageBriefMarkdownPath,
+      ),
       latestJsonPath: toWorkspaceRelativePath(assetCandidatesJsonPath),
       latestMarkdownPath: toWorkspaceRelativePath(assetCandidatesMarkdownPath),
+      latestImageGenerationBriefJsonPath: toWorkspaceRelativePath(
+        imageGenerationBriefJsonPath,
+      ),
+      latestImageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
+        imageGenerationBriefMarkdownPath,
+      ),
     })}\n`,
   );
 
@@ -1234,8 +1296,21 @@ async function handleSaveAssetCandidates(request, response) {
     candidateCount: candidates.length,
     jsonPath: toWorkspaceRelativePath(requestJsonPath),
     markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+    imageGenerationBrief,
+    imageGenerationBriefJsonPath: toWorkspaceRelativePath(
+      requestImageBriefJsonPath,
+    ),
+    imageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
+      requestImageBriefMarkdownPath,
+    ),
     latestJsonPath: toWorkspaceRelativePath(assetCandidatesJsonPath),
     latestMarkdownPath: toWorkspaceRelativePath(assetCandidatesMarkdownPath),
+    latestImageGenerationBriefJsonPath: toWorkspaceRelativePath(
+      imageGenerationBriefJsonPath,
+    ),
+    latestImageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
+      imageGenerationBriefMarkdownPath,
+    ),
     assetCandidatesRoot,
   });
 }
@@ -1436,6 +1511,152 @@ function buildServerAssetCandidatesMarkdown(pack) {
       );
     }
     lines.push("", candidate.prompt || "No prompt provided.");
+  });
+  return lines.join("\n");
+}
+
+function buildServerImageGenerationBrief(pack, paths = {}) {
+  const candidates = Array.isArray(pack?.candidates) ? pack.candidates : [];
+  const styleLock = pack?.styleLock || null;
+  return {
+    schemaVersion: Number(pack?.schemaVersion) || HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-image-generation-brief",
+    createdAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    intendedHost:
+      "ChatGPT/Codex image generation host lane, if available in the current chat.",
+    sourcePromptPackPath:
+      pack?.sourcePromptPackPath ||
+      "exports/canvax-image-prompt-pack-latest.json",
+    sourceAssetCandidatesPath: paths.assetCandidatesJsonPath || "",
+    sourceAssetCandidatesMarkdownPath: paths.assetCandidatesMarkdownPath || "",
+    latestAssetCandidatesPath: paths.latestAssetCandidatesJsonPath || "",
+    latestAssetCandidatesMarkdownPath:
+      paths.latestAssetCandidatesMarkdownPath || "",
+    requestId: paths.requestId || pack?.archive?.requestId || "",
+    board: pack?.board || {},
+    designContext: pack?.designContext || null,
+    styleLock,
+    reviewSummary:
+      pack?.reviewSummary || buildServerAssetCandidateReviewSummary(candidates),
+    usage:
+      "Copy one candidate block into the host image tool. Use the prompt, style lock, placement contract, and output slot to generate and reattach an image without Canvax calling a paid API.",
+    copyBlocks: candidates.map((candidate, index) =>
+      buildServerImageGenerationCopyBlock(candidate, styleLock, index),
+    ),
+  };
+}
+
+function buildServerImageGenerationCopyBlock(candidate, styleLock, index) {
+  const placement =
+    candidate.placementMap || buildServerAssetPlacementMap(candidate);
+  const css = placement.cssPlacement || {};
+  const pixel = placement.pixelBounds || {};
+  const slot = Array.isArray(candidate.outputSlots)
+    ? candidate.outputSlots[0]
+    : null;
+  const promptLines = [
+    `Generate image candidate ${index + 1}: ${candidate.title || candidate.id}.`,
+    candidate.prompt || "Use the Canvax sketch and notes as the image brief.",
+    styleLock?.summary ? `Style lock: ${styleLock.summary}` : "",
+    `Placement: ${placement.placement || candidate.placement || "whole frame"}.`,
+    `Pixel slot: ${pixel.left || 0}, ${pixel.top || 0}, ${pixel.width || 0}x${pixel.height || 0}.`,
+    `CSS slot: left ${css.left || "0%"}, top ${css.top || "0%"}, width ${css.width || "100%"}, height ${css.height || "100%"}.`,
+    `Target selector: ${placement.targetSelector || ""}.`,
+    candidate.negativePrompt
+      ? `Avoid: ${candidate.negativePrompt}`
+      : "Avoid unrelated logos, unreadable text, generic AI-purple styling, and composition drift.",
+  ].filter(Boolean);
+  return {
+    id: candidate.id || `image-candidate-${index + 1}`,
+    title: candidate.title || `Image candidate ${index + 1}`,
+    sourceFrameId: candidate.sourceFrameId || "",
+    sourceFrameTitle: candidate.sourceFrameTitle || "",
+    sourceElementId: candidate.sourceElementId || "",
+    status: candidate.status || "prompt-ready",
+    prompt: candidate.prompt || "",
+    hostPrompt: promptLines.join("\n"),
+    negativePrompt: candidate.negativePrompt || "",
+    placementContract: {
+      placement: placement.placement || candidate.placement || "whole frame",
+      normalizedBounds: placement.normalizedBounds || null,
+      pixelBounds: placement.pixelBounds || null,
+      cssPlacement: placement.cssPlacement || null,
+      targetSelector: placement.targetSelector || "",
+      htmlScaffold: placement.htmlScaffold || "",
+    },
+    outputSlot: slot
+      ? {
+          slotId: slot.slotId || slot.id || "",
+          status: slot.status || "empty",
+          imagePath: slot.imagePath || "",
+          imageElementId: slot.imageElementId || "",
+          accepted: Boolean(slot.accepted),
+          attached: Boolean(slot.attached),
+        }
+      : null,
+  };
+}
+
+function buildServerImageGenerationBriefMarkdown(brief) {
+  const lines = [
+    "# Canvax Image Generation Brief",
+    "",
+    `- Kind: ${brief.kind}`,
+    `- Created: ${brief.createdAt}`,
+    `- Requires OpenAI API key: ${brief.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Intended host: ${brief.intendedHost}`,
+    `- Source prompt pack: ${brief.sourcePromptPackPath}`,
+    `- Source asset candidates: ${brief.sourceAssetCandidatesPath}`,
+    "",
+    "## How To Use",
+    "",
+    brief.usage,
+  ];
+  if (brief.styleLock?.summary) {
+    lines.push("", "## Style Lock", "", brief.styleLock.summary);
+  }
+  const continuityRules = Array.isArray(brief.styleLock?.continuityRules)
+    ? brief.styleLock.continuityRules
+    : [];
+  if (continuityRules.length) {
+    lines.push("", "### Continuity Rules", "");
+    continuityRules.forEach((rule) => lines.push(`- ${rule}`));
+  }
+  const copyBlocks = Array.isArray(brief.copyBlocks) ? brief.copyBlocks : [];
+  lines.push("", "## Candidate Blocks");
+  copyBlocks.forEach((block, index) => {
+    const placement = block.placementContract || {};
+    const pixel = placement.pixelBounds || {};
+    const css = placement.cssPlacement || {};
+    lines.push(
+      "",
+      `### ${index + 1}. ${block.title}`,
+      "",
+      `- Candidate id: ${block.id}`,
+      `- Source frame: ${block.sourceFrameTitle || block.sourceFrameId || "unknown"}`,
+      `- Status: ${block.status}`,
+      `- Placement: ${placement.placement || "whole frame"}`,
+      `- Pixel slot: ${pixel.left || 0}, ${pixel.top || 0}, ${pixel.width || 0}x${pixel.height || 0}`,
+      `- CSS slot: left ${css.left || "0%"}, top ${css.top || "0%"}, width ${css.width || "100%"}, height ${css.height || "100%"}`,
+      `- Target selector: \`${placement.targetSelector || ""}\``,
+      "",
+      "#### Copy To Host Image Tool",
+      "",
+      "```text",
+      block.hostPrompt || block.prompt || "",
+      "```",
+    );
+    if (placement.htmlScaffold) {
+      lines.push(
+        "",
+        "#### Placement Scaffold",
+        "",
+        "```html",
+        placement.htmlScaffold,
+        "```",
+      );
+    }
   });
   return lines.join("\n");
 }
@@ -1888,6 +2109,8 @@ async function handlePreviewState(response) {
       buildRealRequestMarkdownPath,
       assetCandidatesJsonPath,
       assetCandidatesMarkdownPath,
+      imageGenerationBriefJsonPath,
+      imageGenerationBriefMarkdownPath,
       transcriptBridgePath,
       transcriptBridgeMarkdownPath,
       checkpointLatestPath: latestCheckpointPath,
@@ -5512,6 +5735,8 @@ function buildRuntime(port) {
     buildRequestsRoot,
     assetCandidatesJsonPath,
     assetCandidatesMarkdownPath,
+    imageGenerationBriefJsonPath,
+    imageGenerationBriefMarkdownPath,
     assetCandidatesRoot,
     latestCheckpointPath,
     checkpointsIndexPath,
@@ -5646,6 +5871,11 @@ function buildRecoveredRuntime(status, port) {
       status.assetCandidatesJsonPath || assetCandidatesJsonPath,
     assetCandidatesMarkdownPath:
       status.assetCandidatesMarkdownPath || assetCandidatesMarkdownPath,
+    imageGenerationBriefJsonPath:
+      status.imageGenerationBriefJsonPath || imageGenerationBriefJsonPath,
+    imageGenerationBriefMarkdownPath:
+      status.imageGenerationBriefMarkdownPath ||
+      imageGenerationBriefMarkdownPath,
     assetCandidatesRoot: status.assetCandidatesRoot || assetCandidatesRoot,
     latestCheckpointPath: status.latestCheckpointPath || latestCheckpointPath,
     checkpointsIndexPath: status.checkpointsIndexPath || checkpointsIndexPath,

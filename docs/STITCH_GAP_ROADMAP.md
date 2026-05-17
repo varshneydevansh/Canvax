@@ -316,7 +316,7 @@ Needed:
 
 ### 6. Image Model And Asset Workflow
 
-Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records with placement maps/output slots, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
+Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records with placement maps/output slots, write a consolidated image generation brief with copy-ready host prompts, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
 
 Target behavior:
 
@@ -330,6 +330,7 @@ Current stepping stone:
 done
   rough sketch -> labels/voice -> image prompt pack -> coordinates + scaffold
   image prompt pack -> asset candidate records with placementMap + output slots
+  asset candidate records -> image generation brief with copy-ready host prompts
   asset candidate records -> Workbench candidate tray -> editable slots
   generated/reference image -> paste/drop -> editable image element on frame
   generated file/path -> candidate tray attach -> editable image element with candidate id
@@ -344,7 +345,7 @@ Needed:
 - Image candidate import and placement back into the board. **Initial candidate tray placement, attach-image import, and workspace-path import are shipped.**
 - Variant comparison for image generations.
 - Style-lock packs for books, comics, posters, decks, and brand systems. **Initial no-API `canvax-style-lock` block now ships inside image prompt and asset candidate packs.**
-- A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format shipped.**
+- A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format plus consolidated image generation brief shipped.**
 - Drag/attach generated image candidates back onto frames. **Initial paste/drop and tray attach workflows are shipped.**
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
 

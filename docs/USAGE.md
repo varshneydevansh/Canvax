@@ -396,12 +396,15 @@ The same `Image pack` action also writes asset candidate records:
 
 - `exports/canvax-asset-candidates-latest.json`
 - `exports/canvax-asset-candidates-latest.md`
+- `exports/canvax-image-generation-brief-latest.json`
+- `exports/canvax-image-generation-brief-latest.md`
 - archived copies under `artifacts/canvax/asset-candidates/...`
 
-Asset candidates are prompt-ready records, not generated images. They preserve:
+Asset candidates are prompt-ready records, not generated images. The image generation brief is the single copy-ready handoff for ChatGPT/Codex image-generation hosts. Together they preserve:
 
 - source frame and region
 - prompt and negative prompt
+- host prompt text for each candidate
 - normalized bounds
 - pixel bounds
 - CSS placement values

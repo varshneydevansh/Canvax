@@ -334,6 +334,8 @@ buildImagePromptPack()
   -> POST /api/save-asset-candidates
   -> exports/canvax-asset-candidates-latest.json
   -> exports/canvax-asset-candidates-latest.md
+  -> exports/canvax-image-generation-brief-latest.json
+  -> exports/canvax-image-generation-brief-latest.md
   -> artifacts/canvax/asset-candidates/<request>/
 ```
 
@@ -342,7 +344,7 @@ Candidate types:
 - `frame-composite`: full-frame image direction
 - `region`: a prompt-ready image/avatar/visual region from the composition map
 
-The pack is intentionally no-API. It is the durable target format for future host image-generation bridges and manual ChatGPT image workflows.
+The pack is intentionally no-API. The service also writes a consolidated `canvax-image-generation-brief` with copy-ready host prompts, style lock, placement contracts, and output-slot status. It is the durable target format for future host image-generation bridges and manual ChatGPT image workflows.
 
 The Workbench candidate tray reads the latest saved pack from board state after `Image pack` succeeds. Tray actions create ordinary `type: "image"` elements:
 
@@ -364,6 +366,7 @@ Regression coverage:
 - browser self-test saves the candidate pack through the service
 - browser self-test places a candidate tray slot as an editable image element
 - `scripts/regression-check.mjs` validates `exports/canvax-asset-candidates-latest.json` when present
+- `scripts/regression-check.mjs` validates `exports/canvax-image-generation-brief-latest.json` when present and verifies the save endpoint returns a no-API brief
 
 ## Where To Change What
 

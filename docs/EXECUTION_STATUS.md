@@ -187,6 +187,7 @@ Status: In progress
 - [x] Variant branch Map objects export through `spatialWorkspace.objects` with object-level status/context and primary-state sync
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
 - [x] Asset candidate packs include placement contracts, style-lock references, output slots, and a review summary with accepted candidate IDs and image element bindings
+- [x] Asset candidate saves now also write `exports/canvax-image-generation-brief-latest.*` with copy-ready host prompts, style-lock context, placement contracts, and output-slot status
 - [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects` with placement-ready context markdown
 - [x] Asset candidate tray now shows attached thumbnails, select, and accept review state for generated image choices without calling an image API

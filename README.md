@@ -109,6 +109,7 @@ flowchart LR
 - Generates a live Markdown prompt alongside the structured JSON export.
 - Writes a Codex task pack and image prompt pack with normalized coordinates, selected action mode, optional `DESIGN.md` context, plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
 - Adds a no-API style lock to image prompt and asset candidate packs so UI, poster, book-spread, comic, storyboard, and image-variant work can keep visual continuity across frames.
+- Writes a consolidated no-API image generation brief that combines candidate prompts, style lock, pixel/CSS placement contracts, output slots, and copy-ready host prompts for ChatGPT/Codex image-generation hosts.
 - Tracks attached asset candidate previews with file/path import, select, and accept actions, plus placement-map/output-slot metadata, so image-generation choices become explicit local handoff state with exact coordinates.
 - Creates a starter `DESIGN.md` from the current board in Advanced mode, without overwriting an existing design contract.
 - Captures board-scoped or frame-scoped voice notes, using browser speech recognition when available and manual pasted dictation when it is not.

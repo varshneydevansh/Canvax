@@ -31,6 +31,11 @@ const assetCandidatesJsonPath = resolve(
   "exports",
   "canvax-asset-candidates-latest.json",
 );
+const imageGenerationBriefJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-image-generation-brief-latest.json",
+);
 const latestCheckpointPath = resolve(
   projectRoot,
   "exports",
@@ -131,6 +136,23 @@ await validateOptionalJsonSchema(
     Array.isArray(value?.candidates) &&
     value.candidates.length > 0,
   "asset candidates schema is valid",
+);
+await validateOptionalJsonSchema(
+  imageGenerationBriefJsonPath,
+  (value) =>
+    value?.kind === "canvax-image-generation-brief" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.copyBlocks) &&
+    value.copyBlocks.length > 0 &&
+    value.copyBlocks.every(
+      (block) =>
+        typeof block.hostPrompt === "string" &&
+        block.hostPrompt.length > 0 &&
+        block.placementContract?.targetSelector,
+    ),
+  "image generation brief schema is valid",
 );
 await validateOptionalJsonSchema(
   latestCheckpointPath,
@@ -494,6 +516,11 @@ async function validateAssetCandidatesEndpoint() {
           "canvax-asset-placement" &&
         payload.assetCandidatePack.candidates?.[0]?.outputSlots?.[0]
           ?.targetSelector &&
+        payload.imageGenerationBrief?.kind ===
+          "canvax-image-generation-brief" &&
+        payload.imageGenerationBrief.requiresOpenAiApiKey === false &&
+        payload.imageGenerationBrief.copyBlocks?.[0]?.hostPrompt &&
+        typeof payload.latestImageGenerationBriefJsonPath === "string" &&
         typeof payload.latestJsonPath === "string",
     );
     results.push({

@@ -14895,15 +14895,16 @@ async function saveImagePromptPackForHost(options = {}) {
     };
   }
   const path =
+    assetData.latestImageGenerationBriefMarkdownPath ||
     assetData.latestMarkdownPath ||
-    "exports/canvax-image-prompt-pack-latest.md";
+    "exports/canvax-image-generation-brief-latest.md";
   state.assetCandidatePack = normalizeAssetCandidatePack(
     assetData.assetCandidatePack || assetCandidatePack,
   );
   syncSpatialObjectsFromHandoffs();
-  dom.workspaceStatus.textContent = `Image prompt and asset candidate packs ready at ${path}`;
+  dom.workspaceStatus.textContent = `Image generation brief ready at ${path}`;
   state.focusLastAppliedText =
-    "Image prompt and asset candidate packs ready. Ask Codex/ChatGPT image generation to use them.";
+    "Image generation brief, prompt pack, and asset candidates ready. Ask Codex/ChatGPT image generation to use the brief.";
   persistState();
   renderAssetCandidateTray();
   renderFocusPad();

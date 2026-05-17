@@ -594,11 +594,12 @@ Image/asset handoff files:
 
 - `exports/canvax-image-prompt-pack-latest.json`
 - `exports/canvax-asset-candidates-latest.json`
+- `exports/canvax-image-generation-brief-latest.json`
 - `artifacts/canvax/asset-candidates/...`
 
 Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from board mood, surface, generation recipe, `DESIGN.md` when present, current palette, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
 
-Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, and empty output slots. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
+Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, and empty output slots. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts and output-slot status. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
 
 ```text
 asset candidate pack
@@ -606,6 +607,7 @@ asset candidate pack
   -> candidate.placementMap
   -> candidate.styleLock
   -> candidate.outputSlots[]
+  -> image generation brief copyBlocks[]
   -> Workbench asset tray
   -> Map asset object contextMarkdown
   -> Codex / host image tool can preserve placement
