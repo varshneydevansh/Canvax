@@ -1817,6 +1817,15 @@ function normalizeFrameVariant(value) {
       typeof source.createdAt === "string" && source.createdAt.trim()
         ? source.createdAt.trim()
         : new Date().toISOString(),
+    outputObjectId:
+      typeof source.outputObjectId === "string" ? source.outputObjectId.trim() : "",
+    outputSourceKind:
+      typeof source.outputSourceKind === "string"
+        ? source.outputSourceKind.trim()
+        : "",
+    outputTarget:
+      typeof source.outputTarget === "string" ? source.outputTarget.trim() : "",
+    outputHref: typeof source.outputHref === "string" ? source.outputHref.trim() : "",
   };
 }
 
@@ -7154,6 +7163,10 @@ function createEditableFrameFromOutputObject(object, options = {}) {
       direction: recipe.direction,
       index: variantIndex,
       createdAt,
+      outputObjectId: object.id,
+      outputSourceKind: object.sourceKind || "",
+      outputTarget: targetLabel,
+      outputHref: spatialObjectHref(object),
     },
   });
 
@@ -10865,6 +10878,10 @@ function createSpatialObjectsForVariantFrames(source, frames) {
         label: frame.variant?.label || "Variant",
         direction: frame.variant?.direction || "",
         index: frame.variant?.index || index + 1,
+        outputObjectId: frame.variant?.outputObjectId || "",
+        outputSourceKind: frame.variant?.outputSourceKind || "",
+        outputTarget: frame.variant?.outputTarget || "",
+        outputHref: frame.variant?.outputHref || "",
       },
     });
   });
@@ -12411,6 +12428,17 @@ function buildSpatialVariantBranches(frameSelection) {
         index: Number(frame.variant.index) || 0,
         primary: Boolean(frame.variant.primary),
         promotedAt: frame.variant.promotedAt || "",
+        outputBinding:
+          frame.variant.outputObjectId ||
+          frame.variant.outputTarget ||
+          frame.variant.outputHref
+            ? {
+                objectId: frame.variant.outputObjectId || "",
+                sourceKind: frame.variant.outputSourceKind || "",
+                target: frame.variant.outputTarget || "",
+                href: frame.variant.outputHref || "",
+              }
+            : null,
         editable: true,
         connectionId: connection?.id || "",
         connectionLabel: connection?.label || "",
@@ -16669,6 +16697,7 @@ function assertSpatialObjectsFromOutputManifest() {
     Boolean(editableOutputFrame) &&
     editableOutputFrame.variant?.sourceFrameId === frameId &&
     editableOutputFrame.variant?.label === "Output edit" &&
+    editableOutputFrame.variant?.outputObjectId === generatedTargetObject.id &&
     state.connections.some(
       (connection) =>
         connection.fromFrameId === frameId &&
@@ -16681,6 +16710,12 @@ function assertSpatialObjectsFromOutputManifest() {
         object.sourceKind === "variant-branch" &&
         object.meta?.outputObjectId === generatedTargetObject.id,
     );
+  const editableOutputBranchExported = buildSpatialWorkspaceExport().variantBranches.some(
+    (branch) =>
+      branch.frameId === editableOutputFrame?.id &&
+      branch.outputBinding?.objectId === generatedTargetObject.id &&
+      branch.outputBinding?.target === generatedTargetObject.meta?.previewPath,
+  );
   const frameBound = spatialExport.objects
     .filter(isManifestSpatialObject)
     .every((object) => object.frameIds.includes(frameId));
@@ -16731,6 +16766,7 @@ function assertSpatialObjectsFromOutputManifest() {
       typeInspectorRendered &&
       editableOutputActionVisible &&
       editableOutputFrameCreated &&
+      editableOutputBranchExported &&
       frameBound &&
       legacyCleaned &&
       clearedCount >= 3 &&
@@ -16753,6 +16789,7 @@ function assertSpatialObjectsFromOutputManifest() {
       typeInspectorRendered,
       editableOutputActionVisible,
       editableOutputFrameCreated,
+      editableOutputBranchExported,
       inspectorText: dom.mapObjectTypeDetails.textContent,
       frameBound,
       legacyCleaned,
