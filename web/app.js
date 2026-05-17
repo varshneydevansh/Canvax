@@ -351,6 +351,7 @@ const dom = {
   addSpatialFile: document.querySelector("#add-spatial-file"),
   addSpatialGroup: document.querySelector("#add-spatial-group"),
   clearSpatialGenerated: document.querySelector("#clear-spatial-generated"),
+  toggleOutputLane: document.querySelector("#toggle-output-lane"),
   toggleHistoryLane: document.querySelector("#toggle-history-lane"),
   spatialFileInput: document.querySelector("#spatial-file-input"),
   mapSelectionActions: document.querySelector("#map-selection-actions"),
@@ -708,6 +709,7 @@ function bindEvents() {
   dom.clearSpatialGenerated.addEventListener("click", () => {
     void clearGeneratedSpatialObjects();
   });
+  dom.toggleOutputLane.addEventListener("click", toggleOutputLane);
   dom.toggleHistoryLane.addEventListener("click", toggleHistoryLane);
   dom.mapCopyObjectContext.addEventListener("click", () => {
     void copySelectedSpatialObjectContext();
@@ -1263,6 +1265,7 @@ function hydrateState() {
         ? migrated.workbenchFocus
         : empty.workbenchFocus,
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
+      outputLaneCollapsed: Boolean(migrated.outputLaneCollapsed),
       historyLaneCollapsed: Boolean(migrated.historyLaneCollapsed),
       mapObjectFilter: normalizeMapObjectFilter(migrated.mapObjectFilter),
       assetCandidatePack: normalizeAssetCandidatePack(
@@ -1584,6 +1587,7 @@ function createInitialState() {
     workspaceMode: "simple",
     workbenchFocus: "sketch",
     workbenchTrayCollapsed: false,
+    outputLaneCollapsed: false,
     historyLaneCollapsed: false,
     mapObjectFilter: "all",
     assetCandidatePack: null,
@@ -3252,6 +3256,29 @@ function toggleHistoryLane() {
   );
 }
 
+function toggleOutputLane() {
+  state.outputLaneCollapsed = !state.outputLaneCollapsed;
+  if (state.outputLaneCollapsed) {
+    const selectedIds = currentSelectedSpatialObjectIds().filter((id) => {
+      const object = spatialObjectById(id);
+      return (
+        object &&
+        (!isManifestSpatialObject(object) || isSpatialObjectPinned(object))
+      );
+    });
+    setSelectedSpatialObjects(selectedIds, selectedIds.at(-1) || null);
+  }
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    state.outputLaneCollapsed
+      ? "Collapsed generated output shelf"
+      : "Expanded generated output shelf",
+  );
+}
+
 function normalizeMapObjectFilter(value) {
   const candidate = cleanString(value).toLowerCase();
   return MAP_OBJECT_FILTERS.some((filter) => filter.id === candidate)
@@ -3267,6 +3294,9 @@ function mapObjectFilterLabel(value = state.mapObjectFilter) {
 function setMapObjectFilter(value) {
   const nextFilter = normalizeMapObjectFilter(value);
   state.mapObjectFilter = nextFilter;
+  if (nextFilter === "outputs" && state.outputLaneCollapsed) {
+    state.outputLaneCollapsed = false;
+  }
   if (nextFilter === "history" && state.historyLaneCollapsed) {
     state.historyLaneCollapsed = false;
   }
@@ -3638,6 +3668,9 @@ function isSpatialObjectVisibleInCurrentMap(object) {
   }
   if (isSpatialObjectPinned(object)) {
     return true;
+  }
+  if (state.outputLaneCollapsed && isManifestSpatialObject(object)) {
+    return false;
   }
   if (state.historyLaneCollapsed && isCheckpointSpatialObject(object)) {
     return false;
@@ -6400,6 +6433,7 @@ function renderFlowBoard() {
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
   renderMapObjectFilterChips();
+  renderOutputLaneToggle(spatialLanes);
   renderHistoryLaneToggle(spatialLanes);
   renderMapSelectionActions();
 }
@@ -6439,6 +6473,24 @@ function renderHistoryLaneToggle(lanes = buildSpatialWorkspaceLanes()) {
   dom.toggleHistoryLane.setAttribute(
     "aria-pressed",
     String(Boolean(state.historyLaneCollapsed)),
+  );
+}
+
+function renderOutputLaneToggle(lanes = buildSpatialWorkspaceLanes()) {
+  if (!dom.toggleOutputLane) {
+    return;
+  }
+  const outputLane = lanes.find((lane) => lane.id === SPATIAL_OUTPUT_LANE_ID);
+  dom.toggleOutputLane.hidden = !outputLane;
+  if (!outputLane) {
+    return;
+  }
+  dom.toggleOutputLane.textContent = state.outputLaneCollapsed
+    ? "Show outputs"
+    : "Hide outputs";
+  dom.toggleOutputLane.setAttribute(
+    "aria-pressed",
+    String(Boolean(state.outputLaneCollapsed)),
   );
 }
 
@@ -11653,7 +11705,7 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
     description:
       "Generated preview, file, and code-change cards from Make or Build. These are not extra frames; open, pin, move, or clear them when they become stale.",
     objects: spatialObjects.filter(isManifestSpatialObject),
-    collapsed: false,
+    collapsed: Boolean(state.outputLaneCollapsed),
     contextTitle: "Output shelf",
   });
   const historyLane = buildSpatialWorkspaceLane({
@@ -13794,6 +13846,7 @@ function buildPersistedSnapshot(source) {
     hiddenSpatialObjectIds: source.hiddenSpatialObjectIds || [],
     selectedSpatialObjectId: source.selectedSpatialObjectId || null,
     selectedSpatialObjectIds: source.selectedSpatialObjectIds || [],
+    outputLaneCollapsed: Boolean(source.outputLaneCollapsed),
     historyLaneCollapsed: Boolean(source.historyLaneCollapsed),
     mapObjectFilter: normalizeMapObjectFilter(source.mapObjectFilter),
     connections: source.connections,
@@ -15655,6 +15708,7 @@ function assertWorkbenchSpatialMap() {
     flowZoom: state.flowZoom,
     tool: state.tool,
     mapObjectFilter: state.mapObjectFilter,
+    outputLaneCollapsed: state.outputLaneCollapsed,
     spatialObjects: structuredClone(state.spatialObjects),
   };
 
@@ -15709,6 +15763,7 @@ function assertWorkbenchSpatialMap() {
     },
   ];
   state.mapObjectFilter = "all";
+  state.outputLaneCollapsed = false;
   setWorkspaceMode("simple");
   setWorkbenchFocus("map");
   const mapVisible =
@@ -15831,6 +15886,7 @@ function assertWorkbenchSpatialMap() {
   state.flowZoom = previous.flowZoom;
   state.tool = previous.tool;
   state.mapObjectFilter = previous.mapObjectFilter;
+  state.outputLaneCollapsed = previous.outputLaneCollapsed;
   state.spatialObjects = previous.spatialObjects;
   persistState();
   renderAll();
@@ -15862,6 +15918,7 @@ function assertSpatialObjectsFromOutputManifest() {
     viewMode: state.viewMode,
     flowZoom: state.flowZoom,
     tool: state.tool,
+    outputLaneCollapsed: state.outputLaneCollapsed,
     spatialObjects: structuredClone(state.spatialObjects),
     hiddenSpatialObjectIds: structuredClone(state.hiddenSpatialObjectIds),
     selectedSpatialObjectId: state.selectedSpatialObjectId,
@@ -15889,6 +15946,7 @@ function assertSpatialObjectsFromOutputManifest() {
       },
     },
   ];
+  state.outputLaneCollapsed = false;
   state.assetCandidatePack = null;
   state.serverStatus = {
     ...state.serverStatus,
@@ -15962,6 +16020,30 @@ function assertSpatialObjectsFromOutputManifest() {
   const outputLaneRendered = Boolean(
     dom.flowBoard.querySelector(".spatial-lane-output"),
   );
+  toggleOutputLane();
+  const collapsedOutputExport = buildSpatialWorkspaceExport().lanes.some(
+    (lane) =>
+      lane.id === SPATIAL_OUTPUT_LANE_ID &&
+      lane.collapsed === true &&
+      /State: collapsed/.test(lane.contextMarkdown || ""),
+  );
+  const collapsedOutputRendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-lane-output.collapsed"),
+  );
+  const collapsedOutputCardsHidden = !dom.flowBoard.querySelector(
+    [
+      ".spatial-object-node.generated-output",
+      ".spatial-object-node.generated-artifact",
+      ".spatial-object-node.changed-file",
+    ].join(", "),
+  );
+  const collapsedOutputButton =
+    !dom.toggleOutputLane.hidden &&
+    dom.toggleOutputLane.textContent.trim() === "Show outputs";
+  toggleOutputLane();
+  const expandedOutputAgain = Boolean(
+    dom.flowBoard.querySelector(".spatial-object-node.generated-output"),
+  );
   if (generatedTargetObject) {
     selectSpatialObject(generatedTargetObject.id, { render: true });
   }
@@ -15990,6 +16072,7 @@ function assertSpatialObjectsFromOutputManifest() {
   state.viewMode = previous.viewMode;
   state.flowZoom = previous.flowZoom;
   state.tool = previous.tool;
+  state.outputLaneCollapsed = previous.outputLaneCollapsed;
   state.spatialObjects = previous.spatialObjects;
   state.hiddenSpatialObjectIds = previous.hiddenSpatialObjectIds;
   state.selectedSpatialObjectId = previous.selectedSpatialObjectId;
@@ -16008,6 +16091,11 @@ function assertSpatialObjectsFromOutputManifest() {
       friendlyLabels &&
       outputLaneExported &&
       outputLaneRendered &&
+      collapsedOutputExport &&
+      collapsedOutputRendered &&
+      collapsedOutputCardsHidden &&
+      collapsedOutputButton &&
+      expandedOutputAgain &&
       outputOpenLinks &&
       typeInspectorRendered &&
       frameBound &&
@@ -16022,6 +16110,11 @@ function assertSpatialObjectsFromOutputManifest() {
       friendlyLabels,
       outputLaneExported,
       outputLaneRendered,
+      collapsedOutputExport,
+      collapsedOutputRendered,
+      collapsedOutputCardsHidden,
+      collapsedOutputButton,
+      expandedOutputAgain,
       outputOpenLinks,
       typeInspectorRendered,
       inspectorText: dom.mapObjectTypeDetails.textContent,
@@ -16824,6 +16917,7 @@ async function exerciseLargeSessionSelfTest(results) {
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
     flowZoom: state.flowZoom,
+    outputLaneCollapsed: state.outputLaneCollapsed,
     spatialObjects: structuredClone(state.spatialObjects),
     hiddenSpatialObjectIds: structuredClone(state.hiddenSpatialObjectIds),
     assetCandidatePack: structuredClone(state.assetCandidatePack),
@@ -16845,6 +16939,7 @@ async function exerciseLargeSessionSelfTest(results) {
       segments: fixture.voiceSegments,
     };
     state.assetCandidatePack = fixture.assetCandidatePack;
+    state.outputLaneCollapsed = false;
     state.hiddenSpatialObjectIds = [];
     state.serverStatus = {
       ...state.serverStatus,
@@ -16982,6 +17077,7 @@ async function exerciseLargeSessionSelfTest(results) {
     state.workbenchFocus = original.workbenchFocus;
     state.viewMode = original.viewMode;
     state.flowZoom = original.flowZoom;
+    state.outputLaneCollapsed = original.outputLaneCollapsed;
     state.spatialObjects = original.spatialObjects;
     state.hiddenSpatialObjectIds = original.hiddenSpatialObjectIds;
     state.assetCandidatePack = original.assetCandidatePack;

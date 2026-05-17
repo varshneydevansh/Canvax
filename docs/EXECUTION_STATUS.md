@@ -65,6 +65,7 @@ Status: In progress
 - [x] Workbench `Map` single-object selection exposes a lightweight property editor for Title, Note, and Status plus per-type read-only details for generated outputs, asset candidates, checkpoints, variants, groups, references, and changes; manual overrides persist across generated/asset/checkpoint object resyncs
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
 - [x] Workbench `Map` groups generated preview/file/code-change cards inside a named `Output shelf` lane so generated targets are readable as output references, not extra frames
+- [x] Workbench `Map` can collapse or expand the generated `Output shelf` lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
 - [x] Workbench `Map` renders recent checkpoints inside a visible spatial history lane for longer collaboration sessions, exported through `spatialWorkspace.lanes`
 - [x] Workbench `Map` can collapse or expand the checkpoint history lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
 - [x] Workbench `Map` includes an object focus filter for all objects, outputs, assets, notes, or history, and exports the active focus through `spatialWorkspace.objectFilter`
@@ -86,7 +87,7 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/multi-selected/lasso-selected/nudged/duplicated/deleted/pinned Map objects, selected-set Map dragging/resizing, no-API selected-object/selection context copy, group duplication with contained Map object copies, manual context objects, readable generated output objects, generated-output shelf lane, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/multi-selected/lasso-selected/nudged/duplicated/deleted/pinned Map objects, selected-set Map dragging/resizing, no-API selected-object/selection context copy, group duplication with contained Map object copies, manual context objects, readable generated output objects, generated-output shelf lane with collapse/expand, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
   richer nested object editing, deeper editable per-type inspectors, history-lane reorder controls, and full arbitrary-object infinite canvas behavior
 ```
@@ -189,7 +190,7 @@ Status: In progress
 - [x] Preview Play mode now overlays generated clickable hotspots on sketch/output viewports from outgoing Flow links
 - [x] Selected frame elements can now become persistent prototype hotspots that Preview Play uses as real click regions
 - [x] Workbench/Advanced Map now reconciles generated output/artifact spatial cards, including legacy stale-card cleanup, frame-path binding inference, deleted-frame filtering, and latest per-frame/per-kind output grouping so old materialized targets do not flood the canvas
-- [x] Workbench/Advanced Map now wraps generated output/artifact/change cards in a designer-readable `Output shelf` lane and uses friendlier generated preview titles
+- [x] Workbench/Advanced Map now wraps generated output/artifact/change cards in a designer-readable collapsible `Output shelf` lane and uses friendlier generated preview titles
 - [x] Advanced command deck is solid/readable as a sticky inspector header, so grid/canvas texture does not bleed through or sit under the controls
 
 ```text
