@@ -342,6 +342,7 @@ const dom = {
   addSpatialFile: document.querySelector("#add-spatial-file"),
   addSpatialGroup: document.querySelector("#add-spatial-group"),
   clearSpatialGenerated: document.querySelector("#clear-spatial-generated"),
+  toggleHistoryLane: document.querySelector("#toggle-history-lane"),
   spatialFileInput: document.querySelector("#spatial-file-input"),
   mapSelectionActions: document.querySelector("#map-selection-actions"),
   mapSelectedObjectTitle: document.querySelector("#map-selected-object-title"),
@@ -690,6 +691,7 @@ function bindEvents() {
   dom.clearSpatialGenerated.addEventListener("click", () => {
     void clearGeneratedSpatialObjects();
   });
+  dom.toggleHistoryLane.addEventListener("click", toggleHistoryLane);
   dom.mapCopyObjectContext.addEventListener("click", () => {
     void copySelectedSpatialObjectContext();
   });
@@ -1243,6 +1245,7 @@ function hydrateState() {
         ? migrated.workbenchFocus
         : empty.workbenchFocus,
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
+      historyLaneCollapsed: Boolean(migrated.historyLaneCollapsed),
       assetCandidatePack: normalizeAssetCandidatePack(
         migrated.assetCandidatePack,
       ),
@@ -1562,6 +1565,7 @@ function createInitialState() {
     workspaceMode: "simple",
     workbenchFocus: "sketch",
     workbenchTrayCollapsed: false,
+    historyLaneCollapsed: false,
     assetCandidatePack: null,
     spatialObjects: [],
     hiddenSpatialObjectIds: [],
@@ -3197,6 +3201,26 @@ function clearGeneratedSpatialObjects(options = {}) {
   return generatedIds.length;
 }
 
+function toggleHistoryLane() {
+  state.historyLaneCollapsed = !state.historyLaneCollapsed;
+  if (state.historyLaneCollapsed) {
+    const selectedIds = currentSelectedSpatialObjectIds().filter((id) => {
+      const object = spatialObjectById(id);
+      return object && !isCheckpointSpatialObject(object);
+    });
+    setSelectedSpatialObjects(selectedIds, selectedIds.at(-1) || null);
+  }
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    state.historyLaneCollapsed
+      ? "Collapsed checkpoint history lane"
+      : "Expanded checkpoint history lane",
+  );
+}
+
 function spatialObjectKey(...values) {
   const candidate = values
     .map((value) =>
@@ -3497,13 +3521,20 @@ function currentSelectedSpatialObjectIds() {
   return normalizeStringArray([
     ...(state.selectedSpatialObjectIds || []),
     state.selectedSpatialObjectId,
-  ]).filter((id) => Boolean(spatialObjectById(id)));
+  ]).filter((id) => {
+    const object = spatialObjectById(id);
+    return object && isSpatialObjectVisibleInCurrentMap(object);
+  });
 }
 
 function selectedSpatialObjects() {
   return currentSelectedSpatialObjectIds()
     .map((id) => spatialObjectById(id))
     .filter(Boolean);
+}
+
+function isSpatialObjectVisibleInCurrentMap(object) {
+  return !(state.historyLaneCollapsed && isCheckpointSpatialObject(object));
 }
 
 function setSelectedSpatialObjects(ids, primaryId = null) {
@@ -6194,11 +6225,17 @@ function renderFlowBoard() {
       `;
     })
     .join("");
+  const spatialLanes = buildSpatialWorkspaceLanes(state.spatialObjects);
+  const historyLaneIsCollapsed = spatialLanes.some(
+    (lane) => lane.id === SPATIAL_HISTORY_LANE_ID && lane.collapsed,
+  );
   const spatialGroups = state.spatialObjects.filter(
     (object) => object.type === "map-group",
   );
   const spatialObjects = state.spatialObjects.filter(
-    (object) => object.type !== "map-group",
+    (object) =>
+      object.type !== "map-group" &&
+      !(historyLaneIsCollapsed && isCheckpointSpatialObject(object)),
   );
   const spatialGroupMarkup = spatialGroups
     .map((object) => renderSpatialObjectNode(object))
@@ -6206,9 +6243,7 @@ function renderFlowBoard() {
   const spatialObjectMarkup = spatialObjects
     .map((object) => renderSpatialObjectNode(object))
     .join("");
-  const spatialLaneMarkup = renderSpatialLanesMarkup(
-    buildSpatialWorkspaceLanes(state.spatialObjects),
-  );
+  const spatialLaneMarkup = renderSpatialLanesMarkup(spatialLanes);
   dom.flowBoard.innerHTML = `${spatialLaneMarkup}${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}${renderSpatialSelectionBoxMarkup()}${renderFlowLassoMarkup()}`;
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
@@ -6219,6 +6254,7 @@ function renderFlowBoard() {
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
+  renderHistoryLaneToggle(spatialLanes);
   renderMapSelectionActions();
 }
 
@@ -6227,19 +6263,37 @@ function renderSpatialLanesMarkup(lanes) {
     .map(
       (lane) => `
         <section
-          class="spatial-lane spatial-lane-${escapeHtml(classToken(lane.kind))}"
+          class="spatial-lane spatial-lane-${escapeHtml(classToken(lane.kind))} ${lane.collapsed ? "collapsed" : ""}"
           style="left:${lane.position.x}px; top:${lane.position.y}px; width:${lane.size.width}px; height:${lane.size.height}px;"
           aria-hidden="true"
         >
           <div class="spatial-lane-header">
             <span>${escapeHtml(lane.title)}</span>
-            <strong>${lane.memberObjectIds.length} item${lane.memberObjectIds.length === 1 ? "" : "s"}</strong>
+            <strong>${lane.collapsed ? "Collapsed" : `${lane.memberObjectIds.length} item${lane.memberObjectIds.length === 1 ? "" : "s"}`}</strong>
           </div>
           <p>${escapeHtml(lane.description)}</p>
         </section>
       `,
     )
     .join("");
+}
+
+function renderHistoryLaneToggle(lanes = buildSpatialWorkspaceLanes()) {
+  if (!dom.toggleHistoryLane) {
+    return;
+  }
+  const historyLane = lanes.find((lane) => lane.id === SPATIAL_HISTORY_LANE_ID);
+  dom.toggleHistoryLane.hidden = !historyLane;
+  if (!historyLane) {
+    return;
+  }
+  dom.toggleHistoryLane.textContent = state.historyLaneCollapsed
+    ? "Show history"
+    : "Hide history";
+  dom.toggleHistoryLane.setAttribute(
+    "aria-pressed",
+    String(Boolean(state.historyLaneCollapsed)),
+  );
 }
 
 function renderFlowLassoMarkup() {
@@ -11384,12 +11438,15 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
   if (!bounds) {
     return [];
   }
+  const collapsed = Boolean(state.historyLaneCollapsed);
 
   const laneBounds = makeBounds(
     Math.max(16, bounds.left - SPATIAL_HISTORY_LANE_PADDING),
     Math.max(16, bounds.top - SPATIAL_HISTORY_LANE_PADDING - 34),
     bounds.right + SPATIAL_HISTORY_LANE_PADDING,
-    bounds.bottom + SPATIAL_HISTORY_LANE_PADDING,
+    collapsed
+      ? Math.max(16, bounds.top - SPATIAL_HISTORY_LANE_PADDING - 34) + 92
+      : bounds.bottom + SPATIAL_HISTORY_LANE_PADDING,
   );
 
   return [
@@ -11398,8 +11455,11 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
       kind: "history",
       title: "History lane",
       description:
-        "Checkpoint trail for the current collaboration session. Drag cards out if a saved moment belongs with another frame, variant, or output.",
+        collapsed
+          ? "Checkpoint trail is compressed to keep the Map focused. Expand it when you need to inspect saved collaboration moments."
+          : "Checkpoint trail for the current collaboration session. Drag cards out if a saved moment belongs with another frame, variant, or output.",
       memberObjectIds: checkpointObjects.map((object) => object.id),
+      collapsed,
       position: {
         x: laneBounds.left,
         y: laneBounds.top,
@@ -11410,6 +11470,8 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
       },
       contextMarkdown: [
         "## History lane",
+        "",
+        `State: ${collapsed ? "collapsed" : "expanded"}`,
         "",
         "Saved collaboration checkpoints:",
         ...checkpointObjects.map(
@@ -13483,6 +13545,7 @@ function buildPersistedSnapshot(source) {
     hiddenSpatialObjectIds: source.hiddenSpatialObjectIds || [],
     selectedSpatialObjectId: source.selectedSpatialObjectId || null,
     selectedSpatialObjectIds: source.selectedSpatialObjectIds || [],
+    historyLaneCollapsed: Boolean(source.historyLaneCollapsed),
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -15663,11 +15726,13 @@ function assertCheckpointSpatialObjects() {
     workspaceMode: state.workspaceMode,
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
+    historyLaneCollapsed: state.historyLaneCollapsed,
     spatialObjects: structuredClone(state.spatialObjects),
     checkpointHistory: structuredClone(state.serverStatus.checkpointHistory),
   };
 
   state.spatialObjects = [];
+  state.historyLaneCollapsed = false;
   state.serverStatus = {
     ...state.serverStatus,
     checkpointHistory: {
@@ -15714,10 +15779,31 @@ function assertCheckpointSpatialObjects() {
   const laneRendered = Boolean(
     dom.flowBoard.querySelector(".spatial-lane-history"),
   );
+  toggleHistoryLane();
+  const collapsedExport = buildSpatialWorkspaceExport().lanes.some(
+    (lane) =>
+      lane.id === SPATIAL_HISTORY_LANE_ID &&
+      lane.collapsed === true &&
+      /State: collapsed/.test(lane.contextMarkdown || ""),
+  );
+  const collapsedRendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-lane-history.collapsed"),
+  );
+  const collapsedCardsHidden = !dom.flowBoard.querySelector(
+    ".spatial-object-node.checkpoint-event",
+  );
+  const collapsedButton =
+    !dom.toggleHistoryLane.hidden &&
+    dom.toggleHistoryLane.textContent.trim() === "Show history";
+  toggleHistoryLane();
+  const expandedAgain = Boolean(
+    dom.flowBoard.querySelector(".spatial-object-node.checkpoint-event"),
+  );
 
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
+  state.historyLaneCollapsed = previous.historyLaneCollapsed;
   state.spatialObjects = previous.spatialObjects;
   state.serverStatus = {
     ...state.serverStatus,
@@ -15727,8 +15813,16 @@ function assertCheckpointSpatialObjects() {
   renderAll();
 
   return assert(
-    exported && laneExported && rendered && laneRendered,
-    "Checkpoint history renders and exports as a spatial history lane",
+    exported &&
+      laneExported &&
+      rendered &&
+      laneRendered &&
+      collapsedExport &&
+      collapsedRendered &&
+      collapsedCardsHidden &&
+      collapsedButton &&
+      expandedAgain,
+    "Checkpoint history renders, exports, and collapses as a spatial history lane",
   );
 }
 

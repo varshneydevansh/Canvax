@@ -546,7 +546,7 @@ Group containment is computed at export time from each group region's bounds and
 - `spatialWorkspace.cards[].groupIds`
 - `spatialWorkspace.objects[].groupIds`
 
-Checkpoint history lanes are also derived at export/render time from checkpoint spatial objects. The lane is a visual and semantic grouping, not a destructive container: checkpoint cards can still be selected, moved, copied as context, or grouped with other Map objects, while `spatialWorkspace.lanes[]` gives Codex a stable history trail for long sessions.
+Checkpoint history lanes are also derived at export/render time from checkpoint spatial objects. The lane is a visual and semantic grouping, not a destructive container: checkpoint cards can still be selected, moved, copied as context, or grouped with other Map objects while the lane is expanded. Collapsing the lane hides those checkpoint cards from the Map surface without deleting them, and `spatialWorkspace.lanes[]` records the lane `collapsed` state so Codex can distinguish compressed history from missing history.
 
 Selected frame elements can also carry `element.prototype` metadata. That metadata is exported through frame composition, and Preview Play converts the selected element bounds into clickable prototype hotspots.
 
