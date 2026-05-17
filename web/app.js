@@ -387,6 +387,8 @@ const dom = {
   mapUngroupSelection: document.querySelector("#map-ungroup-selection"),
   mapSelectGroupContents: document.querySelector("#map-select-group-contents"),
   mapFitGroup: document.querySelector("#map-fit-group"),
+  mapLaneEarlier: document.querySelector("#map-lane-earlier"),
+  mapLaneLater: document.querySelector("#map-lane-later"),
   mapSendObjectBack: document.querySelector("#map-send-object-back"),
   mapBringObjectFront: document.querySelector("#map-bring-object-front"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
@@ -767,6 +769,12 @@ function bindEvents() {
     selectSelectedSpatialGroupContents,
   );
   dom.mapFitGroup.addEventListener("click", fitSelectedSpatialGroupsToContents);
+  dom.mapLaneEarlier.addEventListener("click", () =>
+    reorderSelectedSpatialLane("earlier"),
+  );
+  dom.mapLaneLater.addEventListener("click", () =>
+    reorderSelectedSpatialLane("later"),
+  );
   dom.mapSendObjectBack.addEventListener("click", sendSelectedSpatialObjectsBack);
   dom.mapBringObjectFront.addEventListener(
     "click",
@@ -3242,6 +3250,10 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
   const existing = objects[existingIndex];
   const manualFields = existing.meta?.manualFields || {};
   const pinned = isSpatialObjectPinned(existing);
+  const manualLaneOrder =
+    existing.meta?.manualLaneOrder === true &&
+    existing.meta?.laneId &&
+    existing.meta?.laneId === nextObject.meta?.laneId;
   objects[existingIndex] = {
     ...nextObject,
     title: manualFields.title ? existing.title : nextObject.title,
@@ -3253,6 +3265,14 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
     height: existing.height || nextObject.height,
     meta: {
       ...nextObject.meta,
+      ...(manualLaneOrder
+        ? {
+            laneIndex: Number.isFinite(existing.meta?.laneIndex)
+              ? existing.meta.laneIndex
+              : nextObject.meta?.laneIndex,
+            manualLaneOrder: true,
+          }
+        : {}),
       ...(pinned ? { pinned: true } : {}),
       ...(Object.keys(manualFields).length ? { manualFields } : {}),
     },
@@ -4044,6 +4064,19 @@ function spatialObjectLayerLabel(object) {
   return `${layerName} ${index + 1} of ${peers.length}`;
 }
 
+function spatialLaneOrderLabel(object) {
+  const descriptor = spatialObjectLaneDescriptor(object);
+  if (!descriptor) {
+    return "";
+  }
+  const objects = spatialLaneObjects(descriptor);
+  const index = objects.findIndex((candidate) => candidate.id === object?.id);
+  if (!objects.length || index < 0) {
+    return "";
+  }
+  return `${descriptor.label} ${index + 1} of ${objects.length}`;
+}
+
 function canReorderSelectedSpatialObjects(direction) {
   const selectedIds = new Set(currentSelectedSpatialObjectIds());
   if (!selectedIds.size) {
@@ -4075,6 +4108,79 @@ function canReorderSpatialLayerSubset(objects, selectedIds, predicate, direction
     );
   }
   return sortedIndexes.some((index, offset) => index !== offset);
+}
+
+function spatialObjectLaneDescriptor(object) {
+  if (isManifestSpatialObject(object)) {
+    return {
+      id: SPATIAL_OUTPUT_LANE_ID,
+      label: "Output shelf",
+      predicate: isManifestSpatialObject,
+      positionForIndex: defaultOutputSpatialObjectPosition,
+    };
+  }
+  if (isCheckpointSpatialObject(object)) {
+    return {
+      id: SPATIAL_HISTORY_LANE_ID,
+      label: "History lane",
+      predicate: isCheckpointSpatialObject,
+      positionForIndex: defaultHistoryCheckpointPosition,
+    };
+  }
+  return null;
+}
+
+function selectedSpatialLaneDescriptor() {
+  const selectedObjects = selectedSpatialObjects();
+  if (!selectedObjects.length) {
+    return null;
+  }
+  const descriptors = selectedObjects.map(spatialObjectLaneDescriptor);
+  const first = descriptors[0];
+  if (!first || descriptors.some((descriptor) => descriptor?.id !== first.id)) {
+    return null;
+  }
+  return first;
+}
+
+function spatialLaneObjects(descriptor) {
+  if (!descriptor?.predicate) {
+    return [];
+  }
+  return sortSpatialLaneObjects(state.spatialObjects.filter(descriptor.predicate));
+}
+
+function canReorderSelectedSpatialLane(direction) {
+  const descriptor = selectedSpatialLaneDescriptor();
+  if (!descriptor) {
+    return false;
+  }
+  const selectedSet = new Set(currentSelectedSpatialObjectIds());
+  return canMoveSelectedLaneObjects(
+    spatialLaneObjects(descriptor),
+    selectedSet,
+    direction,
+  );
+}
+
+function canMoveSelectedLaneObjects(objects, selectedSet, direction) {
+  if (!selectedSet?.size || selectedSet.size >= objects.length) {
+    return false;
+  }
+  if (direction === "earlier") {
+    return objects.some(
+      (object, index) =>
+        selectedSet.has(object.id) &&
+        index > 0 &&
+        !selectedSet.has(objects[index - 1]?.id),
+    );
+  }
+  return objects.some(
+    (object, index) =>
+      selectedSet.has(object.id) &&
+      index < objects.length - 1 &&
+      !selectedSet.has(objects[index + 1]?.id),
+  );
 }
 
 function isSpatialObjectVisibleInCurrentMap(object) {
@@ -4324,6 +4430,74 @@ function reorderSpatialLayerSubset(objects, selectedSet, predicate, direction) {
       predicate(object) ? reorderedLayerObjects[layerIndex++] : object,
     ),
   };
+}
+
+function reorderSelectedSpatialLane(direction) {
+  const descriptor = selectedSpatialLaneDescriptor();
+  const selectedSet = new Set(currentSelectedSpatialObjectIds());
+  if (!descriptor || !selectedSet.size) {
+    renderStatus("Select output or history cards to reorder a lane");
+    return false;
+  }
+  const laneObjects = spatialLaneObjects(descriptor);
+  const reordered = moveSelectedLaneObjects(laneObjects, selectedSet, direction);
+  if (!reordered.changed) {
+    renderStatus(
+      `Selected cards are already at the ${direction === "earlier" ? "start" : "end"} of the ${descriptor.label}`,
+    );
+    return false;
+  }
+  reordered.objects.forEach((object, index) => {
+    Object.assign(object, descriptor.positionForIndex(index));
+    object.meta = {
+      ...(object.meta || {}),
+      laneId: descriptor.id,
+      laneIndex: index,
+      manualLaneOrder: true,
+      autoLanePosition: true,
+    };
+  });
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    `Moved ${selectedSet.size} card${selectedSet.size === 1 ? "" : "s"} ${direction} in ${descriptor.label}`,
+  );
+  return true;
+}
+
+function moveSelectedLaneObjects(objects, selectedSet, direction) {
+  const nextObjects = [...objects];
+  let changed = false;
+  if (direction === "earlier") {
+    for (let index = 1; index < nextObjects.length; index += 1) {
+      if (
+        selectedSet.has(nextObjects[index]?.id) &&
+        !selectedSet.has(nextObjects[index - 1]?.id)
+      ) {
+        [nextObjects[index - 1], nextObjects[index]] = [
+          nextObjects[index],
+          nextObjects[index - 1],
+        ];
+        changed = true;
+      }
+    }
+  } else {
+    for (let index = nextObjects.length - 2; index >= 0; index -= 1) {
+      if (
+        selectedSet.has(nextObjects[index]?.id) &&
+        !selectedSet.has(nextObjects[index + 1]?.id)
+      ) {
+        [nextObjects[index], nextObjects[index + 1]] = [
+          nextObjects[index + 1],
+          nextObjects[index],
+        ];
+        changed = true;
+      }
+    }
+  }
+  return { objects: nextObjects, changed };
 }
 
 function spatialObjectsIntersectingBounds(bounds) {
@@ -4702,6 +4876,7 @@ function buildSpatialObjectContextText(object) {
     `- Pinned: ${isSpatialObjectPinned(object) ? "yes" : "no"}`,
     `- Frame: ${frameLabel}`,
     `- Layer: ${spatialObjectLayerLabel(object) || "unlayered"}`,
+    `- Lane order: ${spatialLaneOrderLabel(object) || "not in a lane"}`,
     `- Position: ${Math.round(object.x)}, ${Math.round(object.y)}`,
     `- Size: ${Math.round(object.width || SPATIAL_OBJECT_WIDTH)} x ${Math.round(object.height || SPATIAL_OBJECT_HEIGHT)}`,
   ];
@@ -7784,6 +7959,8 @@ function renderMapSelectionActions() {
   dom.mapUngroupSelection.disabled = selectedGroups.length === 0;
   dom.mapSelectGroupContents.disabled = selectedGroups.length === 0;
   dom.mapFitGroup.disabled = selectedGroups.length === 0;
+  dom.mapLaneEarlier.disabled = !canReorderSelectedSpatialLane("earlier");
+  dom.mapLaneLater.disabled = !canReorderSelectedSpatialLane("later");
   dom.mapSendObjectBack.disabled = !canReorderSelectedSpatialObjects("back");
   dom.mapBringObjectFront.disabled = !canReorderSelectedSpatialObjects("front");
   dom.mapDuplicateObject.disabled = !hasSelection;
@@ -7806,7 +7983,7 @@ function renderMapSelectionActions() {
     dom.mapSelectedObjectTitle.textContent =
       `${selectedObjects.length} Map objects selected`;
     dom.mapSelectedObjectDetail.textContent =
-      "Arrow keys move the selection. Use Group, Bring front / Send back, duplicate, delete, clear, or copy combined context.";
+      "Arrow keys move the selection. Use Lane earlier/later for output/history order, Group, Bring front / Send back, duplicate, delete, clear, or copy combined context.";
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
@@ -7822,6 +7999,7 @@ function renderMapSelectionActions() {
     spatialObjectFooterStatus(object),
     frameLabel,
     spatialObjectLayerLabel(object),
+    spatialLaneOrderLabel(object),
     isSpatialObjectPinned(object) ? "Pinned" : "",
   ];
   if (object.type === "map-group") {
@@ -7888,6 +8066,7 @@ function mapObjectInspectorRows(object) {
   } else if (isManifestSpatialObject(object)) {
     const target = meta.previewPath || meta.path || meta.url || "manifest target";
     rows.push(
+      { label: "Lane order", value: spatialLaneOrderLabel(object) },
       { label: "Target", value: target },
       {
         label: "Summary",
@@ -7896,6 +8075,7 @@ function mapObjectInspectorRows(object) {
     );
   } else if (object.sourceKind === "checkpoint") {
     rows.push(
+      { label: "Lane order", value: spatialLaneOrderLabel(object) },
       { label: "Saved", value: timeLabel(meta.savedAt) || "checkpoint" },
       {
         label: "Contents",
@@ -12980,7 +13160,7 @@ function buildSpatialWorkspaceLane({
   collapsed = false,
   contextTitle = title,
 }) {
-  const laneObjects = Array.isArray(objects) ? objects : [];
+  const laneObjects = sortSpatialLaneObjects(Array.isArray(objects) ? objects : []);
   if (!laneObjects.length) {
     return null;
   }
@@ -17688,6 +17868,28 @@ function assertSpatialObjectsFromOutputManifest() {
     Boolean(tidiedGeneratedTarget) &&
     Math.round(tidiedGeneratedTarget.x) === expectedOutputPosition.x &&
     Math.round(tidiedGeneratedTarget.y) === expectedOutputPosition.y;
+  const laneArtifactObject = state.spatialObjects.find(
+    (object) => object.sourceKind === "generated-artifact",
+  );
+  const laneIndexBefore = laneArtifactObject?.meta?.laneIndex;
+  if (laneArtifactObject) {
+    selectSpatialObject(laneArtifactObject.id, { render: true });
+  }
+  const laneEarlierButtonEnabled =
+    Boolean(laneArtifactObject) && !dom.mapLaneEarlier.disabled;
+  const laneEarlierWorked =
+    Boolean(laneArtifactObject) &&
+    Number.isFinite(laneIndexBefore) &&
+    laneEarlierButtonEnabled &&
+    reorderSelectedSpatialLane("earlier") &&
+    laneArtifactObject.meta?.manualLaneOrder === true &&
+    laneArtifactObject.meta?.laneIndex === laneIndexBefore - 1 &&
+    spatialLaneOrderLabel(laneArtifactObject).includes("Output shelf");
+  const laneLaterWorked =
+    laneEarlierWorked &&
+    !dom.mapLaneLater.disabled &&
+    reorderSelectedSpatialLane("later") &&
+    laneArtifactObject.meta?.laneIndex === laneIndexBefore;
   if (generatedTargetObject) {
     selectSpatialObject(generatedTargetObject.id, { render: true });
   }
@@ -17842,6 +18044,8 @@ function assertSpatialObjectsFromOutputManifest() {
       expandedOutputAgain &&
       mapHeightConstrained &&
       outputTidyWorked &&
+      laneEarlierWorked &&
+      laneLaterWorked &&
       outputOpenLinks &&
       typeInspectorRendered &&
       editableOutputActionVisible &&
@@ -17870,6 +18074,8 @@ function assertSpatialObjectsFromOutputManifest() {
       expandedOutputAgain,
       mapHeightConstrained,
       outputTidyWorked,
+      laneEarlierWorked,
+      laneLaterWorked,
       outputOpenLinks,
       typeInspectorRendered,
       editableOutputActionVisible,
@@ -18090,6 +18296,10 @@ function assertManualSpatialObjectControls() {
     dom.mapSelectGroupContents.disabled &&
     Boolean(dom.mapFitGroup) &&
     dom.mapFitGroup.disabled &&
+    Boolean(dom.mapLaneEarlier) &&
+    dom.mapLaneEarlier.disabled &&
+    Boolean(dom.mapLaneLater) &&
+    dom.mapLaneLater.disabled &&
     Boolean(dom.mapSendObjectBack) &&
     Boolean(dom.mapBringObjectFront) &&
     (!dom.mapSendObjectBack.disabled || !dom.mapBringObjectFront.disabled) &&

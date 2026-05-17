@@ -70,6 +70,7 @@ Status: In progress
 - [x] Workbench `Map` groups generated preview/file/code-change cards inside a named `Output shelf` lane so generated targets are readable as output references, not extra frames, and older raw manifest labels render as `Codex output`, `Output file`, or `Code update`
 - [x] Output correction marks now export normalized changed-region bounds, and Erase on the generated-output overlay deletes intersecting correction marks instead of saving invisible eraser strokes into handoff data
 - [x] Workbench `Map` can collapse or expand the generated `Output shelf` lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
+- [x] Workbench `Map` can move selected output/history cards earlier or later inside their lane, and that lane order exports through `meta.laneIndex`, object context, and `spatialWorkspace.lanes[].memberObjectIds`
 - [x] Workbench `Map` can turn a generated output preview card into an editable `Output edit` frame with source-frame lineage, generated target path, a flow connection, output-target metadata on the matching variant branch object, `spatialWorkspace.variantBranches[].outputBinding`, and task/rewrite/build `outputEditBinding`
 - [x] Workbench `Map` renders recent checkpoints inside a visible spatial history lane for longer collaboration sessions, exported through `spatialWorkspace.lanes`
 - [x] Workbench `Map` can collapse or expand the checkpoint history lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
@@ -95,7 +96,7 @@ Status: In progress
 done now:
   focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/multi-selected/lasso-selected/nudged/duplicated/deleted/pinned Map objects, selected-set Map dragging/resizing, no-API selected-object/selection context copy, group duplication with contained Map object copies, manual context objects, readable generated output objects, generated-output shelf lane with collapse/expand, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
-  richer nested object editing, deeper editable per-type inspectors, history-lane reorder controls, and full arbitrary-object infinite canvas behavior
+  richer nested object editing, deeper editable per-type inspectors, deeper multi-lane/timeline editing, and full arbitrary-object infinite canvas behavior
 ```
 
 ### Sprint 2: Add voice as a native Canvax input
