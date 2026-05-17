@@ -370,6 +370,7 @@ const dom = {
   flowNavigatorItems: document.querySelector("#flow-navigator-items"),
   flowNavigatorViewport: document.querySelector("#flow-navigator-viewport"),
   flowNavigatorScale: document.querySelector("#flow-navigator-scale"),
+  mapObjectSearch: document.querySelector("#map-object-search"),
   mapObjectFilterChips: document.querySelector("#map-object-filter-chips"),
   addSpatialNote: document.querySelector("#add-spatial-note"),
   addSpatialFile: document.querySelector("#add-spatial-file"),
@@ -544,6 +545,7 @@ function applyVisualFixture(mode) {
   state.historyLaneCollapsed = false;
   state.hiddenSpatialObjectIds = [];
   state.mapObjectFilter = "all";
+  state.mapObjectSearch = "";
   state.flowZoom = 0.8;
   state.viewMode = "flow";
   state.workbenchFocus = "map";
@@ -811,6 +813,9 @@ function bindEvents() {
       return;
     }
     setMapObjectFilter(button.dataset.mapObjectFilter);
+  });
+  dom.mapObjectSearch.addEventListener("input", () => {
+    setMapObjectSearch(dom.mapObjectSearch.value, { announce: false });
   });
   dom.addSpatialNote.addEventListener("click", addSpatialNoteObject);
   dom.addSpatialFile.addEventListener("click", () => {
@@ -1404,6 +1409,7 @@ function hydrateState() {
       outputLaneCollapsed: Boolean(migrated.outputLaneCollapsed),
       historyLaneCollapsed: Boolean(migrated.historyLaneCollapsed),
       mapObjectFilter: normalizeMapObjectFilter(migrated.mapObjectFilter),
+      mapObjectSearch: normalizeMapSearchQuery(migrated.mapObjectSearch),
       assetCandidatePack: normalizeAssetCandidatePack(
         migrated.assetCandidatePack,
       ),
@@ -1728,6 +1734,7 @@ function createInitialState() {
     outputLaneCollapsed: false,
     historyLaneCollapsed: false,
     mapObjectFilter: "all",
+    mapObjectSearch: "",
     assetCandidatePack: null,
     spatialObjects: [],
     hiddenSpatialObjectIds: [],
@@ -3648,6 +3655,35 @@ function setMapObjectFilter(value) {
   );
 }
 
+function normalizeMapSearchQuery(value) {
+  return cleanString(value).slice(0, 96);
+}
+
+function setMapObjectSearch(value, options = {}) {
+  const { announce = true } = options;
+  const nextQuery = normalizeMapSearchQuery(value);
+  if (state.mapObjectSearch === nextQuery) {
+    return;
+  }
+  state.mapObjectSearch = nextQuery;
+  const selectedIds = currentSelectedSpatialObjectIds().filter((id) => {
+    const object = spatialObjectById(id);
+    return object && isSpatialObjectVisibleInCurrentMap(object);
+  });
+  setSelectedSpatialObjects(selectedIds, selectedIds.at(-1) || null);
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  if (announce) {
+    renderStatus(
+      nextQuery
+        ? `Searching Map for "${nextQuery}"`
+        : "Map search cleared",
+    );
+  }
+}
+
 function spatialObjectKey(...values) {
   const candidate = values
     .map((value) =>
@@ -4341,6 +4377,9 @@ function isSpatialObjectVisibleInCurrentMap(object) {
   if (!object) {
     return false;
   }
+  if (!isSpatialObjectVisibleForSearch(object)) {
+    return false;
+  }
   if (isSpatialObjectPinned(object)) {
     return true;
   }
@@ -4351,6 +4390,39 @@ function isSpatialObjectVisibleInCurrentMap(object) {
     return false;
   }
   return isSpatialObjectVisibleForFilter(object, state.mapObjectFilter);
+}
+
+function isSpatialObjectVisibleForSearch(object) {
+  const query = normalizeMapSearchQuery(state.mapObjectSearch).toLowerCase();
+  if (!query) {
+    return true;
+  }
+  return spatialObjectSearchText(object).includes(query);
+}
+
+function spatialObjectSearchText(object) {
+  const meta = object?.meta || {};
+  const values = [
+    object?.id,
+    object?.type,
+    object?.title,
+    object?.subtitle,
+    object?.status,
+    object?.sourceKind,
+    spatialObjectSourceLabel(object),
+    spatialObjectFrameLabel(object),
+    spatialObjectFooterStatus(object),
+    meta.prompt,
+    meta.description,
+    meta.summary,
+    meta.sourceLabel,
+    meta.path,
+    meta.previewPath,
+    meta.url,
+    meta.placement,
+    meta.sourceFrameTitle,
+  ];
+  return values.map(cleanString).filter(Boolean).join(" ").toLowerCase();
 }
 
 function isSpatialObjectPinned(object) {
@@ -7743,9 +7815,12 @@ function renderFlowBoard() {
     state.workspaceMode === "simple"
       ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag background to pan, drag cards/objects into an edge to expand space, Shift-drag empty space to lasso, or pinch/ctrl-wheel to zoom."
       : "Drag cards to arrange screens. Output preview cards are generated Materialize/Build results, not extra frames; remove stale preview cards with x. Drag cards/objects into an edge to expand space, pan the background, zoom, or pull from the dot on a frame to connect screens.";
+  const searchSuffix = state.mapObjectSearch
+    ? ` Search is filtering Map objects for "${state.mapObjectSearch}".`
+    : "";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
-    : defaultStatus;
+    : `${defaultStatus}${searchSuffix}`;
   renderMapObjectFilterChips();
   renderOutputLaneToggle(spatialLanes);
   renderHistoryLaneToggle(spatialLanes);
@@ -7841,6 +7916,12 @@ function renderOutputLaneToggle(lanes = buildSpatialWorkspaceLanes()) {
 }
 
 function renderMapObjectFilterChips() {
+  if (
+    dom.mapObjectSearch &&
+    dom.mapObjectSearch.value !== (state.mapObjectSearch || "")
+  ) {
+    dom.mapObjectSearch.value = state.mapObjectSearch || "";
+  }
   if (!dom.mapObjectFilterChips) {
     return;
   }
@@ -13530,6 +13611,7 @@ function buildSpatialObjectFilterExport() {
   return {
     id,
     label: mapObjectFilterLabel(id),
+    searchQuery: normalizeMapSearchQuery(state.mapObjectSearch),
     visibleObjectIds,
     hiddenObjectCount: Math.max(
       0,
@@ -15956,6 +16038,7 @@ function buildPersistedSnapshot(source) {
     outputLaneCollapsed: Boolean(source.outputLaneCollapsed),
     historyLaneCollapsed: Boolean(source.historyLaneCollapsed),
     mapObjectFilter: normalizeMapObjectFilter(source.mapObjectFilter),
+    mapObjectSearch: normalizeMapSearchQuery(source.mapObjectSearch),
     connections: source.connections,
     entryFrameId: source.entryFrameId,
     activeFrameId: source.activeFrameId,
@@ -17936,6 +18019,7 @@ function assertWorkbenchSpatialMap() {
     flowZoom: state.flowZoom,
     tool: state.tool,
     mapObjectFilter: state.mapObjectFilter,
+    mapObjectSearch: state.mapObjectSearch,
     outputLaneCollapsed: state.outputLaneCollapsed,
     spatialObjects: structuredClone(state.spatialObjects),
   };
@@ -18111,6 +18195,17 @@ function assertWorkbenchSpatialMap() {
     ) &&
     !dom.flowBoard.querySelector("[data-spatial-object-id='spatial-selftest-asset']");
   setMapObjectFilter("all");
+  setMapObjectSearch("self-test output", { announce: false });
+  const searchExport = buildSpatialWorkspaceExport();
+  const searchVisible =
+    searchExport.objectFilter?.searchQuery === "self-test output" &&
+    Boolean(
+      dom.flowBoard.querySelector(
+        "[data-spatial-object-id='spatial-selftest-output']",
+      ),
+    ) &&
+    !dom.flowBoard.querySelector("[data-spatial-object-id='spatial-selftest-asset']");
+  setMapObjectSearch("", { announce: false });
   const fitTarget = spatialObjectById("spatial-selftest-output");
   if (fitTarget) {
     fitTarget.x = 2400;
@@ -18169,6 +18264,7 @@ function assertWorkbenchSpatialMap() {
     assetFilterVisible,
     assetFilterHidesOutput,
     outputFilterVisible,
+    searchVisible,
     fitMapWorked,
     navigatorPanned,
     viewportExported,
@@ -18191,6 +18287,7 @@ function assertWorkbenchSpatialMap() {
   state.flowZoom = previous.flowZoom;
   state.tool = previous.tool;
   state.mapObjectFilter = previous.mapObjectFilter;
+  state.mapObjectSearch = previous.mapObjectSearch;
   state.outputLaneCollapsed = previous.outputLaneCollapsed;
   state.spatialObjects = previous.spatialObjects;
   persistState();
@@ -18211,11 +18308,12 @@ function assertWorkbenchSpatialMap() {
       assetFilterVisible &&
       assetFilterHidesOutput &&
       outputFilterVisible &&
+      searchVisible &&
       navigatorRendered &&
       fitMapWorked &&
       navigatorPanned &&
       viewportExported,
-    "Workbench spatial map renders, filters, and exports frames, objects, and group containment",
+    "Workbench spatial map renders, filters, searches, and exports frames, objects, and group containment",
     spatialMapDetail,
   );
 }

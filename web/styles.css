@@ -3474,6 +3474,44 @@ select,
     color: rgba(255, 248, 236, 0.94);
 }
 
+.map-search-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2.65rem;
+    padding: 0.3rem 0.45rem 0.3rem 0.75rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 248, 236, 0.08);
+    color: rgba(255, 248, 236, 0.78);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.05);
+}
+
+.map-search-control span {
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.map-search-control input {
+    width: min(16rem, 34vw);
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 248, 236, 0.92);
+    color: var(--ink);
+    font: inherit;
+    padding: 0.58rem 0.78rem;
+    outline: none;
+}
+
+.map-search-control input:focus-visible {
+    box-shadow:
+        0 0 0 0.16rem rgba(255, 93, 58, 0.24),
+        inset 0 0 0 0.0625rem rgba(255, 93, 58, 0.36);
+}
+
 .spatial-lane.collapsed {
     min-height: 5.75rem;
     border-style: solid;

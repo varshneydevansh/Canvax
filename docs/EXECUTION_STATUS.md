@@ -76,6 +76,7 @@ Status: In progress
 - [x] Workbench `Map` renders recent checkpoints inside a visible spatial history lane for longer collaboration sessions, exported through `spatialWorkspace.lanes`
 - [x] Workbench `Map` can collapse or expand the checkpoint history lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
 - [x] Workbench `Map` includes an object focus filter for all objects, outputs, assets, notes, or history, and exports the active focus through `spatialWorkspace.objectFilter`
+- [x] Workbench `Map` includes text search for generated outputs, assets, notes, paths, prompts, frame labels, and statuses, and exports the active query through `spatialWorkspace.objectFilter.searchQuery`
 - [x] Workbench `Map` can pin selected objects so important outputs, assets, notes, or checkpoints remain visible across focus filters and collapsed history
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
 - [x] Advanced command deck is a solid sticky inspector header using the same Workbench visual language, so frame/map content does not blur through the controls during long scrolls
