@@ -1924,6 +1924,28 @@ body[data-workspace-mode="simple"] .workbench-output-footer .ghost-link-button {
     letter-spacing: 0.02em;
 }
 
+.asset-candidate-import {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.asset-candidate-import input {
+    min-width: 0;
+    min-height: 2rem;
+    padding: 0 0.65rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.14);
+    color: #fff8ec;
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 0.72rem;
+}
+
+.asset-candidate-import input::placeholder {
+    color: rgba(255, 248, 236, 0.44);
+}
+
 .asset-kind {
     display: inline-flex;
     align-items: center;

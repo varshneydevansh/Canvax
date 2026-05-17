@@ -419,6 +419,7 @@ After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it 
 
 - place an editable image slot back onto the matching source frame or region
 - attach a generated image file to that slot after using a host image-generation tool
+- attach a generated image by path when Codex or another local tool writes it under the workspace, using a workspace-relative path, `/workspace/...` URL, absolute path inside the Canvax project root, or data image URL
 - compare attached candidates in the tray through thumbnails and status chips
 - select the placed image element on its source frame
 - accept the chosen generated image so the candidate output slot records the decision
@@ -428,6 +429,14 @@ After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it 
 
 The tray still does not call an image API. It is a local bridge between prompt-ready candidates and whatever image-generation host is available in the current Codex/ChatGPT session.
 
+Path import is useful when a generated image already exists on disk. Example inputs:
+
+```text
+artifacts/images/page-01-spread.png
+/workspace/artifacts/images/page-01-spread.png
+/Users/devanshvarshney/Canvax/artifacts/images/page-01-spread.png
+```
+
 ```text
 sketch + labels + voice
   -> Image pack
@@ -435,7 +444,8 @@ sketch + labels + voice
   -> asset candidate records
   -> Workbench asset candidate tray
   -> host image generation
-  -> generated image attached back to the matching editable frame/region slot
+  -> generated image attached by file picker or workspace path
+  -> matching editable frame/region slot
 ```
 
 Older compatibility files may also be written:

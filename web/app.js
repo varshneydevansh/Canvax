@@ -646,6 +646,16 @@ function bindEvents() {
     }
     placeAssetCandidatePlaceholder(button.dataset.assetCandidatePlace);
   });
+  dom.assetCandidateTray.addEventListener("submit", (event) => {
+    const form = event.target.closest("[data-asset-candidate-import-form]");
+    if (!form) {
+      return;
+    }
+    event.preventDefault();
+    const candidateId = form.dataset.assetCandidateImportForm;
+    const input = form.querySelector("[data-asset-candidate-path]");
+    void placeAssetCandidateImageFromPath(candidateId, input?.value || "");
+  });
   dom.assetCandidateTray.addEventListener("change", (event) => {
     const input = event.target.closest("[data-asset-candidate-upload]");
     if (!input || !input.files?.[0]) {
@@ -4714,7 +4724,7 @@ function latestAssetCandidateElement(candidateId, { preferImage = false } = {}) 
     const imageEntry = entries
       .slice()
       .reverse()
-      .find((entry) => Boolean(entry.element.imageDataUrl));
+      .find((entry) => Boolean(entry.element.imageDataUrl || entry.element.src));
     if (imageEntry) {
       return imageEntry;
     }
@@ -4733,7 +4743,7 @@ function assetCandidateReviewState(candidate) {
   if (accepted) {
     return { label: "Accepted", tone: "accepted", attached };
   }
-  if (attached?.element?.imageDataUrl) {
+  if (attached?.element?.imageDataUrl || attached?.element?.src) {
     return { label: "Attached", tone: "attached", attached };
   }
   if (latestAssetCandidateElement(candidate?.id)) {
@@ -4826,7 +4836,10 @@ function renderAssetCandidateTray() {
           const title = candidate.title || "Untitled candidate";
           const placement = candidate.placement || "whole frame";
           const review = assetCandidateReviewState(candidate);
-          const previewImage = review.attached?.element?.imageDataUrl || "";
+          const previewImage =
+            review.attached?.element?.imageDataUrl ||
+            review.attached?.element?.src ||
+            "";
           const typeLabel =
             candidate.type === "frame-composite" ? "frame" : "region";
           const placementMap =
@@ -4861,7 +4874,8 @@ function renderAssetCandidateTray() {
                   Place slot
                 </button>
                 ${
-                  review.attached?.element?.imageDataUrl && review.tone !== "accepted"
+                  (review.attached?.element?.imageDataUrl || review.attached?.element?.src) &&
+                  review.tone !== "accepted"
                     ? `<button class="ghost-button compact" type="button" data-asset-candidate-accept="${escapeHtml(candidate.id)}">Accept</button>`
                     : ""
                 }
@@ -4870,6 +4884,17 @@ function renderAssetCandidateTray() {
                   <input data-asset-candidate-upload="${escapeHtml(candidate.id)}" type="file" accept="image/*" />
                 </label>
               </div>
+              <form class="asset-candidate-import" data-asset-candidate-import-form="${escapeHtml(candidate.id)}">
+                <input
+                  data-asset-candidate-path="${escapeHtml(candidate.id)}"
+                  type="text"
+                  placeholder="artifacts/...png or /workspace/..."
+                  aria-label="Workspace image path for ${escapeHtml(title)}"
+                />
+                <button class="ghost-button compact" type="submit">
+                  Attach path
+                </button>
+              </form>
             </article>
           `;
         })
@@ -4941,6 +4966,7 @@ function addAssetCandidateElement(candidate, options = {}) {
     alpha: 1,
     composite: "source-over",
     imageDataUrl: options.imageDataUrl || "",
+    src: options.src || "",
     sourceName: options.sourceName || candidate.title || "Asset candidate",
     assetCandidateId: candidate.id,
   };
@@ -4948,13 +4974,14 @@ function addAssetCandidateElement(candidate, options = {}) {
   pushHistory(frame.id);
   frame.elements.push(element);
   updateAssetCandidateSlot(candidate, element, {
-    attached: Boolean(options.imageDataUrl),
+    attached: Boolean(options.imageDataUrl || options.src),
+    imagePath: options.imagePath || options.src || "",
     sourceName: options.sourceName || candidate.title || "Asset candidate",
   });
   setSelectedElements([element.id], element.id);
   touchFrame(frame, {
     capture: true,
-    status: options.imageDataUrl
+    status: options.imageDataUrl || options.src
       ? "Asset candidate image attached"
       : "Asset candidate slot placed",
   });
@@ -4965,7 +4992,7 @@ function addAssetCandidateElement(candidate, options = {}) {
 function updateAssetCandidateSlot(
   candidate,
   element,
-  { attached = false, accepted = false, sourceName = "" } = {},
+  { attached = false, accepted = false, sourceName = "", imagePath = "" } = {},
 ) {
   if (!candidate || !element) {
     return;
@@ -4984,7 +5011,7 @@ function updateAssetCandidateSlot(
     {
       ...previousSlot,
       label: previousSlot.label || "Generated image",
-      imagePath: sourceName || previousSlot.imagePath || "",
+      imagePath: imagePath || sourceName || previousSlot.imagePath || "",
       imageElementId: element.id,
       frameId: currentFrame()?.id || candidate.sourceFrameId || "",
       accepted: Boolean(accepted),
@@ -5027,13 +5054,14 @@ function selectAssetCandidateElement(candidateId) {
 function acceptAssetCandidate(candidateId, { sync = true } = {}) {
   const candidate = assetCandidateById(candidateId);
   const entry = latestAssetCandidateElement(candidateId, { preferImage: true });
-  if (!candidate || !entry?.element?.imageDataUrl) {
+  if (!candidate || !(entry?.element?.imageDataUrl || entry?.element?.src)) {
     renderStatus("Attach a generated image before accepting this candidate");
     return false;
   }
   updateAssetCandidateSlot(candidate, entry.element, {
     attached: true,
     accepted: true,
+    imagePath: entry.element.src || entry.element.sourceName || candidate.title,
     sourceName: entry.element.sourceName || candidate.title,
   });
   state.activeFrameId = entry.frame.id;
@@ -5078,6 +5106,114 @@ async function placeAssetCandidateImage(candidateId, file) {
     renderStatus("Generated asset attached to candidate region");
   }
   return element;
+}
+
+async function placeAssetCandidateImageFromPath(candidateId, inputPath) {
+  const candidate = assetCandidateById(candidateId);
+  const source = resolveAssetCandidateImageSource(inputPath);
+  if (!candidate || !source) {
+    renderStatus(
+      "Use a workspace-relative image path, /workspace/... URL, or data image URL",
+    );
+    return null;
+  }
+  try {
+    await ensureImage(source.src);
+  } catch {
+    renderStatus("Asset candidate image path could not be loaded");
+    return null;
+  }
+  const element = addAssetCandidateElement(candidate, {
+    src: source.src,
+    imagePath: source.imagePath,
+    sourceName: source.sourceName || candidate.title,
+  });
+  if (element) {
+    renderStatus("Generated asset path attached to candidate region");
+  }
+  return element;
+}
+
+function resolveAssetCandidateImageSource(inputPath) {
+  const raw = cleanString(inputPath);
+  if (!raw) {
+    return null;
+  }
+  if (/^data:image\//i.test(raw)) {
+    return {
+      src: raw,
+      imagePath: "inline-data-url",
+      sourceName: "Inline image data",
+    };
+  }
+  if (/^https?:\/\//i.test(raw)) {
+    return {
+      src: raw,
+      imagePath: raw,
+      sourceName: assetCandidatePathBasename(raw) || "Remote image",
+    };
+  }
+
+  let path = raw;
+  if (/^file:\/\//i.test(path)) {
+    try {
+      path = decodeURIComponent(new URL(path).pathname);
+    } catch {
+      return null;
+    }
+  }
+
+  if (path.startsWith("/workspace/")) {
+    const [pathname, query = ""] = path.split("?");
+    const relativePath = decodeURIComponent(
+      pathname.replace(/^\/workspace\//, ""),
+    );
+    return {
+      src: path,
+      imagePath: relativePath,
+      sourceName: assetCandidatePathBasename(relativePath) || "Workspace image",
+      query,
+    };
+  }
+
+  const projectRoot = cleanString(state.serverStatus.projectRoot);
+  if (projectRoot && path.startsWith(`${projectRoot}/`)) {
+    path = path.slice(projectRoot.length + 1);
+  }
+  if (path.startsWith("./")) {
+    path = path.slice(2);
+  }
+  if (path.startsWith("/") || path.split(/[\\/]/).includes("..")) {
+    return null;
+  }
+
+  const relativePath = path.split("\\").join("/");
+  const encodedPath = relativePath
+    .split("/")
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+  if (!encodedPath) {
+    return null;
+  }
+  return {
+    src: `/workspace/${encodedPath}`,
+    imagePath: relativePath,
+    sourceName: assetCandidatePathBasename(relativePath) || "Workspace image",
+  };
+}
+
+function assetCandidatePathBasename(path) {
+  const cleanPath = cleanString(path).split("?")[0].split("#")[0];
+  const segment = cleanPath.split(/[\\/]/).filter(Boolean).at(-1) || "";
+  if (!segment) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 function renderWorkbenchOutput() {
@@ -13212,7 +13348,12 @@ function summarizeCompositionElement(element, frame, viewport, index) {
     strokeSize: element.size || 0,
     assetCandidateId: element.assetCandidateId || "",
     prototype: normalizeElementPrototype(element.prototype),
-    hasEmbeddedImage: element.type === "image" && Boolean(element.imageDataUrl),
+    hasEmbeddedImage:
+      element.type === "image" && Boolean(element.imageDataUrl || element.src),
+    imageSource:
+      element.type === "image"
+        ? cleanString(element.src || element.sourceName || "")
+        : "",
     bounds: normalizedBounds,
     placement: describeBounds(normalizedBounds),
   };
@@ -18046,6 +18187,7 @@ async function assertAssetCandidateTrayPlacement() {
     future: structuredClone(history.future),
   };
   const candidateId = "asset-selftest-region";
+  const pathCandidateId = "asset-selftest-path-region";
 
   state.assetCandidatePack = normalizeAssetCandidatePack({
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -18066,14 +18208,41 @@ async function assertAssetCandidateTrayPlacement() {
         aspectRatio: "4:3",
         outputSlots: [],
       },
+      {
+        id: pathCandidateId,
+        type: "region",
+        status: "prompt-ready",
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
+        title: "Self-test path import region",
+        prompt: "Attach a generated image from a saved workspace path.",
+        negativePrompt: "",
+        bounds: { x: 0.58, y: 0.24, w: 0.18, h: 0.18 },
+        placement: "upper-right",
+        aspectRatio: "1:1",
+        outputSlots: [],
+      },
     ],
   });
   const normalizedCandidate = assetCandidateById(candidateId);
   renderAssetCandidateTray();
+  const pathImportInputRendered = Boolean(
+    dom.assetCandidateTray.querySelector(
+      `[data-asset-candidate-path="${pathCandidateId}"]`,
+    ),
+  );
   const element = placeAssetCandidatePlaceholder(candidateId);
   const file = await createSelfTestImageFile();
   const imageElement = await placeAssetCandidateImage(candidateId, file);
   const accepted = acceptAssetCandidate(candidateId, { sync: false });
+  const pathDataUrl = await readFileAsDataUrl(file);
+  const pathImageElement = await placeAssetCandidateImageFromPath(
+    pathCandidateId,
+    pathDataUrl,
+  );
+  const pathCandidate = assetCandidateById(pathCandidateId);
+  const pathSlot = pathCandidate?.outputSlots?.[0] || null;
+  const pathReview = assetCandidateReviewState(pathCandidate);
   const acceptedCandidate = assetCandidateById(candidateId);
   const acceptedSlot = acceptedCandidate?.outputSlots?.[0] || null;
   const reviewSummary = state.assetCandidatePack?.reviewSummary || {};
@@ -18083,6 +18252,7 @@ async function assertAssetCandidateTrayPlacement() {
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const placed =
     !dom.assetCandidateTray.hidden &&
+    pathImportInputRendered &&
     normalizedCandidate?.placementMap?.kind === "canvax-asset-placement" &&
     normalizedCandidate?.outputSlots?.[0]?.slotId ===
       `${candidateId}-slot-1` &&
@@ -18095,14 +18265,21 @@ async function assertAssetCandidateTrayPlacement() {
     Math.abs((element.start?.y || 0) - viewport.height * 0.22) < 4 &&
     imageElement?.assetCandidateId === candidateId &&
     Boolean(imageElement?.imageDataUrl) &&
+    pathImageElement?.assetCandidateId === pathCandidateId &&
+    pathImageElement?.src?.startsWith("data:image/") &&
+    pathCandidate?.status === "attached" &&
+    pathSlot?.imagePath === "inline-data-url" &&
+    pathSlot?.status === "attached" &&
+    pathReview?.tone === "attached" &&
     accepted &&
     acceptedCandidate?.status === "accepted" &&
     acceptedSlot?.accepted === true &&
     acceptedSlot?.status === "accepted" &&
     acceptedSlot?.imageElementId === imageElement.id &&
     placementMap.targetSelector?.includes(candidateId) &&
-    reviewSummary.placementReady === 1 &&
-    reviewSummary.slotCount === 1 &&
+    reviewSummary.placementReady === 2 &&
+    reviewSummary.slotCount === 2 &&
+    reviewSummary.attached === 1 &&
     reviewSummary.accepted === 1 &&
     reviewSummary.acceptedCandidateIds?.includes(candidateId) &&
     acceptedSummary?.imageElementId === imageElement.id;
@@ -18119,7 +18296,7 @@ async function assertAssetCandidateTrayPlacement() {
 
   return assert(
     placed,
-    "asset candidate tray places, attaches, accepts, and summarizes editable image slots",
+    "asset candidate tray places, imports by path, attaches, accepts, and summarizes editable image slots",
   );
 }
 

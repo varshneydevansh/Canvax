@@ -328,7 +328,7 @@ done
   image prompt pack -> asset candidate records with placementMap + output slots
   asset candidate records -> Workbench candidate tray -> editable slots
   generated/reference image -> paste/drop -> editable image element on frame
-  generated file -> candidate tray attach -> editable image element with candidate id
+  generated file/path -> candidate tray attach -> editable image element with candidate id
 
 next
   prompt pack -> host image generation -> multiple candidate images -> compare/select/accept UI
@@ -337,7 +337,7 @@ next
 Needed:
 
 - Asset regions on canvas.
-- Image candidate import and placement back into the board. **Initial candidate tray placement and attach-image import are shipped.**
+- Image candidate import and placement back into the board. **Initial candidate tray placement, attach-image import, and workspace-path import are shipped.**
 - Variant comparison for image generations.
 - Style-lock packs for books, comics, posters, decks, and brand systems.
 - A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format shipped.**
@@ -453,7 +453,7 @@ Concrete next steps:
 
 - Add `Build with Codex` beside `Generate screen`. **Done for Workbench, rail, toolbar, and Advanced generation panel.**
 - Add explicit action modes for `Build UI`, `Refine UI`, `Write spec`, `Make image prompt`, and `Create variations`.
-- Add generated image candidate import/placement as first-class board assets. **Initial Workbench candidate tray and editable image-slot placement shipped.**
+- Add generated image candidate import/placement as first-class board assets. **Initial Workbench candidate tray, editable image-slot placement, file attach, and workspace-path attach shipped.**
 - Add a Browser Use / Atlas first workflow to the Canvax skill/plugin path: start service, open board in Codex browser, open Preview, inspect generated app, publish manifest.
 - Implement a task artifact under `artifacts/canvax/build-requests/` that Codex can read and execute. **Initial JSON/Markdown request archive and deterministic local executor shipped.**
 - Extend `write-codex-output.mjs` so Codex can bind generated routes/components to frame ids in one command.
