@@ -127,6 +127,7 @@ Canvax today
 - Pasted or dropped images can now become editable image elements, so generated candidates or reference crops can be placed back on a frame instead of only sitting behind the sketch.
 - Saved asset candidates now appear in a compact Workbench tray. Designers can place a candidate as an editable image slot on its source frame/region or attach a generated file back into that slot while preserving `assetCandidateId`.
 - Asset candidate cards now show attached-image thumbnails, review status, selection, and an accept action so generated image choices become explicit no-API handoff state. Accepted choices also export through `reviewSummary.acceptedCandidates`, giving Codex a direct list of chosen image/illustration candidates.
+- Asset candidates now normalize into a `placementMap` contract with slot id, normalized bounds, source-viewport pixel bounds, CSS placement, a target selector, HTML slot scaffold, and output-slot records. This gives Codex or a host image tool exact placement data for UI image regions, poster art, book spreads, and illustration candidates without requiring Canvax to call a paid API.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the floating designer rail without requiring the user to open Advanced mode.
@@ -308,7 +309,7 @@ Needed:
 
 ### 6. Image Model And Asset Workflow
 
-Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
+Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records with placement maps/output slots, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
 
 Target behavior:
 
@@ -321,7 +322,7 @@ Current stepping stone:
 ```text
 done
   rough sketch -> labels/voice -> image prompt pack -> coordinates + scaffold
-  image prompt pack -> asset candidate records with output slots
+  image prompt pack -> asset candidate records with placementMap + output slots
   asset candidate records -> Workbench candidate tray -> editable slots
   generated/reference image -> paste/drop -> editable image element on frame
   generated file -> candidate tray attach -> editable image element with candidate id

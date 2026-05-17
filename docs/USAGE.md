@@ -384,9 +384,24 @@ Asset candidates are prompt-ready records, not generated images. They preserve:
 - source frame and region
 - prompt and negative prompt
 - normalized bounds
+- pixel bounds
+- CSS placement values
+- target selectors and a small HTML slot scaffold
 - aspect ratio
 - HTML/CSS scaffold
 - empty output slots where generated images can be attached later
+
+Each candidate now includes a `placementMap` contract. That contract gives Codex or a host image tool a precise target for the generated image:
+
+```text
+asset candidate
+  -> placementMap.slotId
+  -> normalizedBounds 0..1
+  -> pixelBounds on the source viewport
+  -> cssPlacement left/top/width/height
+  -> targetSelector for generated code or prompt handoff
+  -> outputSlots[] for attached/accepted images
+```
 
 After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it to:
 
@@ -397,6 +412,7 @@ After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it 
 - accept the chosen generated image so the candidate output slot records the decision
 - keep the asset bound to its `assetCandidateId` so Codex can trace which prompt produced which visual region
 - read `reviewSummary.acceptedCandidates` in the asset candidate pack when Codex needs the chosen image/illustration candidate
+- read `placementMap` and `outputSlots` when Codex needs to place a poster image, children-book spread region, UI screenshot, or illustration candidate without guessing coordinates
 
 The tray still does not call an image API. It is a local bridge between prompt-ready candidates and whatever image-generation host is available in the current Codex/ChatGPT session.
 

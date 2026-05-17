@@ -2499,12 +2499,52 @@ function applyWorkbenchPromptChip(chipId) {
   void saveCheckpointToWorkspace("workbench-prompt-chip", { silent: true });
 }
 
+function normalizeAssetCandidate(candidate) {
+  if (!candidate?.id) {
+    return null;
+  }
+  const frame =
+    currentFrameById(candidate.sourceFrameId) ||
+    state.frames[0] ||
+    currentFrame();
+  const placementMap = buildAssetCandidatePlacementMap(candidate, frame);
+  const outputSlots = normalizeAssetCandidateOutputSlots(
+    candidate.outputSlots,
+    candidate,
+    placementMap,
+  );
+  const hasAccepted = outputSlots.some((slot) => slot.accepted);
+  const hasAttached = outputSlots.some((slot) => slot.attached);
+  const hasPlaced = outputSlots.some((slot) => slot.imageElementId);
+  return {
+    ...candidate,
+    status:
+      candidate.status ||
+      (hasAccepted
+        ? "accepted"
+        : hasAttached
+          ? "attached"
+          : hasPlaced
+            ? "placed"
+            : "prompt-ready"),
+    sourceFrameId: candidate.sourceFrameId || frame?.id || "",
+    sourceFrameTitle:
+      candidate.sourceFrameTitle || frame?.title || "Canvax frame",
+    placement:
+      candidate.placement ||
+      placementMap.placement ||
+      describeBounds(placementMap.normalizedBounds),
+    placementMap,
+    outputSlots,
+  };
+}
+
 function normalizeAssetCandidatePack(pack) {
   if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
     return null;
   }
   const candidates = Array.isArray(pack.candidates)
-    ? pack.candidates.filter((candidate) => candidate?.id)
+    ? pack.candidates.map(normalizeAssetCandidate).filter(Boolean)
     : [];
   return {
     ...pack,
@@ -2513,6 +2553,170 @@ function normalizeAssetCandidatePack(pack) {
     reviewSummary: buildAssetCandidateReviewSummary(candidates),
     candidates,
   };
+}
+
+function buildAssetCandidatePlacementMap(candidate, frame = currentFrame()) {
+  const viewport = assetCandidateViewport(frame);
+  const normalizedBounds = normalizedAssetCandidateBounds(candidate);
+  const pixelBounds = pixelBoundsFromNormalizedBounds(
+    normalizedBounds,
+    viewport,
+  );
+  const cssPlacement = {
+    position: "absolute",
+    left: `${roundNumber(normalizedBounds.x * 100)}%`,
+    top: `${roundNumber(normalizedBounds.y * 100)}%`,
+    width: `${roundNumber(normalizedBounds.w * 100)}%`,
+    height: `${roundNumber(normalizedBounds.h * 100)}%`,
+    aspectRatio:
+      candidate.aspectRatio ||
+      `${Math.max(1, Math.round(pixelBounds.width))}/${Math.max(
+        1,
+        Math.round(pixelBounds.height),
+      )}`,
+  };
+  const slotId = assetCandidateSlotId(candidate, 0);
+  const safeId = String(candidate.id || "asset-candidate").replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  );
+  return {
+    kind: "canvax-asset-placement",
+    slotId,
+    sourceFrameId: candidate.sourceFrameId || frame?.id || "",
+    sourceFrameTitle: candidate.sourceFrameTitle || frame?.title || "",
+    sourceElementId: candidate.sourceElementId || "",
+    surface: viewport.id,
+    viewport,
+    placement: candidate.placement || describeBounds(normalizedBounds),
+    normalizedBounds,
+    pixelBounds,
+    safeZones: buildSafeZones(viewport),
+    cssPlacement,
+    targetSelector: `[data-asset-candidate-id="${safeId}"]`,
+    htmlScaffold: `<figure class="canvax-asset-slot" data-asset-candidate-id="${safeId}" style="position:absolute;left:${cssPlacement.left};top:${cssPlacement.top};width:${cssPlacement.width};height:${cssPlacement.height};aspect-ratio:${cssPlacement.aspectRatio};"></figure>`,
+    instructions:
+      "Generate or attach imagery for this exact slot, then place the result back on the same frame using the normalized and pixel bounds.",
+  };
+}
+
+function assetCandidateViewport(frame) {
+  const preset = viewportPresets[frame?.viewport] || viewportPresets.desktop;
+  const width = frame?.viewportWidth || preset.width || 1440;
+  const height = frame?.viewportHeight || preset.height || 1024;
+  return {
+    id: frame?.viewport || preset.id || "desktop",
+    label: preset.label || frame?.viewport || "Canvas",
+    width,
+    height,
+    aspectRatio: `${width}:${height}`,
+  };
+}
+
+function normalizedAssetCandidateBounds(candidate) {
+  const bounds = candidate?.bounds;
+  if (
+    bounds &&
+    Number.isFinite(bounds.x) &&
+    Number.isFinite(bounds.y) &&
+    Number.isFinite(bounds.w) &&
+    Number.isFinite(bounds.h) &&
+    bounds.w > 0 &&
+    bounds.h > 0
+  ) {
+    const x = clamp(bounds.x, 0, 0.98);
+    const y = clamp(bounds.y, 0, 0.98);
+    const w = clamp(bounds.w, 0.02, 1 - x);
+    const h = clamp(bounds.h, 0.02, 1 - y);
+    return {
+      x: roundNumber(x),
+      y: roundNumber(y),
+      w: roundNumber(w),
+      h: roundNumber(h),
+      centerX: roundNumber(x + w / 2),
+      centerY: roundNumber(y + h / 2),
+    };
+  }
+  return {
+    x: 0,
+    y: 0,
+    w: 1,
+    h: 1,
+    centerX: 0.5,
+    centerY: 0.5,
+  };
+}
+
+function pixelBoundsFromNormalizedBounds(bounds, viewport) {
+  const left = Math.round(bounds.x * viewport.width);
+  const top = Math.round(bounds.y * viewport.height);
+  const width = Math.round(bounds.w * viewport.width);
+  const height = Math.round(bounds.h * viewport.height);
+  return {
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+  };
+}
+
+function assetCandidateSlotId(candidate, index = 0) {
+  return `${candidate?.id || "asset-candidate"}-slot-${index + 1}`;
+}
+
+function normalizeAssetCandidateOutputSlots(slots, candidate, placementMap) {
+  const baseSlots = Array.isArray(slots) && slots.length ? slots : [{}];
+  return baseSlots.map((slot, index) => {
+    const accepted = Boolean(slot.accepted);
+    const attached = Boolean(
+      slot.attached || slot.imagePath || slot.imageElementId,
+    );
+    const status =
+      slot.status ||
+      (accepted ? "accepted" : attached ? "attached" : "empty");
+    return {
+      id: slot.id || slot.slotId || assetCandidateSlotId(candidate, index),
+      slotId: slot.slotId || slot.id || assetCandidateSlotId(candidate, index),
+      label:
+        slot.label ||
+        (candidate.type === "frame-composite"
+          ? "Full-frame generated image"
+          : "Generated region image"),
+      role:
+        slot.role ||
+        (candidate.type === "frame-composite"
+          ? "full-frame-output"
+          : "region-output"),
+      status,
+      assetCandidateId: candidate.id,
+      frameId:
+        slot.frameId ||
+        candidate.sourceFrameId ||
+        placementMap.sourceFrameId ||
+        "",
+      frameTitle:
+        slot.frameTitle ||
+        candidate.sourceFrameTitle ||
+        placementMap.sourceFrameTitle ||
+        "",
+      placement: slot.placement || candidate.placement || placementMap.placement,
+      bounds: slot.bounds || placementMap.normalizedBounds,
+      pixelBounds: slot.pixelBounds || placementMap.pixelBounds,
+      cssPlacement: slot.cssPlacement || placementMap.cssPlacement,
+      targetSelector: slot.targetSelector || placementMap.targetSelector,
+      imagePath: slot.imagePath || "",
+      imageElementId: slot.imageElementId || "",
+      accepted,
+      attached,
+      attachedAt: slot.attachedAt || "",
+      acceptedAt: slot.acceptedAt || "",
+      notes:
+        slot.notes ||
+        "Empty local slot. Generate externally through the host image lane when available, then attach the result here.",
+    };
+  });
 }
 
 function normalizeSpatialObjects(objects) {
@@ -2558,7 +2762,14 @@ function syncSpatialObjectsFromHandoffs() {
   const hiddenObjectIds = new Set(
     normalizeStringArray(state.hiddenSpatialObjectIds),
   );
-  const candidates = state.assetCandidatePack?.candidates || [];
+  const candidates = (state.assetCandidatePack?.candidates || [])
+    .map(normalizeAssetCandidate)
+    .filter(Boolean);
+  if (state.assetCandidatePack) {
+    state.assetCandidatePack.candidates = candidates;
+    state.assetCandidatePack.reviewSummary =
+      buildAssetCandidateReviewSummary(candidates);
+  }
   const manifest = state.serverStatus?.previewManifest || null;
   const targets = collectManifestTargets(manifest).filter(
     manifestItemBelongsToCurrentBoard,
@@ -2621,7 +2832,11 @@ function syncSpatialObjectsFromHandoffs() {
       status: candidate.status || "prompt-ready",
       meta: {
         prompt: candidate.prompt || "",
+        placement: candidate.placement || "",
         bounds: candidate.bounds || null,
+        placementMap: candidate.placementMap || null,
+        outputSlots: candidate.outputSlots || [],
+        sourceFrameTitle: candidate.sourceFrameTitle || "",
         aspectRatio: candidate.aspectRatio || "",
       },
     });
@@ -3675,6 +3890,36 @@ function buildSpatialObjectContextText(object) {
       `- Target: ${object.meta.path || object.meta.previewPath || object.meta.url}`,
     );
   }
+  if (object.sourceKind === "asset-candidate" && object.meta?.placementMap) {
+    const placement = object.meta.placementMap;
+    const pixel = placement.pixelBounds || {};
+    const css = placement.cssPlacement || {};
+    details.push(
+      "",
+      "## Asset Placement Contract",
+      `- Slot: ${placement.slotId || object.sourceId || object.id}`,
+      `- Surface: ${placement.surface || "canvas"} ${placement.viewport?.width || "?"} x ${placement.viewport?.height || "?"}`,
+      `- Placement: ${placement.placement || object.meta?.placement || object.subtitle || "unspecified"}`,
+      `- Normalized bounds: ${JSON.stringify(placement.normalizedBounds || {})}`,
+      `- Pixel bounds: ${pixel.left || 0}, ${pixel.top || 0}, ${pixel.width || 0} x ${pixel.height || 0}`,
+      `- CSS: left ${css.left || "0%"}, top ${css.top || "0%"}, width ${css.width || "100%"}, height ${css.height || "100%"}`,
+      `- Target selector: ${placement.targetSelector || ""}`,
+      `- Scaffold: ${placement.htmlScaffold || ""}`,
+    );
+    const slots = Array.isArray(object.meta.outputSlots)
+      ? object.meta.outputSlots
+      : [];
+    if (slots.length) {
+      details.push(
+        "",
+        "## Output Slots",
+        ...slots.map(
+          (slot, index) =>
+            `- ${index + 1}. ${slot.slotId || slot.id || "slot"}: ${slot.status || "empty"} on ${slot.frameTitle || slot.frameId || frameLabel}`,
+        ),
+      );
+    }
+  }
   if (promptText) {
     details.push("", "## Prompt / Context", promptText);
   }
@@ -3768,11 +4013,17 @@ function assetCandidateReviewState(candidate) {
 
 function buildAssetCandidateReviewSummary(candidates = []) {
   const items = Array.isArray(candidates) ? candidates : [];
+  const slots = items.flatMap((candidate) =>
+    Array.isArray(candidate.outputSlots) ? candidate.outputSlots : [],
+  );
   const acceptedCandidates = items
     .map(summarizeAcceptedAssetCandidate)
     .filter(Boolean);
   return {
     total: items.length,
+    placementReady: items.filter((candidate) => candidate.placementMap).length,
+    slotCount: slots.length,
+    emptySlots: slots.filter((slot) => !slot.attached && !slot.accepted).length,
     promptReady: items.filter((candidate) => candidate.status === "prompt-ready")
       .length,
     placed: items.filter((candidate) => candidate.status === "placed").length,
@@ -3800,6 +4051,9 @@ function summarizeAcceptedAssetCandidate(candidate) {
     sourceFrameTitle: candidate.sourceFrameTitle || "",
     placement: candidate.placement || "",
     bounds: candidate.bounds || null,
+    placementMap: candidate.placementMap || null,
+    slotId: fallbackSlot.slotId || fallbackSlot.id || "",
+    pixelBounds: fallbackSlot.pixelBounds || candidate.placementMap?.pixelBounds || null,
     imageElementId: fallbackSlot.imageElementId || "",
     frameId: fallbackSlot.frameId || candidate.sourceFrameId || "",
     imagePath: fallbackSlot.imagePath || "",
@@ -3840,6 +4094,13 @@ function renderAssetCandidateTray() {
           const previewImage = review.attached?.element?.imageDataUrl || "";
           const typeLabel =
             candidate.type === "frame-composite" ? "frame" : "region";
+          const placementMap =
+            candidate.placementMap ||
+            buildAssetCandidatePlacementMap(candidate, currentFrameById(candidate.sourceFrameId));
+          const pixelBounds = placementMap.pixelBounds || {};
+          const slotCount = Array.isArray(candidate.outputSlots)
+            ? candidate.outputSlots.length
+            : 0;
           return `
             <article class="asset-candidate-card ${sameFrame ? "active-frame" : ""} ${review.tone === "accepted" ? "accepted" : ""}">
               <div class="asset-candidate-card-head">
@@ -3857,6 +4118,9 @@ function renderAssetCandidateTray() {
               }
               <strong title="${escapeHtml(title)}">${escapeHtml(compactDisplayText(title, 42))}</strong>
               <p title="${escapeHtml(candidate.prompt || "")}">${escapeHtml(placement)}</p>
+              <p class="asset-placement-contract">
+                ${escapeHtml(placementMap.surface || "canvas")} · ${Math.round(pixelBounds.width || 0)}×${Math.round(pixelBounds.height || 0)} px · ${slotCount || 1} output slot${(slotCount || 1) === 1 ? "" : "s"}
+              </p>
               <div class="asset-candidate-actions">
                 <button class="ghost-button compact" type="button" data-asset-candidate-place="${escapeHtml(candidate.id)}">
                   Place slot
@@ -3971,9 +4235,15 @@ function updateAssetCandidateSlot(
   if (!candidate || !element) {
     return;
   }
-  const previousSlot = Array.isArray(candidate.outputSlots)
-    ? candidate.outputSlots[0] || {}
-    : {};
+  const frame = currentFrame() || currentFrameById(candidate.sourceFrameId);
+  candidate.placementMap =
+    candidate.placementMap || buildAssetCandidatePlacementMap(candidate, frame);
+  const previousSlot =
+    normalizeAssetCandidateOutputSlots(
+      candidate.outputSlots,
+      candidate,
+      candidate.placementMap,
+    )[0] || {};
   candidate.status = accepted ? "accepted" : attached ? "attached" : "placed";
   candidate.outputSlots = [
     {
@@ -3984,6 +4254,7 @@ function updateAssetCandidateSlot(
       frameId: currentFrame()?.id || candidate.sourceFrameId || "",
       accepted: Boolean(accepted),
       attached: Boolean(attached || previousSlot.attached),
+      status: accepted ? "accepted" : attached ? "attached" : "placed",
       attachedAt: attached ? new Date().toISOString() : previousSlot.attachedAt || "",
       acceptedAt: accepted ? new Date().toISOString() : "",
       notes:
@@ -6078,6 +6349,23 @@ function spatialObjectBodyText(object, frameTitle = "") {
 
   if (object?.sourceKind === "workspace-change") {
     return object.meta?.summary || object.subtitle || "Workspace file change";
+  }
+
+  if (object?.sourceKind === "asset-candidate") {
+    const placement = object.meta?.placementMap || {};
+    const pixelBounds = placement.pixelBounds || {};
+    const slotCount = Array.isArray(object.meta?.outputSlots)
+      ? object.meta.outputSlots.length
+      : 0;
+    return [
+      object.meta?.placement || object.subtitle || "Prompt-ready image slot",
+      placement.surface
+        ? `${placement.surface} placement, ${Math.round(pixelBounds.width || 0)} x ${Math.round(pixelBounds.height || 0)} px`
+        : "",
+      slotCount ? `${slotCount} output slot${slotCount === 1 ? "" : "s"}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
   }
 
   if (object?.sourceKind === "variant-branch") {
@@ -11049,7 +11337,9 @@ function buildAssetCandidatePack(imagePromptPack) {
     .flatMap((frame) => buildFrameAssetCandidates(frame))
     .map((candidate) =>
       mergeAssetCandidateReview(candidate, existingById.get(candidate.id)),
-    );
+    )
+    .map(normalizeAssetCandidate)
+    .filter(Boolean);
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-asset-candidates",
@@ -11629,6 +11919,9 @@ function buildAssetCandidatePackMarkdown(pack) {
     "",
     "## Review Summary",
     "",
+    `- Placement-ready: ${reviewSummary.placementReady || 0}`,
+    `- Output slots: ${reviewSummary.slotCount || 0}`,
+    `- Empty slots: ${reviewSummary.emptySlots || 0}`,
     `- Accepted: ${reviewSummary.accepted || 0}`,
     `- Attached: ${reviewSummary.attached || 0}`,
     `- Placed slots: ${reviewSummary.placed || 0}`,
@@ -11653,13 +11946,33 @@ function buildAssetCandidatePackMarkdown(pack) {
     lines.push(`- Placement: ${candidate.placement}`);
     lines.push(`- Bounds: ${candidate.bounds ? JSON.stringify(candidate.bounds) : "whole frame"}`);
     lines.push(`- Aspect ratio: ${candidate.aspectRatio || "not specified"}`);
+    if (candidate.placementMap) {
+      const placement = candidate.placementMap;
+      const pixel = placement.pixelBounds || {};
+      const css = placement.cssPlacement || {};
+      lines.push("");
+      lines.push("### Placement Contract");
+      lines.push("");
+      lines.push(`- Slot id: ${placement.slotId}`);
+      lines.push(`- Surface: ${placement.surface} ${placement.viewport?.width || "?"}x${placement.viewport?.height || "?"}`);
+      lines.push(`- Normalized bounds: ${JSON.stringify(placement.normalizedBounds)}`);
+      lines.push(`- Pixel bounds: ${pixel.left || 0}, ${pixel.top || 0}, ${pixel.width || 0}x${pixel.height || 0}`);
+      lines.push(`- CSS placement: left ${css.left || "0%"}, top ${css.top || "0%"}, width ${css.width || "100%"}, height ${css.height || "100%"}`);
+      lines.push(`- Target selector: \`${placement.targetSelector || ""}\``);
+      lines.push("");
+      lines.push("```html");
+      lines.push(placement.htmlScaffold || "");
+      lines.push("```");
+    }
     const slots = Array.isArray(candidate.outputSlots)
       ? candidate.outputSlots
       : [];
     if (slots.length) {
+      lines.push("");
+      lines.push("### Output Slots");
       slots.forEach((slot, slotIndex) => {
         lines.push(
-          `- Output slot ${slotIndex + 1}: ${slot.accepted ? "accepted" : slot.attached ? "attached" : "empty"}${slot.imageElementId ? ` (${slot.imageElementId})` : ""}`,
+          `- ${slotIndex + 1}. ${slot.slotId || slot.id}: ${slot.status || (slot.accepted ? "accepted" : slot.attached ? "attached" : "empty")}${slot.imageElementId ? ` (${slot.imageElementId})` : ""} at ${slot.placement || candidate.placement || "unspecified"}`,
         );
       });
     }
@@ -15403,7 +15716,7 @@ async function assertAssetCandidateTrayPlacement() {
   };
   const candidateId = "asset-selftest-region";
 
-  state.assetCandidatePack = {
+  state.assetCandidatePack = normalizeAssetCandidatePack({
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-asset-candidates",
     requiresOpenAiApiKey: false,
@@ -15423,7 +15736,8 @@ async function assertAssetCandidateTrayPlacement() {
         outputSlots: [],
       },
     ],
-  };
+  });
+  const normalizedCandidate = assetCandidateById(candidateId);
   renderAssetCandidateTray();
   const element = placeAssetCandidatePlaceholder(candidateId);
   const file = await createSelfTestImageFile();
@@ -15433,10 +15747,14 @@ async function assertAssetCandidateTrayPlacement() {
   const acceptedSlot = acceptedCandidate?.outputSlots?.[0] || null;
   const reviewSummary = state.assetCandidatePack?.reviewSummary || {};
   const acceptedSummary = reviewSummary.acceptedCandidates?.[0] || null;
+  const placementMap = acceptedCandidate?.placementMap || {};
   const bounds = element ? getElementBounds(element, frame) : null;
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const placed =
     !dom.assetCandidateTray.hidden &&
+    normalizedCandidate?.placementMap?.kind === "canvax-asset-placement" &&
+    normalizedCandidate?.outputSlots?.[0]?.slotId ===
+      `${candidateId}-slot-1` &&
     element?.type === "image" &&
     element.assetCandidateId === candidateId &&
     !element.imageDataUrl &&
@@ -15449,7 +15767,11 @@ async function assertAssetCandidateTrayPlacement() {
     accepted &&
     acceptedCandidate?.status === "accepted" &&
     acceptedSlot?.accepted === true &&
+    acceptedSlot?.status === "accepted" &&
     acceptedSlot?.imageElementId === imageElement.id &&
+    placementMap.targetSelector?.includes(candidateId) &&
+    reviewSummary.placementReady === 1 &&
+    reviewSummary.slotCount === 1 &&
     reviewSummary.accepted === 1 &&
     reviewSummary.acceptedCandidateIds?.includes(candidateId) &&
     acceptedSummary?.imageElementId === imageElement.id;

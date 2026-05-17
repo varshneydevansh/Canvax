@@ -808,9 +808,24 @@ Each candidate is a prompt-ready asset slot:
 - optional source region
 - prompt and negative prompt
 - normalized bounds
+- pixel bounds for the source viewport
+- CSS placement values
+- generated-code target selector
 - aspect ratio
-- HTML/CSS scaffold
+- HTML/CSS slot scaffold
 - output slot for a generated image path later
+
+Every candidate now carries a `placementMap`:
+
+```text
+placementMap
+  slotId        stable local slot id
+  surface       desktop / mobile / free canvas viewport
+  bounds        normalized + pixel coordinates
+  cssPlacement  left/top/width/height/aspect-ratio
+  selector      data-asset-candidate-id target
+  scaffold      minimal HTML slot for host image/code tools
+```
 
 Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
 
@@ -821,6 +836,7 @@ Workbench now reads the latest candidate pack and renders a compact `Asset candi
 - accept an attached generated image as the chosen candidate for that frame or region
 - preserve the candidate id on the image element for later export, materialize, and Codex handoff
 - export a `reviewSummary` with accepted candidate IDs and image element bindings so Codex can identify the chosen visual without reading the tray UI
+- export placement-ready Map object context so a selected image prompt can be copied or read by Codex without coordinate guessing
 
 ```mermaid
 flowchart LR
@@ -830,13 +846,15 @@ flowchart LR
     D --> E[Place editable slot]
     D --> F[Attach generated image]
     F --> G[Frame image element]
+    C --> H[Map asset object]
+    H --> I[Copy placement context]
 
     classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#211815;
     classDef pack fill:#fff7e6,stroke:#f0a202,color:#211815;
     classDef image fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
     class A sketch;
     class B,C,D pack;
-    class E,F,G image;
+    class E,F,G,H,I image;
 ```
 
 This keeps image workflows local-first while giving future ChatGPT/Codex image-generation bridges a concrete target format.

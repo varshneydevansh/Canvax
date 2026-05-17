@@ -490,6 +490,10 @@ async function validateAssetCandidatesEndpoint() {
         payload?.assetCandidatePack?.kind === "canvax-asset-candidates" &&
         payload.assetCandidatePack.requiresOpenAiApiKey === false &&
         payload.candidateCount === 1 &&
+        payload.assetCandidatePack.candidates?.[0]?.placementMap?.kind ===
+          "canvax-asset-placement" &&
+        payload.assetCandidatePack.candidates?.[0]?.outputSlots?.[0]
+          ?.targetSelector &&
         typeof payload.latestJsonPath === "string",
     );
     results.push({

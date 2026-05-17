@@ -1842,6 +1842,17 @@ body[data-workspace-mode="simple"] .workbench-output-footer .ghost-link-button {
     font-size: 0.76rem;
 }
 
+.asset-candidate-card .asset-placement-contract {
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.65rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.1);
+    color: rgba(255, 248, 236, 0.72);
+    background: rgba(0, 0, 0, 0.14);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+}
+
 .asset-kind {
     display: inline-flex;
     align-items: center;

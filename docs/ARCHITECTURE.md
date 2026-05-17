@@ -483,7 +483,7 @@ Look in `web/app.js` for:
 
 Pasted or dropped images become `type: "image"` elements with `start`, `end`, `imageDataUrl`, `sourceName`, and optional `assetCandidateId`. They use the same selection, movement, resizing, duplication, layering, export, and materialize paths as other bounded elements.
 
-Asset candidates also become `type: "image"` elements when the user chooses `Place slot` or `Attach image` in the Workbench candidate tray. Empty slots have no `imageDataUrl` yet, but they still preserve `assetCandidateId`, bounds, and source name so generated assets can be traced back to their prompt record.
+Asset candidates also become `type: "image"` elements when the user chooses `Place slot` or `Attach image` in the Workbench candidate tray. Empty slots have no `imageDataUrl` yet, but they still preserve `assetCandidateId`, bounds, source name, placement contract, and output-slot status so generated assets can be traced back to their prompt record and exact frame coordinates.
 
 ### Flow view
 
@@ -572,7 +572,16 @@ Image/asset handoff files:
 - `exports/canvax-asset-candidates-latest.json`
 - `artifacts/canvax/asset-candidates/...`
 
-Asset candidates are prompt-ready records with bounds and empty output slots. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots. Canvax still does not generate the image itself unless a future host bridge provides that capability.
+Asset candidates are prompt-ready records with a `placementMap` and empty output slots. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots. Canvax still does not generate the image itself unless a future host bridge provides that capability.
+
+```text
+asset candidate pack
+  -> candidate.placementMap
+  -> candidate.outputSlots[]
+  -> Workbench asset tray
+  -> Map asset object contextMarkdown
+  -> Codex / host image tool can preserve placement
+```
 
 ## Current Design Boundary
 

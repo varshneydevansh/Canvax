@@ -1161,7 +1161,7 @@ async function handleSaveAssetCandidates(request, response) {
   }
 
   const candidates = Array.isArray(source.candidates)
-    ? source.candidates
+    ? source.candidates.map(normalizeServerAssetCandidate).filter(Boolean)
     : [];
   if (!candidates.length) {
     return writeJson(response, 400, {
@@ -1180,6 +1180,8 @@ async function handleSaveAssetCandidates(request, response) {
     kind: "canvax-asset-candidates",
     createdAt,
     requiresOpenAiApiKey: false,
+    candidates,
+    reviewSummary: buildServerAssetCandidateReviewSummary(candidates),
     archive: {
       requestId,
       jsonPath: toWorkspaceRelativePath(requestJsonPath),
@@ -1227,6 +1229,160 @@ async function handleSaveAssetCandidates(request, response) {
   });
 }
 
+function normalizeServerAssetCandidate(candidate) {
+  if (!candidate?.id) {
+    return null;
+  }
+  const placementMap =
+    candidate.placementMap || buildServerAssetPlacementMap(candidate);
+  const outputSlots = normalizeServerAssetOutputSlots(
+    candidate.outputSlots,
+    candidate,
+    placementMap,
+  );
+  return {
+    ...candidate,
+    status: candidate.status || "prompt-ready",
+    placement:
+      candidate.placement ||
+      placementMap.placement ||
+      "whole frame",
+    placementMap,
+    outputSlots,
+  };
+}
+
+function buildServerAssetPlacementMap(candidate) {
+  const viewport = {
+    id: candidate.viewport?.id || "desktop",
+    label: candidate.viewport?.label || "Desktop",
+    width: Number(candidate.viewport?.width) || 1440,
+    height: Number(candidate.viewport?.height) || 1024,
+  };
+  viewport.aspectRatio = `${viewport.width}:${viewport.height}`;
+  const normalizedBounds = normalizeServerAssetBounds(candidate.bounds);
+  const pixelBounds = {
+    left: Math.round(normalizedBounds.x * viewport.width),
+    top: Math.round(normalizedBounds.y * viewport.height),
+    width: Math.round(normalizedBounds.w * viewport.width),
+    height: Math.round(normalizedBounds.h * viewport.height),
+  };
+  pixelBounds.right = pixelBounds.left + pixelBounds.width;
+  pixelBounds.bottom = pixelBounds.top + pixelBounds.height;
+  const cssPlacement = {
+    position: "absolute",
+    left: `${roundServerNumber(normalizedBounds.x * 100)}%`,
+    top: `${roundServerNumber(normalizedBounds.y * 100)}%`,
+    width: `${roundServerNumber(normalizedBounds.w * 100)}%`,
+    height: `${roundServerNumber(normalizedBounds.h * 100)}%`,
+    aspectRatio:
+      candidate.aspectRatio ||
+      `${Math.max(1, pixelBounds.width)}/${Math.max(1, pixelBounds.height)}`,
+  };
+  const safeId = String(candidate.id).replace(/[^a-zA-Z0-9_-]/g, "-");
+  return {
+    kind: "canvax-asset-placement",
+    slotId: `${candidate.id}-slot-1`,
+    sourceFrameId: candidate.sourceFrameId || "",
+    sourceFrameTitle: candidate.sourceFrameTitle || "",
+    sourceElementId: candidate.sourceElementId || "",
+    surface: viewport.id,
+    viewport,
+    placement: candidate.placement || "whole frame",
+    normalizedBounds,
+    pixelBounds,
+    cssPlacement,
+    targetSelector: `[data-asset-candidate-id="${safeId}"]`,
+    htmlScaffold: `<figure class="canvax-asset-slot" data-asset-candidate-id="${safeId}"></figure>`,
+  };
+}
+
+function normalizeServerAssetBounds(bounds) {
+  if (
+    bounds &&
+    Number.isFinite(bounds.x) &&
+    Number.isFinite(bounds.y) &&
+    Number.isFinite(bounds.w) &&
+    Number.isFinite(bounds.h) &&
+    bounds.w > 0 &&
+    bounds.h > 0
+  ) {
+    const x = Math.min(Math.max(bounds.x, 0), 0.98);
+    const y = Math.min(Math.max(bounds.y, 0), 0.98);
+    const w = Math.min(Math.max(bounds.w, 0.02), 1 - x);
+    const h = Math.min(Math.max(bounds.h, 0.02), 1 - y);
+    return {
+      x: roundServerNumber(x),
+      y: roundServerNumber(y),
+      w: roundServerNumber(w),
+      h: roundServerNumber(h),
+      centerX: roundServerNumber(x + w / 2),
+      centerY: roundServerNumber(y + h / 2),
+    };
+  }
+  return { x: 0, y: 0, w: 1, h: 1, centerX: 0.5, centerY: 0.5 };
+}
+
+function normalizeServerAssetOutputSlots(slots, candidate, placementMap) {
+  const baseSlots = Array.isArray(slots) && slots.length ? slots : [{}];
+  return baseSlots.map((slot, index) => {
+    const slotId = slot.slotId || slot.id || `${candidate.id}-slot-${index + 1}`;
+    const accepted = Boolean(slot.accepted);
+    const attached = Boolean(
+      slot.attached || slot.imagePath || slot.imageElementId,
+    );
+    return {
+      id: slot.id || slotId,
+      slotId,
+      label:
+        slot.label ||
+        (candidate.type === "frame-composite"
+          ? "Full-frame generated image"
+          : "Generated region image"),
+      role:
+        slot.role ||
+        (candidate.type === "frame-composite"
+          ? "full-frame-output"
+          : "region-output"),
+      status:
+        slot.status ||
+        (accepted ? "accepted" : attached ? "attached" : "empty"),
+      assetCandidateId: candidate.id,
+      frameId: slot.frameId || candidate.sourceFrameId || "",
+      frameTitle: slot.frameTitle || candidate.sourceFrameTitle || "",
+      placement: slot.placement || candidate.placement || placementMap.placement,
+      bounds: slot.bounds || placementMap.normalizedBounds,
+      pixelBounds: slot.pixelBounds || placementMap.pixelBounds,
+      cssPlacement: slot.cssPlacement || placementMap.cssPlacement,
+      targetSelector: slot.targetSelector || placementMap.targetSelector,
+      imagePath: slot.imagePath || "",
+      imageElementId: slot.imageElementId || "",
+      accepted,
+      attached,
+      attachedAt: slot.attachedAt || "",
+      acceptedAt: slot.acceptedAt || "",
+      notes: slot.notes || "Empty local image-generation output slot.",
+    };
+  });
+}
+
+function buildServerAssetCandidateReviewSummary(candidates = []) {
+  const slots = candidates.flatMap((candidate) => candidate.outputSlots || []);
+  return {
+    total: candidates.length,
+    placementReady: candidates.filter((candidate) => candidate.placementMap)
+      .length,
+    slotCount: slots.length,
+    emptySlots: slots.filter((slot) => !slot.accepted && !slot.attached).length,
+    accepted: slots.filter((slot) => slot.accepted).length,
+    attached: slots.filter((slot) => slot.attached).length,
+  };
+}
+
+function roundServerNumber(value) {
+  return Number(Number(value || 0).toFixed(4));
+}
+
 function buildServerAssetCandidatesMarkdown(pack) {
   const lines = [
     "# Canvax Asset Candidates",
@@ -1247,9 +1403,28 @@ function buildServerAssetCandidatesMarkdown(pack) {
       `- Source frame: ${candidate.sourceFrameTitle || candidate.sourceFrameId || "unknown"}`,
       `- Status: ${candidate.status || "prompt-ready"}`,
       `- Bounds: ${candidate.bounds ? JSON.stringify(candidate.bounds) : "whole frame"}`,
-      "",
-      candidate.prompt || "No prompt provided.",
     );
+    if (candidate.placementMap) {
+      const placement = candidate.placementMap;
+      const pixel = placement.pixelBounds || {};
+      const css = placement.cssPlacement || {};
+      lines.push(
+        `- Placement slot: ${placement.slotId || candidate.id}`,
+        `- Pixel slot: ${pixel.left || 0}, ${pixel.top || 0}, ${pixel.width || 0}x${pixel.height || 0}`,
+        `- CSS slot: ${css.left || "0%"}, ${css.top || "0%"}, ${css.width || "100%"}, ${css.height || "100%"}`,
+        `- Selector: \`${placement.targetSelector || ""}\``,
+      );
+    }
+    if (Array.isArray(candidate.outputSlots) && candidate.outputSlots.length) {
+      lines.push(
+        "- Output slots:",
+        ...candidate.outputSlots.map(
+          (slot, slotIndex) =>
+            `  - ${slotIndex + 1}. ${slot.slotId || slot.id}: ${slot.status || "empty"}`,
+        ),
+      );
+    }
+    lines.push("", candidate.prompt || "No prompt provided.");
   });
   return lines.join("\n");
 }

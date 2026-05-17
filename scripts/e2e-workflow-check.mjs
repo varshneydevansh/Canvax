@@ -62,6 +62,16 @@ record(
     assetCandidates.requiresOpenAiApiKey === false &&
     assetCandidates.candidates.length === 2,
 );
+record(
+  "asset candidates include placement contracts and output slots",
+  assetCandidates.candidates.every(
+    (candidate) =>
+      candidate.placementMap?.kind === "canvax-asset-placement" &&
+      candidate.outputSlots?.[0]?.slotId &&
+      candidate.outputSlots?.[0]?.cssPlacement &&
+      candidate.outputSlots?.[0]?.targetSelector,
+  ),
+);
 
 const buildResult = await executeJson("node", [
   "scripts/execute-build-request.mjs",
@@ -339,40 +349,120 @@ function buildImagePromptPack(board, frame) {
 }
 
 function buildAssetCandidatePack(board, frame) {
+  const candidates = [
+    {
+      id: "asset-e2e-hero-illustration",
+      type: "region",
+      status: "prompt-ready",
+      sourceFrameId: frame.id,
+      sourceFrameTitle: frame.title,
+      title: "Hero illustration candidate",
+      prompt:
+        "Create a confident product illustration that fits the right-side asset slot.",
+      bounds: { x: 0.58, y: 0.68, w: 0.22, h: 0.14 },
+      placement: "right-side hero asset slot",
+      aspectRatio: "16:10",
+      outputSlots: [],
+    },
+    {
+      id: "asset-e2e-background-texture",
+      type: "frame-composite",
+      status: "prompt-ready",
+      sourceFrameId: frame.id,
+      sourceFrameTitle: frame.title,
+      title: "Paper texture direction",
+      prompt:
+        "Generate a subtle aged-paper texture compatible with Canvax warm paper surfaces.",
+      bounds: { x: 0.05, y: 0.08, w: 0.9, h: 0.78 },
+      placement: "whole hero background",
+      aspectRatio: "16:9",
+      outputSlots: [],
+    },
+  ].map((candidate) => withAssetPlacement(candidate, frame));
+
   return {
     schemaVersion: 1,
     kind: "canvax-asset-candidates",
     createdAt: now(),
     requiresOpenAiApiKey: false,
     board,
-    candidates: [
+    candidates,
+  };
+}
+
+function withAssetPlacement(candidate, frame) {
+  const viewport = frame.viewport || { id: "desktop", width: 1440, height: 1024 };
+  const bounds = candidate.bounds || {
+    x: 0,
+    y: 0,
+    w: 1,
+    h: 1,
+    centerX: 0.5,
+    centerY: 0.5,
+  };
+  const normalizedBounds = {
+    ...bounds,
+    centerX: round(bounds.x + bounds.w / 2),
+    centerY: round(bounds.y + bounds.h / 2),
+  };
+  const pixelBounds = {
+    left: Math.round(bounds.x * viewport.width),
+    top: Math.round(bounds.y * viewport.height),
+    width: Math.round(bounds.w * viewport.width),
+    height: Math.round(bounds.h * viewport.height),
+  };
+  pixelBounds.right = pixelBounds.left + pixelBounds.width;
+  pixelBounds.bottom = pixelBounds.top + pixelBounds.height;
+  const cssPlacement = {
+    position: "absolute",
+    left: `${round(bounds.x * 100)}%`,
+    top: `${round(bounds.y * 100)}%`,
+    width: `${round(bounds.w * 100)}%`,
+    height: `${round(bounds.h * 100)}%`,
+    aspectRatio: candidate.aspectRatio,
+  };
+  const slotId = `${candidate.id}-slot-1`;
+  const placementMap = {
+    kind: "canvax-asset-placement",
+    slotId,
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    sourceElementId: candidate.sourceElementId || "",
+    surface: viewport.id,
+    viewport,
+    placement: candidate.placement,
+    normalizedBounds,
+    pixelBounds,
+    cssPlacement,
+    targetSelector: `[data-asset-candidate-id="${candidate.id}"]`,
+    htmlScaffold: `<figure class="canvax-asset-slot" data-asset-candidate-id="${candidate.id}"></figure>`,
+  };
+  return {
+    ...candidate,
+    placementMap,
+    outputSlots: [
       {
-        id: "asset-e2e-hero-illustration",
-        type: "region",
-        status: "prompt-ready",
-        sourceFrameId: frame.id,
-        sourceFrameTitle: frame.title,
-        title: "Hero illustration candidate",
-        prompt:
-          "Create a confident product illustration that fits the right-side asset slot.",
-        bounds: { x: 0.58, y: 0.68, w: 0.22, h: 0.14 },
-        placement: "right-side hero asset slot",
-        aspectRatio: "16:10",
-        outputSlots: [],
-      },
-      {
-        id: "asset-e2e-background-texture",
-        type: "frame-composite",
-        status: "prompt-ready",
-        sourceFrameId: frame.id,
-        sourceFrameTitle: frame.title,
-        title: "Paper texture direction",
-        prompt:
-          "Generate a subtle aged-paper texture compatible with Canvax warm paper surfaces.",
-        bounds: { x: 0.05, y: 0.08, w: 0.9, h: 0.78 },
-        placement: "whole hero background",
-        aspectRatio: "16:9",
-        outputSlots: [],
+        id: slotId,
+        slotId,
+        label:
+          candidate.type === "frame-composite"
+            ? "Full-frame generated image"
+            : "Generated region image",
+        role:
+          candidate.type === "frame-composite"
+            ? "full-frame-output"
+            : "region-output",
+        status: "empty",
+        assetCandidateId: candidate.id,
+        frameId: frame.id,
+        frameTitle: frame.title,
+        placement: candidate.placement,
+        bounds: normalizedBounds,
+        pixelBounds,
+        cssPlacement,
+        targetSelector: placementMap.targetSelector,
+        accepted: false,
+        attached: false,
       },
     ],
   };
@@ -481,6 +571,10 @@ function element(type, id, text, x, y, w, h, color) {
     color,
     bounds: { x, y, w, h },
   };
+}
+
+function round(value) {
+  return Number(value.toFixed(4));
 }
 
 function record(name, passed, detail = "") {
