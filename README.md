@@ -95,6 +95,7 @@ flowchart LR
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Exports Workbench Map group containment so Codex can read which frames, references, assets, generated outputs, artifacts, and changes belong to each exploration group.
+- Keeps Workbench/Advanced Map inside a bounded scroll viewport and adds `Tidy map` so frame cards, generated-output references, and checkpoint history can be compacted after long sessions.
 - Turns a generated output preview card into an editable `Output edit` frame, so a result can become a normal sketch/correction branch while task, rewrite, build, and executor payloads still point at the exact generated output target.
 - Promotes an editable variant branch into the primary direction with `Use variant`, while keeping lineage visible for Codex through `spatialWorkspace.variantBranches`.
 - Adds Preview `Play flow` so connected frames can be clicked through from the entry frame as a lightweight storyboard prototype, including generated hotspot overlays on sketch and output surfaces.
@@ -364,6 +365,8 @@ That file is merged automatically with the manual preview manifest so Canvax can
 - generated preview targets
 - changed files
 - artifacts like specs, notes, or exported HTML
+
+Canvax normalizes that merged manifest before rendering it: duplicate note paragraphs are collapsed, and old targets/artifacts/changes are capped to recent unique entries so stale generated outputs do not overwhelm the Map.
 
 For Codex-side publishing, the preferred helper is now:
 

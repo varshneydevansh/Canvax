@@ -300,7 +300,9 @@ body[data-workspace-mode="simple"][data-workbench-focus="map"] .stage-panel {
 }
 
 body[data-workspace-mode="simple"][data-workbench-focus="map"] .flow-shell {
-    min-height: min(78vh, 64rem);
+    height: min(78vh, 64rem);
+    min-height: 30rem;
+    max-height: 64rem;
     border-color: rgba(255, 248, 236, 0.14);
     background:
         radial-gradient(
@@ -422,8 +424,8 @@ body[data-workspace-mode="advanced"] .panel {
 }
 
 body[data-workspace-mode="advanced"] .toolbar {
-    position: sticky;
-    top: 0.75rem;
+    position: relative;
+    top: auto;
     z-index: 28;
     padding: 0.85rem;
     border-radius: 1.45rem;
@@ -2774,7 +2776,9 @@ select,
 
 .flow-shell {
     position: relative;
-    min-height: min(72vh, 56rem);
+    height: min(72vh, 56rem);
+    min-height: 28rem;
+    max-height: 56rem;
     border-radius: calc(var(--radius-lg) - 0.2rem);
     border: 0.0625rem solid rgba(24, 17, 14, 0.08);
     background:

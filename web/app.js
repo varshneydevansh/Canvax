@@ -3084,7 +3084,7 @@ function syncSpatialObjectsFromHandoffs() {
     if (hiddenObjectIds.has(id)) {
       return;
     }
-    const position = defaultSpatialObjectPosition(nextObjects.length);
+    const position = defaultOutputSpatialObjectPosition(index);
     upsertSpatialObject(nextObjects, existingIds, {
       id,
       type: "generated-output",
@@ -3110,6 +3110,7 @@ function syncSpatialObjectsFromHandoffs() {
         sourceLabel: target.label || "",
         laneId: SPATIAL_OUTPUT_LANE_ID,
         laneIndex: index,
+        autoLanePosition: true,
       },
     });
   });
@@ -3119,7 +3120,7 @@ function syncSpatialObjectsFromHandoffs() {
     if (hiddenObjectIds.has(id)) {
       return;
     }
-    const position = defaultSpatialObjectPosition(nextObjects.length);
+    const position = defaultOutputSpatialObjectPosition(mapTargets.length + index);
     upsertSpatialObject(nextObjects, existingIds, {
       id,
       type:
@@ -3146,6 +3147,7 @@ function syncSpatialObjectsFromHandoffs() {
         sourceLabel: artifact.label || "",
         laneId: SPATIAL_OUTPUT_LANE_ID,
         laneIndex: mapTargets.length + index,
+        autoLanePosition: true,
       },
     });
   });
@@ -3155,7 +3157,9 @@ function syncSpatialObjectsFromHandoffs() {
     if (hiddenObjectIds.has(id)) {
       return;
     }
-    const position = defaultSpatialObjectPosition(nextObjects.length);
+    const position = defaultOutputSpatialObjectPosition(
+      mapTargets.length + mapArtifacts.length + index,
+    );
     upsertSpatialObject(nextObjects, existingIds, {
       id,
       type: "changed-file",
@@ -3176,6 +3180,7 @@ function syncSpatialObjectsFromHandoffs() {
         sourceLabel: change.label || "",
         laneId: SPATIAL_OUTPUT_LANE_ID,
         laneIndex: mapTargets.length + mapArtifacts.length + index,
+        autoLanePosition: true,
       },
     });
   });
@@ -3210,6 +3215,7 @@ function syncSpatialObjectsFromHandoffs() {
         changeCount: checkpoint.changeCount || 0,
         laneId: SPATIAL_HISTORY_LANE_ID,
         laneIndex: index,
+        autoLanePosition: true,
       },
     });
   });
@@ -3595,6 +3601,19 @@ function defaultSpatialObjectPosition(index) {
       FLOW_SURFACE_PADDING +
       FLOW_CARD_HEIGHT +
       132 +
+      row * (SPATIAL_OBJECT_HEIGHT + 36),
+  };
+}
+
+function defaultOutputSpatialObjectPosition(index) {
+  const column = index % 3;
+  const row = Math.floor(index / 3);
+  return {
+    x: FLOW_SURFACE_PADDING + column * (SPATIAL_OBJECT_WIDTH + 44),
+    y:
+      FLOW_SURFACE_PADDING +
+      FLOW_CARD_HEIGHT +
+      300 +
       row * (SPATIAL_OBJECT_HEIGHT + 36),
   };
 }
@@ -8321,7 +8340,7 @@ function computeFlowSurfaceSize(frames = state.frames) {
     },
   );
 
-  return state.spatialObjects.reduce(
+  return state.spatialObjects.filter(isSpatialObjectVisibleInCurrentMap).reduce(
     (accumulator, object) => ({
       width: Math.max(
         accumulator.width,
@@ -10666,9 +10685,59 @@ function autoLayoutFlow() {
   state.frames.forEach((frame, index) => {
     frame.flowPosition = defaultFlowPosition(index);
   });
+  const tidiedCount = tidySpatialLaneObjects();
   persistState();
   renderAll();
-  renderStatus("Flow cards auto-laid out");
+  renderStatus(
+    tidiedCount
+      ? `Map tidied with ${tidiedCount} output/history object${tidiedCount === 1 ? "" : "s"}`
+      : "Frame cards auto-laid out",
+  );
+}
+
+function tidySpatialLaneObjects() {
+  const outputObjects = sortSpatialLaneObjects(
+    state.spatialObjects.filter(isManifestSpatialObject),
+  );
+  const checkpointObjects = sortSpatialLaneObjects(
+    state.spatialObjects.filter(isCheckpointSpatialObject),
+  );
+
+  outputObjects.forEach((object, index) => {
+    Object.assign(object, defaultOutputSpatialObjectPosition(index));
+    object.meta = {
+      ...(object.meta || {}),
+      laneId: SPATIAL_OUTPUT_LANE_ID,
+      laneIndex: index,
+      autoLanePosition: true,
+    };
+  });
+  checkpointObjects.forEach((object, index) => {
+    Object.assign(object, defaultHistoryCheckpointPosition(index));
+    object.meta = {
+      ...(object.meta || {}),
+      laneId: SPATIAL_HISTORY_LANE_ID,
+      laneIndex: index,
+      autoLanePosition: true,
+    };
+  });
+
+  return outputObjects.length + checkpointObjects.length;
+}
+
+function sortSpatialLaneObjects(objects) {
+  return [...objects].sort((a, b) => {
+    const laneA = Number.isFinite(a?.meta?.laneIndex)
+      ? a.meta.laneIndex
+      : Number.MAX_SAFE_INTEGER;
+    const laneB = Number.isFinite(b?.meta?.laneIndex)
+      ? b.meta.laneIndex
+      : Number.MAX_SAFE_INTEGER;
+    if (laneA !== laneB) {
+      return laneA - laneB;
+    }
+    return cleanString(a?.title).localeCompare(cleanString(b?.title));
+  });
 }
 
 function updateSelectedConnection(field, value) {
@@ -17606,6 +17675,19 @@ function assertSpatialObjectsFromOutputManifest() {
   const expandedOutputAgain = Boolean(
     dom.flowBoard.querySelector(".spatial-object-node.generated-output"),
   );
+  const mapHeightConstrained =
+    dom.flowShell.clientHeight > 0 &&
+    dom.flowShell.clientHeight < 1400 &&
+    getComputedStyle(dom.flowShell).overflowY === "auto";
+  autoLayoutFlow();
+  const tidiedGeneratedTarget = generatedTargetObject
+    ? spatialObjectById(generatedTargetObject.id)
+    : null;
+  const expectedOutputPosition = defaultOutputSpatialObjectPosition(0);
+  const outputTidyWorked =
+    Boolean(tidiedGeneratedTarget) &&
+    Math.round(tidiedGeneratedTarget.x) === expectedOutputPosition.x &&
+    Math.round(tidiedGeneratedTarget.y) === expectedOutputPosition.y;
   if (generatedTargetObject) {
     selectSpatialObject(generatedTargetObject.id, { render: true });
   }
@@ -17758,6 +17840,8 @@ function assertSpatialObjectsFromOutputManifest() {
       collapsedOutputCardsHidden &&
       collapsedOutputButton &&
       expandedOutputAgain &&
+      mapHeightConstrained &&
+      outputTidyWorked &&
       outputOpenLinks &&
       typeInspectorRendered &&
       editableOutputActionVisible &&
@@ -17784,6 +17868,8 @@ function assertSpatialObjectsFromOutputManifest() {
       collapsedOutputCardsHidden,
       collapsedOutputButton,
       expandedOutputAgain,
+      mapHeightConstrained,
+      outputTidyWorked,
       outputOpenLinks,
       typeInspectorRendered,
       editableOutputActionVisible,

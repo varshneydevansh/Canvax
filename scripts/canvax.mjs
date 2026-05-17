@@ -101,6 +101,10 @@ const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
 const LIVE_PREVIEW_CHANNEL_NAME = "canvax-preview-live-v1";
 const LOCAL_TRANSPORT_MODE = "local-companion";
 const FUTURE_TRANSPORT_MODE = "app-server";
+const PREVIEW_MANIFEST_TARGET_LIMIT = 48;
+const PREVIEW_MANIFEST_ARTIFACT_LIMIT = 120;
+const PREVIEW_MANIFEST_CHANGE_LIMIT = 80;
+const PREVIEW_MANIFEST_NOTE_LIMIT = 16;
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -2746,10 +2750,7 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
   const note = generatedScreen
     ? `Generate screen creates a richer local ${generationSummary} screen from the current Canvax frame and keeps the sketch board unchanged.`
     : "Materialize mode creates a styled local preview from the current Canvax frame and keeps the sketch board unchanged.";
-  const notes = [cleanString(manifest.notes), note]
-    .filter(Boolean)
-    .filter((entry, index, values) => values.indexOf(entry) === index)
-    .join("\n\n");
+  const notes = normalizeManifestNotes(manifest.notes, note);
 
   return normalizePreviewManifest({
     ...manifest,
@@ -5900,9 +5901,7 @@ function mergeManifestSources(manualManifest, codexManifest) {
     ],
     (change) => change.id || change.path || change.label,
   );
-  const notes = [cleanString(manual.notes), cleanString(codex.notes)]
-    .filter(Boolean)
-    .join("\n\n");
+  const notes = normalizeManifestNotes(manual.notes, codex.notes);
   const primaryTarget =
     targets.find((target) => target.id === "primary") || targets[0] || null;
 
@@ -6063,7 +6062,7 @@ function mergePreviewManifest(existingManifest, payload) {
       cleanString(payload.source) || baseManifest.source || "preview-window",
     previewUrl: nextTarget.url || "",
     targets: [nextTarget, ...remainingTargets],
-    notes: cleanString(payload.notes) || baseManifest.notes || "",
+    notes: normalizeManifestNotes(payload.notes, baseManifest.notes),
     artifacts: Array.isArray(payload.artifacts)
       ? payload.artifacts
       : baseManifest.artifacts,
@@ -6096,10 +6095,7 @@ function buildAutoPublishedCodexManifest(
   const autoNote = changeEntries.length
     ? `Auto-published ${changeEntries.length} workspace change${changeEntries.length === 1 ? "" : "s"} for ${targetLabel}.`
     : `Auto-published a clean workspace state for ${targetLabel}.`;
-  const notes = [cleanString(baseManifest.notes), autoNote]
-    .filter(Boolean)
-    .filter((entry, index, values) => values.indexOf(entry) === index)
-    .join("\n\n");
+  const notes = normalizeManifestNotes(baseManifest.notes, autoNote);
 
   return normalizePreviewManifest({
     ...baseManifest,
@@ -6394,13 +6390,17 @@ function normalizePreviewManifest(value, existingManifest = null) {
       : {};
   const explicitTargets = Array.isArray(next.targets) ? next.targets : null;
   const directTarget = buildPreviewTargetFromPayload(next);
-  const targets = normalizePreviewTargets(
-    explicitTargets ??
-      (directTarget
-        ? [directTarget]
-        : Array.isArray(fallback.targets)
-          ? fallback.targets
-          : []),
+  const targets = compactPreviewManifestEntries(
+    normalizePreviewTargets(
+      explicitTargets ??
+        (directTarget
+          ? [directTarget]
+          : Array.isArray(fallback.targets)
+            ? fallback.targets
+            : []),
+    ),
+    PREVIEW_MANIFEST_TARGET_LIMIT,
+    previewTargetKey,
   );
   const primaryTarget =
     targets.find((target) => target.id === "primary") || targets[0] || null;
@@ -6414,25 +6414,96 @@ function normalizePreviewManifest(value, existingManifest = null) {
       primaryTarget?.url ||
       cleanString(fallback.previewUrl) ||
       "",
-    notes: cleanString(next.notes) || cleanString(fallback.notes) || "",
+    notes: normalizeManifestNotes(next.notes, fallback.notes),
     targets,
-    artifacts: normalizePreviewArtifacts(
-      Array.isArray(next.artifacts)
-        ? next.artifacts
-        : Array.isArray(fallback.artifacts)
-          ? fallback.artifacts
-          : [],
-    ),
-    changes: normalizePreviewChanges(
-      Array.isArray(next.changes)
-        ? next.changes
-        : Array.isArray(next.changedFiles)
-          ? next.changedFiles
-          : Array.isArray(fallback.changes)
-            ? fallback.changes
+    artifacts: compactPreviewManifestEntries(
+      normalizePreviewArtifacts(
+        Array.isArray(next.artifacts)
+          ? next.artifacts
+          : Array.isArray(fallback.artifacts)
+            ? fallback.artifacts
             : [],
+      ),
+      PREVIEW_MANIFEST_ARTIFACT_LIMIT,
+      previewArtifactKey,
+    ),
+    changes: compactPreviewManifestEntries(
+      normalizePreviewChanges(
+        Array.isArray(next.changes)
+          ? next.changes
+          : Array.isArray(next.changedFiles)
+            ? next.changedFiles
+            : Array.isArray(fallback.changes)
+              ? fallback.changes
+              : [],
+      ),
+      PREVIEW_MANIFEST_CHANGE_LIMIT,
+      previewChangeKey,
     ),
   };
+}
+
+function compactPreviewManifestEntries(values, limit, buildKey) {
+  const entries = Array.isArray(values) ? values.filter(Boolean) : [];
+  const seen = new Set();
+  const compacted = [];
+  entries.forEach((entry, index) => {
+    const key = buildKey(entry, index);
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    compacted.push(entry);
+  });
+  return compacted.slice(0, limit);
+}
+
+function previewTargetKey(target, index = 0) {
+  return (
+    cleanString(target?.id) ||
+    cleanString(target?.previewPath) ||
+    cleanString(target?.url) ||
+    `target-${index}`
+  );
+}
+
+function previewArtifactKey(artifact, index = 0) {
+  return (
+    cleanString(artifact?.id) ||
+    cleanString(artifact?.path) ||
+    cleanString(artifact?.url) ||
+    `artifact-${index}`
+  );
+}
+
+function previewChangeKey(change, index = 0) {
+  return (
+    cleanString(change?.id) ||
+    cleanString(change?.path) ||
+    cleanString(change?.label) ||
+    `change-${index}`
+  );
+}
+
+function normalizeManifestNotes(...values) {
+  const paragraphs = values
+    .flatMap((value) => cleanString(value).split(/\n{2,}/))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const seen = new Set();
+  const latest = [];
+  [...paragraphs].reverse().forEach((entry) => {
+    const key = entry.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    latest.push(entry);
+  });
+  return latest
+    .reverse()
+    .slice(-PREVIEW_MANIFEST_NOTE_LIMIT)
+    .join("\n\n");
 }
 
 function normalizePreviewTargets(values) {
