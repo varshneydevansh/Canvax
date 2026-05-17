@@ -229,9 +229,10 @@ Boundary:
 - `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, labeled group regions, manual notes, reference file/image cards, asset candidate objects, generated output targets, artifacts, changed files, and checkpoint history lane objects exported through `spatialWorkspace.lanes`, including the collapsible `Output shelf` lane for generated Make/Build results and whether each lane is collapsed. The Map focus filter can show all objects or focus only output, assets, notes, or history without deleting anything. Generated outputs are now labeled as designer-facing output references, frame binding is inferred from generated artifact paths when possible, outputs bound only to deleted frames are hidden, repeated outputs collapse to the latest useful per-frame/per-kind card, the minimap navigator gives orientation plus click-to-pan movement, and `Fit map` recovers visible frames/objects after zooming or panning. Spatial objects can be selected, Shift-click or lasso multi-selected, moved as a selected set, resized individually or as a combined selected set, grouped into a region wrapper, ungrouped without deleting contents, selected from group contents, fit back into a group region, reordered front/back, renamed/clarified through a lightweight property editor, inspected through per-type details, nudged, duplicated, deleted, group-duplicated with contained Map objects, and exported as the active selected object with layer order, but Map is not yet a finished infinite canvas with advanced nested object editing.
 - Pasted/dropped image assets are editable canvas elements. `Reference underlay` remains the explicit path for a non-editable tracing/background image.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
-- ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, and scaffold; it does not directly invoke a paid image API or require an API key.
+- ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, scaffold, and style lock; it does not directly invoke a paid image API or require an API key.
 - The host capability chip is explicit about what Canvax can do locally today: Codex workspace/browser handoff is available, direct host image generation and native Codex microphone access require a future first-party bridge.
 - If `DESIGN.md` exists at the project root, Canvax includes it as design context in task packs and image prompt packs.
+- Image prompt packs include a `canvax-style-lock` block with palette, continuity rules, adaptation rules, negative rules, design-context summary, and frame signals so image/book/comic/poster candidates can stay consistent across frames.
 - In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
 
 ### Responsive Regression
@@ -817,6 +818,7 @@ Each candidate is a prompt-ready asset slot:
 - source frame
 - optional source region
 - prompt and negative prompt
+- style-lock reference for visual continuity
 - normalized bounds
 - pixel bounds for the source viewport
 - CSS placement values

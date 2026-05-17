@@ -129,7 +129,7 @@ Apply to Codex or Live rewrite
   -> refreshed output manifest target
 ```
 
-`Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, and an HTML/CSS placement scaffold. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs.
+`Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, an HTML/CSS placement scaffold, and a style-lock block. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs. The style lock tells the host to preserve visual identity, palette, rendering language, character/object continuity, and frame-to-frame consistency across image candidates.
 
 Paste or drop an image onto the canvas when you want to bring a generated candidate, reference crop, book illustration pass, or UI asset back into the frame as an editable object. It can be selected, moved, resized, duplicated, layered, labeled, included in prompt packs, and passed into Materialize. Use `Reference underlay` only when the image should sit behind the sketch as tracing/context.
 
@@ -386,6 +386,7 @@ Use the image prompt pack when the output is a poster, children-book spread, ill
 - Codex/ChatGPT may use the pack with whatever image-generation capability the current host exposes.
 - The pack preserves placement through `x`, `y`, `w`, and `h` values normalized from `0` to `1`.
 - The HTML/CSS scaffold is a spatial guide for generation, not final frontend code.
+- The style lock preserves mood, palette, continuity rules, and adaptation rules across UI screens, posters, book spreads, comics, and image variants.
 - `DESIGN.md` is included when present, so image or UI work can inherit a reusable style contract instead of relying only on the current sketch.
 
 The same `Image pack` action also writes asset candidate records:

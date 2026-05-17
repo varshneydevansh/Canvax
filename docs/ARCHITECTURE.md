@@ -590,11 +590,15 @@ Image/asset handoff files:
 - `exports/canvax-asset-candidates-latest.json`
 - `artifacts/canvax/asset-candidates/...`
 
-Asset candidates are prompt-ready records with a `placementMap` and empty output slots. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
+Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from board mood, surface, generation recipe, `DESIGN.md` when present, current palette, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
+
+Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, and empty output slots. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
 
 ```text
 asset candidate pack
+  -> styleLock
   -> candidate.placementMap
+  -> candidate.styleLock
   -> candidate.outputSlots[]
   -> Workbench asset tray
   -> Map asset object contextMarkdown

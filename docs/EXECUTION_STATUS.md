@@ -135,7 +135,7 @@ Status: In progress
 - [x] Board saves `canvax-rewrite-request-latest.*` so Codex gets one focused refinement handoff for sketch, voice, correction marks, queued frames, and connected outputs
 - [x] Rewrite requests include a `revisionGraph` mapping frame revisions to output targets, artifacts, changed files, stale state, and queue reasons
 - [x] Workbench `Apply to Codex` now calls the local no-API rewrite executor after saving the checkpoint, so a refreshed frame-bound preview artifact can be attached without a terminal command
-- [x] Board exports now include task and image prompt packs with normalized coordinates and an HTML/CSS placement scaffold for host-side image generation
+- [x] Board exports now include task and image prompt packs with normalized coordinates, an HTML/CSS placement scaffold, and a no-API style lock for host-side image generation
 - [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
 - [x] Canvas image elements now carry pasted/generated assets through selection, composition summaries, Materialize payloads, and live exports
 
@@ -177,7 +177,7 @@ Status: In progress
 - [x] Variant branches export through `spatialWorkspace.variantBranches` as editable generated-direction objects with source/target/primary metadata
 - [x] Variant branch Map objects export through `spatialWorkspace.objects` with object-level status/context and primary-state sync
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
-- [x] Asset candidate packs include placement contracts, output slots, and a review summary with accepted candidate IDs and image element bindings
+- [x] Asset candidate packs include placement contracts, style-lock references, output slots, and a review summary with accepted candidate IDs and image element bindings
 - [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects` with placement-ready context markdown
 - [x] Asset candidate tray now shows attached thumbnails, select, and accept review state for generated image choices without calling an image API

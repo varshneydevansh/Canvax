@@ -13129,6 +13129,7 @@ function buildImagePromptPack(frames) {
   const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
   const generationRecipe = generationSummaryText(state.board.generation);
   const actionMode = currentActionMode();
+  const styleLock = buildImageStyleLock(frames, generationRecipe);
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-image-prompt-pack",
@@ -13148,6 +13149,7 @@ function buildImagePromptPack(frames) {
       mood: state.board.designMood,
       generationRecipe,
     },
+    styleLock,
     usage:
       "Give this prompt pack to ChatGPT image generation. Use the coordinates and HTML/CSS scaffold to preserve placement.",
     frames: frames.map((frame) => {
@@ -13169,9 +13171,11 @@ function buildImagePromptPack(frames) {
           frame.assets,
           frame.mobile,
           generationRecipe,
+          styleLock.summary,
         ]
           .filter(Boolean)
           .join(" | "),
+        styleLock: buildFrameStyleLockReference(styleLock, frame),
         prompt: buildImagePromptText(frame, composition),
         negativePrompt:
           "Do not ignore the rough composition. Avoid unreadable text, random extra UI, duplicated limbs or objects, warped perspective, unwanted logos, and generic AI-purple styling unless explicitly requested.",
@@ -13183,6 +13187,92 @@ function buildImagePromptPack(frames) {
         },
       };
     }),
+  };
+}
+
+function buildImageStyleLock(frames = [], generationRecipe = "") {
+  const designContext = currentDesignContextForExport();
+  const mood = cleanString(state.board.designMood);
+  const surface = cleanString(state.board.audience);
+  const project = cleanString(state.board.project) || "Canvax project";
+  const ask = cleanString(state.board.goal);
+  const frameSignals = frames.slice(0, 8).map((frame) => ({
+    id: frame.id,
+    title: frame.title,
+    surface:
+      typeof frame.viewport === "string"
+        ? frame.viewport
+        : frame.viewport?.id || "",
+    intent: cleanString(frame.objective || frame.intent || ask),
+    notes: compactDisplayText(
+      [frame.notes, frame.assets, frame.mobile].filter(Boolean).join(" "),
+      260,
+    ),
+  }));
+  const summary = compactDisplayText(
+    [
+      project,
+      mood ? `Mood: ${mood}` : "",
+      surface ? `Surface: ${surface}` : "",
+      generationRecipe ? `Generation: ${generationRecipe}` : "",
+      designContext.exists ? `Design context: ${designContext.summary}` : "",
+    ]
+      .filter(Boolean)
+      .join(". "),
+    420,
+  );
+
+  return {
+    kind: "canvax-style-lock",
+    id: `style-${classToken(project).toLowerCase() || "canvax"}`,
+    source: "board-design-context-and-frame-notes",
+    project,
+    summary,
+    mood,
+    surface,
+    generationRecipe,
+    palette: {
+      activeColor: state.color,
+      swatches: [...new Set([state.color, ...palette])].slice(0, 10),
+    },
+    continuityRules: [
+      "Keep character/object identity consistent across frames and variants.",
+      "Preserve the user's rough composition, camera angle, and relative placement unless the frame notes explicitly ask for a change.",
+      "Reuse the same illustration/rendering language, color temperature, line weight, material treatment, and lighting logic across candidate images.",
+      "Keep text-safe areas clean and avoid inventing unreadable lettering unless exact text is requested.",
+    ],
+    adaptationRules: [
+      "For UI/web/app outputs, treat the sketch as layout hierarchy and preserve interaction affordances.",
+      "For book, comic, storyboard, poster, or image outputs, treat the sketch as shot composition and preserve subject scale, motion arrows, and frame-to-frame continuity.",
+      "For variants, change only the requested direction while keeping the locked visual identity intact.",
+    ],
+    negativeRules: [
+      "Do not drift into generic AI-purple styling unless requested.",
+      "Do not add unrelated logos, characters, limbs, UI controls, or background clutter.",
+      "Do not ignore labels, arrows, safe zones, or output-correction marks.",
+    ],
+    designContext: {
+      exists: Boolean(designContext.exists),
+      relativePath: designContext.relativePath || "DESIGN.md",
+      summary: compactDisplayText(designContext.summary || "", 420),
+      excerpt: compactDisplayText(designContext.content || "", 1200),
+    },
+    frameSignals,
+  };
+}
+
+function buildFrameStyleLockReference(styleLock, frame) {
+  if (!styleLock) {
+    return null;
+  }
+  return {
+    id: styleLock.id,
+    summary: styleLock.summary,
+    continuityRules: styleLock.continuityRules,
+    adaptationRules: styleLock.adaptationRules,
+    frameIntent: cleanString(frame.objective || state.board.goal),
+    frameAssets: cleanString(frame.assets),
+    frameVariantNotes: cleanString(frame.mobile),
   };
 }
 
@@ -13214,6 +13304,7 @@ function buildAssetCandidatePack(imagePromptPack) {
     board: structuredClone(imagePromptPack?.board || state.board),
     designContext:
       imagePromptPack?.designContext || currentDesignContextForExport(),
+    styleLock: imagePromptPack?.styleLock || buildImageStyleLock(frames),
     usage:
       "Use these prompt-ready records as image generation candidates. Paste or attach generated outputs back to the matching frame/region when available.",
     reviewSummary: buildAssetCandidateReviewSummary(candidates),
@@ -13251,6 +13342,7 @@ function buildFrameAssetCandidates(frame) {
     title: `${frame.title} full-frame candidate`,
     prompt: frame.prompt,
     negativePrompt: frame.negativePrompt,
+    styleLock: frame.styleLock || null,
     bounds: null,
     placement: "whole frame",
     aspectRatio: frame.viewport?.aspectRatio || "",
@@ -13285,12 +13377,16 @@ function buildFrameAssetCandidates(frame) {
         title: `${frame.title} ${element.role}`,
         prompt: [
           frame.prompt,
+          frame.styleLock?.summary
+            ? `Keep style lock: ${frame.styleLock.summary}.`
+            : "",
           `Focus this candidate on the ${element.role} at ${element.placement}.`,
           element.text ? `Respect label/text: ${element.text}.` : "",
         ]
           .filter(Boolean)
           .join(" "),
         negativePrompt: frame.negativePrompt,
+        styleLock: frame.styleLock || null,
         bounds: element.bounds,
         placement: element.placement,
         aspectRatio,
@@ -13766,6 +13862,7 @@ function buildImagePromptPackMarkdown(pack) {
     "## How To Use",
     "Use the prompt, composition map, and HTML/CSS scaffold as placement guidance for ChatGPT image generation. The scaffold is a spatial reference, not production code.",
   ];
+  appendStyleLockMarkdown(lines, pack.styleLock);
   pack.frames.forEach((frame) => {
     lines.push("");
     lines.push(`## Frame ${frame.index}: ${frame.title}`);
@@ -13797,6 +13894,7 @@ function buildAssetCandidatePackMarkdown(pack) {
     "## How To Use",
     "Use these prompt-ready candidates with the current Codex/ChatGPT image-generation host when available. Canvax stores the prompt, bounds, source frame, and empty output slots without calling a paid API.",
   ];
+  appendStyleLockMarkdown(lines, pack.styleLock);
   const reviewSummary =
     pack.reviewSummary || buildAssetCandidateReviewSummary(candidates);
   lines.push(
@@ -13864,6 +13962,46 @@ function buildAssetCandidatePackMarkdown(pack) {
     lines.push(candidate.prompt || "No prompt provided.");
   });
   return lines.join("\n");
+}
+
+function appendStyleLockMarkdown(lines, styleLock) {
+  if (!styleLock || typeof styleLock !== "object") {
+    return;
+  }
+  lines.push(
+    "",
+    "## Style Lock",
+    "",
+    `- Style id: ${styleLock.id || "canvax-style-lock"}`,
+    `- Summary: ${styleLock.summary || "Use the board mood and frame notes as the shared style contract."}`,
+    `- Palette: ${(styleLock.palette?.swatches || []).join(", ") || "not specified"}`,
+  );
+  if (styleLock.designContext?.exists) {
+    lines.push(
+      `- Design context: ${styleLock.designContext.relativePath || "DESIGN.md"}`,
+    );
+  }
+  const continuityRules = Array.isArray(styleLock.continuityRules)
+    ? styleLock.continuityRules
+    : [];
+  if (continuityRules.length) {
+    lines.push("", "### Continuity Rules", "");
+    continuityRules.forEach((rule) => lines.push(`- ${rule}`));
+  }
+  const adaptationRules = Array.isArray(styleLock.adaptationRules)
+    ? styleLock.adaptationRules
+    : [];
+  if (adaptationRules.length) {
+    lines.push("", "### Adaptation Rules", "");
+    adaptationRules.forEach((rule) => lines.push(`- ${rule}`));
+  }
+  const negativeRules = Array.isArray(styleLock.negativeRules)
+    ? styleLock.negativeRules
+    : [];
+  if (negativeRules.length) {
+    lines.push("", "### Avoid", "");
+    negativeRules.forEach((rule) => lines.push(`- ${rule}`));
+  }
 }
 
 async function saveImagePromptPackForHost(options = {}) {
@@ -16053,8 +16191,14 @@ async function runSelfTest() {
     results.push(
       assert(
         exportPackage.imagePromptPack?.kind === "canvax-image-prompt-pack" &&
-          exportPackage.imagePromptPack.requiresOpenAiApiKey === false,
-        "export package includes no-API image prompt pack",
+          exportPackage.imagePromptPack.requiresOpenAiApiKey === false &&
+          exportPackage.imagePromptPack.styleLock?.kind ===
+            "canvax-style-lock" &&
+          exportPackage.imagePromptPack.frames?.every(
+            (frame) =>
+              frame.styleLock?.id === exportPackage.imagePromptPack.styleLock.id,
+          ),
+        "export package includes no-API image prompt pack with style lock",
       ),
     );
     results.push(
@@ -16062,9 +16206,11 @@ async function runSelfTest() {
         exportPackage.assetCandidatePack?.kind ===
           "canvax-asset-candidates" &&
           exportPackage.assetCandidatePack.requiresOpenAiApiKey === false &&
+          exportPackage.assetCandidatePack.styleLock?.kind ===
+            "canvax-style-lock" &&
           Array.isArray(exportPackage.assetCandidatePack.candidates) &&
           exportPackage.assetCandidatePack.candidates.length > 0,
-        "export package includes no-API asset candidate pack",
+        "export package includes no-API asset candidate pack with style lock",
       ),
     );
     const eraserId = currentFrame().elements.find((element) =>

@@ -181,6 +181,7 @@ Canvax today
 - `canvax-task-pack-latest.*` and `canvax-image-prompt-pack-latest.*` exist for Codex and host-side image generation.
 - The image prompt pack includes normalized coordinates and an HTML/CSS placement scaffold so ChatGPT/image generation can preserve layout intent without Canvax calling an API.
 - `canvax-asset-candidates-latest.*` feeds the Workbench candidate tray so prompt-ready image regions can become editable board objects before or after host generation.
+- Image prompt and asset candidate packs now include a no-API `canvax-style-lock` block for consistent palette, rendering language, character/object identity, text-safe zones, and frame-to-frame continuity across UI, poster, book, comic, storyboard, and image-variant work.
 - A host capability registry now reports local no-API handoff, Codex browser/workspace availability, host image generation boundary, and native microphone bridge boundary.
 - If a project `DESIGN.md` exists, Canvax includes it as design context in task and image prompt packs.
 - Advanced mode can write a starter `DESIGN.md` from the current board without overwriting an existing design contract.
@@ -339,7 +340,7 @@ Needed:
 - Asset regions on canvas.
 - Image candidate import and placement back into the board. **Initial candidate tray placement, attach-image import, and workspace-path import are shipped.**
 - Variant comparison for image generations.
-- Style-lock packs for books, comics, posters, decks, and brand systems.
+- Style-lock packs for books, comics, posters, decks, and brand systems. **Initial no-API `canvax-style-lock` block now ships inside image prompt and asset candidate packs.**
 - A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format shipped.**
 - Drag/attach generated image candidates back onto frames. **Initial paste/drop and tray attach workflows are shipped.**
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
