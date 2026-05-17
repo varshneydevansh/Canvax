@@ -96,7 +96,7 @@ It hides advanced panels and keeps only:
 - a bottom command composer for typed or pasted dictation with `Talk`, `Note`, `Make`, and `Apply`
 - context-sensitive size controls: `-` / `+` resize selected elements in Select mode and otherwise update the current brush/eraser size
 - eraser behavior that only removes drawn ink, not the paper/grid base, and does not export as black prompt/materialize geometry
-- `Hide tray` / `Show tray` for canvas-first designer focus
+- `Focus canvas` / `Show brief` for canvas-first designer focus
 - `Apply to Codex`
 - `Preview`
 

@@ -209,7 +209,7 @@ Behavior:
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
-- `Hide tray` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible
+- `Focus canvas` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible; `Show brief` brings the context tray back
 - `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
 - `Live rewrite` is an opt-in mode that runs the same local no-API rewrite executor after autosnap/freeze saves the latest handoff
 - `Preview` remains available without exposing the rest of Advanced mode

@@ -2249,8 +2249,8 @@ function renderWorkspaceMode() {
   dom.focusPad.hidden = mode !== "simple" || state.workbenchTrayCollapsed;
   dom.workbenchTrayToggle.hidden = mode !== "simple";
   dom.workbenchTrayToggle.textContent = state.workbenchTrayCollapsed
-    ? "Show tray"
-    : "Hide tray";
+    ? "Show brief"
+    : "Focus canvas";
   dom.workbenchTrayToggle.setAttribute(
     "aria-pressed",
     String(state.workbenchTrayCollapsed),
