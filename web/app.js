@@ -350,6 +350,7 @@ const dom = {
   mapObjectTitle: document.querySelector("#map-object-title"),
   mapObjectSubtitle: document.querySelector("#map-object-subtitle"),
   mapObjectStatus: document.querySelector("#map-object-status"),
+  mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
   mapDeleteObject: document.querySelector("#map-delete-object"),
@@ -6422,6 +6423,7 @@ function renderMapSelectionActions() {
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
+    dom.mapObjectTypeDetails.innerHTML = "";
     return;
   }
 
@@ -6433,6 +6435,7 @@ function renderMapSelectionActions() {
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
+    dom.mapObjectTypeDetails.innerHTML = "";
     return;
   }
 
@@ -6451,6 +6454,114 @@ function renderMapSelectionActions() {
   dom.mapObjectTitle.value = object.title || "";
   dom.mapObjectSubtitle.value = object.subtitle || "";
   dom.mapObjectStatus.value = object.status || "";
+  dom.mapObjectTypeDetails.innerHTML = renderMapObjectTypeDetails(object);
+}
+
+function renderMapObjectTypeDetails(object) {
+  const rows = mapObjectInspectorRows(object);
+  if (!rows.length) {
+    return "";
+  }
+  return `
+    <div class="map-object-type-details-grid">
+      ${rows
+        .map(
+          (row) => `
+            <div class="map-object-type-detail">
+              <span>${escapeHtml(row.label)}</span>
+              <strong>${escapeHtml(row.value)}</strong>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function mapObjectInspectorRows(object) {
+  if (!object) {
+    return [];
+  }
+  const meta = object.meta || {};
+  const rows = [
+    { label: "Kind", value: spatialObjectSourceLabel(object) },
+    { label: "Frame", value: spatialObjectFrameLabel(object) },
+  ];
+
+  if (object.sourceKind === "asset-candidate") {
+    const placement = meta.placementMap || {};
+    const pixel = placement.pixelBounds || {};
+    const slotCount = Array.isArray(meta.outputSlots)
+      ? meta.outputSlots.length
+      : 0;
+    rows.push(
+      { label: "Placement", value: placement.placement || meta.placement || object.subtitle },
+      {
+        label: "Bounds",
+        value:
+          pixel.width || pixel.height
+            ? `${Math.round(pixel.left || 0)}, ${Math.round(pixel.top || 0)} · ${Math.round(pixel.width || 0)} x ${Math.round(pixel.height || 0)}`
+            : "whole frame",
+      },
+      { label: "Slots", value: `${slotCount || 1} output slot${(slotCount || 1) === 1 ? "" : "s"}` },
+    );
+  } else if (isManifestSpatialObject(object)) {
+    const target = meta.previewPath || meta.path || meta.url || "manifest target";
+    rows.push(
+      { label: "Target", value: target },
+      {
+        label: "Summary",
+        value: meta.summary || meta.description || object.subtitle || object.status,
+      },
+    );
+  } else if (object.sourceKind === "checkpoint") {
+    rows.push(
+      { label: "Saved", value: timeLabel(meta.savedAt) || "checkpoint" },
+      {
+        label: "Contents",
+        value: [
+          meta.captureCount ? `${meta.captureCount} captures` : "",
+          meta.voiceSegmentCount ? `${meta.voiceSegmentCount} voice` : "",
+          meta.artifactCount ? `${meta.artifactCount} artifacts` : "",
+          meta.changeCount ? `${meta.changeCount} changes` : "",
+        ]
+          .filter(Boolean)
+          .join(", ") || "session state",
+      },
+    );
+  } else if (object.sourceKind === "variant-branch") {
+    rows.push(
+      { label: "Direction", value: meta.direction || object.subtitle || "variant direction" },
+      {
+        label: "State",
+        value: frameById(object.frameIds?.[0])?.variant?.primary
+          ? "primary variant"
+          : "editable variant",
+      },
+    );
+  } else if (object.type === "map-group") {
+    rows.push({
+      label: "Contains",
+      value: spatialGroupMemberSummary(object, { limit: 6 }),
+    });
+  } else if (object.sourceKind === "reference-file") {
+    rows.push(
+      { label: "File", value: meta.fileName || object.title },
+      { label: "Type", value: meta.mimeType || object.status || "reference" },
+    );
+  } else {
+    rows.push({
+      label: "Context",
+      value: meta.text || object.subtitle || object.status || "manual note",
+    });
+  }
+
+  return rows
+    .map((row) => ({
+      label: compactDisplayText(row.label, 28),
+      value: compactDisplayText(row.value, 96),
+    }))
+    .filter((row) => row.label && row.value);
 }
 
 function updateSelectedSpatialObjectProperty(field, value) {
@@ -15389,6 +15500,8 @@ function assertSpatialObjectsFromOutputManifest() {
     tool: state.tool,
     spatialObjects: structuredClone(state.spatialObjects),
     hiddenSpatialObjectIds: structuredClone(state.hiddenSpatialObjectIds),
+    selectedSpatialObjectId: state.selectedSpatialObjectId,
+    selectedSpatialObjectIds: structuredClone(state.selectedSpatialObjectIds),
     assetCandidatePack: structuredClone(state.assetCandidatePack),
     previewManifest: structuredClone(state.serverStatus.previewManifest),
   };
@@ -15473,6 +15586,19 @@ function assertSpatialObjectsFromOutputManifest() {
     !labels.includes("Generated-target");
   const outputOpenLinks =
     dom.flowBoard.querySelectorAll(".spatial-object-open-link").length >= 2;
+  const generatedTargetObject = spatialExport.objects.find(
+    (object) => object.sourceKind === "generated-target",
+  );
+  if (generatedTargetObject) {
+    selectSpatialObject(generatedTargetObject.id, { render: true });
+  }
+  const typeInspectorRendered =
+    Boolean(generatedTargetObject) &&
+    !dom.mapPropertyEditor.hidden &&
+    dom.mapObjectTypeDetails.textContent.includes("Target") &&
+    dom.mapObjectTypeDetails.textContent.includes(
+      "Self-test preview target",
+    );
   const frameBound = spatialExport.objects
     .filter(isManifestSpatialObject)
     .every((object) => object.frameIds.includes(frameId));
@@ -15493,6 +15619,8 @@ function assertSpatialObjectsFromOutputManifest() {
   state.tool = previous.tool;
   state.spatialObjects = previous.spatialObjects;
   state.hiddenSpatialObjectIds = previous.hiddenSpatialObjectIds;
+  state.selectedSpatialObjectId = previous.selectedSpatialObjectId;
+  state.selectedSpatialObjectIds = previous.selectedSpatialObjectIds;
   state.assetCandidatePack = previous.assetCandidatePack;
   state.serverStatus = {
     ...state.serverStatus,
@@ -15506,12 +15634,26 @@ function assertSpatialObjectsFromOutputManifest() {
       rendered &&
       friendlyLabels &&
       outputOpenLinks &&
+      typeInspectorRendered &&
       frameBound &&
       legacyCleaned &&
       clearedCount >= 3 &&
       !clearedExport.objects.some(isManifestSpatialObject) &&
       hiddenObjectsStayHidden,
     "Output manifest reconciles and clears generated spatial objects",
+    JSON.stringify({
+      exported,
+      rendered,
+      friendlyLabels,
+      outputOpenLinks,
+      typeInspectorRendered,
+      inspectorText: dom.mapObjectTypeDetails.textContent,
+      frameBound,
+      legacyCleaned,
+      clearedCount,
+      clearedEmpty: !clearedExport.objects.some(isManifestSpatialObject),
+      hiddenObjectsStayHidden,
+    }),
   );
 }
 

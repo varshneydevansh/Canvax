@@ -3236,6 +3236,43 @@ select,
     background: rgba(255, 251, 245, 0.86);
 }
 
+.map-object-type-details {
+    grid-column: 1 / -1;
+}
+
+.map-object-type-details-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.45rem;
+    padding: 0.55rem;
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+    border-radius: 0.85rem;
+    background: rgba(24, 17, 14, 0.04);
+}
+
+.map-object-type-detail {
+    display: grid;
+    gap: 0.16rem;
+}
+
+.map-object-type-detail span {
+    color: var(--ink-muted);
+    font-family: "Menlo", "SF Mono", monospace;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.map-object-type-detail strong {
+    overflow: hidden;
+    color: var(--ink);
+    font-size: 0.74rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .map-selection-meta {
     display: grid;
     min-width: 0;
@@ -4061,6 +4098,10 @@ select,
     }
 
     .map-property-editor {
+        grid-template-columns: 1fr;
+    }
+
+    .map-object-type-details-grid {
         grid-template-columns: 1fr;
     }
 
