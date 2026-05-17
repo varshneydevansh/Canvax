@@ -90,6 +90,7 @@ Status: In progress
 - [x] CLI can recover a matching Canvax service from `/api/status` when runtime files are stale or missing
 - [x] CLI reports a structured `portOccupied` failure when a non-Canvax process owns the requested port
 - [x] Optional `Live rewrite` mode runs the local no-API rewrite executor after autosnap/freeze handoff saves
+- [x] Live rewrite queues the newest autosnap/freeze handoff when a rewrite is already in flight, so rapid sketching does not silently drop the latest local refresh request
 - [x] Pasted/dropped images become editable frame elements instead of only background underlays
 - [ ] Remaining rough edges in true infinite-canvas object editing
 

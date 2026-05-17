@@ -212,6 +212,7 @@ Behavior:
 - `Focus canvas` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible; `Show brief` brings the context tray back
 - `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
 - `Live rewrite` is an opt-in mode that runs the same local no-API rewrite executor after autosnap/freeze saves the latest handoff
+- if a new autosnap/freeze happens while Live rewrite is already refreshing output, Canvax queues the newest handoff and runs it as soon as the in-flight rewrite finishes
 - `Preview` remains available without exposing the rest of Advanced mode
 
 ```text

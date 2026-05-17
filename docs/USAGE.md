@@ -118,7 +118,7 @@ Workbench
 
 `Apply to Codex` freezes the current frame, writes the live handoff, saves a Workbench checkpoint, and runs the local no-API rewrite executor. That gives Codex a single clean moment to read: the sketch image, the generated-output correction marks, the transcript/manual note, and the active frame context. When a generated output is already attached, the same press also refreshes a frame-bound local preview artifact through the Codex output manifest.
 
-`Live rewrite` is optional. Turn it on when you want autosnap or manual freeze to run that same local no-API rewrite pass after saving. This is the closest current loop to "keep drawing and let the output follow," without requiring an API key.
+`Live rewrite` is optional. Turn it on when you want autosnap or manual freeze to run that same local no-API rewrite pass after saving. This is the closest current loop to "keep drawing and let the output follow," without requiring an API key. If a second autosnap/freeze happens while a rewrite is already running, Canvax queues the newest handoff and runs it after the current refresh finishes so the latest sketch/voice state is not silently skipped.
 
 ```text
 Apply to Codex or Live rewrite

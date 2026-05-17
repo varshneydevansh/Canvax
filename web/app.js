@@ -1380,6 +1380,8 @@ function hydrateState() {
       captureTimer: null,
       previewStateTimer: null,
       liveRewriteInFlight: false,
+      liveRewriteQueued: null,
+      liveRewriteActiveSignature: "",
       lastAutoRewriteSignature: "",
       buildRealInFlight: false,
       outputCheckpointInFlight: false,
@@ -1697,6 +1699,8 @@ function createInitialState() {
     captureTimer: null,
     previewStateTimer: null,
     liveRewriteInFlight: false,
+    liveRewriteQueued: null,
+    liveRewriteActiveSignature: "",
     lastAutoRewriteSignature: "",
     buildRealInFlight: false,
     outputCheckpointInFlight: false,
@@ -6298,9 +6302,14 @@ function renderAutomationControls() {
     );
     dom.focusAutoRewrite.textContent = state.autoRewrite
       ? state.liveRewriteInFlight
-        ? "Rewriting..."
+        ? state.liveRewriteQueued
+          ? "Rewrite queued"
+          : "Rewriting..."
         : "Live rewrite on"
       : "Live rewrite";
+    dom.focusAutoRewrite.title = state.liveRewriteQueued
+      ? "A newer sketch/voice handoff is queued and will run after the current rewrite finishes."
+      : "When enabled, autosnap/freeze runs the local no-API rewrite preview after saving";
     dom.focusAutoRewrite.disabled = Boolean(state.liveRewriteInFlight);
   }
 }
@@ -12319,7 +12328,6 @@ async function maybeExecuteLiveRewriteFromFreeze(exportResult = null, reason = "
     !state.autoRewrite ||
     !exportResult ||
     !frame ||
-    state.liveRewriteInFlight ||
     state.focusApplyInFlight ||
     state.buildRealInFlight
   ) {
@@ -12327,11 +12335,39 @@ async function maybeExecuteLiveRewriteFromFreeze(exportResult = null, reason = "
   }
 
   const signature = buildLiveRewriteSignature(frame, reason);
+  if (state.liveRewriteInFlight) {
+    const activeSignature = state.liveRewriteActiveSignature || "";
+    const queuedSignature = state.liveRewriteQueued?.signature || "";
+    if (
+      !signature ||
+      (signature !== activeSignature &&
+        signature !== queuedSignature &&
+        signature !== state.lastAutoRewriteSignature)
+    ) {
+      state.liveRewriteQueued = {
+        exportResult,
+        frameId: frame.id,
+        reason,
+        signature,
+        queuedAt: new Date().toISOString(),
+      };
+      renderAutomationControls();
+      renderFocusPad();
+      renderStatus("Live rewrite queued after the current refresh finishes");
+    }
+    return {
+      queued: true,
+      frameId: frame.id,
+      reason,
+    };
+  }
+
   if (signature && signature === state.lastAutoRewriteSignature) {
     return null;
   }
 
   state.liveRewriteInFlight = true;
+  state.liveRewriteActiveSignature = signature;
   renderAutomationControls();
   renderFocusPad();
   renderStatus("Live rewrite refreshing output from latest handoff...");
@@ -12373,8 +12409,19 @@ async function maybeExecuteLiveRewriteFromFreeze(exportResult = null, reason = "
     return null;
   } finally {
     state.liveRewriteInFlight = false;
+    state.liveRewriteActiveSignature = "";
+    const queuedRewrite = state.liveRewriteQueued;
+    state.liveRewriteQueued = null;
     renderAutomationControls();
     renderFocusPad();
+    if (queuedRewrite && state.autoRewrite) {
+      window.setTimeout(() => {
+        void maybeExecuteLiveRewriteFromFreeze(
+          queuedRewrite.exportResult,
+          queuedRewrite.reason || "queued-live-rewrite",
+        );
+      }, 0);
+    }
   }
 }
 
@@ -17018,6 +17065,24 @@ async function runSelfTest() {
         liveRewriteResult?.executed === true &&
           state.serverStatus.rewriteExecution?.trigger === "live-rewrite",
         "live rewrite executes from saved handoff when armed",
+      ),
+    );
+    state.autoRewrite = true;
+    state.liveRewriteInFlight = true;
+    const queuedRewriteResult = await maybeExecuteLiveRewriteFromFreeze(
+      exportResult,
+      "selftest-queued-live-rewrite",
+    );
+    const queuedRewrite = state.liveRewriteQueued;
+    state.liveRewriteInFlight = false;
+    state.liveRewriteQueued = null;
+    state.autoRewrite = false;
+    renderAutomationControls();
+    results.push(
+      assert(
+        queuedRewriteResult?.queued === true &&
+          queuedRewrite?.reason === "selftest-queued-live-rewrite",
+        "live rewrite queues newer handoff while a rewrite is in flight",
       ),
     );
     setSelfTestProgress("materialize");

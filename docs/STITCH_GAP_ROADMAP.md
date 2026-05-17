@@ -192,7 +192,7 @@ Canvax today
 - Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
 - Rewrite queue tells Codex which frames need first output, a target, binding, or refresh.
 - `canvax-rewrite-request-latest.*` packages queued frames, stale output context, correction marks, voice notes, and output manifest bindings into one Codex-readable refinement handoff.
-- `execute-rewrite-request` consumes that handoff into a refreshed frame-bound local artifact plus Codex output manifest, proving the no-API rewrite binding path before a full autonomous Codex rewrite loop exists. Workbench `Apply to Codex` and optional `Live rewrite` now call the same path after checkpoint save.
+- `execute-rewrite-request` consumes that handoff into a refreshed frame-bound local artifact plus Codex output manifest, proving the no-API rewrite binding path before a full autonomous Codex rewrite loop exists. Workbench `Apply to Codex` and optional `Live rewrite` now call the same path after checkpoint save, and newer autosnap/freeze handoffs queue behind an in-flight local rewrite instead of being silently skipped.
 - Codex Browser Use / Atlas can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
 
 ## What Is Still Missing
@@ -245,17 +245,17 @@ flowchart LR
 
 ### 2. Live Two-Way Rewrite Loop
 
-Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes, and `execute-rewrite-request` can turn that handoff into a refreshed frame-bound local preview artifact. Workbench `Apply to Codex` and optional `Live rewrite` invoke that local executor after saving the latest checkpoint, so a sketch/voice/correction pass can refresh the attached preview without a terminal step. When a `canvax-component-map.json` artifact is attached, the rewrite executor now maps correction regions to generated selectors/components. It does not yet run a continuous loop where Codex rewrites real app files while the user keeps drawing.
+Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes, and `execute-rewrite-request` can turn that handoff into a refreshed frame-bound local preview artifact. Workbench `Apply to Codex` and optional `Live rewrite` invoke that local executor after saving the latest checkpoint, so a sketch/voice/correction pass can refresh the attached preview without a terminal step. When a `canvax-component-map.json` artifact is attached, the rewrite executor now maps correction regions to generated selectors/components. If the user keeps sketching while a local Live rewrite is running, Canvax queues the newest handoff and runs it after the in-flight refresh completes. It does not yet run a continuous loop where Codex rewrites real app files while the user keeps drawing.
 
 Needed:
 
 - A live task queue for frames needing rewrite attention.
 - A focused rewrite request artifact. **Initial `canvax-rewrite-request-latest.*` shipped.**
-- A deterministic local executor for that request. **Initial `execute-rewrite-request` shipped and is now called by Workbench Apply plus optional autosnap/freeze Live rewrite.**
+- A deterministic local executor for that request. **Initial `execute-rewrite-request` shipped and is now called by Workbench Apply plus optional autosnap/freeze Live rewrite; newer handoffs queue behind an in-flight local rewrite instead of being silently skipped.**
 - A frame revision to output revision dependency graph. **Initial `revisionGraph` in rewrite requests shipped.**
 - A "changed sketch region -> affected generated component" map. **Initial local version shipped through rewrite executor component targeting from `canvax-component-map.json`; still open for continuous production app rewrites.**
 - A visible rewrite progress lane in Preview. **Initial `Rewrite handoff` lane shipped for request/executor/manifest state.**
-- Conflict handling when the user sketches while Codex is still rewriting.
+- Conflict handling when the user sketches while Codex is still rewriting. **Initial local conflict handling shipped for Live rewrite queueing; production Codex-file rewrite conflicts remain open.**
 
 ### 3. Infinite Canvas And Spatial Project Memory
 
