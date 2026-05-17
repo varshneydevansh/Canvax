@@ -58,7 +58,9 @@ const htmlPath = resolve(outputRoot, "index.html");
 const contextPath = resolve(outputRoot, "context.json");
 const relativeHtmlPath = toProjectRelative(htmlPath);
 const relativeContextPath = toProjectRelative(contextPath);
-const affectedRegions = buildAffectedRegions(selected, request);
+const frameCodeMap = await loadFrameCodeMap(request, frameId);
+const affectedRegions = buildAffectedRegions(selected, request, frameCodeMap);
+const affectedComponents = affectedComponentsFromRegions(affectedRegions);
 
 await mkdir(outputRoot, { recursive: true });
 await writeFile(
@@ -81,6 +83,8 @@ await writeFile(
       frameId,
       frameTitle,
       affectedRegions,
+      affectedComponents,
+      frameCodeMap,
       previewPath: relativeHtmlPath,
     }),
     null,
@@ -97,6 +101,8 @@ if (!noPublish) {
     relativeHtmlPath,
     relativeContextPath,
     affectedRegions,
+    affectedComponents,
+    frameCodeMap,
     queueItem: selected.queueItem,
   });
 }
@@ -110,6 +116,7 @@ const result = {
   frameId,
   frameTitle,
   affectedRegionCount: affectedRegions.length,
+  componentTargetCount: affectedComponents.length,
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
 };
@@ -133,8 +140,16 @@ async function publishCodexOutput({
   relativeHtmlPath,
   relativeContextPath,
   affectedRegions,
+  affectedComponents,
+  frameCodeMap,
   queueItem,
 }) {
+  const frameCodeMapArtifactArgs = frameCodeMap?.path
+    ? [
+        "--artifact",
+        `${frameCodeMap.path}::Frame-to-code ownership map::${frameId}`,
+      ]
+    : [];
   const child = spawn(
     process.execPath,
     [
@@ -150,13 +165,14 @@ async function publishCodexOutput({
       "--description",
       "Local preview artifact refreshed from the latest Canvax rewrite request.",
       "--notes",
-      buildPublishNotes(queueItem, affectedRegions),
+      buildPublishNotes(queueItem, affectedRegions, affectedComponents),
       "--frame",
       frameId,
       "--artifact",
       `${relativeHtmlPath}::Canvax rewritten preview::${frameId}`,
       "--artifact",
       `${relativeContextPath}::Rewrite request context::${frameId}`,
+      ...frameCodeMapArtifactArgs,
       "--json",
     ],
     {
@@ -202,6 +218,8 @@ function buildContextPayload({
   frameId,
   frameTitle,
   affectedRegions,
+  affectedComponents,
+  frameCodeMap,
   previewPath,
 }) {
   return {
@@ -214,57 +232,207 @@ function buildContextPayload({
     frameTitle,
     queueItem: selected.queueItem || null,
     affectedRegions,
+    affectedComponents,
+    frameCodeMap: frameCodeMap
+      ? {
+          path: frameCodeMap.path,
+          kind: frameCodeMap.map?.kind || "canvax-frame-code-map",
+          regionCount: Array.isArray(frameCodeMap.map?.regions)
+            ? frameCodeMap.map.regions.length
+            : 0,
+        }
+      : null,
     outputTargets: request.outputManifest?.targets || [],
     outputArtifacts: request.outputManifest?.artifacts || [],
     request,
   };
 }
 
-function buildAffectedRegions(selected, request) {
+function buildAffectedRegions(selected, request, frameCodeMap = null) {
   const regions = [];
+  const viewport = frameViewport(selected);
   const targetRegions =
     request.outputManifest?.targets
       ?.flatMap((target) => target?.refinement?.changedRegions || [])
       .filter((region) => region && typeof region === "object") || [];
   targetRegions.slice(0, 12).forEach((region, index) => {
-    regions.push({
-      source: "output-refinement",
-      label: cleanString(region.label) || `Output delta ${index + 1}`,
-      left: safeNumber(region.left, 40 + index * 18),
-      top: safeNumber(region.top, 40 + index * 18),
-      width: Math.max(24, safeNumber(region.width, 160)),
-      height: Math.max(24, safeNumber(region.height, 90)),
-    });
+    regions.push(
+      withComponentTargets(
+        {
+          source: "output-refinement",
+          label: cleanString(region.label) || `Output delta ${index + 1}`,
+          left: safeNumber(region.left, 40 + index * 18),
+          top: safeNumber(region.top, 40 + index * 18),
+          width: Math.max(24, safeNumber(region.width, 160)),
+          height: Math.max(24, safeNumber(region.height, 90)),
+        },
+        frameCodeMap,
+        viewport,
+      ),
+    );
   });
 
   const annotations = selected.requestFrame?.outputAnnotations || [];
   annotations.slice(0, 12).forEach((annotation, index) => {
     const bounds = annotation.bounds || annotation.normalizedBounds || {};
-    regions.push({
-      source: "output-correction",
-      label: `Correction mark ${index + 1}`,
-      left: denormalize(bounds.x || bounds.left, 1440, 96 + index * 20),
-      top: denormalize(bounds.y || bounds.top, 1024, 96 + index * 20),
-      width: Math.max(28, denormalize(bounds.w || bounds.width, 1440, 180)),
-      height: Math.max(28, denormalize(bounds.h || bounds.height, 1024, 100)),
-    });
+    regions.push(
+      withComponentTargets(
+        {
+          source: "output-correction",
+          label: `Correction mark ${index + 1}`,
+          left: denormalize(
+            bounds.x || bounds.left,
+            viewport.width,
+            96 + index * 20,
+          ),
+          top: denormalize(
+            bounds.y || bounds.top,
+            viewport.height,
+            96 + index * 20,
+          ),
+          width: Math.max(
+            28,
+            denormalize(bounds.w || bounds.width, viewport.width, 180),
+          ),
+          height: Math.max(
+            28,
+            denormalize(bounds.h || bounds.height, viewport.height, 100),
+          ),
+        },
+        frameCodeMap,
+        viewport,
+      ),
+    );
   });
 
   if (!regions.length) {
-    regions.push({
-      source: "rewrite-queue",
-      label: cleanString(selected.queueItem?.label) || "Rewrite focus",
-      left: 96,
-      top: 96,
-      width: 360,
-      height: 190,
-    });
+    regions.push(
+      withComponentTargets(
+        {
+          source: "rewrite-queue",
+          label: cleanString(selected.queueItem?.label) || "Rewrite focus",
+          left: 96,
+          top: 96,
+          width: 360,
+          height: 190,
+        },
+        frameCodeMap,
+        viewport,
+      ),
+    );
   }
 
   return regions.slice(0, 20);
 }
 
-function buildPreviewHtml({ request, selected, frameId, frameTitle, affectedRegions }) {
+function frameViewport(selected) {
+  const frame = selected.frame || selected.requestFrame || {};
+  const viewport = frame.composition?.viewport || {};
+  return {
+    width: Number(viewport.width || frame.viewportWidth || 1440),
+    height: Number(viewport.height || frame.viewportHeight || 1024),
+  };
+}
+
+function withComponentTargets(region, frameCodeMap, viewport) {
+  const normalizedBounds = normalizeRegionBounds(region, viewport);
+  const components = matchingFrameCodeRegions(frameCodeMap, normalizedBounds);
+  return {
+    ...region,
+    normalizedBounds,
+    components,
+    componentTargetIds: components.map((component) => component.id),
+  };
+}
+
+function normalizeRegionBounds(region, viewport) {
+  return {
+    x: clamp01(safeNumber(region.left) / Math.max(1, viewport.width)),
+    y: clamp01(safeNumber(region.top) / Math.max(1, viewport.height)),
+    w: clamp01(safeNumber(region.width) / Math.max(1, viewport.width)),
+    h: clamp01(safeNumber(region.height) / Math.max(1, viewport.height)),
+  };
+}
+
+function matchingFrameCodeRegions(frameCodeMap, normalizedBounds) {
+  const regions = Array.isArray(frameCodeMap?.map?.regions)
+    ? frameCodeMap.map.regions
+    : [];
+  return regions
+    .filter((region) =>
+      boundsIntersect(normalizedBounds, normalizeFrameCodeBounds(region.bounds)),
+    )
+    .slice(0, 6)
+    .map((region) => ({
+      id: cleanString(region.id),
+      label: cleanString(region.label),
+      type: cleanString(region.type),
+      selector: cleanString(region.implementationSelector),
+      suggestedComponentName: cleanString(region.suggestedComponentName),
+      bounds: normalizeFrameCodeBounds(region.bounds),
+    }));
+}
+
+function affectedComponentsFromRegions(regions) {
+  const components = new Map();
+  regions.forEach((region) => {
+    (region.components || []).forEach((component) => {
+      if (component.id && !components.has(component.id)) {
+        components.set(component.id, component);
+      }
+    });
+  });
+  return [...components.values()];
+}
+
+function normalizeFrameCodeBounds(bounds = {}) {
+  return {
+    x: clamp01(bounds.x),
+    y: clamp01(bounds.y),
+    w: clamp01(bounds.w),
+    h: clamp01(bounds.h),
+  };
+}
+
+function boundsIntersect(left, right) {
+  return !(
+    left.x + left.w < right.x ||
+    right.x + right.w < left.x ||
+    left.y + left.h < right.y ||
+    right.y + right.h < left.y
+  );
+}
+
+async function loadFrameCodeMap(request, frameId) {
+  const artifacts = Array.isArray(request.outputManifest?.artifacts)
+    ? request.outputManifest.artifacts
+    : [];
+  const artifact = artifacts.find((entry) => {
+    const path = cleanString(entry?.path);
+    const frameIds = Array.isArray(entry?.frameIds) ? entry.frameIds : [];
+    return (
+      path.endsWith("canvax-component-map.json") &&
+      (!frameIds.length || frameIds.includes(frameId))
+    );
+  });
+  if (!artifact?.path) {
+    return null;
+  }
+  const path = artifact.path;
+  const map = await readOptionalJson(resolve(projectRoot, path));
+  if (map?.kind !== "canvax-frame-code-map") {
+    return null;
+  }
+  return { path, map };
+}
+
+function buildPreviewHtml({
+  request,
+  selected,
+  frameId,
+  frameTitle,
+  affectedRegions,
+}) {
   const frame = selected.frame || selected.requestFrame || {};
   const composition = frame.composition || {};
   const viewport = composition.viewport || {};
@@ -557,20 +725,29 @@ function buildAffectedRegionMarkup(regions, viewportWidth, viewportHeight) {
       const top = percent(safeNumber(region.top) / viewportHeight, 0.08);
       const width = percent(safeNumber(region.width, 160) / viewportWidth, 0.18);
       const height = percent(safeNumber(region.height, 90) / viewportHeight, 0.12);
-      return `    <div class="rewrite-region" style="left:${left};top:${top};width:${width};height:${height};"><span>${escapeHtml(region.label)}</span></div>`;
+      const componentLabel = region.components?.[0]?.label
+        ? `: ${region.components[0].label}`
+        : "";
+      const label = `${region.label}${componentLabel}`;
+      const componentTargets = (region.componentTargetIds || []).join(",");
+      return `    <div class="rewrite-region" data-component-targets="${escapeHtml(componentTargets)}" style="left:${left};top:${top};width:${width};height:${height};"><span>${escapeHtml(label)}</span></div>`;
     })
     .join("\n");
 }
 
-function buildPublishNotes(queueItem, affectedRegions) {
+function buildPublishNotes(queueItem, affectedRegions, affectedComponents = []) {
   const detail = cleanString(queueItem?.detail);
   const regionText = `${affectedRegions.length} affected ${
     affectedRegions.length === 1 ? "region" : "regions"
   }`;
+  const componentText = affectedComponents.length
+    ? `${affectedComponents.length} component targets`
+    : "";
   return [
     "Generated locally from Canvax rewrite request data. No paid API key was required.",
     detail,
     regionText,
+    componentText,
   ]
     .filter(Boolean)
     .join(" ");
@@ -607,6 +784,14 @@ function denormalize(value, span, fallback) {
 function safeNumber(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function clamp01(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, numeric));
 }
 
 function normalizeColor(value) {

@@ -726,6 +726,7 @@ It reads:
 
 - `exports/canvax-rewrite-request-latest.json`
 - `exports/canvax-task-pack-latest.json`
+- frame-to-code ownership maps from `canvax-component-map.json` artifacts when the connected output includes one
 
 It writes:
 
@@ -736,12 +737,13 @@ It writes:
 ```text
 latest sketch / voice / correction marks
   -> rewrite request
+  -> affected regions map to generated selectors when available
   -> local refreshed preview artifact
   -> output manifest
   -> Workbench and Preview reload the frame-bound output
 ```
 
-The generated context includes the selected rewrite queue item, affected regions, connected output targets, and the original request. This keeps the rough-sketch-to-refined-output path testable without an API key while leaving real app/code rewrites to Codex.
+The generated context includes the selected rewrite queue item, affected regions, affected generated component targets, connected output targets, and the original request. This keeps the rough-sketch-to-refined-output path testable without an API key while leaving real app/code rewrites to Codex.
 
 Preview now has a `Rewrite handoff` lane beside the rewrite queue. It shows whether the latest request exists, whether a local executor artifact has been published, the frame-bound manifest state, and quick links to the request/output/context files.
 

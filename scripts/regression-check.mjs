@@ -269,6 +269,7 @@ async function validateExecuteRewriteRequestDryRun() {
         payload?.previewPath?.startsWith("artifacts/preview/codex-rewrite/") &&
         payload?.contextPath?.startsWith("artifacts/preview/codex-rewrite/") &&
         Number.isInteger(payload?.affectedRegionCount) &&
+        Number.isInteger(payload?.componentTargetCount) &&
         payload?.published === false,
     );
     results.push({

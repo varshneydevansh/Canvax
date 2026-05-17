@@ -170,11 +170,29 @@ record(
   rewriteResult.ok === true &&
     rewriteResult.frameId === frameId &&
     rewriteResult.affectedRegionCount >= 1 &&
+    rewriteResult.componentTargetCount >= 1 &&
     rewriteResult.previewPath.includes(`/frames/${frameId}/`),
   rewriteResult.previewPath,
 );
 await assertReadableProjectFile(rewriteResult.previewPath);
 await assertReadableProjectFile(rewriteResult.contextPath);
+const rawRewriteContext = await readFile(
+  resolve(projectRoot, rewriteResult.contextPath),
+  "utf8",
+);
+const parsedRewriteContext = JSON.parse(rawRewriteContext);
+record(
+  "rewrite context maps correction marks to generated component targets",
+  parsedRewriteContext.frameCodeMap?.path?.endsWith(
+    "/implementation/canvax-component-map.json",
+  ) &&
+    parsedRewriteContext.affectedComponents?.some((component) =>
+      component.selector?.includes("data-canvax-node-id"),
+    ) &&
+    parsedRewriteContext.affectedRegions?.some(
+      (region) => region.componentTargetIds?.length > 0,
+    ),
+);
 
 const rewriteManifestDryRun = await executeJson("node", [
   "scripts/write-codex-output.mjs",

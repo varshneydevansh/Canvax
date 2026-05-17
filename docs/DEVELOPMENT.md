@@ -109,7 +109,7 @@ End-to-end no-API workflow proof:
 npm run e2e-workflow
 ```
 
-That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, and asset candidates. It then runs the deterministic build executor, dry-runs Codex output manifest binding, runs the rewrite executor from correction context, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
+That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, and asset candidates. It then runs the deterministic build executor, dry-runs Codex output manifest binding, verifies the frame-to-code map, runs the rewrite executor from correction context, verifies correction-to-component targeting, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
 
 Useful service commands:
 
@@ -273,7 +273,7 @@ Regression coverage:
 
 - `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle and `canvax-component-map.json`
 - Board self-test verifies the UI/server path executes and binds that artifact through the output manifest.
-- `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact
+- `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact, including component-target context when a frame-to-code map is attached
 - Board self-test verifies `POST /api/execute-rewrite-request` binds a refreshed preview artifact through the output manifest.
 
 - `scripts/regression-check.mjs` validates the latest build request schema when present.

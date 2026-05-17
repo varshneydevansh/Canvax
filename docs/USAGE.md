@@ -681,6 +681,7 @@ This is the local no-API proof path for the live refinement loop:
 
 - `canvax-rewrite-request-latest.*` tells Codex what needs attention.
 - `execute-rewrite-request.mjs` consumes that request plus the task pack composition.
+- when the connected output includes `implementation/canvax-component-map.json`, the executor maps correction regions to generated selectors/components.
 - it writes a refreshed HTML artifact under `artifacts/preview/codex-rewrite/frames/<frame-id>/`.
 - it publishes the refreshed target through `artifacts/canvax/codex-output.json`.
 
@@ -698,12 +699,13 @@ That writes:
 sketch changes + voice + correction marks
   -> live rewrite request
   -> execute-rewrite-request or Workbench Apply
+  -> affected component targets
   -> refreshed frame-bound preview artifact
   -> Codex output manifest
   -> Preview and Workbench output refresh
 ```
 
-This executor is deterministic and local. It is not a paid image/model call, and it does not replace a real Codex implementation pass. Its job is to prove that the request, affected-region context, preview artifact, and manifest binding are wired end to end.
+This executor is deterministic and local. It is not a paid image/model call, and it does not replace a real Codex implementation pass. Its job is to prove that the request, affected-region context, component-target context, preview artifact, and manifest binding are wired end to end.
 
 In Preview, the `Rewrite handoff` panel shows this loop explicitly:
 

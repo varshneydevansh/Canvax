@@ -241,7 +241,7 @@ flowchart LR
 
 ### 2. Live Two-Way Rewrite Loop
 
-Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes, and `execute-rewrite-request` can turn that handoff into a refreshed frame-bound local preview artifact. Workbench `Apply to Codex` and optional `Live rewrite` invoke that local executor after saving the latest checkpoint, so a sketch/voice/correction pass can refresh the attached preview without a terminal step. It does not yet run a continuous loop where Codex rewrites real app files while the user keeps drawing.
+Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes, and `execute-rewrite-request` can turn that handoff into a refreshed frame-bound local preview artifact. Workbench `Apply to Codex` and optional `Live rewrite` invoke that local executor after saving the latest checkpoint, so a sketch/voice/correction pass can refresh the attached preview without a terminal step. When a `canvax-component-map.json` artifact is attached, the rewrite executor now maps correction regions to generated selectors/components. It does not yet run a continuous loop where Codex rewrites real app files while the user keeps drawing.
 
 Needed:
 
@@ -249,7 +249,7 @@ Needed:
 - A focused rewrite request artifact. **Initial `canvax-rewrite-request-latest.*` shipped.**
 - A deterministic local executor for that request. **Initial `execute-rewrite-request` shipped and is now called by Workbench Apply plus optional autosnap/freeze Live rewrite.**
 - A frame revision to output revision dependency graph. **Initial `revisionGraph` in rewrite requests shipped.**
-- A "changed sketch region -> affected generated component" map.
+- A "changed sketch region -> affected generated component" map. **Initial local version shipped through rewrite executor component targeting from `canvax-component-map.json`; still open for continuous production app rewrites.**
 - A visible rewrite progress lane in Preview. **Initial `Rewrite handoff` lane shipped for request/executor/manifest state.**
 - Conflict handling when the user sketches while Codex is still rewriting.
 
@@ -401,7 +401,7 @@ Needed:
 - Codex reads the latest frame/checkpoint and writes actual app/page/component code.
 - Codex writes a manifest that binds the generated code route back to the frame.
 - Preview reloads and highlights changed code/artifact context.
-- Sketch corrections become targeted rewrite tasks instead of generic prompts. **Initial rewrite request plus local executor shipped, and Workbench Apply/Live rewrite now run the executor; component-level targeting remains open.**
+- Sketch corrections become targeted rewrite tasks instead of generic prompts. **Initial rewrite request plus local executor shipped, Workbench Apply/Live rewrite now run the executor, and local component-target mapping is available from `canvax-component-map.json`; continuous production component rewrites remain open.**
 - Browser Use / Atlas opens and inspects the board, Preview, and generated app so Codex can fix visual issues from the same workspace loop.
 
 ### P3: Add Design System And Asset Intelligence
