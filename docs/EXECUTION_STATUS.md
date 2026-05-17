@@ -61,12 +61,13 @@ Status: In progress
 - [x] Workbench `Map` group regions move contained frame cards and spatial objects together
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds`, `spatialWorkspace.groups` records member frames/objects, and selected group context includes a contents inspector
 - [x] Workbench `Map` supports background drag-pan, left/top edge expansion for cards and Map objects, trailing workspace room, plus cursor-centered pinch/ctrl-wheel zoom
-- [x] Workbench `Map` spatial objects can be selected, Shift-click multi-selected, Shift-drag lasso-selected, moved as a selected set, resized as a selected set from a combined transform box, edited through a visible Copy context/Duplicate/Delete/Clear action strip, copied as no-API Markdown context, keyboard-nudged, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, group-duplicated with contained Map objects, and exported as active `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`
+- [x] Workbench `Map` spatial objects can be selected, Shift-click multi-selected, Shift-drag lasso-selected, moved as a selected set, resized as a selected set from a combined transform box, edited through a visible Copy context/Pin/Duplicate/Delete/Clear action strip, copied as no-API Markdown context, keyboard-nudged, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, group-duplicated with contained Map objects, and exported as active `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`
 - [x] Workbench `Map` single-object selection exposes a lightweight property editor for Title, Note, and Status plus per-type read-only details for generated outputs, asset candidates, checkpoints, variants, groups, references, and changes; manual overrides persist across generated/asset/checkpoint object resyncs
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
 - [x] Workbench `Map` renders recent checkpoints inside a visible spatial history lane for longer collaboration sessions, exported through `spatialWorkspace.lanes`
 - [x] Workbench `Map` can collapse or expand the checkpoint history lane, and that lane state exports through `spatialWorkspace.lanes[].collapsed`
 - [x] Workbench `Map` includes an object focus filter for all objects, outputs, assets, notes, or history, and exports the active focus through `spatialWorkspace.objectFilter`
+- [x] Workbench `Map` can pin selected objects so important outputs, assets, notes, or checkpoints remain visible across focus filters and collapsed history
 - [x] Live exports include `spatialWorkspace` with map zoom, frame card positions, spatial object positions, active/entry frame ids, and links
 - [x] Advanced command deck is treated as an opaque inspector header and no longer floats over the canvas while scrolling
 - [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon
@@ -84,9 +85,9 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/multi-selected/lasso-selected/nudged/duplicated/deleted Map objects, selected-set Map dragging/resizing, no-API selected-object/selection context copy, group duplication with contained Map object copies, manual context objects, readable generated output objects, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
+  focus pad, board, tools, selection, editable image assets, flow, Workbench Map, movable group containers, selected/multi-selected/lasso-selected/nudged/duplicated/deleted/pinned Map objects, selected-set Map dragging/resizing, no-API selected-object/selection context copy, group duplication with contained Map object copies, manual context objects, readable generated output objects, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
-  richer nested object editing, deeper editable per-type inspectors, history-lane reorder/pin controls, and full arbitrary-object infinite canvas behavior
+  richer nested object editing, deeper editable per-type inspectors, history-lane reorder controls, and full arbitrary-object infinite canvas behavior
 ```
 
 ### Sprint 2: Add voice as a native Canvax input

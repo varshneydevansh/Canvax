@@ -361,6 +361,7 @@ const dom = {
   mapObjectStatus: document.querySelector("#map-object-status"),
   mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
+  mapPinObject: document.querySelector("#map-pin-object"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
   mapDeleteObject: document.querySelector("#map-delete-object"),
   mapClearSelection: document.querySelector("#map-clear-selection"),
@@ -710,6 +711,7 @@ function bindEvents() {
   dom.mapCopyObjectContext.addEventListener("click", () => {
     void copySelectedSpatialObjectContext();
   });
+  dom.mapPinObject.addEventListener("click", toggleSelectedSpatialObjectPin);
   dom.mapDuplicateObject.addEventListener("click", duplicateSelectedSpatialObject);
   dom.mapDeleteObject.addEventListener("click", () => {
     removeSelectedSpatialObjects();
@@ -3033,6 +3035,7 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
 
   const existing = objects[existingIndex];
   const manualFields = existing.meta?.manualFields || {};
+  const pinned = isSpatialObjectPinned(existing);
   objects[existingIndex] = {
     ...nextObject,
     title: manualFields.title ? existing.title : nextObject.title,
@@ -3044,6 +3047,7 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
     height: existing.height || nextObject.height,
     meta: {
       ...nextObject.meta,
+      ...(pinned ? { pinned: true } : {}),
       ...(Object.keys(manualFields).length ? { manualFields } : {}),
     },
   };
@@ -3585,10 +3589,17 @@ function isSpatialObjectVisibleInCurrentMap(object) {
   if (!object) {
     return false;
   }
+  if (isSpatialObjectPinned(object)) {
+    return true;
+  }
   if (state.historyLaneCollapsed && isCheckpointSpatialObject(object)) {
     return false;
   }
   return isSpatialObjectVisibleForFilter(object, state.mapObjectFilter);
+}
+
+function isSpatialObjectPinned(object) {
+  return Boolean(object?.meta?.pinned);
 }
 
 function isSpatialObjectVisibleForFilter(object, filter = state.mapObjectFilter) {
@@ -4042,6 +4053,7 @@ function cloneSpatialObjectMetaForManualCopy(object) {
     delete meta.url;
     delete meta.previewPath;
   }
+  delete meta.pinned;
   return meta;
 }
 
@@ -4107,6 +4119,7 @@ function buildSpatialObjectContextText(object) {
     `- Type: ${object.type || "object"}`,
     `- Source: ${object.sourceKind || "manual"}`,
     `- Status: ${spatialObjectFooterStatus(object)}`,
+    `- Pinned: ${isSpatialObjectPinned(object) ? "yes" : "no"}`,
     `- Frame: ${frameLabel}`,
     `- Position: ${Math.round(object.x)}, ${Math.round(object.y)}`,
     `- Size: ${Math.round(object.width || SPATIAL_OBJECT_WIDTH)} x ${Math.round(object.height || SPATIAL_OBJECT_HEIGHT)}`,
@@ -6466,12 +6479,13 @@ function renderSpatialObjectNode(object) {
   const footerStatus = spatialObjectFooterStatus(object);
   const actionMarkup = spatialObjectActionMarkup(object);
   const isSelected = currentSelectedSpatialObjectIds().includes(object.id);
+  const isPinned = isSpatialObjectPinned(object);
   const sourceClass = object.sourceKind
     ? `source-${classToken(object.sourceKind)}`
     : "";
   return `
     <article
-      class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""}"
+      class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""} ${isPinned ? "pinned" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
       data-spatial-object-source="${escapeHtml(object.sourceKind || "")}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
@@ -6489,6 +6503,7 @@ function renderSpatialObjectNode(object) {
       >
         ×
       </button>
+      ${isPinned ? '<span class="spatial-object-pin-badge">Pinned</span>' : ""}
       <span
         class="spatial-object-resize"
         data-spatial-object-resize="${escapeHtml(object.id)}"
@@ -6568,6 +6583,9 @@ function renderMapSelectionActions() {
   dom.mapSelectionActions.hidden = !hasSelection;
   dom.mapPropertyEditor.hidden = !hasSelection || selectedObjects.length !== 1;
   dom.mapCopyObjectContext.disabled = !copyText;
+  dom.mapPinObject.disabled = !hasSelection;
+  dom.mapPinObject.textContent =
+    hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
   dom.mapDuplicateObject.disabled = !hasSelection;
   dom.mapDeleteObject.disabled = !hasSelection;
   dom.mapClearSelection.disabled = !hasSelection;
@@ -6578,6 +6596,7 @@ function renderMapSelectionActions() {
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
     dom.mapObjectTypeDetails.innerHTML = "";
+    dom.mapPinObject.textContent = "Pin";
     return;
   }
 
@@ -6598,6 +6617,7 @@ function renderMapSelectionActions() {
     spatialObjectSourceLabel(object),
     spatialObjectFooterStatus(object),
     frameLabel,
+    isSpatialObjectPinned(object) ? "Pinned" : "",
   ];
   if (object.type === "map-group") {
     details.push(spatialGroupMemberSummary(object));
@@ -6640,6 +6660,7 @@ function mapObjectInspectorRows(object) {
   const rows = [
     { label: "Kind", value: spatialObjectSourceLabel(object) },
     { label: "Frame", value: spatialObjectFrameLabel(object) },
+    { label: "Pinned", value: isSpatialObjectPinned(object) ? "yes" : "no" },
   ];
 
   if (object.sourceKind === "asset-candidate") {
@@ -6742,6 +6763,32 @@ function updateSelectedSpatialObjectProperty(field, value) {
   renderSpec();
   scheduleLivePreviewSync();
   renderStatus(`Updated ${field} for ${spatialObjectTitle(object)}`);
+  return true;
+}
+
+function toggleSelectedSpatialObjectPin() {
+  const selectedObjects = selectedSpatialObjects();
+  if (!selectedObjects.length) {
+    return false;
+  }
+  const shouldPin = !selectedObjects.every(isSpatialObjectPinned);
+  selectedObjects.forEach((object) => {
+    object.meta = { ...(object.meta || {}) };
+    if (shouldPin) {
+      object.meta.pinned = true;
+    } else {
+      delete object.meta.pinned;
+    }
+  });
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    shouldPin
+      ? `Pinned ${selectedObjects.length} Map object${selectedObjects.length === 1 ? "" : "s"}`
+      : `Unpinned ${selectedObjects.length} Map object${selectedObjects.length === 1 ? "" : "s"}`,
+  );
   return true;
 }
 
@@ -11611,6 +11658,7 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     sourceKind: object.sourceKind,
     sourceId: object.sourceId,
     status: object.status,
+    pinned: isSpatialObjectPinned(object),
     frameIds: object.frameIds || [],
     groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
     position: { x: object.x, y: object.y },
@@ -16002,6 +16050,7 @@ function assertManualSpatialObjectControls() {
     workspaceMode: state.workspaceMode,
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
+    mapObjectFilter: state.mapObjectFilter,
     spatialObjects: structuredClone(state.spatialObjects),
     selectedSpatialObjectId: state.selectedSpatialObjectId,
     selectedSpatialObjectIds: structuredClone(state.selectedSpatialObjectIds),
@@ -16085,6 +16134,7 @@ function assertManualSpatialObjectControls() {
     dom.mapObjectStatus.value === object.status &&
     dom.mapSelectedObjectTitle.textContent === object.title &&
     !dom.mapCopyObjectContext.disabled &&
+    !dom.mapPinObject.disabled &&
     !dom.mapDuplicateObject.disabled &&
     !dom.mapDeleteObject.disabled;
   const propertyEdited =
@@ -16107,10 +16157,38 @@ function assertManualSpatialObjectControls() {
         entry.status === "ready-for-codex" &&
         entry.contextMarkdown.includes("Manual spatial object property note"),
     );
+  const pinned =
+    toggleSelectedSpatialObjectPin() &&
+    objectRecord?.meta?.pinned === true &&
+    dom.mapPinObject.textContent === "Unpin" &&
+    Boolean(
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${object?.id}'].pinned .spatial-object-pin-badge`,
+      ),
+    ) &&
+    buildSpatialWorkspaceExport().objects.some(
+      (entry) =>
+        entry.id === object?.id &&
+        entry.pinned === true &&
+        entry.contextMarkdown.includes("- Pinned: yes"),
+    );
+  setMapObjectFilter("outputs");
+  const pinnedVisibleAcrossFilter =
+    state.mapObjectFilter === "outputs" &&
+    Boolean(
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${object?.id}'].pinned`,
+      ),
+    ) &&
+    buildSpatialWorkspaceExport().objectFilter?.visibleObjectIds.includes(
+      object?.id || "",
+    );
+  setMapObjectFilter("all");
   const contextText = buildSpatialObjectContextText(objectRecord);
   const contextExported =
     contextText.includes("Renamed map note") &&
     contextText.includes("Manual spatial object property note") &&
+    contextText.includes("- Pinned: yes") &&
     contextText.includes("Prompt / Context");
   const groupContextText = buildSpatialObjectContextText(groupRecord);
   const groupInspectorExported =
@@ -16383,6 +16461,7 @@ function assertManualSpatialObjectControls() {
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
+  state.mapObjectFilter = previous.mapObjectFilter;
   state.spatialObjects = previous.spatialObjects;
   state.selectedSpatialObjectId = previous.selectedSpatialObjectId;
   state.selectedSpatialObjectIds = previous.selectedSpatialObjectIds;
@@ -16395,6 +16474,8 @@ function assertManualSpatialObjectControls() {
       selectedRendered &&
       selectionActionsVisible &&
       propertyEdited &&
+      pinned &&
+      pinnedVisibleAcrossFilter &&
       contextExported &&
       groupInspectorExported &&
       nudged &&
@@ -16417,6 +16498,8 @@ function assertManualSpatialObjectControls() {
       selectedRendered,
       selectionActionsVisible,
       propertyEdited,
+      pinned,
+      pinnedVisibleAcrossFilter,
       contextExported,
       groupInspectorExported,
       nudged,
