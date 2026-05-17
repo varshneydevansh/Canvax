@@ -17046,8 +17046,8 @@ async function runSelfTest() {
         assert(
           materializedHtml.includes('data-show-blueprint="false"') &&
             materializedHtml.includes('data-show-notes="false"') &&
-            materializedHtml.includes("Show original sketch") &&
-            materializedHtml.includes("Show design notes"),
+            materializedHtml.includes("Show sketch overlay") &&
+            materializedHtml.includes("Show note overlay"),
           "materialized output keeps sketch and notes as opt-in review aids",
         ),
       );

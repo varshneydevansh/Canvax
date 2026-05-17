@@ -666,7 +666,7 @@ Behavior:
 - uses a semantic hero renderer for hero-like website frames, so the output is no longer just a literal absolute-positioned wireframe
 - reads loose strokes, arrows, ovals, image slots, and free labels as semantic source material when the sketch is not a clean box wireframe
 - infers brand, nav, headline, body copy, CTAs, proof chips, preview card, and edit/refinement note from labels and frame notes
-- keeps original sketch and free-note overlays hidden by default in generated outputs; `Show original sketch` and `Show design notes` are explicit review aids
+- keeps original sketch and free-note overlays hidden by default in generated outputs; `Show sketch overlay` and `Show note overlay` are explicit optional review overlays, not generated product UI
 - writes back into the same Preview loop as Materialize
 - reuses the same per-frame target so Preview stays attached across refreshes
 

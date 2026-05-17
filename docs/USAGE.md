@@ -887,12 +887,12 @@ That means the compare window can now point out which parts of the sketch change
 The generated materialized preview also includes a few lightweight interaction affordances:
 
 - clickable generated components
-- `Show original sketch` as an opt-in transparent review overlay
-- `Show design notes` as an opt-in display for free labels and interpretation notes
+- `Show sketch overlay` as an opt-in transparent review overlay
+- `Show note overlay` as an opt-in display for free labels and interpretation notes
 
 If Preview says the output is stale, it means the current sketch `updatedAt` is newer than the materialized target metadata. Rematerialize that frame to bring the generated surface back in sync.
 
-The generated output opens clean by default. Sketch overlays and design notes are review aids, not product UI. Turn them on only when you want to compare the generated surface against the rough drawing or inspect the labels that guided Codex.
+The generated output opens clean by default. Sketch overlays and design notes are optional review overlays, not product UI. Turn them on only when you want to compare the generated surface against the rough drawing or inspect the labels that guided Codex.
 
 Materialize is useful when you want a quick “make this sketch feel real” pass while keeping the original sketch board unchanged.
 

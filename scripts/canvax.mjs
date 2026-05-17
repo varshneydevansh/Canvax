@@ -6,6 +6,7 @@ import {
   mkdir,
   readFile,
   realpath,
+  rename,
   stat,
   symlink,
   unlink,
@@ -862,39 +863,45 @@ async function handleSaveExport(request, response) {
     : "";
   const imagePromptPackMarkdownBody = payload.imagePromptPackMarkdown || "";
 
-  await writeFile(legacyJsonPath, jsonBody);
+  await writeTextFileAtomic(legacyJsonPath, jsonBody);
   await writeFile(archiveJsonPath, jsonBody);
-  await writeFile(legacyMarkdownPath, markdownBody);
+  await writeTextFileAtomic(legacyMarkdownPath, markdownBody);
   await writeFile(archiveMarkdownPath, markdownBody);
-  await writeFile(liveJsonPath, jsonBody);
-  await writeFile(liveMarkdownPath, markdownBody);
-  await writeFile(liveVoiceMarkdownPath, voiceMarkdownBody);
+  await writeTextFileAtomic(liveJsonPath, jsonBody);
+  await writeTextFileAtomic(liveMarkdownPath, markdownBody);
+  await writeTextFileAtomic(liveVoiceMarkdownPath, voiceMarkdownBody);
   await writeFile(archiveVoiceMarkdownPath, voiceMarkdownBody);
   if (taskPackBody) {
-    await writeFile(taskPackJsonPath, taskPackBody);
+    await writeTextFileAtomic(taskPackJsonPath, taskPackBody);
     await writeFile(archiveTaskPackJsonPath, taskPackBody);
   }
   if (taskPackMarkdownBody) {
-    await writeFile(taskPackMarkdownPath, taskPackMarkdownBody);
+    await writeTextFileAtomic(taskPackMarkdownPath, taskPackMarkdownBody);
     await writeFile(archiveTaskPackMarkdownPath, taskPackMarkdownBody);
   }
   if (rewriteRequestBody) {
-    await writeFile(rewriteRequestJsonPath, rewriteRequestBody);
+    await writeTextFileAtomic(rewriteRequestJsonPath, rewriteRequestBody);
     await writeFile(archiveRewriteRequestJsonPath, rewriteRequestBody);
   }
   if (rewriteRequestMarkdownBody) {
-    await writeFile(rewriteRequestMarkdownPath, rewriteRequestMarkdownBody);
+    await writeTextFileAtomic(
+      rewriteRequestMarkdownPath,
+      rewriteRequestMarkdownBody,
+    );
     await writeFile(
       archiveRewriteRequestMarkdownPath,
       rewriteRequestMarkdownBody,
     );
   }
   if (imagePromptPackBody) {
-    await writeFile(imagePromptPackJsonPath, imagePromptPackBody);
+    await writeTextFileAtomic(imagePromptPackJsonPath, imagePromptPackBody);
     await writeFile(archiveImagePromptPackJsonPath, imagePromptPackBody);
   }
   if (imagePromptPackMarkdownBody) {
-    await writeFile(imagePromptPackMarkdownPath, imagePromptPackMarkdownBody);
+    await writeTextFileAtomic(
+      imagePromptPackMarkdownPath,
+      imagePromptPackMarkdownBody,
+    );
     await writeFile(
       archiveImagePromptPackMarkdownPath,
       imagePromptPackMarkdownBody,
@@ -979,8 +986,8 @@ async function handleSaveBuildRequest(request, response) {
   await mkdir(exportsRoot, { recursive: true });
   await writeFile(requestJsonPath, jsonBody);
   await writeFile(requestMarkdownPath, markdownBody);
-  await writeFile(buildRealRequestJsonPath, jsonBody);
-  await writeFile(buildRealRequestMarkdownPath, markdownBody);
+  await writeTextFileAtomic(buildRealRequestJsonPath, jsonBody);
+  await writeTextFileAtomic(buildRealRequestMarkdownPath, markdownBody);
 
   await appendFile(
     sessionEventsPath,
@@ -1203,8 +1210,8 @@ async function handleSaveAssetCandidates(request, response) {
   await mkdir(exportsRoot, { recursive: true });
   await writeFile(requestJsonPath, jsonBody);
   await writeFile(requestMarkdownPath, markdownBody);
-  await writeFile(assetCandidatesJsonPath, jsonBody);
-  await writeFile(assetCandidatesMarkdownPath, markdownBody);
+  await writeTextFileAtomic(assetCandidatesJsonPath, jsonBody);
+  await writeTextFileAtomic(assetCandidatesMarkdownPath, markdownBody);
 
   await appendFile(
     sessionEventsPath,
@@ -1545,8 +1552,11 @@ async function appendTranscriptBridgeEntry(input = {}) {
   };
 
   await mkdir(exportsRoot, { recursive: true });
-  await writeFile(transcriptBridgePath, `${JSON.stringify(bridge, null, 2)}\n`);
-  await writeFile(
+  await writeTextFileAtomic(
+    transcriptBridgePath,
+    `${JSON.stringify(bridge, null, 2)}\n`,
+  );
+  await writeTextFileAtomic(
     transcriptBridgeMarkdownPath,
     buildTranscriptBridgeMarkdown(entry, bridge),
   );
@@ -1682,7 +1692,7 @@ async function handleSaveCheckpoint(request, response) {
     resolve(checkpointRoot, "checkpoint.json"),
     `${JSON.stringify(checkpointBody, null, 2)}\n`,
   );
-  await writeFile(
+  await writeTextFileAtomic(
     latestCheckpointPath,
     `${JSON.stringify(checkpointBody, null, 2)}\n`,
   );
@@ -1698,7 +1708,7 @@ async function handleSaveCheckpoint(request, response) {
     items: nextItems,
   };
   await mkdir(checkpointsRoot, { recursive: true });
-  await writeFile(
+  await writeTextFileAtomic(
     checkpointsIndexPath,
     `${JSON.stringify(indexBody, null, 2)}\n`,
   );
@@ -4145,16 +4155,16 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         <div class="note-layer">
           ${noteMarkup}
         </div>
-        <div class="toolbar">
-          <span class="toolbar-kicker">Review aids</span>
+        <div class="toolbar" aria-label="Optional review overlays">
+          <span class="toolbar-kicker">Review overlays</span>
           ${
             sketchSrc
-              ? '<button type="button" data-action="toggle-blueprint" data-on-label="Hide original sketch" data-off-label="Show original sketch" aria-pressed="false" title="Toggle the transparent original Canvax sketch. This is a review overlay, not part of the generated output.">Show original sketch</button>'
+              ? '<button type="button" data-action="toggle-blueprint" data-on-label="Hide sketch overlay" data-off-label="Show sketch overlay" aria-pressed="false" title="Optional review overlay: compare the generated output against the original Canvax sketch. This is not product UI.">Show sketch overlay</button>'
               : ""
           }
           ${
             noteMarkup
-              ? '<button type="button" data-action="toggle-notes" data-on-label="Hide design notes" data-off-label="Show design notes" aria-pressed="false" title="Toggle free labels and design notes captured from the sketch. These notes guide Codex but are not product UI.">Show design notes</button>'
+              ? '<button type="button" data-action="toggle-notes" data-on-label="Hide note overlay" data-off-label="Show note overlay" aria-pressed="false" title="Optional review overlay: show free labels and interpretation notes captured from the sketch. These notes guide Codex but are not product UI.">Show note overlay</button>'
               : ""
           }
         </div>
@@ -5041,6 +5051,20 @@ async function readOptionalText(filePath) {
     return await readFile(filePath, "utf8");
   } catch {
     return "";
+  }
+}
+
+async function writeTextFileAtomic(filePath, body) {
+  await mkdir(dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.${Math.random()
+    .toString(36)
+    .slice(2, 8)}.tmp`;
+  try {
+    await writeFile(temporaryPath, body, "utf8");
+    await rename(temporaryPath, filePath);
+  } catch (error) {
+    await unlink(temporaryPath).catch(() => {});
+    throw error;
   }
 }
 

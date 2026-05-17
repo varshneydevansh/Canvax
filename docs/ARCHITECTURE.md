@@ -188,6 +188,7 @@ Purpose:
 
 - give Codex a stable, path-based handoff surface
 - preserve collaboration moments outside volatile browser memory
+- write shared `*-latest.*` files by atomic replacement so Codex/regression readers never observe a partially written JSON or Markdown handoff
 - include `spatialWorkspace` so Codex can read frame/variant map positions, active/entry frames, and links as project memory
 - include `spatialWorkspace.variantBranches` so Codex can separate editable generated variant branches from normal navigation/prototype links
 - include `spatialWorkspace.lanes` so checkpoint history can be read as a named spatial timeline instead of only a flat session list
