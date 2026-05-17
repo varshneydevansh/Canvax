@@ -76,6 +76,11 @@ if (!liveUrl) {
     liveUrl,
     timeoutMs: responsiveSmokeTimeoutMs,
   });
+  await validateAdvancedMapSmoke({
+    chromePath,
+    liveUrl,
+    timeoutMs: responsiveSmokeTimeoutMs,
+  });
   await writeSnapshotIndex();
 }
 
@@ -164,6 +169,23 @@ async function validateResponsiveSmokeMatrix({ chromePath, liveUrl, timeoutMs })
       viewport,
       timeoutMs,
       expression: buildPreviewResponsiveSmokeExpression(),
+    });
+  }
+}
+
+async function validateAdvancedMapSmoke({ chromePath, liveUrl, timeoutMs }) {
+  const viewports = responsiveSmokeViewports.filter((viewport) =>
+    ["desktop", "tablet"].includes(viewport.label),
+  );
+  for (const viewport of viewports) {
+    await validateResponsiveSmoke({
+      name: `advanced map visual smoke passes at ${viewport.label}`,
+      surface: "board-advanced-map",
+      chromePath,
+      url: `${liveUrl}/?responsivecheck=1&visualfixture=advanced-map`,
+      viewport,
+      timeoutMs,
+      expression: buildAdvancedMapSmokeExpression(),
     });
   }
 }
@@ -290,6 +312,71 @@ function buildBoardResponsiveSmokeExpression() {
       failures,
       readyState: document.readyState,
       mode,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  })()`;
+}
+
+function buildAdvancedMapSmokeExpression() {
+  return `(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    window.scrollTo(0, Math.min(640, Math.max(0, document.body.scrollHeight - window.innerHeight)));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return {
+        width: box.width,
+        height: box.height,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        visible: box.width > 0 && box.height > 0
+      };
+    };
+    const alphaFromColor = (value) => {
+      const match = String(value || "").match(/rgba?\\(([^)]+)\\)/i);
+      if (!match) return 1;
+      const parts = match[1].split(",").map((part) => part.trim());
+      return parts.length >= 4 ? Number(parts[3]) : 1;
+    };
+    const failures = [];
+    const toolbar = document.querySelector(".toolbar");
+    const toolbarRect = rect(".toolbar");
+    const flow = rect("#flow-workspace");
+    const flowShell = rect("#flow-shell");
+    const outputLane = rect(".spatial-lane-output");
+    const guide = rect(".spatial-lane-output .spatial-lane-guide");
+    const generatedLabels = [
+      ...document.querySelectorAll(".spatial-object-node.generated-output .spatial-object-header span")
+    ].map((node) => node.textContent.trim().toLowerCase());
+    const toolbarStyle = toolbar ? getComputedStyle(toolbar) : null;
+    const backdrop = toolbarStyle?.backdropFilter || toolbarStyle?.webkitBackdropFilter || "none";
+    const backgroundAlpha = alphaFromColor(toolbarStyle?.backgroundColor);
+    if (document.readyState !== "complete") failures.push("document not complete");
+    if (document.body?.dataset?.workspaceMode !== "advanced") failures.push("advanced mode not active");
+    if (document.body?.dataset?.viewMode !== "flow") failures.push("flow map not active");
+    if (!toolbarRect?.visible) failures.push("advanced toolbar missing");
+    if (!flow?.visible || !flowShell?.visible) failures.push("flow map missing");
+    if (!outputLane?.visible) failures.push("output shelf missing");
+    if (!guide?.visible) failures.push("output shelf guide missing");
+    if (toolbarRect && toolbarRect.width > window.innerWidth + 16) failures.push("advanced toolbar wider than viewport");
+    if (flowShell && flowShell.height < Math.min(360, window.innerHeight * 0.45)) failures.push("flow map viewport too short");
+    if (backdrop && backdrop !== "none" && backdrop !== "blur(0px)") failures.push("advanced toolbar uses backdrop blur");
+    if (backgroundAlpha < 0.98) failures.push("advanced toolbar background is translucent");
+    if (!generatedLabels.length) failures.push("generated output labels missing");
+    if (generatedLabels.some((label) => label === "generated-target")) failures.push("raw generated-target label is visible");
+    return {
+      passed: failures.length === 0,
+      failures,
+      mode: document.body?.dataset?.workspaceMode || "",
+      viewMode: document.body?.dataset?.viewMode || "",
+      generatedLabels,
+      toolbarBackground: toolbarStyle?.backgroundColor || "",
+      toolbarBackdrop: backdrop,
       width: window.innerWidth,
       height: window.innerHeight
     };

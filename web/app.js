@@ -39,8 +39,9 @@ const FLOW_EDGE_EXPAND_STEP = 520;
 const FLOW_TRAILING_SPACE = 720;
 const SELECTION_HANDLE_SIZE = 14;
 const PREVIEW_WINDOW_NAME = "canvax-preview-window";
-const shouldRunSelfTest =
-  new URLSearchParams(window.location.search).get("selftest") === "1";
+const urlParams = new URLSearchParams(window.location.search);
+const shouldRunSelfTest = urlParams.get("selftest") === "1";
+const visualFixtureMode = cleanString(urlParams.get("visualfixture"));
 
 if (shouldRunSelfTest) {
   window.__canvaxSelfTestProgress = "booting";
@@ -503,9 +504,13 @@ function init() {
   populateViewportSelect();
   bindEvents();
   bindInteractionFeedback();
-  fetchServerStatus();
-  refreshPreviewStateFromServer();
-  syncSpatialObjectsFromHandoffs();
+  if (visualFixtureMode) {
+    applyVisualFixture(visualFixtureMode);
+  } else {
+    fetchServerStatus();
+    refreshPreviewStateFromServer();
+    syncSpatialObjectsFromHandoffs();
+  }
   renderAll();
   scheduleLivePreviewSync();
   exposeDebugHelpers();
@@ -515,6 +520,56 @@ function init() {
       void runSelfTest();
     }, 150);
   }
+}
+
+function applyVisualFixture(mode) {
+  if (!["advanced-map", "workbench-map"].includes(mode)) {
+    return;
+  }
+
+  const fixture = buildLargeSessionFixture(12);
+  state.frames = fixture.frames;
+  state.connections = fixture.connections;
+  state.activeFrameId = fixture.frames[0]?.id || state.activeFrameId;
+  state.entryFrameId = fixture.frames[0]?.id || state.entryFrameId;
+  state.selectedConnectionId = null;
+  state.pendingConnectionFromFrameId = null;
+  state.voice = {
+    ...createInitialVoiceState(),
+    scope: "frame",
+    segments: fixture.voiceSegments,
+  };
+  state.assetCandidatePack = fixture.assetCandidatePack;
+  state.outputLaneCollapsed = false;
+  state.historyLaneCollapsed = false;
+  state.hiddenSpatialObjectIds = [];
+  state.mapObjectFilter = "all";
+  state.flowZoom = 0.8;
+  state.viewMode = "flow";
+  state.workbenchFocus = "map";
+  state.workspaceMode = mode === "advanced-map" ? "advanced" : "simple";
+  state.serverStatus = {
+    ...state.serverStatus,
+    previewManifest: fixture.previewManifest,
+    checkpointHistory: fixture.checkpointHistory,
+    transport: buildTransportDescriptor(),
+    hostCapabilities: {
+      codexBrowser: {
+        available: true,
+        detail: "Visual regression fixture for Codex browser workflow.",
+      },
+      hostImageGeneration: {
+        available: false,
+        detail: "Fixture stays local-first and does not require API keys.",
+      },
+    },
+    designContext: {
+      exists: true,
+      relativePath: "DESIGN.md",
+      summary: "Fixture design context for visual regression.",
+    },
+  };
+  syncSpatialObjectsFromHandoffs();
 }
 
 function bindEvents() {

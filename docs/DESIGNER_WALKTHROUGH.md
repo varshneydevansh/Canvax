@@ -179,6 +179,8 @@ artifacts/canvax/browser-snapshots/latest/board-desktop-1440x1024.png
 artifacts/canvax/browser-snapshots/latest/board-laptop-1024x820.png
 artifacts/canvax/browser-snapshots/latest/board-tablet-768x900.png
 artifacts/canvax/browser-snapshots/latest/board-narrow-430x840.png
+artifacts/canvax/browser-snapshots/latest/board-advanced-map-desktop-1440x1024.png
+artifacts/canvax/browser-snapshots/latest/board-advanced-map-tablet-768x900.png
 artifacts/canvax/browser-snapshots/latest/preview-desktop-1440x1024.png
 artifacts/canvax/browser-snapshots/latest/preview-laptop-1024x820.png
 artifacts/canvax/browser-snapshots/latest/preview-tablet-768x900.png
@@ -193,6 +195,7 @@ Use those screenshots to review:
 - whether `Focus canvas` meaning is clear
 - whether Workbench and Advanced feel like the same product
 - whether generated output references look like references, not extra sketch frames
+- whether the Advanced sticky command deck remains solid while scrolled over frame/map content
 
 ## What To Ask Codex
 

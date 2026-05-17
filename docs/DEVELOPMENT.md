@@ -103,6 +103,8 @@ http://localhost:3210/?selftest=1
 
 The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, Workbench action modes, host/design-context handoff fields, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, board-side rewrite execution, and large-session export consistency.
 
+The browser regression also includes a deterministic `visualfixture=advanced-map` route. It seeds a dense Map session, switches into Advanced Flow view, scrolls the page so the sticky command deck sits over frame/map content, captures desktop and tablet screenshots, and asserts that the Advanced deck has no backdrop blur, uses an opaque background, renders the Output shelf, and does not show raw `generated-target` labels.
+
 End-to-end no-API workflow proof:
 
 ```bash

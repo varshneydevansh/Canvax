@@ -64,6 +64,7 @@ Status: In progress
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds`, `spatialWorkspace.groups` records member frames/objects, and selected group context includes a contents inspector
 - [x] Workbench `Map` supports background drag-pan, left/top edge expansion for cards and Map objects, trailing workspace room, cursor-centered pinch/ctrl-wheel zoom, a minimap navigator with click-to-pan, and `Fit map` recovery for visible frames/objects
 - [x] Workbench/Advanced `Map` uses a fixed internal scroll viewport instead of letting the spatial surface expand the whole page, and `Tidy map` reflows generated-output/checkpoint shelf objects into compact lanes
+- [x] Browser regression now captures scrolled Advanced Map screenshots on desktop and tablet through `visualfixture=advanced-map`, and asserts the sticky command deck stays opaque with no raw `generated-target` output labels
 - [x] Workbench `Map` spatial objects can be selected, Shift-click multi-selected, Shift-drag lasso-selected, moved as a selected set, resized as a selected set from a combined transform box, edited through a visible Copy context/Pin/Lock/Group/Ungroup/Select contents/Fit group/Send back/Bring front/Duplicate/Delete/Clear action strip, copied as no-API Markdown context, keyboard-nudged, grouped with `Cmd/Ctrl+G`, ungrouped with `Shift+Cmd/Ctrl+G`, reordered with `Cmd/Ctrl+[` and `Cmd/Ctrl+]`, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, locked against accidental move/resize/group/reorder/duplicate/delete, group-duplicated with contained unlocked Map objects, and exported as active `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `locked`, `layerIndex`, `layerLabel`, and `contextMarkdown`
 - [x] Workbench `Map` single-object selection exposes a lightweight property editor for Title, Note, Status, and Prompt / Context plus per-type read-only details for generated outputs, asset candidates, checkpoints, variants, groups, references, and changes; manual overrides persist across generated/asset/checkpoint object resyncs
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
@@ -207,6 +208,7 @@ Status: In progress
 - [x] Workbench/Advanced Map output preview cards now expose `Edit as frame`, creating a normal editable frame branch from the generated target instead of leaving the output as a passive reference only; the generated target binding now travels through task packs, rewrite requests, build requests, output contracts, and executor context JSON
 - [x] Workbench/Advanced Map selected objects can now be sent backward or brought forward, and live export/context Markdown includes the resulting layer order
 - [x] Advanced command deck is solid/readable and sticky, so grid/canvas texture does not bleed through the controls during long frame/map scrolls
+- [x] Advanced command deck behavior is now covered by scrolled browser visual smoke snapshots instead of only manual review
 
 ```text
 Preview today:
