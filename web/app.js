@@ -346,6 +346,10 @@ const dom = {
   mapSelectionActions: document.querySelector("#map-selection-actions"),
   mapSelectedObjectTitle: document.querySelector("#map-selected-object-title"),
   mapSelectedObjectDetail: document.querySelector("#map-selected-object-detail"),
+  mapPropertyEditor: document.querySelector("#map-property-editor"),
+  mapObjectTitle: document.querySelector("#map-object-title"),
+  mapObjectSubtitle: document.querySelector("#map-object-subtitle"),
+  mapObjectStatus: document.querySelector("#map-object-status"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapDuplicateObject: document.querySelector("#map-duplicate-object"),
   mapDeleteObject: document.querySelector("#map-delete-object"),
@@ -694,6 +698,18 @@ function bindEvents() {
   });
   dom.mapClearSelection.addEventListener("click", () => {
     clearSpatialObjectSelection({ render: true });
+  });
+  dom.mapObjectTitle.addEventListener("change", () => {
+    updateSelectedSpatialObjectProperty("title", dom.mapObjectTitle.value);
+  });
+  dom.mapObjectSubtitle.addEventListener("change", () => {
+    updateSelectedSpatialObjectProperty(
+      "subtitle",
+      dom.mapObjectSubtitle.value,
+    );
+  });
+  dom.mapObjectStatus.addEventListener("change", () => {
+    updateSelectedSpatialObjectProperty("status", dom.mapObjectStatus.value);
   });
   dom.spatialFileInput.addEventListener("change", () => {
     const file = dom.spatialFileInput.files?.[0];
@@ -2994,12 +3010,20 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
   }
 
   const existing = objects[existingIndex];
+  const manualFields = existing.meta?.manualFields || {};
   objects[existingIndex] = {
     ...nextObject,
+    title: manualFields.title ? existing.title : nextObject.title,
+    subtitle: manualFields.subtitle ? existing.subtitle : nextObject.subtitle,
+    status: manualFields.status ? existing.status : nextObject.status,
     x: existing.x,
     y: existing.y,
     width: existing.width || nextObject.width,
     height: existing.height || nextObject.height,
+    meta: {
+      ...nextObject.meta,
+      ...(Object.keys(manualFields).length ? { manualFields } : {}),
+    },
   };
   existingIds.add(nextObject.id);
 }
@@ -3951,7 +3975,11 @@ function buildSpatialObjectContextText(object) {
       : object.frameIds?.length
         ? object.frameIds.map(frameTitleById).join(", ")
         : "Board object";
+  const manualSubtitle = object.meta?.manualFields?.subtitle
+    ? cleanString(object.subtitle)
+    : "";
   const promptText =
+    manualSubtitle ||
     cleanString(object.meta?.prompt) ||
     cleanString(object.meta?.text) ||
     cleanString(object.meta?.summary) ||
@@ -6383,6 +6411,7 @@ function renderMapSelectionActions() {
   const hasSelection = selectedObjects.length > 0;
   const copyText = buildSpatialSelectionContextText(selectedObjects);
   dom.mapSelectionActions.hidden = !hasSelection;
+  dom.mapPropertyEditor.hidden = !hasSelection || selectedObjects.length !== 1;
   dom.mapCopyObjectContext.disabled = !copyText;
   dom.mapDuplicateObject.disabled = !hasSelection;
   dom.mapDeleteObject.disabled = !hasSelection;
@@ -6390,6 +6419,9 @@ function renderMapSelectionActions() {
   if (!hasSelection || !object) {
     dom.mapSelectedObjectTitle.textContent = "No object selected";
     dom.mapSelectedObjectDetail.textContent = "Click a Map card to edit it.";
+    dom.mapObjectTitle.value = "";
+    dom.mapObjectSubtitle.value = "";
+    dom.mapObjectStatus.value = "";
     return;
   }
 
@@ -6398,6 +6430,9 @@ function renderMapSelectionActions() {
       `${selectedObjects.length} Map objects selected`;
     dom.mapSelectedObjectDetail.textContent =
       "Arrow keys move the selection. Duplicate, delete, clear, or copy combined context.";
+    dom.mapObjectTitle.value = "";
+    dom.mapObjectSubtitle.value = "";
+    dom.mapObjectStatus.value = "";
     return;
   }
 
@@ -6413,6 +6448,36 @@ function renderMapSelectionActions() {
 
   dom.mapSelectedObjectTitle.textContent = spatialObjectTitle(object);
   dom.mapSelectedObjectDetail.textContent = details.filter(Boolean).join(" • ");
+  dom.mapObjectTitle.value = object.title || "";
+  dom.mapObjectSubtitle.value = object.subtitle || "";
+  dom.mapObjectStatus.value = object.status || "";
+}
+
+function updateSelectedSpatialObjectProperty(field, value) {
+  if (!["title", "subtitle", "status"].includes(field)) {
+    return false;
+  }
+  const selectedObjects = selectedSpatialObjects();
+  const object = selectedObjects.length === 1 ? selectedObjects[0] : null;
+  if (!object) {
+    return false;
+  }
+
+  const nextValue = cleanString(value);
+  object[field] = nextValue;
+  object.meta = {
+    ...(object.meta || {}),
+    manualFields: {
+      ...(object.meta?.manualFields || {}),
+      [field]: true,
+    },
+  };
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(`Updated ${field} for ${spatialObjectTitle(object)}`);
+  return true;
 }
 
 function spatialObjectFrameLabel(object) {
@@ -15607,19 +15672,43 @@ function assertManualSpatialObjectControls() {
   const selectionActionsVisible =
     Boolean(object) &&
     !dom.mapSelectionActions.hidden &&
+    !dom.mapPropertyEditor.hidden &&
+    dom.mapObjectTitle.value === object.title &&
+    dom.mapObjectSubtitle.value === object.subtitle &&
+    dom.mapObjectStatus.value === object.status &&
     dom.mapSelectedObjectTitle.textContent === object.title &&
     !dom.mapCopyObjectContext.disabled &&
     !dom.mapDuplicateObject.disabled &&
     !dom.mapDeleteObject.disabled;
+  const propertyEdited =
+    updateSelectedSpatialObjectProperty("title", "Renamed map note") &&
+    updateSelectedSpatialObjectProperty(
+      "subtitle",
+      "Manual spatial object property note",
+    ) &&
+    updateSelectedSpatialObjectProperty("status", "ready-for-codex") &&
+    objectRecord?.title === "Renamed map note" &&
+    objectRecord?.subtitle === "Manual spatial object property note" &&
+    objectRecord?.status === "ready-for-codex" &&
+    objectRecord?.meta?.manualFields?.title === true &&
+    objectRecord?.meta?.manualFields?.subtitle === true &&
+    objectRecord?.meta?.manualFields?.status === true &&
+    buildSpatialWorkspaceExport().objects.some(
+      (entry) =>
+        entry.id === object?.id &&
+        entry.title === "Renamed map note" &&
+        entry.status === "ready-for-codex" &&
+        entry.contextMarkdown.includes("Manual spatial object property note"),
+    );
   const contextText = buildSpatialObjectContextText(objectRecord);
   const contextExported =
-    contextText.includes("Self-test map note") &&
-    contextText.includes("Manual spatial object") &&
+    contextText.includes("Renamed map note") &&
+    contextText.includes("Manual spatial object property note") &&
     contextText.includes("Prompt / Context");
   const groupContextText = buildSpatialObjectContextText(groupRecord);
   const groupInspectorExported =
     groupContextText.includes("Group contents") &&
-    groupContextText.includes("Self-test map note") &&
+    groupContextText.includes("Renamed map note") &&
     groupContextText.includes(activeFrame.title);
   const objectXBeforeNudge = objectRecord?.x || 0;
   let nudgePrevented = false;
@@ -15679,7 +15768,7 @@ function assertManualSpatialObjectControls() {
     dom.mapSelectedObjectTitle.textContent.includes("2 Map objects");
   const multiContext = buildSpatialSelectionContextText();
   const multiContextExported =
-    multiContext.includes("Self-test map note") &&
+    multiContext.includes("Renamed map note") &&
     multiContext.includes("Self-test group");
   const groupBeforeMultiNudge = group ? spatialObjectById(group.id) : null;
   const objectBeforeMultiNudge = object ? spatialObjectById(object.id) : null;
@@ -15840,7 +15929,7 @@ function assertManualSpatialObjectControls() {
     spatialExport.selectedObject?.id === object?.id &&
     spatialExport.selectedObjects.some((entry) => entry.id === object?.id) &&
     spatialExport.selectedObject?.contextMarkdown.includes(
-      "Manual spatial object",
+      "Manual spatial object property note",
     );
   const exported = spatialExport.objects.some(
     (entry) => entry.id === object?.id && entry.sourceKind === "manual-note",
@@ -15898,6 +15987,7 @@ function assertManualSpatialObjectControls() {
     added &&
       selectedRendered &&
       selectionActionsVisible &&
+      propertyEdited &&
       contextExported &&
       groupInspectorExported &&
       nudged &&
@@ -15919,6 +16009,7 @@ function assertManualSpatialObjectControls() {
       added,
       selectedRendered,
       selectionActionsVisible,
+      propertyEdited,
       contextExported,
       groupInspectorExported,
       nudged,

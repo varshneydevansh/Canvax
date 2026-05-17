@@ -3186,6 +3186,7 @@ select,
 
 .map-selection-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
@@ -3205,6 +3206,34 @@ select,
 
 .map-selection-actions[hidden] {
     display: none;
+}
+
+.map-property-editor {
+    display: grid;
+    flex: 1 1 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 0.8fr);
+    gap: 0.6rem;
+    padding-top: 0.15rem;
+}
+
+.map-property-editor[hidden] {
+    display: none;
+}
+
+.map-property-editor label {
+    display: grid;
+    gap: 0.25rem;
+    color: var(--ink-soft);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.map-property-editor input,
+.map-property-editor textarea {
+    width: 100%;
+    min-height: 2.35rem;
+    border-color: rgba(12, 141, 123, 0.22);
+    background: rgba(255, 251, 245, 0.86);
 }
 
 .map-selection-meta {
@@ -4029,6 +4058,10 @@ select,
 
     .flow-card-node {
         width: 14rem;
+    }
+
+    .map-property-editor {
+        grid-template-columns: 1fr;
     }
 
     body[data-workspace-mode="simple"] .stage-panel {
