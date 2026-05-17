@@ -203,7 +203,7 @@ Canvax today
 
 Current `Generate screen` is local and deterministic. It improves the preview, but it does not by itself create real app/page code.
 
-Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request and frame-to-code output contract, then the board runs the local no-API executor to bind an immediate frame preview plus implementation starter bundle. That bundle now includes standalone HTML/CSS/JS, a React-ready `CanvaxScreen.jsx`/CSS pair, and a component ownership map. Codex can still execute that same request in the chat/session and replace or port the local artifact into a real route or component through `write-codex-output`.
+Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request and frame-to-code output contract, then the board runs the local no-API executor to bind an immediate frame preview plus implementation starter bundle. That bundle now includes standalone HTML/CSS/JS, a React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, framework adapter notes, and a component ownership map. Codex can still execute that same request in the chat/session and replace or port the local artifact into a real route or component through `write-codex-output`.
 
 Target behavior:
 
@@ -216,14 +216,14 @@ Needed:
 - A board action that creates a Codex-ready generation task from the current frame/checkpoint. **Initial version shipped as `Build with Codex`.**
 - A standard output contract for generated app/page/screen code. **Initial version shipped through `exports/canvax-build-real-latest.*` plus `artifacts/canvax/codex-output.json`.**
 - Automatic preview binding to the generated route or artifact. **Shipped for the local no-API build executor and its implementation bundle; still open for autonomous Codex-edited app routes/components.**
-- Frame-aware code ownership so one frame maps to the files/components Codex generated. **Initial local version shipped through `implementation/canvax-component-map.json` plus a React-ready component/CSS handoff; still open for richer production route/component ownership once Codex edits real files.**
+- Frame-aware code ownership so one frame maps to the files/components Codex generated. **Initial local version shipped through `implementation/canvax-component-map.json` plus React-ready component/CSS and Vite/Next adapter handoffs; still open for richer production route/component ownership once Codex edits real files.**
 
 Current stepping stone:
 
 ```text
 done
   rough frame -> local Generate screen -> polished HTML artifact -> Preview
-  rough frame -> Build with Codex request -> local bound preview + implementation bundle + React handoff + component map
+  rough frame -> Build with Codex request -> local bound preview + implementation bundle + React/framework handoff + component map
 
 next
   rough frame -> Build with Codex request -> Codex edits app/page files -> live app preview

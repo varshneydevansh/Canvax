@@ -102,6 +102,15 @@ record(
     ) &&
     buildResult.implementationFiles.some((file) =>
       file.path.endsWith("/implementation/CanvaxScreen.css"),
+    ) &&
+    buildResult.implementationFiles.some((file) =>
+      file.path.endsWith("/implementation/ViteApp.jsx"),
+    ) &&
+    buildResult.implementationFiles.some((file) =>
+      file.path.endsWith("/implementation/NextAppPage.jsx"),
+    ) &&
+    buildResult.implementationFiles.some((file) =>
+      file.path.endsWith("/implementation/FRAMEWORK_ADAPTERS.md"),
     ),
   buildResult.previewPath,
 );
@@ -134,6 +143,9 @@ if (buildFrameCodeMap?.path) {
       parsedMap.ownership?.files?.some((file) =>
         file.path.endsWith("CanvaxScreen.jsx"),
       ) &&
+      parsedMap.ownership?.files?.some((file) =>
+        file.path.endsWith("NextAppPage.jsx"),
+      ) &&
       parsedMap.regions?.some((region) =>
         region.implementationSelector?.includes("data-canvax-node-id"),
       ),
@@ -153,6 +165,32 @@ if (reactComponentFile?.path) {
     rawComponent.includes("export default function CanvaxScreen") &&
       rawComponent.includes("data-canvax-node-id") &&
       rawComponent.includes("CanvaxScreen.css"),
+  );
+}
+const nextAdapterFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "next-app-router-adapter",
+);
+const viteAdapterFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "vite-react-adapter",
+);
+const adapterDocsFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "framework-adapter-docs",
+);
+if (nextAdapterFile?.path && viteAdapterFile?.path && adapterDocsFile?.path) {
+  await assertReadableProjectFile(nextAdapterFile.path);
+  await assertReadableProjectFile(viteAdapterFile.path);
+  await assertReadableProjectFile(adapterDocsFile.path);
+  const [rawNextAdapter, rawViteAdapter, rawAdapterDocs] = await Promise.all([
+    readFile(resolve(projectRoot, nextAdapterFile.path), "utf8"),
+    readFile(resolve(projectRoot, viteAdapterFile.path), "utf8"),
+    readFile(resolve(projectRoot, adapterDocsFile.path), "utf8"),
+  ]);
+  record(
+    "build executor creates framework adapter handoffs",
+    rawNextAdapter.includes("export default function Page") &&
+      rawViteAdapter.includes("export default function App") &&
+      rawAdapterDocs.includes("Next.js App Router") &&
+      rawAdapterDocs.includes("data-canvax-node-id"),
   );
 }
 

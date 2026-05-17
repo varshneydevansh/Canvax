@@ -111,7 +111,7 @@ End-to-end no-API workflow proof:
 npm run e2e-workflow
 ```
 
-That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, and asset candidates. It then runs the deterministic build executor, dry-runs Codex output manifest binding, verifies the frame-to-code map, verifies the React-ready component handoff, runs the rewrite executor from correction context, verifies correction-to-component targeting, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
+That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, and asset candidates. It then runs the deterministic build executor, dry-runs Codex output manifest binding, verifies the frame-to-code map, verifies the React-ready component and Vite/Next framework adapter handoffs, runs the rewrite executor from correction context, verifies correction-to-component targeting, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
 
 Useful service commands:
 
@@ -200,7 +200,7 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 ## Build With Codex Development Path
 
-`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes a standalone HTML/CSS/JS target, a portable `CanvaxScreen.jsx` plus `CanvaxScreen.css` pair, and `canvax-component-map.json`, a frame-to-code ownership map that links source sketch elements to generated selectors and files.
+`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes a standalone HTML/CSS/JS target, a portable `CanvaxScreen.jsx` plus `CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, and `canvax-component-map.json`, a frame-to-code ownership map that links source sketch elements to generated selectors and files.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.
 
@@ -228,6 +228,9 @@ scripts/canvax.mjs
   artifacts/preview/codex-build/frames/<frame-id>/implementation/app.js
   artifacts/preview/codex-build/frames/<frame-id>/implementation/CanvaxScreen.jsx
   artifacts/preview/codex-build/frames/<frame-id>/implementation/CanvaxScreen.css
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/ViteApp.jsx
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/NextAppPage.jsx
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/FRAMEWORK_ADAPTERS.md
   artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-component-map.json
   artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md
   artifacts/canvax/codex-output.json
@@ -277,7 +280,7 @@ sequenceDiagram
 
 Regression coverage:
 
-- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle, React-ready component/CSS pair, and `canvax-component-map.json`
+- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle, React-ready component/CSS pair, Vite/Next adapter stubs, framework adapter notes, and `canvax-component-map.json`
 - Board self-test verifies the UI/server path executes and binds that artifact through the output manifest.
 - `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact, including component-target context when a frame-to-code map is attached
 - Board self-test verifies `POST /api/execute-rewrite-request` binds a refreshed preview artifact through the output manifest.
