@@ -209,6 +209,18 @@ function buildImplementationFiles(request, { frameId, frameTitle, outputRoot }) 
       content: buildImplementationJs(request, { frameId, frameTitle }),
     },
     {
+      name: "CanvaxScreen.jsx",
+      label: `${frameTitle} React screen component`,
+      kind: "react-component",
+      content: buildReactScreenComponent(request, { frameId, frameTitle }),
+    },
+    {
+      name: "CanvaxScreen.css",
+      label: `${frameTitle} React screen styles`,
+      kind: "react-css",
+      content: buildReactScreenCss(),
+    },
+    {
       name: "canvax-component-map.json",
       label: `${frameTitle} frame-to-code ownership map`,
       kind: "frame-code-map",
@@ -606,6 +618,395 @@ console.info("Canvax implementation artifact", canvaxBuild);
 `;
 }
 
+function buildReactScreenComponent(request, { frameId, frameTitle }) {
+  const model = buildScreenModel(request);
+  const nodes = model.elements.map((element, index) =>
+    buildReactNodeModel(element, index),
+  );
+  return `import "./CanvaxScreen.css";
+
+const screen = ${JSON.stringify(
+    {
+      frameId,
+      frameTitle,
+      brandName: model.brandName,
+      brandInitials: model.brandInitials,
+      headline: model.headline,
+      subhead: model.subhead,
+      kicker: model.kicker,
+      primaryCta: model.primaryCta,
+      secondaryCta: model.secondaryCta,
+      navItems: model.navItems,
+      width: model.width,
+      height: model.height,
+      nodes,
+    },
+    null,
+    2,
+  )};
+
+export default function CanvaxScreen() {
+  return (
+    <main
+      className="canvaxReactScreen"
+      data-frame-id={screen.frameId}
+      style={{ "--surface-ratio": \`\${screen.width} / \${screen.height}\` }}
+    >
+      <header className="canvaxReactTopbar">
+        <a className="canvaxReactBrand" href="#" aria-label={\`\${screen.frameTitle} home\`}>
+          <span className="canvaxReactBrandMark" aria-hidden="true">
+            {screen.brandInitials}
+          </span>
+          <span>{screen.brandName}</span>
+        </a>
+        <nav className="canvaxReactNav" aria-label="Primary">
+          {screen.navItems.map((item) => (
+            <a key={item} href="#">
+              {item}
+            </a>
+          ))}
+        </nav>
+        <a className="canvaxReactNavCta" href="#primary-action">
+          {screen.primaryCta}
+        </a>
+      </header>
+
+      <section className="canvaxReactHero" aria-labelledby="canvax-react-hero-title">
+        <div className="canvaxReactCopy">
+          <p className="canvaxReactKicker">{screen.kicker}</p>
+          <h1 id="canvax-react-hero-title">{screen.headline}</h1>
+          <p className="canvaxReactLede">{screen.subhead}</p>
+          <div className="canvaxReactActions" id="primary-action">
+            <a className="canvaxReactButton canvaxReactButtonPrimary" href="#">
+              {screen.primaryCta}
+            </a>
+            <a className="canvaxReactButton canvaxReactButtonSecondary" href="#">
+              {screen.secondaryCta}
+            </a>
+          </div>
+        </div>
+        <div className="canvaxReactVisual" aria-label="Generated composition from Canvax sketch">
+          {screen.nodes.map((node) => (
+            <CanvaxNode key={node.id} node={node} />
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function CanvaxNode({ node }) {
+  return (
+    <article
+      className={\`canvaxReactNode \${node.typeClass}\`}
+      data-canvax-node-id={node.id}
+      data-canvax-node-type={node.type}
+      style={{
+        left: node.left,
+        top: node.top,
+        width: node.width,
+        height: node.height,
+        "--node-color": node.color,
+        "--angle": node.angle,
+      }}
+    >
+      <span className="canvaxReactNodeLabel">{node.type}</span>
+      <strong>{node.label}</strong>
+      <p>{node.role}</p>
+    </article>
+  );
+}
+`;
+}
+
+function buildReactNodeModel(element, index) {
+  const bounds = element.bounds || {};
+  const role = cleanString(element.role || element.type || "element");
+  const label =
+    cleanString(element.text) ||
+    role
+      .split(",")[0]
+      .trim()
+      .replace(/\bor\b.*/i, "") ||
+    `Element ${index + 1}`;
+  return {
+    id: cleanString(element.id) || `element-${index + 1}`,
+    type: cleanString(element.type || "element"),
+    typeClass: safeCssClass(element.type || "rect"),
+    label: compactText(label, 54),
+    role: compactText(role, 82),
+    color: normalizeColor(element.color) || elementColor(index),
+    left: percent(bounds.x, 0.12 + index * 0.03),
+    top: percent(bounds.y, 0.14 + index * 0.04),
+    width: percent(Math.max(bounds.w || 0.16, 0.04), 0.2),
+    height: percent(Math.max(bounds.h || 0.08, 0.035), 0.1),
+    angle: index % 2 ? "7deg" : "-6deg",
+  };
+}
+
+function buildReactScreenCss() {
+  return `.canvaxReactScreen {
+  --paper: #fff7e8;
+  --ink: #18110e;
+  --muted: rgba(24, 17, 14, 0.66);
+  --red: #ff5d3a;
+  --shadow: 0 28px 80px rgba(24, 17, 14, 0.18);
+  position: relative;
+  width: min(100%, 1440px);
+  aspect-ratio: var(--surface-ratio);
+  min-height: min(74vh, 1024px);
+  overflow: hidden;
+  border: 1px solid rgba(24, 17, 14, 0.1);
+  border-radius: 34px;
+  background:
+    linear-gradient(90deg, rgba(24, 17, 14, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(24, 17, 14, 0.035) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 46%),
+    var(--paper);
+  background-size: 64px 64px, 64px 64px, auto, auto;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.canvaxReactTopbar {
+  position: absolute;
+  inset: 24px 24px auto;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.canvaxReactBrand,
+.canvaxReactNav,
+.canvaxReactNavCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(24, 17, 14, 0.12);
+  background: rgba(255, 247, 232, 0.78);
+  box-shadow: 0 16px 40px rgba(24, 17, 14, 0.08);
+  color: inherit;
+  text-decoration: none;
+}
+
+.canvaxReactBrand,
+.canvaxReactNavCta {
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 900;
+}
+
+.canvaxReactBrandMark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--red);
+  color: white;
+  font-size: 12px;
+  letter-spacing: -0.04em;
+}
+
+.canvaxReactNav {
+  border-radius: 999px;
+  padding: 11px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.canvaxReactNavCta {
+  background: var(--ink);
+  color: white;
+}
+
+.canvaxReactHero {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 72px);
+  align-items: end;
+  padding: clamp(88px, 10vw, 150px) clamp(36px, 7vw, 108px) clamp(44px, 6vw, 92px);
+}
+
+.canvaxReactCopy {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  gap: 18px;
+}
+
+.canvaxReactKicker {
+  width: fit-content;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 93, 58, 0.14);
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.canvaxReactCopy h1 {
+  margin: 0;
+  max-width: 11ch;
+  font-family: "Iowan Old Style", Georgia, serif;
+  font-size: clamp(48px, 8vw, 132px);
+  line-height: 0.88;
+  letter-spacing: -0.07em;
+}
+
+.canvaxReactLede {
+  margin: 0;
+  max-width: 56ch;
+  color: var(--muted);
+  font-size: clamp(16px, 1.5vw, 22px);
+  line-height: 1.45;
+}
+
+.canvaxReactActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.canvaxReactButton {
+  width: fit-content;
+  padding: 13px 18px;
+  border: 2px solid var(--ink);
+  box-shadow: 8px 8px 0 var(--ink);
+  color: inherit;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.canvaxReactButtonPrimary {
+  background: var(--red);
+  color: white;
+}
+
+.canvaxReactButtonSecondary {
+  background: white;
+}
+
+.canvaxReactVisual {
+  position: relative;
+  z-index: 3;
+  min-height: clamp(360px, 56vh, 720px);
+}
+
+.canvaxReactNode {
+  position: absolute;
+  display: grid;
+  min-width: 64px;
+  min-height: 48px;
+  align-content: center;
+  padding: 14px;
+  border: 2px solid color-mix(in srgb, var(--node-color), var(--ink) 18%);
+  background: color-mix(in srgb, var(--node-color), white 84%);
+  box-shadow: 12px 14px 0 rgba(24, 17, 14, 0.12);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.canvaxReactNode.path,
+.canvaxReactNode.line,
+.canvaxReactNode.arrow {
+  min-height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--node-color);
+  box-shadow: none;
+  transform: rotate(var(--angle, -8deg));
+}
+
+.canvaxReactNode.arrow::after {
+  content: "";
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  border-left: 24px solid var(--node-color);
+  transform: translateY(-50%);
+}
+
+.canvaxReactNode.ellipse {
+  border-radius: 999px;
+}
+
+.canvaxReactNode.label {
+  border-radius: 18px;
+  background: white;
+}
+
+.canvaxReactNodeLabel {
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: white;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.canvaxReactNode strong {
+  font-size: clamp(16px, 2vw, 28px);
+  line-height: 1;
+}
+
+.canvaxReactNode p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+@media (max-width: 820px) {
+  .canvaxReactScreen {
+    width: 100vw;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+
+  .canvaxReactTopbar {
+    position: relative;
+    inset: auto;
+    padding: 18px;
+  }
+
+  .canvaxReactNav {
+    display: none;
+  }
+
+  .canvaxReactHero {
+    position: relative;
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+
+  .canvaxReactVisual {
+    min-height: 420px;
+  }
+}
+`;
+}
+
 function buildImplementationReadme(request, { frameId, frameTitle }) {
   const model = buildScreenModel(request);
   return `# ${frameTitle} Implementation Artifact
@@ -622,6 +1023,8 @@ This folder was generated by \`scripts/execute-build-request.mjs\` from the late
 - \`index.html\`: standalone generated screen markup
 - \`styles.css\`: responsive visual system and generated element placement
 - \`app.js\`: lightweight interaction/debug metadata
+- \`CanvaxScreen.jsx\`: React-ready screen component for porting into an app route
+- \`CanvaxScreen.css\`: matching React component styles
 
 ## Intent
 
@@ -972,6 +1375,14 @@ function buildFrameCodeMap(request, { frameId, frameTitle }) {
         {
           path: "implementation/app.js",
           role: "lightweight interaction hooks and debug metadata",
+        },
+        {
+          path: "implementation/CanvaxScreen.jsx",
+          role: "React-ready screen component preserving source-element selectors",
+        },
+        {
+          path: "implementation/CanvaxScreen.css",
+          role: "portable React component styles",
         },
         {
           path: "implementation/canvax-component-map.json",

@@ -86,8 +86,8 @@ Still open:
 
 - automatic host image generation remains open. Multi-candidate review now has per-candidate prompt/placement copy, local attached-image thumbnails, workspace-path import, style-lock continuity metadata, select, and accept state in the candidate tray.
 - true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output/checkpoint object layer, especially richer nested group editing, richer structured per-type object inspectors, and deeper multi-lane/timeline controls. Generated output objects are now reconciled, grouped in the collapsible `Output shelf`, can be cleared from Map, infer frame binding from current and legacy generated-output paths, canonicalize raw labels into designer-facing `Generated preview` / `Generated file` / `Code change` labels with a `Reference` badge, and legacy stale/deleted-frame cards are cleaned up to reduce materialized-output clutter; the history lane can also be collapsed/expanded, Map objects can be focused by output/assets/notes/history, important objects can be pinned across those focus states, selected Map objects can be locked against accidental transform/reorder/duplicate/delete, grouped/ungrouped, selected from group contents, fit into group bounds, sent backward/brought forward, moved earlier/later inside output/history lanes, edited with object-level Prompt / Context guidance, and reflowed with `Tidy map`, and all of that exports for Codex, but full timeline editing remains open.
-- direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API path immediately for manifest binding plus an implementation starter bundle; Codex still has to execute the real implementation pass for production route/component files.
-- deterministic `execute-build-request` path is shipped and reachable from the board for turning the latest build request into a frame-bound local HTML preview plus implementation files; full Codex route/component implementation remains the real target.
+- direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API path immediately for manifest binding plus an implementation starter bundle, React-ready component/CSS handoff, and frame-to-code ownership map; Codex still has to execute the real implementation pass for production route/component files.
+- deterministic `execute-build-request` path is shipped and reachable from the board for turning the latest build request into a frame-bound local HTML preview plus implementation files, including a portable React component/CSS pair; full Codex route/component implementation remains the real target.
 - deterministic `execute-rewrite-request` smoke path, board-side Apply execution, optional autosnap/freeze `Live rewrite`, in-flight Live rewrite queueing, and Preview `Rewrite handoff` lane are shipped for turning the latest rewrite request into a refreshed frame-bound local HTML artifact; a continuous autonomous Codex rewrite loop with real app edits remains the real target.
 - native Codex microphone/image-generation host bridge
 
@@ -548,7 +548,7 @@ Build with Codex action + frame-to-code manifest contract
 That means:
 
 - create a Codex-readable task artifact for the active frame/checkpoint **done as `exports/canvax-build-real-latest.*` and `artifacts/canvax/build-requests/`**
-- let Codex write actual app/page/component files from the frame
+- let Codex write actual app/page/component files from the frame, using the generated React-ready handoff as a portable starter when useful
 - bind the generated route/component back to the frame in the output manifest **contract exists; Codex execution still needed**
 - keep Preview and the Workbench output stage synced to that generated route
 

@@ -96,6 +96,12 @@ record(
     ) &&
     buildResult.implementationFiles.some((file) =>
       file.path.endsWith("/implementation/app.js"),
+    ) &&
+    buildResult.implementationFiles.some((file) =>
+      file.path.endsWith("/implementation/CanvaxScreen.jsx"),
+    ) &&
+    buildResult.implementationFiles.some((file) =>
+      file.path.endsWith("/implementation/CanvaxScreen.css"),
     ),
   buildResult.previewPath,
 );
@@ -125,9 +131,28 @@ if (buildFrameCodeMap?.path) {
       parsedMap.ownership?.files?.some((file) =>
         file.path.endsWith("index.html"),
       ) &&
+      parsedMap.ownership?.files?.some((file) =>
+        file.path.endsWith("CanvaxScreen.jsx"),
+      ) &&
       parsedMap.regions?.some((region) =>
         region.implementationSelector?.includes("data-canvax-node-id"),
       ),
+  );
+}
+const reactComponentFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "react-component",
+);
+if (reactComponentFile?.path) {
+  await assertReadableProjectFile(reactComponentFile.path);
+  const rawComponent = await readFile(
+    resolve(projectRoot, reactComponentFile.path),
+    "utf8",
+  );
+  record(
+    "build executor creates portable React component handoff",
+    rawComponent.includes("export default function CanvaxScreen") &&
+      rawComponent.includes("data-canvax-node-id") &&
+      rawComponent.includes("CanvaxScreen.css"),
   );
 }
 
