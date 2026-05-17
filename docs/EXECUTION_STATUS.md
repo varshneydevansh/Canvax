@@ -59,7 +59,7 @@ Status: In progress
 - [x] Workbench `Map` supports movable/resizable labeled group regions for explorations/reference boards
 - [x] Workbench `Map` group regions move contained frame cards and spatial objects together
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds`, `spatialWorkspace.groups` records member frames/objects, and selected group context includes a contents inspector
-- [x] Workbench `Map` supports background drag-pan plus cursor-centered pinch/ctrl-wheel zoom
+- [x] Workbench `Map` supports background drag-pan, left/top edge expansion for cards and Map objects, trailing workspace room, plus cursor-centered pinch/ctrl-wheel zoom
 - [x] Workbench `Map` spatial objects can be selected, Shift-click multi-selected, Shift-drag lasso-selected, moved as a selected set, resized as a selected set from a combined transform box, edited through a visible Copy context/Duplicate/Delete/Clear action strip, copied as no-API Markdown context, keyboard-nudged, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, group-duplicated with contained Map objects, and exported as active `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `contextMarkdown`
 - [x] Workbench `Map` can clear generated preview/artifact/change cards without deleting manual notes, groups, frames, or assets
 - [x] Workbench `Map` renders recent checkpoints as spatial history cards for longer collaboration sessions

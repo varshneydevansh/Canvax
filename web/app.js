@@ -22,6 +22,9 @@ const SPATIAL_OBJECT_HEIGHT = 132;
 const SPATIAL_OBJECT_MIN_WIDTH = 168;
 const SPATIAL_OBJECT_MIN_HEIGHT = 96;
 const FLOW_SURFACE_PADDING = 120;
+const FLOW_EDGE_EXPAND_MARGIN = 96;
+const FLOW_EDGE_EXPAND_STEP = 520;
+const FLOW_TRAILING_SPACE = 720;
 const SELECTION_HANDLE_SIZE = 14;
 const PREVIEW_WINDOW_NAME = "canvax-preview-window";
 const shouldRunSelfTest =
@@ -3218,6 +3221,83 @@ function defaultSpatialObjectPosition(index) {
   };
 }
 
+function ensureFlowWorkspaceMargin(minX, minY) {
+  const shiftX =
+    Number.isFinite(minX) && minX < FLOW_EDGE_EXPAND_MARGIN
+      ? FLOW_EDGE_EXPAND_STEP + FLOW_EDGE_EXPAND_MARGIN - minX
+      : 0;
+  const shiftY =
+    Number.isFinite(minY) && minY < FLOW_EDGE_EXPAND_MARGIN
+      ? FLOW_EDGE_EXPAND_STEP + FLOW_EDGE_EXPAND_MARGIN - minY
+      : 0;
+  if (!shiftX && !shiftY) {
+    return { x: 0, y: 0 };
+  }
+  shiftFlowWorkspace(shiftX, shiftY);
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
+  if (dom.flowShell) {
+    dom.flowShell.scrollLeft += shiftX * zoom;
+    dom.flowShell.scrollTop += shiftY * zoom;
+  }
+  return { x: shiftX, y: shiftY };
+}
+
+function shiftFlowWorkspace(deltaX = 0, deltaY = 0) {
+  if (!deltaX && !deltaY) {
+    return;
+  }
+  state.frames.forEach((frame) => {
+    frame.flowPosition = {
+      x: (Number(frame.flowPosition?.x) || 0) + deltaX,
+      y: (Number(frame.flowPosition?.y) || 0) + deltaY,
+    };
+  });
+  state.spatialObjects.forEach((object) => {
+    object.x = (Number(object.x) || 0) + deltaX;
+    object.y = (Number(object.y) || 0) + deltaY;
+  });
+  adjustActiveFlowDragForWorkspaceShift(deltaX, deltaY);
+}
+
+function adjustActiveFlowDragForWorkspaceShift(deltaX, deltaY) {
+  const drag = state.flowDrag;
+  if (!drag) {
+    return;
+  }
+  if (Number.isFinite(drag.originX)) {
+    drag.originX += deltaX;
+  }
+  if (Number.isFinite(drag.originY)) {
+    drag.originY += deltaY;
+  }
+  if (drag.originBounds) {
+    drag.originBounds = makeBounds(
+      drag.originBounds.left + deltaX,
+      drag.originBounds.top + deltaY,
+      drag.originBounds.right + deltaX,
+      drag.originBounds.bottom + deltaY,
+    );
+  }
+  if (Array.isArray(drag.objectOrigins)) {
+    drag.objectOrigins.forEach((origin) => {
+      origin.x += deltaX;
+      origin.y += deltaY;
+      if (origin.memberOrigins) {
+        shiftSpatialMemberOrigins(origin.memberOrigins, deltaX, deltaY);
+      }
+    });
+  }
+}
+
+function shiftSpatialMemberOrigins(memberOrigins, deltaX, deltaY) {
+  ["frames", "objects"].forEach((key) => {
+    (memberOrigins?.[key] || []).forEach((origin) => {
+      origin.x += deltaX;
+      origin.y += deltaY;
+    });
+  });
+}
+
 function currentAssetCandidates() {
   const pack = normalizeAssetCandidatePack(state.assetCandidatePack);
   if (!pack?.candidates.length) {
@@ -6085,8 +6165,8 @@ function renderFlowBoard() {
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
     state.workspaceMode === "simple"
-      ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag background to pan, Shift-drag empty space to lasso Map objects, pinch/ctrl-wheel to zoom, or pull from + to connect screens."
-      : "Drag cards to arrange screens. Output preview cards are generated Materialize/Build results, not extra frames; remove stale preview cards with x. Drag the background to pan, pinch/ctrl-wheel to zoom, or pull from the dot on a frame to connect screens.";
+      ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag background to pan, drag cards/objects into an edge to expand space, Shift-drag empty space to lasso, or pinch/ctrl-wheel to zoom."
+      : "Drag cards to arrange screens. Output preview cards are generated Materialize/Build results, not extra frames; remove stale preview cards with x. Drag cards/objects into an edge to expand space, pan the background, zoom, or pull from the dot on a frame to connect screens.";
   dom.flowStatus.textContent = state.pendingConnectionFromFrameId
     ? `Linking from ${frameTitleById(state.pendingConnectionFromFrameId)}. Click another card to finish the connection.`
     : defaultStatus;
@@ -6599,22 +6679,35 @@ function renderBrushPreview() {
 }
 
 function computeFlowSurfaceSize(frames = state.frames) {
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
+  const viewportWidth = dom.flowShell?.clientWidth
+    ? Math.ceil(dom.flowShell.clientWidth / zoom) + FLOW_SURFACE_PADDING * 2
+    : 1200;
+  const viewportHeight = dom.flowShell?.clientHeight
+    ? Math.ceil(dom.flowShell.clientHeight / zoom) + FLOW_SURFACE_PADDING * 2
+    : 820;
   const frameBounds = frames.reduce(
     (accumulator, frame) => {
       return {
         width: Math.max(
           accumulator.width,
-          frame.flowPosition.x + FLOW_CARD_WIDTH + FLOW_SURFACE_PADDING,
+          frame.flowPosition.x +
+            FLOW_CARD_WIDTH +
+            FLOW_SURFACE_PADDING +
+            FLOW_TRAILING_SPACE,
         ),
         height: Math.max(
           accumulator.height,
-          frame.flowPosition.y + FLOW_CARD_HEIGHT + FLOW_SURFACE_PADDING,
+          frame.flowPosition.y +
+            FLOW_CARD_HEIGHT +
+            FLOW_SURFACE_PADDING +
+            FLOW_TRAILING_SPACE,
         ),
       };
     },
     {
-      width: 1200,
-      height: 820,
+      width: Math.max(1200, viewportWidth),
+      height: Math.max(820, viewportHeight),
     },
   );
 
@@ -6622,11 +6715,17 @@ function computeFlowSurfaceSize(frames = state.frames) {
     (accumulator, object) => ({
       width: Math.max(
         accumulator.width,
-        object.x + object.width + FLOW_SURFACE_PADDING,
+        object.x +
+          object.width +
+          FLOW_SURFACE_PADDING +
+          FLOW_TRAILING_SPACE,
       ),
       height: Math.max(
         accumulator.height,
-        object.y + object.height + FLOW_SURFACE_PADDING,
+        object.y +
+          object.height +
+          FLOW_SURFACE_PADDING +
+          FLOW_TRAILING_SPACE,
       ),
     }),
     frameBounds,
@@ -8588,6 +8687,19 @@ function onWindowPointerMove(event) {
   }
 
   if (state.flowDrag.kind === "spatial-selection") {
+    const deltaFlowX = deltaX / state.flowZoom;
+    const deltaFlowY = deltaY / state.flowZoom;
+    const candidateMinX = Math.min(
+      ...((state.flowDrag.objectOrigins || []).map(
+        (origin) => origin.x + deltaFlowX,
+      )),
+    );
+    const candidateMinY = Math.min(
+      ...((state.flowDrag.objectOrigins || []).map(
+        (origin) => origin.y + deltaFlowY,
+      )),
+    );
+    ensureFlowWorkspaceMargin(candidateMinX, candidateMinY);
     (state.flowDrag.objectOrigins || []).forEach((origin) => {
       const object = spatialObjectById(origin.id);
       if (!object) {
@@ -8629,6 +8741,10 @@ function onWindowPointerMove(event) {
     if (!frame) {
       return;
     }
+    ensureFlowWorkspaceMargin(
+      state.flowDrag.originX + deltaX / state.flowZoom,
+      state.flowDrag.originY + deltaY / state.flowZoom,
+    );
     frame.flowPosition = {
       x: Math.max(32, state.flowDrag.originX + deltaX / state.flowZoom),
       y: Math.max(32, state.flowDrag.originY + deltaY / state.flowZoom),
@@ -10979,9 +11095,17 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
   return {
     kind: "canvax-spatial-workspace",
     coordinateSystem:
-      "Unbounded project map coordinates in CSS pixels. Frame cards can be panned, zoomed, dragged, linked, and treated as spatial design objects.",
+      "Unbounded project map coordinates in CSS pixels. Frame cards and Map objects can be panned, zoomed, dragged, linked, and dragged into the left/top edge to expand workspace space without clipping.",
     zoom: Number.isFinite(state.flowZoom) ? state.flowZoom : 1,
-    surface: bounds,
+    surface: {
+      ...bounds,
+      edgeExpansion: {
+        enabled: true,
+        margin: FLOW_EDGE_EXPAND_MARGIN,
+        step: FLOW_EDGE_EXPAND_STEP,
+        trailingSpace: FLOW_TRAILING_SPACE,
+      },
+    },
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
     selectedObjectId: state.selectedSpatialObjectId || "",
@@ -14936,6 +15060,7 @@ function assertWorkbenchRailSizeControls() {
 
 function assertWorkbenchSpatialMap() {
   const previous = {
+    frames: structuredClone(state.frames),
     workspaceMode: state.workspaceMode,
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
@@ -15028,6 +15153,17 @@ function assertWorkbenchSpatialMap() {
   onWindowPointerUp({ pointerId: 919 });
   const panEnded =
     !state.flowPan && !dom.flowShell.classList.contains("is-panning");
+  const objectBeforeEdgeExpand = spatialObjectById("spatial-selftest-asset");
+  const frameBeforeEdgeExpand = currentFrame();
+  const objectEdgeX = objectBeforeEdgeExpand?.x || 0;
+  const frameEdgeX = frameBeforeEdgeExpand?.flowPosition?.x || 0;
+  const edgeExpansion = ensureFlowWorkspaceMargin(12, 14);
+  const objectAfterEdgeExpand = spatialObjectById("spatial-selftest-asset");
+  const edgeExpanded =
+    edgeExpansion.x > 0 &&
+    edgeExpansion.y > 0 &&
+    objectAfterEdgeExpand?.x > objectEdgeX &&
+    currentFrame()?.flowPosition?.x > frameEdgeX;
   const spatialExport = buildSpatialWorkspaceExport();
   const exportValid =
     spatialExport.kind === "canvax-spatial-workspace" &&
@@ -15036,6 +15172,7 @@ function assertWorkbenchSpatialMap() {
     spatialExport.objects.some(
       (object) => object.sourceKind === "asset-candidate",
     ) &&
+    spatialExport.surface.edgeExpansion?.enabled === true &&
     spatialExport.zoom === state.flowZoom;
   const objectRendered = Boolean(
     dom.flowBoard.querySelector(
@@ -15053,6 +15190,7 @@ function assertWorkbenchSpatialMap() {
       object.groupIds.includes("spatial-selftest-group"),
   );
 
+  state.frames = previous.frames;
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
@@ -15068,6 +15206,7 @@ function assertWorkbenchSpatialMap() {
       wheelZoomChanged &&
       panned &&
       panEnded &&
+      edgeExpanded &&
       exportValid &&
       objectRendered &&
       groupExported &&
