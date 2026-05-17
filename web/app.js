@@ -379,6 +379,7 @@ const dom = {
   mapObjectTitle: document.querySelector("#map-object-title"),
   mapObjectSubtitle: document.querySelector("#map-object-subtitle"),
   mapObjectStatus: document.querySelector("#map-object-status"),
+  mapObjectPrompt: document.querySelector("#map-object-prompt"),
   mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapMakeEditable: document.querySelector("#map-make-editable"),
@@ -798,6 +799,9 @@ function bindEvents() {
   });
   dom.mapObjectStatus.addEventListener("change", () => {
     updateSelectedSpatialObjectProperty("status", dom.mapObjectStatus.value);
+  });
+  dom.mapObjectPrompt.addEventListener("change", () => {
+    updateSelectedSpatialObjectProperty("prompt", dom.mapObjectPrompt.value);
   });
   dom.spatialFileInput.addEventListener("change", () => {
     const file = dom.spatialFileInput.files?.[0];
@@ -3250,6 +3254,9 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
   const existing = objects[existingIndex];
   const manualFields = existing.meta?.manualFields || {};
   const pinned = isSpatialObjectPinned(existing);
+  const manualPrompt = manualFields.prompt
+    ? cleanString(existing.meta?.prompt)
+    : "";
   const manualLaneOrder =
     existing.meta?.manualLaneOrder === true &&
     existing.meta?.laneId &&
@@ -3265,6 +3272,7 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
     height: existing.height || nextObject.height,
     meta: {
       ...nextObject.meta,
+      ...(manualFields.prompt ? { prompt: manualPrompt } : {}),
       ...(manualLaneOrder
         ? {
             laneIndex: Number.isFinite(existing.meta?.laneIndex)
@@ -4859,13 +4867,15 @@ function buildSpatialObjectContextText(object) {
   const manualSubtitle = object.meta?.manualFields?.subtitle
     ? cleanString(object.subtitle)
     : "";
+  const noteText = cleanString(object.subtitle);
+  const objectPrompt = cleanString(object.meta?.prompt);
   const promptText =
+    objectPrompt ||
     manualSubtitle ||
-    cleanString(object.meta?.prompt) ||
     cleanString(object.meta?.text) ||
     cleanString(object.meta?.summary) ||
     cleanString(object.meta?.description) ||
-    cleanString(object.subtitle) ||
+    noteText ||
     cleanString(object.title);
   const details = [
     `# Canvax Map Object: ${object.title || "Spatial object"}`,
@@ -4898,6 +4908,9 @@ function buildSpatialObjectContextText(object) {
     details.push(
       `- Target: ${object.meta.path || object.meta.previewPath || object.meta.url}`,
     );
+  }
+  if (noteText && noteText !== promptText) {
+    details.push("", "## Note", noteText);
   }
   if (object.sourceKind === "asset-candidate" && object.meta?.placementMap) {
     const placement = object.meta.placementMap;
@@ -7972,6 +7985,7 @@ function renderMapSelectionActions() {
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
+    dom.mapObjectPrompt.value = "";
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
     dom.mapMakeEditable.disabled = true;
@@ -7987,6 +8001,7 @@ function renderMapSelectionActions() {
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
+    dom.mapObjectPrompt.value = "";
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
     dom.mapMakeEditable.disabled = true;
@@ -8011,6 +8026,7 @@ function renderMapSelectionActions() {
   dom.mapObjectTitle.value = object.title || "";
   dom.mapObjectSubtitle.value = object.subtitle || "";
   dom.mapObjectStatus.value = object.status || "";
+  dom.mapObjectPrompt.value = object.meta?.prompt || "";
   dom.mapObjectTypeDetails.innerHTML = renderMapObjectTypeDetails(object);
 }
 
@@ -8045,6 +8061,9 @@ function mapObjectInspectorRows(object) {
     { label: "Frame", value: spatialObjectFrameLabel(object) },
     { label: "Pinned", value: isSpatialObjectPinned(object) ? "yes" : "no" },
   ];
+  if (cleanString(meta.prompt)) {
+    rows.push({ label: "Prompt", value: cleanString(meta.prompt) });
+  }
 
   if (object.sourceKind === "asset-candidate") {
     const placement = meta.placementMap || {};
@@ -8125,7 +8144,7 @@ function mapObjectInspectorRows(object) {
 }
 
 function updateSelectedSpatialObjectProperty(field, value) {
-  if (!["title", "subtitle", "status"].includes(field)) {
+  if (!["title", "subtitle", "status", "prompt"].includes(field)) {
     return false;
   }
   const selectedObjects = selectedSpatialObjects();
@@ -8135,19 +8154,35 @@ function updateSelectedSpatialObjectProperty(field, value) {
   }
 
   const nextValue = cleanString(value);
-  object[field] = nextValue;
-  object.meta = {
+  const nextMeta = {
     ...(object.meta || {}),
     manualFields: {
       ...(object.meta?.manualFields || {}),
-      [field]: true,
     },
   };
+  if (field === "prompt") {
+    if (nextValue) {
+      nextMeta.prompt = nextValue;
+      nextMeta.manualFields.prompt = true;
+    } else {
+      delete nextMeta.prompt;
+      delete nextMeta.manualFields.prompt;
+    }
+  } else {
+    object[field] = nextValue;
+    nextMeta.manualFields[field] = true;
+  }
+  if (!Object.keys(nextMeta.manualFields).length) {
+    delete nextMeta.manualFields;
+  }
+  object.meta = nextMeta;
   persistState();
   renderFlowBoard();
   renderSpec();
   scheduleLivePreviewSync();
-  renderStatus(`Updated ${field} for ${spatialObjectTitle(object)}`);
+  renderStatus(
+    `Updated ${field === "prompt" ? "prompt/context" : field} for ${spatialObjectTitle(object)}`,
+  );
   return true;
 }
 
@@ -17900,6 +17935,24 @@ function assertSpatialObjectsFromOutputManifest() {
     dom.mapObjectTypeDetails.textContent.includes(
       "Self-test preview target",
     );
+  const generatedPrompt = "Use this generated target as the premium hero output";
+  const generatedPromptEdited =
+    Boolean(generatedTargetObject) &&
+    updateSelectedSpatialObjectProperty("prompt", generatedPrompt);
+  syncSpatialObjectsFromHandoffs();
+  const resyncedGeneratedTarget = generatedTargetObject
+    ? spatialObjectById(generatedTargetObject.id)
+    : null;
+  const generatedPromptPreserved =
+    generatedPromptEdited &&
+    resyncedGeneratedTarget?.meta?.prompt === generatedPrompt &&
+    resyncedGeneratedTarget?.meta?.manualFields?.prompt === true &&
+    buildSpatialObjectContextText(resyncedGeneratedTarget).includes(
+      generatedPrompt,
+    );
+  if (generatedTargetObject) {
+    selectSpatialObject(generatedTargetObject.id, { render: true });
+  }
   const editableOutputActionVisible =
     Boolean(generatedTargetObject) &&
     !dom.mapMakeEditable.hidden &&
@@ -18048,6 +18101,7 @@ function assertSpatialObjectsFromOutputManifest() {
       laneLaterWorked &&
       outputOpenLinks &&
       typeInspectorRendered &&
+      generatedPromptPreserved &&
       editableOutputActionVisible &&
       editableOutputFrameCreated &&
       editableOutputBranchExported &&
@@ -18078,6 +18132,7 @@ function assertSpatialObjectsFromOutputManifest() {
       laneLaterWorked,
       outputOpenLinks,
       typeInspectorRendered,
+      generatedPromptPreserved,
       editableOutputActionVisible,
       outputEditBindingInRequests,
       editableOutputFrameCreated,
@@ -18285,6 +18340,7 @@ function assertManualSpatialObjectControls() {
     dom.mapObjectTitle.value === object.title &&
     dom.mapObjectSubtitle.value === object.subtitle &&
     dom.mapObjectStatus.value === object.status &&
+    dom.mapObjectPrompt.value === "" &&
     dom.mapSelectedObjectTitle.textContent === object.title &&
     !dom.mapCopyObjectContext.disabled &&
     !dom.mapPinObject.disabled &&
@@ -18312,17 +18368,27 @@ function assertManualSpatialObjectControls() {
       "Manual spatial object property note",
     ) &&
     updateSelectedSpatialObjectProperty("status", "ready-for-codex") &&
+    updateSelectedSpatialObjectProperty(
+      "prompt",
+      "Use this map note as a Codex refinement instruction",
+    ) &&
     objectRecord?.title === "Renamed map note" &&
     objectRecord?.subtitle === "Manual spatial object property note" &&
     objectRecord?.status === "ready-for-codex" &&
+    objectRecord?.meta?.prompt ===
+      "Use this map note as a Codex refinement instruction" &&
     objectRecord?.meta?.manualFields?.title === true &&
     objectRecord?.meta?.manualFields?.subtitle === true &&
     objectRecord?.meta?.manualFields?.status === true &&
+    objectRecord?.meta?.manualFields?.prompt === true &&
     buildSpatialWorkspaceExport().objects.some(
       (entry) =>
         entry.id === object?.id &&
         entry.title === "Renamed map note" &&
         entry.status === "ready-for-codex" &&
+        entry.contextMarkdown.includes(
+          "Use this map note as a Codex refinement instruction",
+        ) &&
         entry.contextMarkdown.includes("Manual spatial object property note"),
     );
   const pinned =
@@ -18356,6 +18422,9 @@ function assertManualSpatialObjectControls() {
   const contextExported =
     contextText.includes("Renamed map note") &&
     contextText.includes("Manual spatial object property note") &&
+    contextText.includes(
+      "Use this map note as a Codex refinement instruction",
+    ) &&
     contextText.includes("- Pinned: yes") &&
     contextText.includes("- Layer: Layer") &&
     contextText.includes("Prompt / Context");

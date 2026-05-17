@@ -3638,6 +3638,10 @@ select,
     background: rgba(255, 251, 245, 0.86);
 }
 
+.map-property-editor-wide {
+    grid-column: 1 / -1;
+}
+
 .map-object-type-details {
     grid-column: 1 / -1;
 }

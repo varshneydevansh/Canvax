@@ -97,6 +97,7 @@ flowchart LR
 - Exports Workbench Map group containment so Codex can read which frames, references, assets, generated outputs, artifacts, and changes belong to each exploration group.
 - Keeps Workbench/Advanced Map inside a bounded scroll viewport and adds `Tidy map` so frame cards, generated-output references, and checkpoint history can be compacted after long sessions.
 - Lets selected output/history Map cards move earlier or later inside their lane, preserving the designer's output/checkpoint sequence in the live export.
+- Lets a selected Map object carry editable `Prompt / Context` guidance, so generated outputs, image assets, notes, references, and groups can explain exactly what Codex or a host image tool should do with that object.
 - Turns a generated output preview card into an editable `Output edit` frame, so a result can become a normal sketch/correction branch while task, rewrite, build, and executor payloads still point at the exact generated output target.
 - Promotes an editable variant branch into the primary direction with `Use variant`, while keeping lineage visible for Codex through `spatialWorkspace.variantBranches`.
 - Adds Preview `Play flow` so connected frames can be clicked through from the entry frame as a lightweight storyboard prototype, including generated hotspot overlays on sketch and output surfaces.
