@@ -168,6 +168,9 @@ record(
     parsedBuildContext.implementationContext.workbench?.startPath?.includes(
       "Sketch",
     ) &&
+    parsedBuildContext.designKit?.preset?.id === "poster-system" &&
+    parsedBuildContext.implementationContext.designKit?.preset?.id ===
+      "poster-system" &&
     parsedBuildContext.implementationContext.selectedMapContext?.objects
       ?.length === 1,
 );
@@ -284,6 +287,8 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
       ) &&
       parsedBuildContract.designerImplementationContext?.selectedMapObjectCount ===
         1 &&
+      parsedBuildContract.designerImplementationContext?.designKit?.presetId ===
+        "poster-system" &&
       parsedBuildContract.visualDirection?.themeId === "poster-archive" &&
       parsedBuildContract.visualDirection?.atmosphereId ===
         "constructivist-poster" &&
@@ -327,6 +332,8 @@ if (portTaskFile?.path) {
       parsedPortTask.requiresOpenAiApiKey === false &&
       parsedPortTask.frame?.id === frameId &&
       parsedPortTask.visualDirection?.themeId === "poster-archive" &&
+      parsedPortTask.designerContext?.designKit?.presetId ===
+        "poster-system" &&
       parsedPortTask.sourceArtifacts?.componentMap ===
         "canvax-component-map.json" &&
       parsedPortTask.suggestedDestinations?.nextAppRouter?.files?.includes(
@@ -897,6 +904,26 @@ function withAssetPlacement(candidate, frame) {
 }
 
 function buildRealRequest(board, frame) {
+  const designKit = {
+    kind: "canvax-design-kit",
+    label: "Poster system",
+    statusLabel: "Poster system kit",
+    summary:
+      "Kit: Poster system. Editorial product UI with aged paper, red, black, gold, and faded blue.",
+    preset: {
+      id: "poster-system",
+      label: "Poster system",
+      summary:
+        "Bold editorial/poster direction for campaigns, landing pages, and visual systems.",
+    },
+    sources: [
+      {
+        label: "Kit: Poster system",
+        detail:
+          "Use public-poster hierarchy, strong geometry, and print-like visual language.",
+      },
+    ],
+  };
   return {
     schemaVersion: 1,
     kind: "canvax-build-real-request",
@@ -908,6 +935,7 @@ function buildRealRequest(board, frame) {
     actionMode: "build-ui",
     actionModeLabel: "Build UI",
     frame,
+    designKit,
     implementationContext: {
       kind: "canvax-implementation-context",
       purpose: "E2E designer context for rough-sketch-to-real-code workflow.",
@@ -982,6 +1010,7 @@ function buildRealRequest(board, frame) {
         checkpoints: 1,
         collapsedLanes: [],
       },
+      designKit,
       imageDirection: {
         styleLockId: "style-e2e",
         summary: "Warm editorial product UI with paper texture.",

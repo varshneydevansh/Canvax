@@ -179,6 +179,8 @@ function buildContextPayload(request, previewPath, implementationFiles = []) {
     requiresOpenAiApiKey: false,
     previewPath,
     implementationContext: request.implementationContext || null,
+    designKit:
+      request.designKit || request.implementationContext?.designKit || null,
     outputEditBinding:
       request.outputEditBinding || request.frame?.outputEditBinding || null,
     frameCodeMap: frameCodeMap
@@ -1316,6 +1318,7 @@ function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
   const model = buildScreenModel(request);
   const slug = safeSlug(frameTitle || frameId);
   const implementationContext = request.implementationContext || null;
+  const designKit = request.designKit || implementationContext?.designKit || null;
   return {
     schemaVersion: 1,
     kind: "canvax-build-integration-contract",
@@ -1362,6 +1365,14 @@ function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
             "",
           generationRecipe:
             implementationContext.workbench?.generationRecipe || "",
+          designKit: designKit
+            ? {
+                label: designKit.statusLabel || designKit.label || "",
+                presetId: designKit.preset?.id || "",
+                presetLabel: designKit.preset?.label || "",
+                summary: designKit.summary || "",
+              }
+            : null,
           variant: implementationContext.variant || null,
           selectedMapObjectCount:
             implementationContext.selectedMapContext?.objects?.length || 0,
@@ -1427,6 +1438,7 @@ function buildCodexPortTask(request, { frameId, frameTitle }) {
   const model = buildScreenModel(request);
   const slug = safeSlug(frameTitle || frameId);
   const implementationContext = request.implementationContext || {};
+  const designKit = request.designKit || implementationContext.designKit || null;
   return {
     schemaVersion: 1,
     kind: "canvax-codex-port-task",
@@ -1465,6 +1477,14 @@ function buildCodexPortTask(request, { frameId, frameTitle }) {
           title: entry.title || "",
           prompt: entry.prompt || entry.contextMarkdown || "",
         })) || [],
+      designKit: designKit
+        ? {
+            label: designKit.statusLabel || designKit.label || "",
+            presetId: designKit.preset?.id || "",
+            presetLabel: designKit.preset?.label || "",
+            summary: designKit.summary || "",
+          }
+        : null,
       variant: implementationContext.variant || null,
       outputEditBinding:
         implementationContext.frameRole?.outputEditBinding ||
@@ -1725,33 +1745,64 @@ function defaultImplementationTheme() {
 function buildImplementationTheme(request) {
   const base = defaultImplementationTheme();
   const signal = collectImplementationSignalText(request).toLowerCase();
+  const presetId =
+    cleanString(
+      request.designKit?.preset?.id ||
+        request.implementationContext?.designKit?.preset?.id,
+    ) || "";
   let theme = { ...base };
 
-  if (
+  if (presetId === "poster-system") {
+    theme = buildPosterArchiveTheme(theme);
+  } else if (presetId === "storybook-spread" || presetId === "comic-storyboard") {
+    theme = {
+      ...theme,
+      id: "storybook-spread",
+      className: "theme-storybook-spread",
+      label:
+        presetId === "comic-storyboard" ? "Storyboard Ink" : "Storybook Spread",
+      paper: "#fff1d7",
+      ink: "#2c2119",
+      muted: "rgba(44, 33, 25, 0.66)",
+      red: "#d95f47",
+      teal: "#3d9a91",
+      blue: "#5f84b8",
+      gold: "#e1a93a",
+      pageBg: "#efe1c7",
+      washA: "rgba(217, 95, 71, 0.2)",
+      washB: "rgba(95, 132, 184, 0.18)",
+      surfaceWash: "rgba(225, 169, 58, 0.1)",
+      gridLine: "rgba(44, 33, 25, 0.035)",
+      fontDisplay: '"Iowan Old Style", "Palatino Linotype", Georgia, serif',
+      nodePalette: ["#d95f47", "#3d9a91", "#5f84b8", "#e1a93a", "#7d5535"],
+    };
+  } else if (presetId === "dashboard-ops") {
+    theme = {
+      ...theme,
+      id: "dashboard-ops",
+      className: "theme-dashboard-ops",
+      label: "Dashboard Ops",
+      paper: "#f8faf7",
+      ink: "#101827",
+      muted: "rgba(16, 24, 39, 0.64)",
+      red: "#df5a43",
+      teal: "#0f9f8d",
+      blue: "#315fba",
+      gold: "#c9962e",
+      pageBg: "#e8ece9",
+      washA: "rgba(15, 159, 141, 0.16)",
+      washB: "rgba(49, 95, 186, 0.18)",
+      surfaceWash: "rgba(49, 95, 186, 0.07)",
+      gridLine: "rgba(16, 24, 39, 0.04)",
+      fontDisplay: '"Avenir Next", "Segoe UI", sans-serif',
+      nodePalette: ["#315fba", "#0f9f8d", "#df5a43", "#c9962e", "#101827"],
+    };
+  } else if (
     /\b(constructiv|soviet|wpa|poster|wartime|art deco|futurism|archive|dispatch)\b/.test(
       signal,
     )
   ) {
-    theme = {
-      ...theme,
-      id: "poster-archive",
-      className: "theme-poster-archive",
-      label: "Poster Archive",
-      paper: "#f1dfb8",
-      ink: "#14100d",
-      muted: "rgba(20, 16, 13, 0.68)",
-      red: "#c43122",
-      teal: "#1b7f75",
-      blue: "#315f86",
-      gold: "#c6922f",
-      pageBg: "#241916",
-      washA: "rgba(196, 49, 34, 0.32)",
-      washB: "rgba(198, 146, 47, 0.22)",
-      surfaceWash: "rgba(196, 49, 34, 0.14)",
-      gridLine: "rgba(20, 16, 13, 0.055)",
-      fontDisplay: '"Iowan Old Style", "Palatino Linotype", Georgia, serif',
-      nodePalette: ["#c43122", "#14100d", "#c6922f", "#315f86", "#f1dfb8"],
-    };
+    theme = buildPosterArchiveTheme(theme);
   } else if (/\b(midnight|dark|black|space|cinematic|neon|night)\b/.test(signal)) {
     theme = {
       ...theme,
@@ -1808,6 +1859,29 @@ function buildImplementationTheme(request) {
   return theme;
 }
 
+function buildPosterArchiveTheme(theme = defaultImplementationTheme()) {
+  return {
+    ...theme,
+    id: "poster-archive",
+    className: "theme-poster-archive",
+    label: "Poster Archive",
+    paper: "#f1dfb8",
+    ink: "#14100d",
+    muted: "rgba(20, 16, 13, 0.68)",
+    red: "#c43122",
+    teal: "#1b7f75",
+    blue: "#315f86",
+    gold: "#c6922f",
+    pageBg: "#241916",
+    washA: "rgba(196, 49, 34, 0.32)",
+    washB: "rgba(198, 146, 47, 0.22)",
+    surfaceWash: "rgba(196, 49, 34, 0.14)",
+    gridLine: "rgba(20, 16, 13, 0.055)",
+    fontDisplay: '"Iowan Old Style", "Palatino Linotype", Georgia, serif',
+    nodePalette: ["#c43122", "#14100d", "#c6922f", "#315f86", "#f1dfb8"],
+  };
+}
+
 function buildThemeAtmosphere(theme = defaultImplementationTheme()) {
   if (theme.id === "poster-archive") {
     return {
@@ -1828,6 +1902,20 @@ function buildThemeAtmosphere(theme = defaultImplementationTheme()) {
       id: "editorial-index",
       label: "FIELD NOTES",
       motion: "Quiet index marks and magazine pacing.",
+    };
+  }
+  if (theme.id === "storybook-spread") {
+    return {
+      id: "storybook-lightbox",
+      label: "STORY SPREAD",
+      motion: "Warm layered illustration fields for character and scene continuity.",
+    };
+  }
+  if (theme.id === "dashboard-ops") {
+    return {
+      id: "data-operations-grid",
+      label: "DATA OPS",
+      motion: "Structured signal layers behind analytics and decision surfaces.",
     };
   }
   return {
@@ -1991,16 +2079,81 @@ function themeAtmosphereCss() {
   width: clamp(160px, 20vw, 320px);
   border-color: color-mix(in srgb, var(--teal), transparent 64%);
   background: transparent;
+}
+
+.theme-storybook-spread .atmosphere {
+  background:
+    radial-gradient(circle at 22% 24%, color-mix(in srgb, var(--gold), transparent 70%), transparent 22%),
+    linear-gradient(110deg, transparent 0 42%, color-mix(in srgb, var(--blue), transparent 88%) 42% 44%, transparent 44%);
+}
+
+.theme-storybook-spread .atmosphere-band-one {
+  left: -12%;
+  top: 58%;
+  width: 72%;
+  height: 18%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gold), transparent 36%);
+  transform: rotate(-8deg);
+}
+
+.theme-storybook-spread .atmosphere-band-two {
+  right: -8%;
+  top: 24%;
+  width: 44%;
+  height: 30%;
+  border-radius: 48% 52% 42% 58%;
+  background: color-mix(in srgb, var(--blue), transparent 76%);
+  border: 0;
+  transform: rotate(9deg);
+}
+
+.theme-dashboard-ops .atmosphere {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--blue), transparent 94%) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--teal), transparent 94%) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+.theme-dashboard-ops .atmosphere-band-one {
+  left: 8%;
+  top: 22%;
+  width: 28%;
+  height: 1px;
+  background: color-mix(in srgb, var(--blue), transparent 36%);
+  transform: none;
+}
+
+.theme-dashboard-ops .atmosphere-band-two {
+  right: 10%;
+  top: 38%;
+  width: 22%;
+  height: 1px;
+  border: 0;
+  background: color-mix(in srgb, var(--teal), transparent 34%);
+  transform: none;
 }`;
 }
 
 function collectImplementationSignalText(request) {
   const context = request.implementationContext || {};
+  const designKit = request.designKit || context.designKit || {};
   const variant = context.variant || {};
   const styleProperties = variant.styleProperties || {};
   const selectedObjects = context.selectedMapContext?.objects || [];
   const selectedPrompts = context.selectedMapContext?.prompts || [];
+  const designKitSources = Array.isArray(designKit.sources)
+    ? designKit.sources
+    : [];
   return [
+    designKit.statusLabel,
+    designKit.label,
+    designKit.summary,
+    designKit.preset?.label,
+    designKit.preset?.summary,
+    ...designKitSources.map((source) =>
+      [source.label, source.detail].join(" "),
+    ),
     request.board?.mood,
     request.board?.designMood,
     request.board?.goal,
@@ -2049,10 +2202,17 @@ function themeCssVariables(theme = defaultImplementationTheme()) {
 
 function buildDesignerBrief(request, theme) {
   const context = request.implementationContext || {};
+  const designKit = request.designKit || context.designKit || null;
   const variant = context.variant || null;
   const selectedObjects = context.selectedMapContext?.objects || [];
   const selectedPrompts = context.selectedMapContext?.prompts || [];
   const brief = [
+    designKit?.statusLabel || designKit?.label
+      ? `Design kit: ${designKit.statusLabel || designKit.label}`
+      : "",
+    designKit?.preset?.summary
+      ? `Kit preset: ${designKit.preset.summary}`
+      : "",
     variant?.label ? `${variant.label} direction: ${variant.thesis || variant.prompt || variant.direction}` : "",
     context.workbench?.generationRecipe
       ? `Recipe: ${context.workbench.generationRecipe}`
