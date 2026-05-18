@@ -211,7 +211,7 @@ Use those screenshots to review:
 - whether `Focus canvas` meaning is clear
 - whether Workbench and Advanced feel like the same product
 - whether generated output references look like references, not extra sketch frames
-- whether the Advanced sticky command deck remains solid while scrolled over frame/map content
+- whether the Advanced command deck remains solid while inspecting long frame/map content
 
 ## What To Ask Codex
 

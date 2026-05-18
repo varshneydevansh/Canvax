@@ -94,7 +94,7 @@ flowchart LR
 - Adds Workbench quick-prompt chips for common refinement directions like font, drama, mobile variant, spacing, and image candidates.
 - Adds designer surface presets for slides, book spreads, storyboards, and comic pages alongside UI, poster, square, and free-canvas presets.
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
-- Keeps Advanced as the same product language with a solid sticky command deck that stays readable over long frame/map scrolls.
+- Keeps Advanced in the same product language with a solid command deck and bounded frame/map workspace that stay readable over long sessions.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
 - Adds Workbench/Advanced Map background pan with momentum/coast, cursor-centered zoom, minimap navigation, and exported `spatialWorkspace.interaction` metadata.
 - Exports Workbench Map group containment so Codex can read which frames, references, assets, generated outputs, artifacts, and changes belong to each exploration group.

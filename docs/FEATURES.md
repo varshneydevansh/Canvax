@@ -184,7 +184,7 @@ Behavior:
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
 - provides `Tidy map` to reflow frame cards plus generated-output and checkpoint shelf objects into compact readable lanes when a long session starts to sprawl
-- exposes a `visualfixture=advanced-map` browser-regression fixture so the dense Advanced Map state, output shelf, generated-output labels, and scrolled sticky command deck can be verified with screenshots
+- exposes a `visualfixture=advanced-map` browser-regression fixture so the dense Advanced Map state, output shelf, generated-output labels, and scrolled Advanced command deck can be verified with screenshots
 - styles generated variant cards as branch objects with lineage chips and primary-variant state, so generated directions do not look like ordinary duplicate frames
 - adds `Use variant` directly to variant cards and matching variant Map objects, so a designer can promote a generated direction as primary without leaving the spatial workbench
 - exports editable generated variant branches through `spatialWorkspace.variantBranches` and `spatialWorkspace.objects`, including source frame, target frame, direction, connection, editable state, primary-promotion state, and object-level context
@@ -279,9 +279,9 @@ left timeline, central stage, and right inspector because those controls are for
 technical handoff rather than quick sketching. The mode switch describes the
 active role, and Advanced labels its frame stack, frame workspace/flow map, and
 handoff inspector so the density reads as an inspector deck instead of a
-different app. The Advanced command deck is intentionally solid and sticky, so
-canvas/grid content does not visually bleed through the controls while long
-frame or Map pages scroll. On narrower windows, Advanced collapses into a
+different app. The Advanced command deck is intentionally solid and non-glass,
+so canvas/grid content does not visually bleed through the controls while long
+frame or Map sessions are inspected. On narrower windows, Advanced collapses into a
 single-column inspector deck instead of preserving the desktop three-rail shell,
 so the mode switch and command controls remain usable.
 

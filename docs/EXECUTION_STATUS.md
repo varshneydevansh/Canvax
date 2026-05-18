@@ -65,7 +65,7 @@ Status: In progress
 - [x] Workbench `Map` exports group containment so cards/objects include `groupIds`, `spatialWorkspace.groups` records member frames/objects, and selected group context includes a contents inspector
 - [x] Workbench `Map` supports background drag-pan with momentum/coast, left/top edge expansion for cards and Map objects, trailing workspace room, cursor-centered pinch/ctrl-wheel zoom, a minimap navigator with click-to-pan, and `Fit map` recovery for visible frames/objects
 - [x] Workbench/Advanced `Map` uses a fixed internal scroll viewport instead of letting the spatial surface expand the whole page, and `Tidy map` reflows generated-output/checkpoint shelf objects into compact lanes
-- [x] Browser regression now captures scrolled Advanced Map screenshots on desktop and tablet through `visualfixture=advanced-map`, and asserts the sticky command deck stays opaque with no raw `generated-target` output labels
+- [x] Browser regression now captures Advanced Map screenshots on desktop and tablet through `visualfixture=advanced-map`, and asserts the command deck stays opaque with no raw `generated-target` output labels
 - [x] Workbench `Map` spatial objects can be selected, Shift-click multi-selected, Shift-drag lasso-selected, moved as a selected set, resized as a selected set from a combined transform box, edited through a visible Copy context/Pin/Lock/Group/Ungroup/Select contents/Fit group/Send back/Bring front/Duplicate/Delete/Clear action strip, copied as no-API Markdown context, keyboard-nudged, grouped with `Cmd/Ctrl+G`, ungrouped with `Shift+Cmd/Ctrl+G`, reordered with `Cmd/Ctrl+[` and `Cmd/Ctrl+]`, duplicated with `Cmd/Ctrl+D`, deleted with `Delete`/`Backspace`, locked against accidental move/resize/group/reorder/duplicate/delete, group-duplicated with contained unlocked Map objects, and exported as active `spatialWorkspace.selectedObjectId` / `selectedObjectIds` plus selected/per-object `locked`, `layerIndex`, `layerLabel`, and `contextMarkdown`
 - [x] Workbench `Map` single-object selection exposes a lightweight property editor for Title, Note, Status, Prompt / Context, custom `key: value` properties, and safe type-detail overrides plus structured per-type inspector sections for generated outputs, asset candidates, checkpoints, variants, groups, references, and changes; manual overrides persist across generated/asset/checkpoint object resyncs
 - [x] Workbench `Map` can clear generated screen/artifact/change cards without deleting manual notes, groups, frames, or assets
@@ -87,7 +87,7 @@ Status: In progress
 - [x] Workbench `Map` includes text search for generated outputs, assets, notes, paths, prompts, frame labels, and statuses, and exports the active query through `spatialWorkspace.objectFilter.searchQuery`
 - [x] Workbench `Map` can pin selected objects so important outputs, assets, notes, or checkpoints remain visible across focus filters and collapsed history
 - [x] Live exports include `spatialWorkspace` with map zoom, interaction metadata, frame card positions, spatial object positions, active/entry frame ids, and links
-- [x] Advanced command deck is a solid sticky inspector header using the same Workbench visual language, so frame/map content does not blur through the controls during long scrolls
+- [x] Advanced command deck is a solid inspector header using the same Workbench visual language, so frame/map content does not blur through the controls during long sessions
 - [x] Advanced mode collapses to a single-column inspector layout on narrower windows so the Workbench/Advanced switch and deck controls do not clip off-screen
 - [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon, including legacy materialized/generated-target records
 - [x] Collapsed Workbench keeps a compact frame/surface/action/focus summary visible while the tray is hidden
@@ -231,7 +231,7 @@ Status: In progress
 - [x] Workbench/Advanced Map now wraps generated output/artifact/change cards in a designer-readable collapsible `Output shelf` lane and uses friendlier generated screen titles
 - [x] Workbench/Advanced Map output preview cards now expose `Edit as frame`, creating a normal editable frame branch from the generated target instead of leaving the output as a passive reference only; the generated target binding now travels through task packs, rewrite requests, build requests, output contracts, and executor context JSON
 - [x] Workbench/Advanced Map selected objects can now be sent backward or brought forward, and live export/context Markdown includes the resulting layer order
-- [x] Advanced command deck is solid/readable and sticky, so grid/canvas texture does not bleed through the controls during long frame/map scrolls
+- [x] Advanced command deck is solid/readable, so grid/canvas texture does not bleed through the controls during long frame/map sessions
 - [x] Advanced command deck behavior is now covered by scrolled browser visual smoke snapshots instead of only manual review
 
 ```text
