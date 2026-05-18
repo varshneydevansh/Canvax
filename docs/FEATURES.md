@@ -178,6 +178,7 @@ Behavior:
 - exposes `Make real` for the local generated-screen pass
 - exposes `Image pack` for a no-API image-generation handoff with coordinates and an HTML/CSS scaffold
 - turns pasted or dropped images into editable frame elements for generated candidates, reference crops, storyboards, posters, or UI assets
+- exposes `Add image` as the primary Workbench file-picker path for editable references, generated candidates, book/storyboard art, and UI assets
 - shows the connected generated output inside the Workbench tray when one exists
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles

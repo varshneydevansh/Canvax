@@ -214,6 +214,7 @@ Status: In progress
 - [x] Asset candidate tray now shows attached thumbnails, select, and accept review state for generated image choices without calling an image API
 - [x] Workbench `Map` renders generated screen targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial objects and exports them through `spatialWorkspace.objects`
 - [x] Workbench bottom command composer now lets users type/paste dictation, Talk, Note, Make, and Apply in focused canvas mode without reopening the top tray
+- [x] Workbench primary command row now includes `Add image`, placing uploaded references or generated candidates as editable canvas elements without switching to Advanced mode
 - [x] Variant branches can now be promoted to primary, which sets the variant as the entry frame and preserves lineage for Codex handoff
 - [x] Rematerialize now reuses a stable per-frame artifact path and refreshes preview via versioned URLs
 - [x] Preview target resolution now prefers the currently selected frame when multiple generated targets exist

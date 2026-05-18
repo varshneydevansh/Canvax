@@ -296,6 +296,8 @@ const dom = {
   focusAddFrame: document.querySelector("#focus-add-frame"),
   focusAddSection: document.querySelector("#focus-add-section"),
   focusFreeCanvas: document.querySelector("#focus-free-canvas"),
+  focusAddImage: document.querySelector("#focus-add-image"),
+  focusImageInput: document.querySelector("#focus-image-input"),
   focusPromptChips: document.querySelector("#focus-prompt-chips"),
   focusUndo: document.querySelector("#focus-undo"),
   focusRedo: document.querySelector("#focus-redo"),
@@ -703,6 +705,18 @@ function bindEvents() {
   dom.focusFreeCanvas.addEventListener("click", () => {
     updateFrameField("viewport", "free", { capture: true });
     setZoom(0.5);
+  });
+  dom.focusAddImage.addEventListener("click", () => {
+    dom.focusImageInput.click();
+  });
+  dom.focusImageInput.addEventListener("change", (event) => {
+    const [file] = Array.from(event.target.files || []).filter((item) =>
+      item.type.startsWith("image/"),
+    );
+    if (file) {
+      void placeImageFile(file);
+    }
+    event.target.value = "";
   });
   dom.focusUndo.addEventListener("click", undoDesignerAction);
   dom.focusRedo.addEventListener("click", redoDesignerAction);
@@ -19563,8 +19577,10 @@ async function runSelfTest() {
         Boolean(dom.workbenchComposerInput) &&
           Boolean(dom.workbenchComposerTalk) &&
           Boolean(dom.workbenchComposerMake) &&
-          Boolean(dom.workbenchComposerApply),
-        "Workbench bottom command composer renders",
+          Boolean(dom.workbenchComposerApply) &&
+          Boolean(dom.focusAddImage) &&
+          Boolean(dom.focusImageInput),
+        "Workbench bottom command composer and image import controls render",
       ),
     );
     const moreActions = document.querySelector(".focus-more-actions");
