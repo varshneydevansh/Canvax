@@ -94,6 +94,7 @@ flowchart LR
 - Adds Workbench quick-prompt chips for common refinement directions like font, drama, mobile variant, spacing, and image candidates.
 - Adds designer surface presets for slides, book spreads, storyboards, and comic pages alongside UI, poster, square, and free-canvas presets.
 - Adds a visible Advanced `Design kit` card with active rule sources, local kit presets for product apps, poster systems, book spreads, dashboards, and storyboards, plus `Extract tokens` for deriving palette, density, shape language, element mix, and placed/reference-image color samples from the current frame without an API. Applying a kit updates the board surface, mood, action mode, generation recipe, and empty frame notes without touching the sketch.
+- Adds `npm run extract-tokens`, a local no-API extractor for public URLs, local HTML/CSS files, generated screen artifacts, or pasted CSS/HTML text. It writes `exports/canvax-external-design-tokens-latest.{json,md}` with palette, CSS variable, and typography cues that can be imported into future Design kit flows.
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
 - Keeps Advanced in the same product language with a solid command deck and bounded frame/map workspace that stay readable over long sessions.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.

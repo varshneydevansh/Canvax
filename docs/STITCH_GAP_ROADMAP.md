@@ -361,6 +361,10 @@ then exports those tokens through the Design kit and style lock.
 The Build-with-Codex executor now applies the extracted token palette to the
 local preview/starter CSS variables and carries the token block into the
 integration contract and Codex port task.
+`npm run extract-tokens` now adds a no-API external-source pass for public URLs,
+local HTML/CSS files, generated screen artifacts, or pasted CSS/HTML text,
+writing `canvax-external-design-tokens` JSON/Markdown for future Design kit
+import.
 
 Needed:
 
@@ -368,7 +372,9 @@ Needed:
   active-source summary, local preset gallery, and current-frame token pass.
 - Extract visual tokens from a URL, screenshot, or existing app. **Current-frame
   sketch token extraction and locally readable placed/reference-image sampling
-  shipped; direct URL/existing-app extraction remains open.**
+  shipped; text/CSS token extraction from URLs, files, generated artifacts, and
+  inline snippets shipped; rendered screenshot/app semantic extraction remains
+  open.**
 - Enforce those tokens when Codex generates or refines UI.
   **Initial deterministic executor enforcement shipped for generated CSS
   variables and port contracts; stricter production-code enforcement remains

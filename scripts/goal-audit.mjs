@@ -203,6 +203,43 @@ const checks = [
       "High-fidelity production app/page edits still require Codex to act on the request and are not proven by the deterministic scaffold alone.",
   },
   {
+    id: "design-system-token-extraction",
+    requirement: "Reusable design-system and token extraction layer",
+    currentState: "partial-local",
+    evidence: [
+      {
+        path: "web/app.js",
+        includes: [
+          "extractDesignTokensFromCurrentFrame",
+          "sampleImagePalette",
+          "visualSamples",
+        ],
+      },
+      {
+        path: "scripts/extract-design-tokens.mjs",
+        includes: [
+          "canvax-external-design-tokens",
+          "requiresOpenAiApiKey: false",
+          "extractStylesheetHrefs",
+        ],
+      },
+      {
+        path: "scripts/execute-build-request.mjs",
+        includes: [
+          "applyDesignTokenPalette",
+          "collectDesignTokenPalette",
+          "designTokens: model.theme.designTokens",
+        ],
+      },
+      {
+        path: "scripts/regression-check.mjs",
+        includes: ["external design token extractor dry-run is valid"],
+      },
+    ],
+    remainingGap:
+      "Current-frame and text/CSS token extraction are local and proven, but UI import, rendered screenshot/app semantic extraction, and strict production-code enforcement remain open.",
+  },
+  {
     id: "live-sketch-voice-rewrite",
     requirement: "Live sketch-and-voice rewrite loop",
     currentState: "partial-local",

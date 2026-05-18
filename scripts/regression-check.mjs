@@ -70,6 +70,7 @@ const results = [];
 await validateCodexOutputDryRun();
 await validateExecuteBuildRequestDryRun();
 await validateExecuteRewriteRequestDryRun();
+await validateExternalDesignTokenExtractorDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
@@ -364,6 +365,42 @@ function validateSpatialWorkspaceWhenPresent(value) {
       Array.isArray(value?.objects || []) &&
       Array.isArray(value?.links),
   );
+}
+
+async function validateExternalDesignTokenExtractorDryRun() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/extract-design-tokens.mjs",
+      "--text",
+      ":root{--brand:#e85d3a;--ink:rgb(20,32,48);font-family:Georgia,serif}.cta{color:#e85d3a;background:#f2b84b}",
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const pack = payload.tokenPack;
+    const passed = Boolean(
+      payload.dryRun &&
+        pack?.kind === "canvax-external-design-tokens" &&
+        pack.requiresOpenAiApiKey === false &&
+        pack.palette?.some((entry) => entry.hex === "#e85d3a") &&
+        pack.palette?.some((entry) => entry.hex === "#142030") &&
+        pack.cssVariables?.some((entry) => entry.name === "--brand") &&
+        pack.typography?.fontFamilies?.some((font) => /Georgia/.test(font)),
+    );
+    results.push({
+      name: "external design token extractor dry-run is valid",
+      passed,
+      detail: passed
+        ? `${pack.palette.length} colors`
+        : "extractor did not return expected token pack",
+    });
+  } catch (error) {
+    results.push({
+      name: "external design token extractor dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 async function validateRunningPreviewState() {
