@@ -3517,7 +3517,10 @@ function syncSpatialObjectsFromHandoffs() {
       type: "checkpoint-event",
       title: checkpoint.label || checkpointReasonLabel(checkpoint.reason),
       subtitle: checkpoint.targetLabel
-        ? `${checkpoint.frameTitle || "Board"} -> ${checkpoint.targetLabel}`
+        ? `${checkpoint.frameTitle || "Board"} -> ${designerOutputTargetLabel(
+            checkpoint.targetLabel,
+            checkpoint.frameTitle,
+          )}`
         : checkpoint.frameTitle || "Session checkpoint",
       sourceId: checkpoint.id || "",
       sourceKind: "checkpoint",
@@ -4044,6 +4047,33 @@ function manifestItemFrameTitle(item) {
   }
   const frameId = frameIdsFromManifestItem(item)[0];
   return frameId ? frameById(frameId)?.title || "" : "";
+}
+
+function designerOutputTargetLabel(rawLabel, fallbackFrameTitle = "") {
+  const label = cleanString(rawLabel);
+  const fallback = cleanString(fallbackFrameTitle);
+  if (!label) {
+    return fallback ? `Generated screen for ${fallback}` : "Generated output";
+  }
+
+  const legacyMatch = label.match(
+    /^(.*?)(?:\s+(?:materialized|generated\s+(?:screen|preview|target)))$/i,
+  );
+  const inferredFrameTitle = cleanString(legacyMatch?.[1]) || fallback;
+  if (/materialized|generated-target/i.test(label) || legacyMatch) {
+    return inferredFrameTitle
+      ? `Generated screen for ${inferredFrameTitle}`
+      : "Generated screen";
+  }
+
+  return label.replace(/generated-target/gi, "Generated screen");
+}
+
+function designerOutputTargetLabelFromItem(item, fallbackFrameTitle = "") {
+  return designerOutputTargetLabel(
+    item?.label || item?.title || item?.targetLabel || "",
+    manifestItemFrameTitle(item) || fallbackFrameTitle,
+  );
 }
 
 function designerManifestTitle(kind, item, index = 0) {
@@ -6693,12 +6723,14 @@ function renderWorkbenchOutput() {
     manifest,
   });
   const targetUrl = resolveWorkbenchTargetUrl(target);
-  const targetLabel = target?.label || status?.label || "Generated output";
+  const targetLabel = target
+    ? designerOutputTargetLabelFromItem(target, frame.title)
+    : status?.label || "Generated output";
   const targetKind =
     target?.type === "generated-screen-preview"
       ? "Generated"
       : target?.type === "materialized-preview"
-        ? "Materialized"
+        ? "Generated screen"
         : target
           ? "Attached"
           : "No output";
@@ -8121,12 +8153,12 @@ function renderCodexOutput() {
       target.type === "generated-screen-preview"
         ? "generated screen"
         : target.type === "materialized-preview"
-          ? "materialized"
+          ? "generated screen"
           : target.type || "preview";
     dom.codexOutputSummary.className = "codex-output-summary";
     dom.codexOutputSummary.innerHTML = `
       <div class="artifact-item-row">
-        <strong>${escapeHtml(target.label || "Connected implementation")}</strong>
+        <strong>${escapeHtml(designerOutputTargetLabelFromItem(target, "Connected implementation"))}</strong>
         <span class="artifact-kind">${escapeHtml(targetKind)}</span>
       </div>
       <p class="artifact-meta">${escapeHtml(target.source || "manifest")} • ${escapeHtml(routeLabel)}</p>
@@ -8250,7 +8282,12 @@ function renderCheckpointPanel() {
           <p class="artifact-meta">${escapeHtml(meta)}</p>
           ${
             item.targetLabel
-              ? `<p class="artifact-copy">${escapeHtml(`Target: ${item.targetLabel}`)}</p>`
+              ? `<p class="artifact-copy">${escapeHtml(
+                  `Target: ${designerOutputTargetLabel(
+                    item.targetLabel,
+                    item.frameTitle,
+                  )}`,
+                )}</p>`
               : ""
           }
           ${links ? `<div class="button-row tight">${links}</div>` : ""}
@@ -8378,7 +8415,12 @@ function buildOutputActivityDetail(outputDigest) {
 
   const parts = [];
   if (outputDigest.targetLabel) {
-    parts.push(outputDigest.targetLabel);
+    parts.push(
+      designerOutputTargetLabel(
+        outputDigest.targetLabel,
+        outputDigest.frameTitle,
+      ),
+    );
   }
   if (Number.isInteger(outputDigest.changeCount)) {
     parts.push(
@@ -8470,7 +8512,10 @@ function buildOutputActivityFromSessionEvents(sessionEvents) {
           : "";
       const detail = [
         typeof event.outputDigest?.targetLabel === "string"
-          ? event.outputDigest.targetLabel
+          ? designerOutputTargetLabel(
+              event.outputDigest.targetLabel,
+              event.outputDigest?.frameTitle,
+            )
           : "",
         Number.isInteger(event.summary?.changeCount)
           ? `${event.summary.changeCount} changed file${event.summary.changeCount === 1 ? "" : "s"}`
@@ -8672,7 +8717,7 @@ function renderFlowBoard() {
   const defaultStatus =
     state.workspaceMode === "simple"
       ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag or flick background to pan, drag cards/objects into an edge to expand space, Shift-drag empty space to lasso, or pinch/ctrl-wheel to zoom."
-      : "Advanced Map: arrange frames plus generated reference cards. Output cards are Materialize/Build results, not extra frames; open, pin, edit as frame, or remove stale cards with x. Drag or flick background to pan, pinch/ctrl-wheel to zoom, or pull from a frame dot to connect screens.";
+      : "Advanced Map: arrange frames plus generated reference cards. Output cards are Make/Build/local preview results, not extra frames; open, pin, edit as frame, or remove stale cards with x. Drag or flick background to pan, pinch/ctrl-wheel to zoom, or pull from a frame dot to connect screens.";
   const searchSuffix = state.mapObjectSearch
     ? ` Search is filtering Map objects for "${state.mapObjectSearch}".`
     : "";
@@ -10390,7 +10435,7 @@ function spatialObjectBodyText(object, frameTitle = "") {
             frameTitle,
           )
         ? `Generated result for ${frameTitle}. This is a reference card, not another frame; open it, edit as frame, pin it, or clear it when stale.`
-        : "Generated screen from Make, Materialize, Build, or Codex output. This is a reference card, not another frame; open it, edit it as a frame, pin it, or clear it when stale.";
+        : "Generated screen from Make, local preview, Build, or Codex output. This is a reference card, not another frame; open it, edit it as a frame, pin it, or clear it when stale.";
   }
 
   if (sourceKind === "generated-artifact") {
@@ -15640,7 +15685,7 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
     kind: "output",
     title: "Output shelf",
     description:
-      "Generated reference cards from Make, Materialize, Build, or Codex output manifests. They are not frames; open, pin, edit as frame, or clear stale cards.",
+      "Generated reference cards from Make, local preview, Build, or Codex output manifests. They are not frames; open, pin, edit as frame, or clear stale cards.",
     objects: spatialObjects.filter(isManifestSpatialObject),
     collapsed: Boolean(state.outputLaneCollapsed),
     contextTitle: "Output shelf",
@@ -19149,7 +19194,7 @@ function describeFrameOutputStatus(
   const detail =
     describeManifestFreshness(target, frame) ||
     describeTargetRefinement(target) ||
-    target.label ||
+    designerOutputTargetLabelFromItem(target, frame.title) ||
     "";
   const stale = detail.startsWith("Current sketch is newer");
   const bound = Boolean(specificTarget);
@@ -19183,7 +19228,7 @@ function describeFrameOutputStatus(
     label: generatedScreen
       ? "Generated screen"
       : materialized
-        ? "Materialized"
+        ? "Generated screen"
         : "Output synced",
     tone: materialized ? "active" : "synced",
     detail:
@@ -19191,7 +19236,7 @@ function describeFrameOutputStatus(
       (generatedScreen
         ? "This frame has a connected generated screen."
         : materialized
-        ? "This frame has a connected materialized preview."
+        ? "This frame has a connected generated screen."
         : "This frame has a connected output target."),
     target,
   };
@@ -21346,6 +21391,7 @@ function assertSpatialObjectsFromOutputManifest() {
     selectedSpatialObjectIds: structuredClone(state.selectedSpatialObjectIds),
     assetCandidatePack: structuredClone(state.assetCandidatePack),
     previewManifest: structuredClone(state.serverStatus.previewManifest),
+    checkpointHistory: structuredClone(state.serverStatus.checkpointHistory),
   };
 
   state.spatialObjects = [
@@ -21437,6 +21483,23 @@ function assertSpatialObjectsFromOutputManifest() {
         },
       ],
     },
+    checkpointHistory: {
+      items: [
+        {
+          id: "selftest-output-checkpoint",
+          label: "Output update",
+          reason: "output-update",
+          savedAt: new Date().toISOString(),
+          frameId,
+          frameTitle: currentFrame().title,
+          targetLabel: `${currentFrame().title} materialized`,
+          captureCount: 1,
+          voiceSegmentCount: 0,
+          artifactCount: 1,
+          changeCount: 0,
+        },
+      ],
+    },
   };
   syncSpatialObjectsFromHandoffs();
   setWorkspaceMode("simple");
@@ -21511,6 +21574,14 @@ function assertSpatialObjectsFromOutputManifest() {
     outputGuideText.includes("Generated screen") &&
     outputGuideText.includes("Generated file") &&
     outputGuideText.includes("Code change");
+  const checkpointObject = spatialExport.objects.find(
+    (object) => object.sourceId === "selftest-output-checkpoint",
+  );
+  const checkpointTargetSanitized =
+    checkpointObject?.subtitle?.includes(
+      `Generated screen for ${currentFrame().title}`,
+    ) &&
+    !/materialized|generated-target/i.test(checkpointObject.subtitle || "");
   toggleOutputLane();
   const collapsedOutputExport = buildSpatialWorkspaceExport().lanes.some(
     (lane) =>
@@ -21732,6 +21803,7 @@ function assertSpatialObjectsFromOutputManifest() {
   state.serverStatus = {
     ...state.serverStatus,
     previewManifest: previous.previewManifest,
+    checkpointHistory: previous.checkpointHistory,
   };
   persistState();
   renderAll();
@@ -21748,6 +21820,7 @@ function assertSpatialObjectsFromOutputManifest() {
       outputLaneExported &&
       outputLaneRendered &&
       outputGuideRendered &&
+      checkpointTargetSanitized &&
       collapsedOutputExport &&
       collapsedOutputRendered &&
       collapsedOutputCardsHidden &&
@@ -21782,6 +21855,7 @@ function assertSpatialObjectsFromOutputManifest() {
       outputLaneExported,
       outputLaneRendered,
       outputGuideRendered,
+      checkpointTargetSanitized,
       collapsedOutputExport,
       collapsedOutputRendered,
       collapsedOutputCardsHidden,

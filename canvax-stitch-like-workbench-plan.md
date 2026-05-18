@@ -17,7 +17,7 @@ draw rough idea + speak intent + attach context
         -> Codex refines the output
 ```
 
-This is inspired by Google Stitch's AI-native canvas direction, but Canvax should not clone Stitch. The stronger Canvax position is Codex-native workspace awareness: sketches, voice/transcripts, generated files, previews, docs, and git changes all become one local collaboration state.
+This is inspired by Google Stitch's AI-native canvas direction, and now also tracks Open Design as an open-source reference for skill/design-system driven artifact generation. Canvax should not clone either product. The stronger Canvax position is Codex-native workspace awareness: sketches, voice/transcripts, generated files, previews, docs, and git changes all become one local collaboration state.
 
 The current Advanced board is useful, but it is overwhelming as the default. Keep it as an inspector/debugging mode. Make the default mode a simpler `Workbench`.
 
@@ -39,6 +39,15 @@ Sources:
 - OpenAI Apps SDK quickstart: https://developers.openai.com/apps-sdk/quickstart
 - OpenAI Apps SDK MCP server concepts: https://developers.openai.com/apps-sdk/concepts/mcp-server
 - Google Stitch redesign reference: https://blog.google/innovation-and-ai/models-and-research/google-labs/stitch-ai-ui-design/
+- Open Design reference: https://open-design.ai/
+- Open Design repository: https://github.com/nexu-io/open-design
+
+Open Design adds one practical product pressure: Canvax needs a better
+discoverable design-system and skill layer. The shipped `DESIGN.md`,
+style-lock, semantic variant, image prompt, and build/rewrite contract work is
+the start, but the UI still needs a designer-readable way to choose and apply
+those rules without making the Workbench feel like a prompt-only artifact
+generator.
 
 ## Implementation Status
 

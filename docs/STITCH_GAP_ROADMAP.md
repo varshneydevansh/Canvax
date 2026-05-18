@@ -1,6 +1,6 @@
 # Canvax Stitch Gap Roadmap
 
-Updated: May 18, 2026
+Updated: May 19, 2026
 
 This document compares the current Canvax repo against the Stitch-style design workflow and records what is done, what is missing, and what should improve next. For a stricter requirement-by-requirement audit with evidence and remaining gaps, see `docs/CANVAX_PARITY_AUDIT.md`. For the short designer workflow and screenshot review path, see `docs/DESIGNER_WALKTHROUGH.md`.
 
@@ -75,6 +75,33 @@ Sources:
 - Google Labs Stitch UI design update: https://blog.google/innovation-and-ai/models-and-research/google-labs/stitch-ai-ui-design/
 - Google Labs Stitch Gemini 3 prototype update: https://blog.google/innovation-and-ai/models-and-research/google-labs/stitch-gemini-3/
 - OpenAI ChatGPT Images 2.0 announcement: https://openai.com/index/introducing-chatgpt-images-2-0/
+- Open Design site: https://open-design.ai/
+- Open Design repository: https://github.com/nexu-io/open-design
+
+### Open Design Reference
+
+Open Design is closer to Canvax than Stitch in one important way: it is an
+open-source developer-tool surface rather than a closed hosted canvas. Its
+public positioning focuses on prompt-to-design artifacts, code export,
+design-system/skill libraries, BYOK or local model support, and adapters for
+agent tools such as Claude Code and Cursor CLI.
+
+The useful lesson for Canvax:
+
+- Treat reusable design knowledge as first-class. Canvax should continue
+  expanding `DESIGN.md`, style locks, image packs, and semantic recipes so rough
+  sketches inherit a durable design system instead of becoming one-off prompts.
+- Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
+  default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
+  hosts when those capabilities are present.
+- Do not collapse into a prompt-only artifact generator. Canvax's stronger lane
+  is the live visual workbench: sketch, voice, generated output, correction
+  marks, frames, assets, code, and checkpoints all remain editable in one board.
+- Make output cards understandable to designers. Generated implementation
+  references should read as `Generated screen`, `Generated file`, and
+  `Code change`, never as raw manifest labels like `generated-target`.
+- Add a richer skill/design-system gallery later, but only after the everyday
+  Workbench remains simple enough for sketch-first users.
 
 ## Current Canvax Shape
 
