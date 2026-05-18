@@ -32,6 +32,7 @@ const board = {
 const taskPack = buildTaskPack(board, frame);
 const imagePromptPack = buildImagePromptPack(board, frame);
 const assetCandidates = buildAssetCandidatePack(board, frame);
+const imageHostTask = buildImageHostTask(assetCandidates);
 const buildRequest = buildRealRequest(board, frame);
 const rewriteRequest = buildRewriteRequest(board, frame);
 
@@ -39,6 +40,7 @@ const paths = {
   taskPack: resolve(latestRoot, "task-pack.json"),
   imagePromptPack: resolve(latestRoot, "image-prompt-pack.json"),
   assetCandidates: resolve(latestRoot, "asset-candidates.json"),
+  imageHostTask: resolve(latestRoot, "image-host-task.json"),
   buildRequest: resolve(latestRoot, "build-request.json"),
   rewriteRequest: resolve(latestRoot, "rewrite-request.json"),
   result: resolve(latestRoot, "result.json"),
@@ -47,6 +49,7 @@ const paths = {
 await writeJson(paths.taskPack, taskPack);
 await writeJson(paths.imagePromptPack, imagePromptPack);
 await writeJson(paths.assetCandidates, assetCandidates);
+await writeJson(paths.imageHostTask, imageHostTask);
 await writeJson(paths.buildRequest, buildRequest);
 await writeJson(paths.rewriteRequest, rewriteRequest);
 
@@ -60,10 +63,24 @@ record(
   "image prompt and asset packs stay no-API",
   imagePromptPack.requiresOpenAiApiKey === false &&
     assetCandidates.requiresOpenAiApiKey === false &&
+    imageHostTask.requiresOpenAiApiKey === false &&
     assetCandidates.candidates.length === 2 &&
+    imageHostTask.tasks.length === 2 &&
     assetCandidates.reviewSummary?.kind ===
       "canvax-asset-candidate-review" &&
     assetCandidates.reviewSummary.hostHandoff?.requiresOpenAiApiKey === false,
+);
+record(
+  "image host task preserves placement and return binding",
+  imageHostTask.kind === "canvax-image-host-task" &&
+    imageHostTask.noApiBoundary?.canCanvaxCallImageApi === false &&
+    imageHostTask.tasks.every(
+      (task) =>
+        task.hostPrompt &&
+        task.placementContract?.targetSelector &&
+        task.outputSlot?.slotId &&
+        task.returnInstructions.length > 0,
+    ),
 );
 record(
   "asset candidates include placement contracts and output slots",
@@ -450,6 +467,7 @@ const proof = {
     taskPack: toProjectRelative(paths.taskPack),
     imagePromptPack: toProjectRelative(paths.imagePromptPack),
     assetCandidates: toProjectRelative(paths.assetCandidates),
+    imageHostTask: toProjectRelative(paths.imageHostTask),
     buildRequest: toProjectRelative(paths.buildRequest),
     rewriteRequest: toProjectRelative(paths.rewriteRequest),
     buildPreview: buildResult.previewPath,
@@ -603,6 +621,83 @@ function buildAssetCandidatePack(board, frame) {
   };
 }
 
+function buildImageHostTask(assetCandidates) {
+  const tasks = assetCandidates.candidates.map((candidate, index) => {
+    const placement = candidate.placementMap;
+    const slot = candidate.outputSlots[0];
+    const pixel = placement.pixelBounds;
+    const css = placement.cssPlacement;
+    return {
+      taskId: `${candidate.id}-host-task`,
+      candidateId: candidate.id,
+      title: candidate.title,
+      sourceFrameId: candidate.sourceFrameId,
+      sourceFrameTitle: candidate.sourceFrameTitle,
+      status: candidate.status,
+      hostPrompt: [
+        `Generate image candidate ${index + 1}: ${candidate.title}.`,
+        candidate.prompt,
+        `Placement: ${placement.placement}.`,
+        `Pixel slot: ${pixel.left}, ${pixel.top}, ${pixel.width}x${pixel.height}.`,
+        `CSS slot: left ${css.left}, top ${css.top}, width ${css.width}, height ${css.height}.`,
+        `Target selector: ${placement.targetSelector}.`,
+        "Avoid unrelated logos, unreadable text, and composition drift.",
+      ].join("\n"),
+      negativePrompt: candidate.negativePrompt || "",
+      placementContract: {
+        placement: placement.placement,
+        normalizedBounds: placement.normalizedBounds,
+        pixelBounds: placement.pixelBounds,
+        cssPlacement: placement.cssPlacement,
+        targetSelector: placement.targetSelector,
+        htmlScaffold: placement.htmlScaffold,
+      },
+      outputSlot: {
+        slotId: slot.slotId,
+        status: slot.status,
+        imagePath: slot.imagePath || "",
+        accepted: Boolean(slot.accepted),
+        attached: Boolean(slot.attached),
+      },
+      returnInstructions: [
+        "Save, attach, or paste the generated image back into Canvax.",
+        `Bind the result to candidate ${candidate.id}.`,
+        `Use output slot ${slot.slotId}.`,
+      ],
+      acceptanceCriteria: [
+        "The image matches the prompt and style lock.",
+        "The composition fits the target bounds.",
+      ],
+    };
+  });
+  return {
+    schemaVersion: 1,
+    kind: "canvax-image-host-task",
+    createdAt: now(),
+    requiresOpenAiApiKey: false,
+    intendedHost:
+      "Use the image generation host already available in the current Codex or ChatGPT session.",
+    purpose:
+      "E2E no-API hosted-image handoff with return-slot binding.",
+    board: assetCandidates.board,
+    reviewSummary: assetCandidates.reviewSummary,
+    candidateCount: tasks.length,
+    workflow: [
+      "Copy a task hostPrompt into the host image tool.",
+      "Return the generated image to the matching output slot.",
+    ],
+    noApiBoundary: {
+      canCanvaxCallImageApi: false,
+      reason: "Canvax exports the task but does not call an image API.",
+    },
+    returnContract: {
+      acceptedInputs: ["workspace image file path", "pasted image"],
+      requiredBindingFields: ["candidateId", "outputSlot.slotId"],
+    },
+    tasks,
+  };
+}
+
 function buildAssetCandidateReviewSummary(candidates) {
   const slots = candidates.flatMap((candidate) => candidate.outputSlots || []);
   const groups = [
@@ -673,6 +768,8 @@ function buildAssetCandidateReviewSummary(candidates) {
       requiresOpenAiApiKey: false,
       lane: "host-image-generation",
       copyReadyFiles: [
+        "exports/canvax-image-host-task-latest.md",
+        "exports/canvax-image-host-task-latest.json",
         "exports/canvax-image-generation-brief-latest.md",
         "exports/canvax-image-generation-brief-latest.json",
         "exports/canvax-asset-candidates-latest.json",

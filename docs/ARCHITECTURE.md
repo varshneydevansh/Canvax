@@ -619,7 +619,7 @@ Image/asset handoff files:
 
 Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from board mood, surface, generation recipe, `DESIGN.md` when present, current palette, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
 
-Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
+Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. The Workbench candidate tray lets users place those records as editable frame slots or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
 
 ```text
 asset candidate pack
@@ -629,6 +629,7 @@ asset candidate pack
   -> candidate.outputSlots[]
   -> reviewSummary.groups[]
   -> image generation brief copyBlocks[]
+  -> image host task tasks[]
   -> Workbench asset tray
   -> Map asset object contextMarkdown
   -> Codex / host image tool can preserve placement

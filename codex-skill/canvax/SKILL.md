@@ -86,6 +86,12 @@ Prefer these files when they exist:
 - `exports/canvax-rewrite-request-latest.md`
 - `exports/canvax-image-prompt-pack-latest.json`
 - `exports/canvax-image-prompt-pack-latest.md`
+- `exports/canvax-asset-candidates-latest.json`
+- `exports/canvax-asset-candidates-latest.md`
+- `exports/canvax-image-generation-brief-latest.json`
+- `exports/canvax-image-generation-brief-latest.md`
+- `exports/canvax-image-host-task-latest.json`
+- `exports/canvax-image-host-task-latest.md`
 - `exports/canvax-transcript-bridge.json`
 - `exports/canvax-transcript-bridge-latest.md`
 - `exports/canvax-checkpoint-latest.json`
@@ -108,7 +114,7 @@ That writes a refreshed frame-bound preview artifact under `artifacts/preview/co
 
 If the user asks for image generation, illustration, poster composition, book spreads, or "where should the image model place things", read `exports/canvax-image-prompt-pack-latest.json` or `.md` after the live export. This pack is no-API by design: it gives Codex/ChatGPT host capabilities the prompt, coordinates, safe zones, and HTML/CSS placement scaffold without requiring Canvax to call a paid API.
 
-When host image generation is available in the current chat/client, use the image prompt pack and asset candidate pack as the source of truth, then attach the resulting file back through Canvax as an editable image element or asset candidate choice. When host image generation is not available, still produce the prompt pack and placement map; do not introduce an `OPENAI_API_KEY` requirement.
+When host image generation is available in the current chat/client, use `exports/canvax-image-host-task-latest.json` as the execution checklist. It turns each candidate into a hosted-image task with prompt, placement contract, output slot, return instructions, and acceptance criteria. Use the image prompt pack, asset candidate pack, and image generation brief as supporting context, then attach the resulting file back through Canvax as an editable image element or asset candidate choice. When host image generation is not available, still produce the prompt pack and placement map; do not introduce an `OPENAI_API_KEY` requirement.
 
 If `exports/canvax-checkpoint-latest.json` exists and the user seems to be referring to a specific recent moment in the board workflow, prefer that checkpoint because it merges sketch, voice, and output context for that handoff moment.
 

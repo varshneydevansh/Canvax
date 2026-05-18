@@ -128,7 +128,7 @@ Canvax today
 - Saved asset candidates now appear in a compact Workbench tray. Designers can place a candidate as an editable image slot on its source frame/region or attach a generated file back into that slot while preserving `assetCandidateId`.
 - Each asset candidate card can copy its prompt plus exact pixel/CSS placement contract for a ChatGPT/Codex image-generation host without opening raw JSON.
 - Asset candidate cards now show attached-image thumbnails, review status, selection, and an accept action so generated image choices become explicit no-API handoff state. Accepted choices also export through `reviewSummary.acceptedCandidates`, giving Codex a direct list of chosen image/illustration candidates.
-- Asset candidates now normalize into a `placementMap` contract with slot id, normalized bounds, source-viewport pixel bounds, CSS placement, a target selector, HTML slot scaffold, and output-slot records. The companion `canvax-asset-candidate-review` summary groups candidates by frame and exposes pending, placed, attached, and accepted queues plus no-API host handoff files. This gives Codex or a host image tool exact placement and review data for UI image regions, poster art, book spreads, and illustration candidates without requiring Canvax to call a paid API.
+- Asset candidates now normalize into a `placementMap` contract with slot id, normalized bounds, source-viewport pixel bounds, CSS placement, a target selector, HTML slot scaffold, and output-slot records. The companion `canvax-asset-candidate-review` summary groups candidates by frame and exposes pending, placed, attached, and accepted queues plus no-API host handoff files. Canvax now also writes `exports/canvax-image-host-task-latest.*`, a machine-readable host execution contract with one task per candidate, return-slot binding, and acceptance criteria. This gives Codex or a host image tool exact placement and review data for UI image regions, poster art, book spreads, and illustration candidates without requiring Canvax to call a paid API.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the `Focus canvas` designer rail without requiring the user to open Advanced mode.
@@ -319,7 +319,7 @@ Needed:
 
 ### 6. Image Model And Asset Workflow
 
-Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records with placement maps/output slots, write a consolidated image generation brief with copy-ready host prompts, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
+Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records with placement maps/output slots, write a consolidated image generation brief with copy-ready host prompts, write a no-API image host task with return-slot binding, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
 
 Target behavior:
 
@@ -334,6 +334,7 @@ done
   rough sketch -> labels/voice -> image prompt pack -> coordinates + scaffold
   image prompt pack -> asset candidate records with placementMap + output slots
   asset candidate records -> image generation brief with copy-ready host prompts
+  image generation brief -> image host task with return-slot contract
   asset candidate records -> Workbench candidate tray -> editable slots
   generated/reference image -> paste/drop -> editable image element on frame
   generated file/path -> candidate tray attach -> editable image element with candidate id
@@ -348,7 +349,7 @@ Needed:
 - Image candidate import and placement back into the board. **Initial candidate tray placement, attach-image import, and workspace-path import are shipped.**
 - Variant comparison for image generations.
 - Style-lock packs for books, comics, posters, decks, and brand systems. **Initial no-API `canvax-style-lock` block now ships inside image prompt and asset candidate packs.**
-- A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format plus consolidated image generation brief shipped.**
+- A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format, consolidated image generation brief, and no-API image host task shipped.**
 - Drag/attach generated image candidates back onto frames. **Initial paste/drop and tray attach workflows are shipped.**
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
 

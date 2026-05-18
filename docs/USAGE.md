@@ -399,9 +399,11 @@ The same `Image pack` action also writes asset candidate records:
 - `exports/canvax-asset-candidates-latest.md`
 - `exports/canvax-image-generation-brief-latest.json`
 - `exports/canvax-image-generation-brief-latest.md`
+- `exports/canvax-image-host-task-latest.json`
+- `exports/canvax-image-host-task-latest.md`
 - archived copies under `artifacts/canvax/asset-candidates/...`
 
-Asset candidates are prompt-ready records, not generated images. The image generation brief is the single copy-ready handoff for ChatGPT/Codex image-generation hosts. Together they preserve:
+Asset candidates are prompt-ready records, not generated images. The image generation brief is the copy-ready prompt handoff. The image host task is the execution handoff for Codex/ChatGPT-hosted image generation: it names the exact task, placement contract, output slot, return instructions, and no-API boundary for each candidate. Together they preserve:
 
 - source frame and region
 - prompt and negative prompt
@@ -415,6 +417,7 @@ Asset candidates are prompt-ready records, not generated images. The image gener
 - empty output slots where generated images can be attached later
 - a `reviewSummary` queue grouped by frame, with pending, placed, attached, and accepted candidate IDs
 - a no-API `hostHandoff` workflow that tells Codex/ChatGPT which files to read and how to return generated images
+- a `canvax-image-host-task` return contract for attaching generated files, pasted images, or frame references back to the right candidate slot
 
 Each candidate now includes a `placementMap` contract. That contract gives Codex or a host image tool a precise target for the generated image:
 
@@ -426,6 +429,7 @@ asset candidate
   -> cssPlacement left/top/width/height
   -> targetSelector for generated code or prompt handoff
   -> outputSlots[] for attached/accepted images
+  -> imageHostTask.tasks[] for host generation and return binding
 ```
 
 After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it to:
@@ -441,6 +445,7 @@ After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it 
 - read `reviewSummary.groups` when Codex needs the candidate queue by frame, including pending, attached, and accepted state
 - read `reviewSummary.acceptedCandidates` in the asset candidate pack when Codex needs the chosen image/illustration candidate
 - read `reviewSummary.hostHandoff.copyReadyFiles` when a ChatGPT/Codex image host needs the exact no-API files to consume
+- read `exports/canvax-image-host-task-latest.json` when Codex needs a machine-readable task list for hosted image generation and return-slot binding
 - read `placementMap` and `outputSlots` when Codex needs to place a poster image, children-book spread region, UI screenshot, or illustration candidate without guessing coordinates
 
 The tray still does not call an image API. It is a local bridge between prompt-ready candidates and whatever image-generation host is available in the current Codex/ChatGPT session.
@@ -458,6 +463,8 @@ sketch + labels + voice
   -> Image pack
   -> image prompt pack
   -> asset candidate records
+  -> image generation brief
+  -> image host task
   -> Workbench asset candidate tray
   -> host image generation
   -> generated image attached by file picker or workspace path

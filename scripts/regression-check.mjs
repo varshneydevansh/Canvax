@@ -36,6 +36,11 @@ const imageGenerationBriefJsonPath = resolve(
   "exports",
   "canvax-image-generation-brief-latest.json",
 );
+const imageHostTaskJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-image-host-task-latest.json",
+);
 const latestCheckpointPath = resolve(
   projectRoot,
   "exports",
@@ -158,6 +163,26 @@ await validateOptionalJsonSchema(
     value.reviewSummary?.kind === "canvax-asset-candidate-review" &&
     Array.isArray(value.reviewSummary.groups),
   "image generation brief schema is valid",
+);
+await validateOptionalJsonSchema(
+  imageHostTaskJsonPath,
+  (value) =>
+    value?.kind === "canvax-image-host-task" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.tasks) &&
+    value.tasks.length > 0 &&
+    value.tasks.every(
+      (task) =>
+        typeof task.hostPrompt === "string" &&
+        task.hostPrompt.length > 0 &&
+        task.placementContract?.targetSelector &&
+        task.outputSlot?.slotId,
+    ) &&
+    value.noApiBoundary?.canCanvaxCallImageApi === false &&
+    value.returnContract?.requiredBindingFields?.includes("candidateId"),
+  "image host task schema is valid",
 );
 await validateOptionalJsonSchema(
   latestCheckpointPath,
@@ -532,6 +557,12 @@ async function validateAssetCandidatesEndpoint() {
         payload.imageGenerationBrief.copyBlocks?.[0]?.hostPrompt &&
         payload.imageGenerationBrief.reviewSummary?.kind ===
           "canvax-asset-candidate-review" &&
+        payload.imageHostTask?.kind === "canvax-image-host-task" &&
+        payload.imageHostTask.requiresOpenAiApiKey === false &&
+        payload.imageHostTask.tasks?.[0]?.hostPrompt &&
+        payload.imageHostTask.tasks?.[0]?.outputSlot?.slotId &&
+        payload.imageHostTask.noApiBoundary?.canCanvaxCallImageApi === false &&
+        typeof payload.latestImageHostTaskJsonPath === "string" &&
         typeof payload.latestImageGenerationBriefJsonPath === "string" &&
         typeof payload.latestJsonPath === "string",
     );

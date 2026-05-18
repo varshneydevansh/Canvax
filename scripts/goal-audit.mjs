@@ -235,7 +235,9 @@ const checks = [
         path: "scripts/canvax.mjs",
         includes: [
           "canvax-image-generation-brief-latest.json",
+          "canvax-image-host-task-latest.json",
           "buildServerImageGenerationBrief",
+          "buildServerImageHostTask",
           "buildServerAssetPlacementMap",
         ],
       },
@@ -245,7 +247,7 @@ const checks = [
       },
       {
         path: "docs/FEATURES.md",
-        includes: ["image generation brief", "Asset candidates"],
+        includes: ["image host task", "Asset candidates"],
       },
     ],
     remainingGap:

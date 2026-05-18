@@ -38,7 +38,7 @@ Canvax cannot directly control private ChatGPT or Codex UI from a localhost page
 Current possible paths:
 
 - Codex can open Canvax in the in-app browser and inspect it visually.
-- Codex can read `exports/canvax-live-latest.json`, task packs, image prompt packs, checkpoints, and output manifests.
+- Codex can read `exports/canvax-live-latest.json`, task packs, image prompt packs, image host tasks, checkpoints, and output manifests.
 - Codex can forward submitted chat transcript text into Canvax with `./canvax --transcript`.
 - Canvax can prepare prompts, placement maps, image slots, and style locks for a host image tool.
 
@@ -215,6 +215,7 @@ Canvax prepares:
   safe zones
   style lock
   output slot ids
+  image host task
 
 Host provides, when available:
   image generation

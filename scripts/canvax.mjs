@@ -84,6 +84,14 @@ const imageGenerationBriefMarkdownPath = resolve(
   exportsRoot,
   "canvax-image-generation-brief-latest.md",
 );
+const imageHostTaskJsonPath = resolve(
+  exportsRoot,
+  "canvax-image-host-task-latest.json",
+);
+const imageHostTaskMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-image-host-task-latest.md",
+);
 const transcriptBridgePath = resolve(exportsRoot, "canvax-transcript-bridge.json");
 const transcriptBridgeMarkdownPath = resolve(
   exportsRoot,
@@ -162,6 +170,7 @@ function buildTransportDescriptor(overrides = {}) {
       assetCandidates: "exports/canvax-asset-candidates-latest.json",
       imageGenerationBrief:
         "exports/canvax-image-generation-brief-latest.json",
+      imageHostTask: "exports/canvax-image-host-task-latest.json",
     },
     liveMirror: {
       type: "browser-storage",
@@ -342,6 +351,8 @@ async function runCli() {
           assetCandidatesMarkdownPath,
           imageGenerationBriefJsonPath,
           imageGenerationBriefMarkdownPath,
+          imageHostTaskJsonPath,
+          imageHostTaskMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -375,6 +386,8 @@ async function runCli() {
         assetCandidatesMarkdownPath,
         imageGenerationBriefJsonPath,
         imageGenerationBriefMarkdownPath,
+        imageHostTaskJsonPath,
+        imageHostTaskMarkdownPath,
         assetCandidatesRoot,
         latestCheckpointPath,
         checkpointsIndexPath,
@@ -412,6 +425,8 @@ async function runCli() {
           assetCandidatesMarkdownPath,
           imageGenerationBriefJsonPath,
           imageGenerationBriefMarkdownPath,
+          imageHostTaskJsonPath,
+          imageHostTaskMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -599,6 +614,10 @@ async function runServer(port) {
           buildRequestsRoot,
           assetCandidatesJsonPath,
           assetCandidatesMarkdownPath,
+          imageGenerationBriefJsonPath,
+          imageGenerationBriefMarkdownPath,
+          imageHostTaskJsonPath,
+          imageHostTaskMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -1209,6 +1228,14 @@ async function handleSaveAssetCandidates(request, response) {
     requestRoot,
     "image-generation-brief.md",
   );
+  const requestImageHostTaskJsonPath = resolve(
+    requestRoot,
+    "image-host-task.json",
+  );
+  const requestImageHostTaskMarkdownPath = resolve(
+    requestRoot,
+    "image-host-task.md",
+  );
   const nextPack = {
     ...source,
     schemaVersion: Number(source.schemaVersion) || HANDOFF_SCHEMA_VERSION,
@@ -1238,6 +1265,45 @@ async function handleSaveAssetCandidates(request, response) {
       assetCandidatesMarkdownPath,
     ),
   });
+  const imageHostTask = buildServerImageHostTask(
+    nextPack,
+    imageGenerationBrief,
+    {
+      requestId,
+      imageGenerationBriefJsonPath: toWorkspaceRelativePath(
+        requestImageBriefJsonPath,
+      ),
+      imageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
+        requestImageBriefMarkdownPath,
+      ),
+      latestImageGenerationBriefJsonPath: toWorkspaceRelativePath(
+        imageGenerationBriefJsonPath,
+      ),
+      latestImageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
+        imageGenerationBriefMarkdownPath,
+      ),
+      assetCandidatesJsonPath: toWorkspaceRelativePath(requestJsonPath),
+      assetCandidatesMarkdownPath: toWorkspaceRelativePath(requestMarkdownPath),
+      latestAssetCandidatesJsonPath: toWorkspaceRelativePath(
+        assetCandidatesJsonPath,
+      ),
+      latestAssetCandidatesMarkdownPath: toWorkspaceRelativePath(
+        assetCandidatesMarkdownPath,
+      ),
+      imageHostTaskJsonPath: toWorkspaceRelativePath(
+        requestImageHostTaskJsonPath,
+      ),
+      imageHostTaskMarkdownPath: toWorkspaceRelativePath(
+        requestImageHostTaskMarkdownPath,
+      ),
+      latestImageHostTaskJsonPath: toWorkspaceRelativePath(
+        imageHostTaskJsonPath,
+      ),
+      latestImageHostTaskMarkdownPath: toWorkspaceRelativePath(
+        imageHostTaskMarkdownPath,
+      ),
+    },
+  );
   const jsonBody = `${JSON.stringify(nextPack, null, 2)}\n`;
   const markdownBody = markdown.endsWith("\n") ? markdown : `${markdown}\n`;
   const imageBriefJsonBody = `${JSON.stringify(
@@ -1248,6 +1314,10 @@ async function handleSaveAssetCandidates(request, response) {
   const imageBriefMarkdownBody = `${buildServerImageGenerationBriefMarkdown(
     imageGenerationBrief,
   )}\n`;
+  const imageHostTaskJsonBody = `${JSON.stringify(imageHostTask, null, 2)}\n`;
+  const imageHostTaskMarkdownBody = `${buildServerImageHostTaskMarkdown(
+    imageHostTask,
+  )}\n`;
 
   await mkdir(requestRoot, { recursive: true });
   await mkdir(exportsRoot, { recursive: true });
@@ -1255,12 +1325,22 @@ async function handleSaveAssetCandidates(request, response) {
   await writeFile(requestMarkdownPath, markdownBody);
   await writeFile(requestImageBriefJsonPath, imageBriefJsonBody);
   await writeFile(requestImageBriefMarkdownPath, imageBriefMarkdownBody);
+  await writeFile(requestImageHostTaskJsonPath, imageHostTaskJsonBody);
+  await writeFile(
+    requestImageHostTaskMarkdownPath,
+    imageHostTaskMarkdownBody,
+  );
   await writeTextFileAtomic(assetCandidatesJsonPath, jsonBody);
   await writeTextFileAtomic(assetCandidatesMarkdownPath, markdownBody);
   await writeTextFileAtomic(imageGenerationBriefJsonPath, imageBriefJsonBody);
   await writeTextFileAtomic(
     imageGenerationBriefMarkdownPath,
     imageBriefMarkdownBody,
+  );
+  await writeTextFileAtomic(imageHostTaskJsonPath, imageHostTaskJsonBody);
+  await writeTextFileAtomic(
+    imageHostTaskMarkdownPath,
+    imageHostTaskMarkdownBody,
   );
 
   await appendFile(
@@ -1278,6 +1358,12 @@ async function handleSaveAssetCandidates(request, response) {
       imageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
         requestImageBriefMarkdownPath,
       ),
+      imageHostTaskJsonPath: toWorkspaceRelativePath(
+        requestImageHostTaskJsonPath,
+      ),
+      imageHostTaskMarkdownPath: toWorkspaceRelativePath(
+        requestImageHostTaskMarkdownPath,
+      ),
       latestJsonPath: toWorkspaceRelativePath(assetCandidatesJsonPath),
       latestMarkdownPath: toWorkspaceRelativePath(assetCandidatesMarkdownPath),
       latestImageGenerationBriefJsonPath: toWorkspaceRelativePath(
@@ -1285,6 +1371,12 @@ async function handleSaveAssetCandidates(request, response) {
       ),
       latestImageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
         imageGenerationBriefMarkdownPath,
+      ),
+      latestImageHostTaskJsonPath: toWorkspaceRelativePath(
+        imageHostTaskJsonPath,
+      ),
+      latestImageHostTaskMarkdownPath: toWorkspaceRelativePath(
+        imageHostTaskMarkdownPath,
       ),
     })}\n`,
   );
@@ -1297,11 +1389,18 @@ async function handleSaveAssetCandidates(request, response) {
     jsonPath: toWorkspaceRelativePath(requestJsonPath),
     markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
     imageGenerationBrief,
+    imageHostTask,
     imageGenerationBriefJsonPath: toWorkspaceRelativePath(
       requestImageBriefJsonPath,
     ),
     imageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
       requestImageBriefMarkdownPath,
+    ),
+    imageHostTaskJsonPath: toWorkspaceRelativePath(
+      requestImageHostTaskJsonPath,
+    ),
+    imageHostTaskMarkdownPath: toWorkspaceRelativePath(
+      requestImageHostTaskMarkdownPath,
     ),
     latestJsonPath: toWorkspaceRelativePath(assetCandidatesJsonPath),
     latestMarkdownPath: toWorkspaceRelativePath(assetCandidatesMarkdownPath),
@@ -1310,6 +1409,12 @@ async function handleSaveAssetCandidates(request, response) {
     ),
     latestImageGenerationBriefMarkdownPath: toWorkspaceRelativePath(
       imageGenerationBriefMarkdownPath,
+    ),
+    latestImageHostTaskJsonPath: toWorkspaceRelativePath(
+      imageHostTaskJsonPath,
+    ),
+    latestImageHostTaskMarkdownPath: toWorkspaceRelativePath(
+      imageHostTaskMarkdownPath,
     ),
     assetCandidatesRoot,
   });
@@ -1495,12 +1600,14 @@ function buildServerAssetCandidateReviewSummary(candidates = []) {
       requiresOpenAiApiKey: false,
       lane: "host-image-generation",
       copyReadyFiles: [
+        "exports/canvax-image-host-task-latest.md",
+        "exports/canvax-image-host-task-latest.json",
         "exports/canvax-image-generation-brief-latest.md",
         "exports/canvax-image-generation-brief-latest.json",
         "exports/canvax-asset-candidates-latest.json",
       ],
       workflow: [
-        "Copy a candidate block from the image generation brief into the current Codex/ChatGPT image host.",
+        "Open the image host task or copy a candidate block from the image generation brief into the current Codex/ChatGPT image host.",
         "Generate or edit the image in that host without Canvax calling an API.",
         "Attach the returned image back to the matching candidate card or workspace path.",
         "Accept the chosen candidate so Codex can read the selected visual and placement contract.",
@@ -1756,6 +1863,124 @@ function buildServerImageGenerationBrief(pack, paths = {}) {
   };
 }
 
+function buildServerImageHostTask(pack, imageGenerationBrief, paths = {}) {
+  const copyBlocks = Array.isArray(imageGenerationBrief?.copyBlocks)
+    ? imageGenerationBrief.copyBlocks
+    : [];
+  const reviewSummary =
+    pack?.reviewSummary ||
+    imageGenerationBrief?.reviewSummary ||
+    buildServerAssetCandidateReviewSummary(pack?.candidates || []);
+  const acceptedCandidateIds = Array.isArray(reviewSummary.acceptedCandidateIds)
+    ? reviewSummary.acceptedCandidateIds
+    : [];
+  const sourceFiles = {
+    assetCandidates: paths.assetCandidatesJsonPath || "",
+    assetCandidatesMarkdown: paths.assetCandidatesMarkdownPath || "",
+    latestAssetCandidates: paths.latestAssetCandidatesJsonPath || "",
+    latestAssetCandidatesMarkdown:
+      paths.latestAssetCandidatesMarkdownPath || "",
+    imageGenerationBrief: paths.imageGenerationBriefJsonPath || "",
+    imageGenerationBriefMarkdown:
+      paths.imageGenerationBriefMarkdownPath || "",
+    latestImageGenerationBrief:
+      paths.latestImageGenerationBriefJsonPath || "",
+    latestImageGenerationBriefMarkdown:
+      paths.latestImageGenerationBriefMarkdownPath || "",
+    imagePromptPack:
+      imageGenerationBrief?.sourcePromptPackPath ||
+      "exports/canvax-image-prompt-pack-latest.json",
+  };
+  return {
+    schemaVersion:
+      Number(pack?.schemaVersion) ||
+      Number(imageGenerationBrief?.schemaVersion) ||
+      HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-image-host-task",
+    createdAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    intendedHost:
+      "Use the image generation host already available in the current Codex or ChatGPT session.",
+    purpose:
+      "Generate or edit images outside Canvax, then attach the returned files back to the matching Canvax asset candidate slots.",
+    requestId:
+      paths.requestId || imageGenerationBrief?.requestId || pack?.archive?.requestId || "",
+    sourceFiles,
+    archive: {
+      jsonPath: paths.imageHostTaskJsonPath || "",
+      markdownPath: paths.imageHostTaskMarkdownPath || "",
+      latestJsonPath: paths.latestImageHostTaskJsonPath || "",
+      latestMarkdownPath: paths.latestImageHostTaskMarkdownPath || "",
+    },
+    board: imageGenerationBrief?.board || pack?.board || {},
+    designContext:
+      imageGenerationBrief?.designContext || pack?.designContext || null,
+    styleLock: imageGenerationBrief?.styleLock || pack?.styleLock || null,
+    reviewSummary,
+    candidateCount: copyBlocks.length,
+    acceptedCandidateIds,
+    workflow: [
+      "Choose one task below and copy its hostPrompt into the image-generation host available in the current chat.",
+      "Use the placement contract as the composition box: keep the generated image inside the pixel/CSS slot unless the sketch says otherwise.",
+      "Do not call a paid API from Canvax; this task is a handoff file for Codex, ChatGPT, or another already-open host.",
+      "Return the generated file as a workspace path, pasted canvas image, or attached reference.",
+      "Attach the result to the matching output slot, then accept the candidate when it fits the design.",
+    ],
+    noApiBoundary: {
+      canCanvaxCallImageApi: false,
+      reason:
+        "Canvax stays a local visual handoff surface. Image generation belongs to the host chat/app session unless a user explicitly adds a separate integration later.",
+    },
+    returnContract: {
+      acceptedInputs: [
+        "workspace image file path",
+        "pasted image on the Canvax canvas",
+        "reference image attached to the frame",
+      ],
+      requiredBindingFields: [
+        "candidateId",
+        "outputSlot.slotId",
+        "sourceFrameId",
+        "imagePath or pasted image element id",
+      ],
+    },
+    tasks: copyBlocks.map((block, index) =>
+      buildServerImageHostTaskItem(block, index),
+    ),
+  };
+}
+
+function buildServerImageHostTaskItem(block, index) {
+  const outputSlot = block.outputSlot || {};
+  return {
+    taskId: `${block.id || `image-candidate-${index + 1}`}-host-task`,
+    candidateId: block.id || `image-candidate-${index + 1}`,
+    title: block.title || `Image candidate ${index + 1}`,
+    sourceFrameId: block.sourceFrameId || "",
+    sourceFrameTitle: block.sourceFrameTitle || "",
+    sourceElementId: block.sourceElementId || "",
+    status: block.status || "prompt-ready",
+    hostPrompt: block.hostPrompt || block.prompt || "",
+    negativePrompt: block.negativePrompt || "",
+    placementContract: block.placementContract || null,
+    outputSlot,
+    returnInstructions: [
+      "Save, attach, or paste the generated image back into Canvax.",
+      `Bind the result to candidate ${block.id || `image-candidate-${index + 1}`}.`,
+      outputSlot?.slotId
+        ? `Use output slot ${outputSlot.slotId}.`
+        : "Create an output slot if one is missing.",
+      "Preserve the placement contract unless the user sketches a correction.",
+    ],
+    acceptanceCriteria: [
+      "The image matches the prompt and style lock.",
+      "The composition fits the target bounds and does not drift into unrelated regions.",
+      "Readable text, logos, or symbols are only present if explicitly requested.",
+      "The candidate can be accepted and reused by Materialize or Build with Codex.",
+    ],
+  };
+}
+
 function buildServerImageGenerationCopyBlock(candidate, styleLock, index) {
   const placement =
     candidate.placementMap || buildServerAssetPlacementMap(candidate);
@@ -1884,6 +2109,85 @@ function buildServerImageGenerationBriefMarkdown(brief) {
         "```",
       );
     }
+  });
+  return lines.join("\n");
+}
+
+function buildServerImageHostTaskMarkdown(task) {
+  const lines = [
+    "# Canvax Image Host Task",
+    "",
+    `- Kind: ${task.kind}`,
+    `- Created: ${task.createdAt}`,
+    `- Requires OpenAI API key: ${task.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Intended host: ${task.intendedHost}`,
+    `- Candidate tasks: ${Array.isArray(task.tasks) ? task.tasks.length : 0}`,
+    "",
+    "## Purpose",
+    "",
+    task.purpose,
+    "",
+    "## Source Files",
+    "",
+  ];
+  Object.entries(task.sourceFiles || {}).forEach(([key, value]) => {
+    if (value) {
+      lines.push(`- ${key}: ${value}`);
+    }
+  });
+  lines.push(
+    "",
+    "## No-API Boundary",
+    "",
+    `- Can Canvax call an image API: ${task.noApiBoundary?.canCanvaxCallImageApi ? "yes" : "no"}`,
+    `- Reason: ${task.noApiBoundary?.reason || ""}`,
+    "",
+    "## Workflow",
+    "",
+  );
+  (task.workflow || []).forEach((step) => lines.push(`- ${step}`));
+  lines.push("", "## Return Contract", "");
+  (task.returnContract?.acceptedInputs || []).forEach((input) => {
+    lines.push(`- Accepted input: ${input}`);
+  });
+  (task.returnContract?.requiredBindingFields || []).forEach((field) => {
+    lines.push(`- Required binding field: ${field}`);
+  });
+  lines.push("", "## Tasks");
+  (task.tasks || []).forEach((item, index) => {
+    const placement = item.placementContract || {};
+    const pixel = placement.pixelBounds || {};
+    const css = placement.cssPlacement || {};
+    lines.push(
+      "",
+      `### ${index + 1}. ${item.title}`,
+      "",
+      `- Task id: ${item.taskId}`,
+      `- Candidate id: ${item.candidateId}`,
+      `- Source frame: ${item.sourceFrameTitle || item.sourceFrameId || "unknown"}`,
+      `- Status: ${item.status}`,
+      `- Output slot: ${item.outputSlot?.slotId || "create slot"}`,
+      `- Placement: ${placement.placement || "whole frame"}`,
+      `- Pixel slot: ${pixel.left || 0}, ${pixel.top || 0}, ${pixel.width || 0}x${pixel.height || 0}`,
+      `- CSS slot: left ${css.left || "0%"}, top ${css.top || "0%"}, width ${css.width || "100%"}, height ${css.height || "100%"}`,
+      `- Target selector: \`${placement.targetSelector || ""}\``,
+      "",
+      "#### Host Prompt",
+      "",
+      "```text",
+      item.hostPrompt || "",
+      "```",
+      "",
+      "#### Return Instructions",
+      "",
+    );
+    (item.returnInstructions || []).forEach((instruction) => {
+      lines.push(`- ${instruction}`);
+    });
+    lines.push("", "#### Acceptance Criteria", "");
+    (item.acceptanceCriteria || []).forEach((criterion) => {
+      lines.push(`- ${criterion}`);
+    });
   });
   return lines.join("\n");
 }
@@ -2338,6 +2642,8 @@ async function handlePreviewState(response) {
       assetCandidatesMarkdownPath,
       imageGenerationBriefJsonPath,
       imageGenerationBriefMarkdownPath,
+      imageHostTaskJsonPath,
+      imageHostTaskMarkdownPath,
       transcriptBridgePath,
       transcriptBridgeMarkdownPath,
       checkpointLatestPath: latestCheckpointPath,
@@ -5964,6 +6270,8 @@ function buildRuntime(port) {
     assetCandidatesMarkdownPath,
     imageGenerationBriefJsonPath,
     imageGenerationBriefMarkdownPath,
+    imageHostTaskJsonPath,
+    imageHostTaskMarkdownPath,
     assetCandidatesRoot,
     latestCheckpointPath,
     checkpointsIndexPath,
@@ -6103,6 +6411,10 @@ function buildRecoveredRuntime(status, port) {
     imageGenerationBriefMarkdownPath:
       status.imageGenerationBriefMarkdownPath ||
       imageGenerationBriefMarkdownPath,
+    imageHostTaskJsonPath:
+      status.imageHostTaskJsonPath || imageHostTaskJsonPath,
+    imageHostTaskMarkdownPath:
+      status.imageHostTaskMarkdownPath || imageHostTaskMarkdownPath,
     assetCandidatesRoot: status.assetCandidatesRoot || assetCandidatesRoot,
     latestCheckpointPath: status.latestCheckpointPath || latestCheckpointPath,
     checkpointsIndexPath: status.checkpointsIndexPath || checkpointsIndexPath,

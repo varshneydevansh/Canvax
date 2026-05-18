@@ -111,7 +111,7 @@ End-to-end no-API workflow proof:
 npm run e2e-workflow
 ```
 
-That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, and asset candidates. It then runs the deterministic build executor, dry-runs Codex output manifest binding, verifies the frame-to-code map, verifies the React-ready component and Vite/Next framework adapter handoffs, runs the rewrite executor from correction context, verifies correction-to-component targeting, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
+That script synthesizes a rough frame with labels, voice, correction marks, an image prompt pack, asset candidates, and an image host task. It then runs the deterministic build executor, dry-runs Codex output manifest binding, verifies the frame-to-code map, verifies the React-ready component and Vite/Next framework adapter handoffs, runs the rewrite executor from correction context, verifies correction-to-component targeting, and writes a proof manifest at `artifacts/canvax/e2e-workflow/latest/result.json`.
 
 Strict goal audit:
 

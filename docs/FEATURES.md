@@ -867,6 +867,8 @@ The asset candidate pack is stored at:
 - `exports/canvax-asset-candidates-latest.md`
 - `exports/canvax-image-generation-brief-latest.json`
 - `exports/canvax-image-generation-brief-latest.md`
+- `exports/canvax-image-host-task-latest.json`
+- `exports/canvax-image-host-task-latest.md`
 - `artifacts/canvax/asset-candidates/...`
 
 Each candidate is a prompt-ready asset slot:
@@ -884,6 +886,7 @@ Each candidate is a prompt-ready asset slot:
 - output slot for a generated image path later
 - frame-grouped review queue for pending, placed, attached, and accepted state
 - no-API host handoff files and workflow
+- image host task records for hosted image generation, return instructions, and slot binding
 
 Every candidate now carries a `placementMap`:
 
@@ -906,6 +909,15 @@ The image generation brief is the copy-ready host handoff. It combines:
 - a `canvax-asset-candidate-review` summary grouped by frame
 - a `hostPrompt` block per candidate for ChatGPT/Codex image-generation hosts
 
+The image host task is the machine-readable execution handoff. It combines:
+
+- one task per image candidate
+- the same host prompt and negative prompt
+- placement contract and output-slot id
+- return instructions for workspace files, pasted images, or frame references
+- acceptance criteria for review before the candidate is accepted
+- an explicit `requiresOpenAiApiKey: false` and `noApiBoundary` declaration
+
 Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
 
 - copy the candidate prompt plus pixel/CSS placement contract for ChatGPT/Codex image-generation hosts
@@ -924,7 +936,9 @@ flowchart LR
     A[Frame sketch] --> B[Image prompt pack]
     B --> C[Asset candidate records]
     C --> H[Image generation brief]
+    H --> K[Image host task]
     C --> D[Workbench candidate tray]
+    K --> F
     D --> E[Place editable slot]
     D --> F[Attach generated image]
     D --> J[Attach workspace path]
@@ -937,8 +951,8 @@ flowchart LR
     classDef pack fill:#fff7e6,stroke:#f0a202,color:#211815;
     classDef image fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
     class A sketch;
-    class B,C,D pack;
-    class E,F,G,H,I image;
+    class B,C,D,H,K pack;
+    class E,F,G,I image;
 ```
 
 This keeps image workflows local-first while giving future ChatGPT/Codex image-generation bridges a concrete target format.
