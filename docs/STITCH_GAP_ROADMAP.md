@@ -95,6 +95,11 @@ The useful lesson for Canvax:
   skills, design systems, previews, and exports should be inspectable artifacts,
   not hidden state; Canvax should keep writing readable JSON/Markdown/HTML
   handoffs that Codex can edit and users can review.
+- Make design rules enforceable, not decorative. The current local loop now has
+  extraction (`Extract tokens`, `npm run extract-tokens`), import (`Import
+  external`), contract recording (`Build with Codex`), and implementation
+  verification (`npm run verify-tokens`). The remaining gap is enforcing the
+  same rules after Codex ports the design into arbitrary production app files.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.

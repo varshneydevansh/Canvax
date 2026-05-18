@@ -703,6 +703,13 @@ The request and executor context now include `implementationContext`. This is th
 
 The local executor also consumes that context and the active Design kit. It chooses a deterministic visual theme from the kit preset, variant/style/Map guidance, and extracted sketch/reference tokens, writes token-influenced CSS color variables plus `data-canvax-theme` and `data-canvax-atmosphere` onto the generated preview and starter screen, adds theme-specific atmosphere layers, and adds a visible `Designer context` panel to the generated artifact. This keeps the no-API starter output aligned with directions such as poster/archive, book/storyboard, dashboard/ops, midnight/cinematic, or quiet/editorial before Codex ports the result into real app files.
 
+`npm run verify-tokens` checks the other half of that contract. It reads
+`implementation/canvax-build-contract.json`, pulls the recorded
+`visualDirection.designTokens.palette`, and verifies nearby implementation files
+actually contain those colors. Use it after Build with Codex or after a Codex
+port when you need evidence that the generated artifact preserved the active
+Design kit instead of only carrying token metadata.
+
 The bundle also includes `implementation/codex-port-task.json`, a machine-readable task for Codex. It lists source artifacts, suggested React/Vite/Next destinations, required `data-canvax-*` bindings, port steps, acceptance criteria, and publish commands so the generated screen can become real workspace code without inventing the handoff each time.
 
 Outputs:

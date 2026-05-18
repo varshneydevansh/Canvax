@@ -234,12 +234,23 @@ const checks = [
         ],
       },
       {
+        path: "scripts/verify-token-enforcement.mjs",
+        includes: [
+          "canvax-token-enforcement-verification",
+          "missingPalette",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
+      {
         path: "scripts/regression-check.mjs",
-        includes: ["external design token extractor dry-run is valid"],
+        includes: [
+          "external design token extractor dry-run is valid",
+          "design token enforcement verifier dry-run is valid",
+        ],
       },
     ],
     remainingGap:
-      "Current-frame, reference-image, and text/CSS token extraction plus latest-pack UI import are local and proven, but rendered screenshot/app semantic extraction and strict production-code enforcement remain open.",
+      "Current-frame, reference-image, text/CSS token extraction, latest-pack UI import, and local artifact token enforcement are proven, but rendered screenshot/app semantic extraction and strict enforcement after real production ports remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

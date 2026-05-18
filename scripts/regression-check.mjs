@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -71,6 +71,7 @@ await validateCodexOutputDryRun();
 await validateExecuteBuildRequestDryRun();
 await validateExecuteRewriteRequestDryRun();
 await validateExternalDesignTokenExtractorDryRun();
+await validateDesignTokenEnforcementDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
@@ -397,6 +398,73 @@ async function validateExternalDesignTokenExtractorDryRun() {
   } catch (error) {
     results.push({
       name: "external design token extractor dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateDesignTokenEnforcementDryRun() {
+  const fixtureRoot = resolve(
+    projectRoot,
+    ".canvax",
+    "regression-token-fixture",
+    "implementation",
+  );
+  const contractPath = resolve(fixtureRoot, "canvax-build-contract.json");
+  const cssPath = resolve(fixtureRoot, "styles.css");
+  try {
+    await mkdir(fixtureRoot, { recursive: true });
+    await writeFile(
+      contractPath,
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          kind: "canvax-build-integration-contract",
+          requiresOpenAiApiKey: false,
+          visualDirection: {
+            designTokens: {
+              palette: ["#e85d3a", "#14323f", "#f2b84b"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await writeFile(
+      cssPath,
+      `:root{--red:#e85d3a;--ink:#14323f;--gold:#f2b84b;}`,
+      "utf8",
+    );
+    const { stdout } = await runCommand("node", [
+      "scripts/verify-token-enforcement.mjs",
+      "--contract",
+      contractPath,
+      "--css",
+      cssPath,
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-token-enforcement-verification" &&
+        payload.requiresOpenAiApiKey === false &&
+        payload.requiredPalette?.length === 3 &&
+        payload.matchedPalette?.length === 3 &&
+        payload.missingPalette?.length === 0,
+    );
+    results.push({
+      name: "design token enforcement verifier dry-run is valid",
+      passed,
+      detail: passed
+        ? `${payload.matchedPalette.length} token colors matched`
+        : "verifier did not match expected token palette",
+    });
+  } catch (error) {
+    results.push({
+      name: "design token enforcement verifier dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

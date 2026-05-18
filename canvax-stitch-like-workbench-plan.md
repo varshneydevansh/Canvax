@@ -78,9 +78,13 @@ Current completed baseline:
 - `DESIGN.md` is detected when present and included as project design context in handoffs.
 - Advanced mode can create a starter `DESIGN.md` from board mood, palette, labels, frames, and generation direction without overwriting an existing file.
 - A visible local `Design kit` now summarizes whether Canvax is using
-  `DESIGN.md` or board-local rules, plus the active generation recipe, action
-  mode, mood, surface, frame notes, and variant style knobs; task packs, image
-  prompt packs, and Build-with-Codex requests export the same `designKit` object.
+  `DESIGN.md`, board-local defaults, imported external tokens, extracted
+  sketch/reference tokens, or a preset recipe, plus the active generation
+  recipe, action mode, mood, surface, frame notes, and variant style knobs; task
+  packs, image prompt packs, and Build-with-Codex requests export the same
+  `designKit` object. `npm run verify-tokens` now checks that a generated
+  implementation artifact actually uses the token palette recorded in its build
+  contract.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every
