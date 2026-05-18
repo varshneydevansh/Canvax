@@ -10196,7 +10196,23 @@ function spatialObjectFrameLabel(object) {
 function spatialObjectTitle(object) {
   const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
   if (sourceKind === "generated-target") {
-    return object.title || "Generated screen";
+    const frameTitle = spatialObjectFrameLabel(object);
+    const rawTitle = cleanString(object?.title);
+    if (
+      rawTitle &&
+      !/materialized|generated-target/i.test(rawTitle)
+    ) {
+      return rawTitle;
+    }
+    if (
+      frameTitle &&
+      !["Board object", "Global output", "Unmatched output"].includes(
+        frameTitle,
+      )
+    ) {
+      return `Generated screen for ${frameTitle}`;
+    }
+    return "Generated screen";
   }
   if (sourceKind === "generated-artifact") {
     return object.title || object.meta?.path || "Generated file";
@@ -20749,6 +20765,10 @@ function assertWorkspaceModeGuide() {
   const advancedText = dom.workspaceModeGuide.textContent || "";
   const advancedCards =
     dom.workspaceModeGuide.querySelectorAll(".mode-guide-card").length;
+  const toolbar = document.querySelector(".toolbar");
+  const advancedToolbarPosition = toolbar
+    ? getComputedStyle(toolbar).position
+    : "";
 
   state.workspaceMode = previous.workspaceMode;
   state.viewMode = previous.viewMode;
@@ -20764,7 +20784,8 @@ function assertWorkspaceModeGuide() {
       workbenchText.includes("Sketch") &&
       workbenchText.includes("Make / Apply") &&
       advancedText.includes("Project rail") &&
-      advancedText.includes("Handoff inspector"),
+      advancedText.includes("Handoff inspector") &&
+      advancedToolbarPosition !== "sticky",
     "workspace mode guide explains Workbench and Advanced roles",
   );
 }
@@ -21289,6 +21310,12 @@ function assertSpatialObjectsFromOutputManifest() {
   const generatedTargetObject = spatialExport.objects.find(
     (object) => object.sourceKind === "generated-target",
   );
+  const legacyMaterializedTitle =
+    spatialObjectTitle({
+      sourceKind: "generated-target",
+      title: "Frame 1 materialized",
+      frameIds: [frameId],
+    }) === `Generated screen for ${currentFrame().title}`;
   const legacyActiveTargetBound = spatialExport.objects.some(
     (object) =>
       object.sourceId === "legacy-active-target" &&
@@ -21545,6 +21572,7 @@ function assertSpatialObjectsFromOutputManifest() {
       rendered &&
       friendlyLabels &&
       referenceBadges &&
+      legacyMaterializedTitle &&
       legacyActiveTargetBound &&
       legacyDeletedTargetHidden &&
       outputLaneExported &&
@@ -21577,6 +21605,7 @@ function assertSpatialObjectsFromOutputManifest() {
       rendered,
       friendlyLabels,
       referenceBadges,
+      legacyMaterializedTitle,
       legacyActiveTargetBound,
       legacyDeletedTargetHidden,
       outputLaneExported,

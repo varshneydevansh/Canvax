@@ -425,9 +425,9 @@ body[data-workspace-mode="advanced"] .panel {
 }
 
 body[data-workspace-mode="advanced"] .toolbar {
-    position: sticky;
-    top: 0.85rem;
-    z-index: 48;
+    position: relative;
+    top: auto;
+    z-index: 3;
     padding: 0.85rem;
     border-radius: 1.45rem;
     background:
