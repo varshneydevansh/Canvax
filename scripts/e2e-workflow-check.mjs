@@ -129,6 +129,10 @@ record(
 );
 await assertReadableProjectFile(buildResult.previewPath);
 await assertReadableProjectFile(buildResult.contextPath);
+const rawBuildPreview = await readFile(
+  resolve(projectRoot, buildResult.previewPath),
+  "utf8",
+);
 const rawBuildContext = await readFile(
   resolve(projectRoot, buildResult.contextPath),
   "utf8",
@@ -143,6 +147,12 @@ record(
     ) &&
     parsedBuildContext.implementationContext.selectedMapContext?.objects
       ?.length === 1,
+);
+record(
+  "build executor applies designer context to generated preview theme",
+  rawBuildPreview.includes('data-canvax-theme="poster-archive"') &&
+    rawBuildPreview.includes("Designer context") &&
+    rawBuildPreview.includes("Poster Archive"),
 );
 if (buildFrameCodeMap?.path) {
   await assertReadableProjectFile(buildFrameCodeMap.path);
@@ -182,7 +192,8 @@ if (reactComponentFile?.path) {
     "build executor creates portable React component handoff",
     rawComponent.includes("export default function CanvaxScreen") &&
       rawComponent.includes("data-canvax-node-id") &&
-      rawComponent.includes("CanvaxScreen.css"),
+      rawComponent.includes("CanvaxScreen.css") &&
+      rawComponent.includes("designerBrief"),
   );
 }
 const nextAdapterFile = buildResult.implementationFiles.find(
@@ -721,7 +732,24 @@ function buildRealRequest(board, frame) {
         isOutputEditBranch: false,
         outputEditBinding: null,
       },
-      variant: null,
+      variant: {
+        id: "variant-e2e-poster-archive",
+        label: "Poster archive",
+        direction: "Product UI",
+        thesis:
+          "Translate the rough hero sketch into a bold poster-like product interface.",
+        prompt:
+          "Use Soviet Constructivism, WPA poster logic, aged paper, red, black, gold, and faded blue.",
+        designMoves: [
+          "Use huge editorial typography",
+          "Keep diagonal motion and archive-like cards",
+        ],
+        styleProperties: {
+          palette: "red black gold faded blue",
+          typography: "huge poster typography",
+          surface: "aged paper base",
+        },
+      },
       selectedMapContext: {
         selectedObjectId: "object-e2e-brief",
         selectedObjectIds: ["object-e2e-brief"],

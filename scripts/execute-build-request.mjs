@@ -239,7 +239,7 @@ function buildImplementationFiles(request, { frameId, frameTitle, outputRoot }) 
       name: "CanvaxScreen.css",
       label: `${frameTitle} React screen styles`,
       kind: "react-css",
-      content: buildReactScreenCss(),
+      content: buildReactScreenCss(request),
     },
     {
       name: "ViteApp.jsx",
@@ -314,7 +314,7 @@ function buildImplementationHtml(request, { frameId, frameTitle }) {
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <main class="canvax-screen" data-frame-id="${escapeHtml(frameId)}" style="--surface-ratio:${model.width} / ${model.height}">
+  <main class="canvax-screen ${escapeHtml(model.theme.className)}" data-frame-id="${escapeHtml(frameId)}" data-canvax-theme="${escapeHtml(model.theme.id)}" style="--surface-ratio:${model.width} / ${model.height}">
     <header class="topbar">
       <a class="brand" href="#" aria-label="${escapeHtml(frameTitle)} home">
         <span class="brand-mark" aria-hidden="true">${escapeHtml(model.brandInitials)}</span>
@@ -337,9 +337,10 @@ function buildImplementationHtml(request, { frameId, frameTitle }) {
         </div>
       </div>
       <div class="visual-system" aria-label="Generated composition from Canvax sketch">
-        ${buildImplementationElementMarkup(model.elements)}
+        ${buildImplementationElementMarkup(model.elements, model.theme)}
       </div>
     </section>
+    ${buildDesignerBriefMarkup(model)}
   </main>
   <script src="./app.js"></script>
 </body>
@@ -347,15 +348,10 @@ function buildImplementationHtml(request, { frameId, frameTitle }) {
 `;
 }
 
-function buildImplementationCss() {
+function buildImplementationCss(request) {
+  const model = buildScreenModel(request);
   return `:root {
-  --paper: #fff7e8;
-  --ink: #18110e;
-  --muted: rgba(24, 17, 14, 0.66);
-  --red: #ff5d3a;
-  --teal: #0c8d7b;
-  --blue: #2364aa;
-  --gold: #f0a202;
+  ${themeCssVariables(model.theme)}
   --shadow: 0 28px 80px rgba(24, 17, 14, 0.18);
 }
 
@@ -370,11 +366,11 @@ body {
   place-items: center;
   padding: clamp(18px, 3vw, 48px);
   background:
-    radial-gradient(circle at 15% 8%, rgba(255, 93, 58, 0.24), transparent 28%),
-    radial-gradient(circle at 84% 22%, rgba(35, 100, 170, 0.2), transparent 30%),
-    #ece8de;
+    radial-gradient(circle at 15% 8%, var(--wash-a), transparent 28%),
+    radial-gradient(circle at 84% 22%, var(--wash-b), transparent 30%),
+    var(--page-bg);
   color: var(--ink);
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-family: var(--font-body);
 }
 
 a {
@@ -391,9 +387,9 @@ a {
   border: 1px solid rgba(24, 17, 14, 0.1);
   border-radius: 34px;
   background:
-    linear-gradient(90deg, rgba(24, 17, 14, 0.035) 1px, transparent 1px),
-    linear-gradient(rgba(24, 17, 14, 0.035) 1px, transparent 1px),
-    linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 46%),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(135deg, var(--surface-wash), transparent 46%),
     var(--paper);
   background-size: 64px 64px, 64px 64px, auto, auto;
   box-shadow: var(--shadow);
@@ -489,6 +485,7 @@ h1 {
   margin: 0;
   max-width: 11ch;
   font-family: "Iowan Old Style", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(48px, 8vw, 132px);
   line-height: 0.88;
   letter-spacing: -0.07em;
@@ -541,7 +538,7 @@ h1 {
   min-height: 48px;
   padding: 14px;
   border: 2px solid color-mix(in srgb, var(--node-color), var(--ink) 18%);
-  background: color-mix(in srgb, var(--node-color), white 84%);
+  background: color-mix(in srgb, var(--node-color), var(--paper) 84%);
   box-shadow: 12px 14px 0 rgba(24, 17, 14, 0.12);
   color: var(--ink);
   font-weight: 800;
@@ -614,6 +611,46 @@ h1 {
   line-height: 1.35;
 }
 
+.design-brief {
+  position: absolute;
+  right: clamp(20px, 4vw, 56px);
+  bottom: clamp(18px, 3vw, 40px);
+  z-index: 7;
+  width: min(24rem, 34%);
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--ink), transparent 82%);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--paper), white 22%);
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--ink), transparent 86%);
+}
+
+.design-brief span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.design-brief h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2vw, 32px);
+  letter-spacing: -0.04em;
+}
+
+.design-brief ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 @media (max-width: 820px) {
   body {
     padding: 0;
@@ -644,6 +681,14 @@ h1 {
   .visual-system {
     min-height: 420px;
   }
+
+  .design-brief {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    margin: 18px;
+  }
 }
 `;
 }
@@ -658,6 +703,8 @@ function buildImplementationJs(request, { frameId, frameTitle }) {
       source: "scripts/execute-build-request.mjs",
       requiresOpenAiApiKey: false,
       elementCount: model.elements.length,
+      theme: model.theme.id,
+      designerBrief: model.designerBrief,
     },
     null,
     2,
@@ -676,7 +723,7 @@ console.info("Canvax implementation artifact", canvaxBuild);
 function buildReactScreenComponent(request, { frameId, frameTitle }) {
   const model = buildScreenModel(request);
   const nodes = model.elements.map((element, index) =>
-    buildReactNodeModel(element, index),
+    buildReactNodeModel(element, index, model.theme),
   );
   return `import "./CanvaxScreen.css";
 
@@ -694,6 +741,8 @@ const screen = ${JSON.stringify(
       navItems: model.navItems,
       width: model.width,
       height: model.height,
+      theme: model.theme,
+      designerBrief: model.designerBrief,
       nodes,
     },
     null,
@@ -705,6 +754,7 @@ export default function CanvaxScreen() {
     <main
       className="canvaxReactScreen"
       data-frame-id={screen.frameId}
+      data-canvax-theme={screen.theme.id}
       style={{ "--surface-ratio": \`\${screen.width} / \${screen.height}\` }}
     >
       <header className="canvaxReactTopbar">
@@ -746,6 +796,17 @@ export default function CanvaxScreen() {
           ))}
         </div>
       </section>
+      {screen.designerBrief.length > 0 && (
+        <aside className="canvaxReactBrief" aria-label="Designer implementation context">
+          <span>Designer context</span>
+          <h2>{screen.theme.label}</h2>
+          <ul>
+            {screen.designerBrief.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </aside>
+      )}
     </main>
   );
 }
@@ -774,7 +835,11 @@ function CanvaxNode({ node }) {
 `;
 }
 
-function buildReactNodeModel(element, index) {
+function buildReactNodeModel(
+  element,
+  index,
+  theme = defaultImplementationTheme(),
+) {
   const bounds = element.bounds || {};
   const role = cleanString(element.role || element.type || "element");
   const label =
@@ -790,7 +855,7 @@ function buildReactNodeModel(element, index) {
     typeClass: safeCssClass(element.type || "rect"),
     label: compactText(label, 54),
     role: compactText(role, 82),
-    color: normalizeColor(element.color) || elementColor(index),
+    color: normalizeColor(element.color) || elementColor(index, theme),
     left: percent(bounds.x, 0.12 + index * 0.03),
     top: percent(bounds.y, 0.14 + index * 0.04),
     width: percent(Math.max(bounds.w || 0.16, 0.04), 0.2),
@@ -799,12 +864,10 @@ function buildReactNodeModel(element, index) {
   };
 }
 
-function buildReactScreenCss() {
+function buildReactScreenCss(request) {
+  const model = buildScreenModel(request);
   return `.canvaxReactScreen {
-  --paper: #fff7e8;
-  --ink: #18110e;
-  --muted: rgba(24, 17, 14, 0.66);
-  --red: #ff5d3a;
+  ${themeCssVariables(model.theme)}
   --shadow: 0 28px 80px rgba(24, 17, 14, 0.18);
   position: relative;
   width: min(100%, 1440px);
@@ -814,13 +877,14 @@ function buildReactScreenCss() {
   border: 1px solid rgba(24, 17, 14, 0.1);
   border-radius: 34px;
   background:
-    linear-gradient(90deg, rgba(24, 17, 14, 0.035) 1px, transparent 1px),
-    linear-gradient(rgba(24, 17, 14, 0.035) 1px, transparent 1px),
-    linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 46%),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(135deg, var(--surface-wash), transparent 46%),
     var(--paper);
   background-size: 64px 64px, 64px 64px, auto, auto;
   box-shadow: var(--shadow);
   color: var(--ink);
+  font-family: var(--font-body);
 }
 
 .canvaxReactTopbar {
@@ -914,6 +978,7 @@ function buildReactScreenCss() {
   margin: 0;
   max-width: 11ch;
   font-family: "Iowan Old Style", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(48px, 8vw, 132px);
   line-height: 0.88;
   letter-spacing: -0.07em;
@@ -968,7 +1033,7 @@ function buildReactScreenCss() {
   align-content: center;
   padding: 14px;
   border: 2px solid color-mix(in srgb, var(--node-color), var(--ink) 18%);
-  background: color-mix(in srgb, var(--node-color), white 84%);
+  background: color-mix(in srgb, var(--node-color), var(--paper) 84%);
   box-shadow: 12px 14px 0 rgba(24, 17, 14, 0.12);
   color: var(--ink);
   font-weight: 800;
@@ -1032,6 +1097,46 @@ function buildReactScreenCss() {
   line-height: 1.35;
 }
 
+.canvaxReactBrief {
+  position: absolute;
+  right: clamp(20px, 4vw, 56px);
+  bottom: clamp(18px, 3vw, 40px);
+  z-index: 7;
+  width: min(24rem, 34%);
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--ink), transparent 82%);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--paper), white 22%);
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--ink), transparent 86%);
+}
+
+.canvaxReactBrief span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.canvaxReactBrief h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2vw, 32px);
+  letter-spacing: -0.04em;
+}
+
+.canvaxReactBrief ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 @media (max-width: 820px) {
   .canvaxReactScreen {
     width: 100vw;
@@ -1057,6 +1162,14 @@ function buildReactScreenCss() {
 
   .canvaxReactVisual {
     min-height: 420px;
+  }
+
+  .canvaxReactBrief {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    margin: 18px;
   }
 }
 `;
@@ -1349,10 +1462,208 @@ This is still a local deterministic implementation artifact. Treat it as a frame
 `;
 }
 
+function defaultImplementationTheme() {
+  return {
+    id: "studio-paper",
+    className: "theme-studio-paper",
+    label: "Studio Paper",
+    paper: "#fff7e8",
+    ink: "#18110e",
+    muted: "rgba(24, 17, 14, 0.66)",
+    red: "#ff5d3a",
+    teal: "#0c8d7b",
+    blue: "#2364aa",
+    gold: "#f0a202",
+    pageBg: "#ece8de",
+    washA: "rgba(255, 93, 58, 0.24)",
+    washB: "rgba(35, 100, 170, 0.2)",
+    surfaceWash: "rgba(255, 93, 58, 0.08)",
+    gridLine: "rgba(24, 17, 14, 0.035)",
+    fontDisplay: '"Iowan Old Style", Georgia, serif',
+    fontBody: '"Avenir Next", "Segoe UI", sans-serif',
+    nodePalette: ["#ff5d3a", "#0c8d7b", "#2364aa", "#f0a202", "#b246a8"],
+  };
+}
+
+function buildImplementationTheme(request) {
+  const base = defaultImplementationTheme();
+  const signal = collectImplementationSignalText(request).toLowerCase();
+  let theme = { ...base };
+
+  if (
+    /\b(constructiv|soviet|wpa|poster|wartime|art deco|futurism|archive|dispatch)\b/.test(
+      signal,
+    )
+  ) {
+    theme = {
+      ...theme,
+      id: "poster-archive",
+      className: "theme-poster-archive",
+      label: "Poster Archive",
+      paper: "#f1dfb8",
+      ink: "#14100d",
+      muted: "rgba(20, 16, 13, 0.68)",
+      red: "#c43122",
+      teal: "#1b7f75",
+      blue: "#315f86",
+      gold: "#c6922f",
+      pageBg: "#241916",
+      washA: "rgba(196, 49, 34, 0.32)",
+      washB: "rgba(198, 146, 47, 0.22)",
+      surfaceWash: "rgba(196, 49, 34, 0.14)",
+      gridLine: "rgba(20, 16, 13, 0.055)",
+      fontDisplay: '"Iowan Old Style", "Palatino Linotype", Georgia, serif',
+      nodePalette: ["#c43122", "#14100d", "#c6922f", "#315f86", "#f1dfb8"],
+    };
+  } else if (/\b(midnight|dark|black|space|cinematic|neon|night)\b/.test(signal)) {
+    theme = {
+      ...theme,
+      id: "midnight-cinema",
+      className: "theme-midnight-cinema",
+      label: "Midnight Cinema",
+      paper: "#101820",
+      ink: "#f8efe2",
+      muted: "rgba(248, 239, 226, 0.68)",
+      red: "#ff6b4a",
+      teal: "#33d6c0",
+      blue: "#7aa7ff",
+      gold: "#f3b43f",
+      pageBg: "#07090d",
+      washA: "rgba(255, 107, 74, 0.2)",
+      washB: "rgba(122, 167, 255, 0.24)",
+      surfaceWash: "rgba(122, 167, 255, 0.1)",
+      gridLine: "rgba(248, 239, 226, 0.055)",
+      nodePalette: ["#ff6b4a", "#33d6c0", "#7aa7ff", "#f3b43f", "#e66bd6"],
+    };
+  } else if (/\b(minimal|quiet|calm|soft|wellness|pastel)\b/.test(signal)) {
+    theme = {
+      ...theme,
+      id: "quiet-editorial",
+      className: "theme-quiet-editorial",
+      label: "Quiet Editorial",
+      paper: "#fbf5ea",
+      ink: "#20201d",
+      muted: "rgba(32, 32, 29, 0.62)",
+      red: "#cc6a4d",
+      teal: "#6f9688",
+      blue: "#6d83a6",
+      gold: "#c8a45a",
+      pageBg: "#efeee7",
+      washA: "rgba(204, 106, 77, 0.16)",
+      washB: "rgba(111, 150, 136, 0.16)",
+      surfaceWash: "rgba(111, 150, 136, 0.08)",
+      gridLine: "rgba(32, 32, 29, 0.026)",
+      nodePalette: ["#cc6a4d", "#6f9688", "#6d83a6", "#c8a45a", "#d7b6a4"],
+    };
+  }
+
+  const hexColors = collectHexColors(collectImplementationSignalText(request));
+  if (hexColors.length) {
+    theme = {
+      ...theme,
+      red: hexColors[0] || theme.red,
+      teal: hexColors[1] || theme.teal,
+      blue: hexColors[2] || theme.blue,
+      nodePalette: [...hexColors, ...theme.nodePalette].slice(0, 5),
+    };
+  }
+
+  return theme;
+}
+
+function collectImplementationSignalText(request) {
+  const context = request.implementationContext || {};
+  const variant = context.variant || {};
+  const styleProperties = variant.styleProperties || {};
+  const selectedObjects = context.selectedMapContext?.objects || [];
+  const selectedPrompts = context.selectedMapContext?.prompts || [];
+  return [
+    request.board?.mood,
+    request.board?.designMood,
+    request.board?.goal,
+    request.board?.generationRecipe,
+    context.workbench?.generationRecipe,
+    variant.label,
+    variant.direction,
+    variant.thesis,
+    variant.prompt,
+    ...(variant.designMoves || []),
+    ...Object.values(styleProperties),
+    context.imageDirection?.summary,
+    ...selectedObjects.map((object) =>
+      [object.title, object.prompt, object.contextMarkdown].join(" "),
+    ),
+    ...selectedPrompts.map((entry) => entry.prompt || entry.contextMarkdown),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function collectHexColors(value) {
+  return [
+    ...new Set(String(value || "").match(/#[0-9a-f]{3}(?:[0-9a-f]{3})?/gi) || []),
+  ].slice(0, 5);
+}
+
+function themeCssVariables(theme = defaultImplementationTheme()) {
+  return [
+    `--paper: ${theme.paper};`,
+    `--ink: ${theme.ink};`,
+    `--muted: ${theme.muted};`,
+    `--red: ${theme.red};`,
+    `--teal: ${theme.teal};`,
+    `--blue: ${theme.blue};`,
+    `--gold: ${theme.gold};`,
+    `--page-bg: ${theme.pageBg};`,
+    `--wash-a: ${theme.washA};`,
+    `--wash-b: ${theme.washB};`,
+    `--surface-wash: ${theme.surfaceWash};`,
+    `--grid-line: ${theme.gridLine};`,
+    `--font-display: ${theme.fontDisplay};`,
+    `--font-body: ${theme.fontBody};`,
+  ].join("\n  ");
+}
+
+function buildDesignerBrief(request, theme) {
+  const context = request.implementationContext || {};
+  const variant = context.variant || null;
+  const selectedObjects = context.selectedMapContext?.objects || [];
+  const selectedPrompts = context.selectedMapContext?.prompts || [];
+  const brief = [
+    variant?.label ? `${variant.label} direction: ${variant.thesis || variant.prompt || variant.direction}` : "",
+    context.workbench?.generationRecipe
+      ? `Recipe: ${context.workbench.generationRecipe}`
+      : "",
+    theme?.label ? `Theme: ${theme.label}` : "",
+    ...selectedObjects.map((object) => object.prompt || object.contextMarkdown),
+    ...selectedPrompts.map((entry) => entry.prompt || entry.contextMarkdown),
+    context.imageDirection?.summary
+      ? `Style lock: ${context.imageDirection.summary}`
+      : "",
+  ]
+    .map((item) => compactText(item, 150))
+    .filter(Boolean);
+  return [...new Set(brief)].slice(0, 4);
+}
+
+function buildDesignerBriefMarkup(model) {
+  if (!model.designerBrief?.length) {
+    return "";
+  }
+  return `<aside class="design-brief" aria-label="Designer implementation context">
+      <span class="eyebrow">Designer context</span>
+      <h2>${escapeHtml(model.theme?.label || "Canvax direction")}</h2>
+      <ul>
+        ${model.designerBrief.map((item) => `<li>${escapeHtml(item)}</li>`).join("\n        ")}
+      </ul>
+    </aside>`;
+}
+
 function buildScreenModel(request) {
   const frame = request.frame || {};
   const composition = frame.composition || {};
   const viewport = composition.viewport || {};
+  const theme = buildImplementationTheme(request);
   const width = Number(viewport.width || frame.viewportWidth || 1440);
   const height = Number(viewport.height || frame.viewportHeight || 1024);
   const elements = Array.isArray(composition.elements)
@@ -1384,14 +1695,19 @@ function buildScreenModel(request) {
     primaryCta: primaryCtaFromElements(elements) || "Start now",
     secondaryCta: "Review design",
     navItems: ["Overview", "Details", "Archive"],
+    theme,
+    designerBrief: buildDesignerBrief(request, theme),
   };
 }
 
-function buildImplementationElementMarkup(elements) {
+function buildImplementationElementMarkup(
+  elements,
+  theme = defaultImplementationTheme(),
+) {
   return elements
     .map((element, index) => {
       const bounds = element.bounds || {};
-      const color = normalizeColor(element.color) || elementColor(index);
+      const color = normalizeColor(element.color) || elementColor(index, theme);
       const left = percent(bounds.x, 0.12 + index * 0.03);
       const top = percent(bounds.y, 0.14 + index * 0.04);
       const width = percent(Math.max(bounds.w || 0.16, 0.04), 0.2);
@@ -1417,6 +1733,8 @@ function buildImplementationElementMarkup(elements) {
 
 function buildPreviewHtml(request) {
   const frame = request.frame || {};
+  const model = buildScreenModel(request);
+  const theme = model.theme;
   const composition = frame.composition || {};
   const viewport = composition.viewport || {};
   const width = Number(viewport.width || frame.viewportWidth || 1440);
@@ -1444,12 +1762,7 @@ function buildPreviewHtml(request) {
   <title>${escapeHtml(headline)}</title>
   <style>
     :root {
-      --paper: #fff7e8;
-      --ink: #18110e;
-      --red: #ff5d3a;
-      --teal: #0c8d7b;
-      --blue: #2364aa;
-      --gold: #f0a202;
+      ${themeCssVariables(theme)}
       --shadow: 0 28px 80px rgba(24, 17, 14, 0.18);
     }
     * { box-sizing: border-box; }
@@ -1460,11 +1773,11 @@ function buildPreviewHtml(request) {
       place-items: center;
       padding: clamp(18px, 3vw, 48px);
       background:
-        radial-gradient(circle at 15% 8%, rgba(255, 93, 58, 0.22), transparent 28%),
-        radial-gradient(circle at 80% 18%, rgba(35, 100, 170, 0.18), transparent 30%),
-        #ece8de;
+        radial-gradient(circle at 15% 8%, var(--wash-a), transparent 28%),
+        radial-gradient(circle at 80% 18%, var(--wash-b), transparent 30%),
+        var(--page-bg);
       color: var(--ink);
-      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-family: var(--font-body);
     }
     .surface {
       position: relative;
@@ -1475,9 +1788,9 @@ function buildPreviewHtml(request) {
       border: 1px solid rgba(24, 17, 14, 0.1);
       border-radius: 34px;
       background:
-        linear-gradient(90deg, rgba(24, 17, 14, 0.035) 1px, transparent 1px),
-        linear-gradient(rgba(24, 17, 14, 0.035) 1px, transparent 1px),
-        linear-gradient(135deg, rgba(255, 93, 58, 0.08), transparent 46%),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(135deg, var(--surface-wash), transparent 46%),
         var(--paper);
       background-size: 64px 64px, 64px 64px, auto, auto;
       box-shadow: var(--shadow);
@@ -1509,6 +1822,7 @@ function buildPreviewHtml(request) {
       margin: 0;
       max-width: 11ch;
       font-family: "Iowan Old Style", Georgia, serif;
+      font-family: var(--font-display);
       font-size: clamp(48px, 8vw, 132px);
       line-height: 0.88;
       letter-spacing: -0.07em;
@@ -1540,7 +1854,7 @@ function buildPreviewHtml(request) {
       min-height: 44px;
       padding: 14px;
       border: 2px solid color-mix(in srgb, var(--node-color), var(--ink) 18%);
-      background: color-mix(in srgb, var(--node-color), white 84%);
+      background: color-mix(in srgb, var(--node-color), var(--paper) 84%);
       box-shadow: 12px 14px 0 rgba(24, 17, 14, 0.12);
       color: var(--ink);
       font-weight: 800;
@@ -1602,39 +1916,83 @@ function buildPreviewHtml(request) {
         linear-gradient(135deg, rgba(12, 141, 123, 0.14), transparent),
         #f7efe0;
     }
+    .design-brief {
+      position: absolute;
+      right: clamp(18px, 3vw, 42px);
+      top: clamp(84px, 9vw, 128px);
+      z-index: 5;
+      width: min(340px, 36%);
+      display: grid;
+      gap: 10px;
+      padding: 18px;
+      border: 1px solid rgba(24, 17, 14, 0.14);
+      border-radius: 22px;
+      background: color-mix(in srgb, var(--paper), white 64%);
+      box-shadow: 0 18px 52px rgba(24, 17, 14, 0.14);
+      color: rgba(24, 17, 14, 0.74);
+    }
+    .design-brief .eyebrow {
+      color: var(--red);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .design-brief h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(20px, 2vw, 34px);
+      letter-spacing: -0.04em;
+      color: var(--ink);
+    }
+    .design-brief ul {
+      margin: 0;
+      padding: 0 0 0 18px;
+      display: grid;
+      gap: 8px;
+      line-height: 1.35;
+    }
     @media (max-width: 760px) {
       body { padding: 0; }
       .surface { width: 100vw; min-height: 100vh; border-radius: 0; }
       .hero-copy { left: 6%; right: 6%; bottom: 7%; width: auto; }
+      .design-brief {
+        position: static;
+        width: auto;
+        margin: 24px;
+      }
       .node { opacity: 0.9; }
     }
   </style>
 </head>
 <body>
-  <main class="surface" data-frame-id="${escapeHtml(frame.id || "")}">
+  <main class="surface ${escapeHtml(theme.className)}" data-frame-id="${escapeHtml(frame.id || "")}" data-canvax-theme="${escapeHtml(theme.id)}">
     <div class="chrome">
       <span>${escapeHtml(cleanString(frame.title) || "Canvax frame")}</span>
       <span>${escapeHtml(actionMode || "Build UI")}</span>
     </div>
-    ${buildElementMarkup(elements)}
+    ${buildElementMarkup(elements, theme)}
     <section class="hero-copy">
       <h1>${escapeHtml(headline)}</h1>
       <p class="subhead">${escapeHtml(subhead)}</p>
       <div class="cta">Generated from Canvax</div>
     </section>
+    ${buildDesignerBriefMarkup(model)}
   </main>
 </body>
 </html>
 `;
 }
 
-function buildElementMarkup(elements) {
-  return elements.map((element, index) => buildElementNode(element, index)).join("\n");
+function buildElementMarkup(elements, theme = defaultImplementationTheme()) {
+  return elements
+    .map((element, index) => buildElementNode(element, index, theme))
+    .join("\n");
 }
 
-function buildElementNode(element, index) {
+function buildElementNode(element, index, theme = defaultImplementationTheme()) {
   const bounds = element.bounds || {};
-  const color = normalizeColor(element.color) || elementColor(index);
+  const color = normalizeColor(element.color) || elementColor(index, theme);
   const left = percent(bounds.x, 0.12 + index * 0.03);
   const top = percent(bounds.y, 0.14 + index * 0.04);
   const width = percent(Math.max(bounds.w || 0.16, 0.04), 0.2);
@@ -1833,10 +2191,11 @@ function initials(value) {
   return letters || "CX";
 }
 
-function elementColor(index) {
-  return ["#ff5d3a", "#0c8d7b", "#2364aa", "#f0a202", "#b246a8"][
-    index % 5
-  ];
+function elementColor(index, theme = defaultImplementationTheme()) {
+  const colors = Array.isArray(theme.nodePalette) && theme.nodePalette.length
+    ? theme.nodePalette
+    : defaultImplementationTheme().nodePalette;
+  return colors[index % colors.length];
 }
 
 function percent(value, fallback) {

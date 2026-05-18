@@ -204,7 +204,7 @@ Canvax today
 
 Current `Generate screen` is local and deterministic. It improves the preview, but it does not by itself create real app/page code.
 
-Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request, designer `implementationContext`, and frame-to-code output contract, then the board runs the local no-API executor to bind an immediate frame preview plus implementation starter bundle. That bundle now includes standalone HTML/CSS/JS, a React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, framework adapter notes, a component ownership map, a machine-readable `canvax-build-contract.json`, and a human-readable `INTEGRATION.md`. Codex can still execute that same request in the chat/session and replace or port the local artifact into a real route or component through `write-codex-output`.
+Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request, designer `implementationContext`, and frame-to-code output contract, then the board runs the local no-API executor to bind an immediate frame preview plus implementation starter bundle. That bundle now includes standalone HTML/CSS/JS, a React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, framework adapter notes, a component ownership map, a machine-readable `canvax-build-contract.json`, and a human-readable `INTEGRATION.md`. The executor now also consumes the designer context to pick a deterministic starter theme and render a visible `Designer context` panel in the preview/React handoff, so variant/style/Map guidance affects the first generated surface instead of only being stored for later. Codex can still execute that same request in the chat/session and replace or port the local artifact into a real route or component through `write-codex-output`.
 
 Target behavior:
 
@@ -225,7 +225,7 @@ Current stepping stone:
 ```text
 done
   rough frame -> local Generate screen -> polished HTML artifact -> Preview
-  rough frame -> Build with Codex request -> local bound preview + implementation bundle + React/framework handoff + component map
+  rough frame -> Build with Codex request -> themed local bound preview + implementation bundle + React/framework handoff + component map
 
 next
   rough frame -> Build with Codex request -> Codex edits app/page files -> live app preview
