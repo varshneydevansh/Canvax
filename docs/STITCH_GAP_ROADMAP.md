@@ -195,7 +195,7 @@ Canvax today
 - Live workspace-follow lets board and Preview see Codex edits without constant manual publishing.
 - Rewrite queue tells Codex which frames need first output, a target, binding, or refresh.
 - `canvax-rewrite-request-latest.*` packages queued frames, stale output context, correction marks, voice notes, and output manifest bindings into one Codex-readable refinement handoff.
-- `execute-rewrite-request` consumes that handoff into a refreshed frame-bound local artifact plus Codex output manifest, proving the no-API rewrite binding path before a full autonomous Codex rewrite loop exists. Workbench `Apply to Codex` and optional `Live rewrite` now call the same path after checkpoint save, and newer autosnap/freeze handoffs queue behind an in-flight local rewrite instead of being silently skipped.
+- `execute-rewrite-request` consumes that handoff into a refreshed frame-bound local artifact plus Codex output manifest, proving the no-API rewrite binding path before a full autonomous Codex rewrite loop exists. Workbench `Apply to Codex` and optional `Live rewrite` now call the same path after checkpoint save, newer autosnap/freeze handoffs queue behind an in-flight local rewrite instead of being silently skipped, and attached build contracts carry `visualDirection` forward so rewrite previews preserve the generated theme/atmosphere.
 - Codex Browser Use / Atlas can keep the local board, Preview, and generated app inside Codex's visual inspection loop instead of requiring an external browser.
 
 ## What Is Still Missing

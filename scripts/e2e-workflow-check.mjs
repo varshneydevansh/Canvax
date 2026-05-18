@@ -338,6 +338,10 @@ record(
 );
 await assertReadableProjectFile(rewriteResult.previewPath);
 await assertReadableProjectFile(rewriteResult.contextPath);
+const rawRewritePreview = await readFile(
+  resolve(projectRoot, rewriteResult.previewPath),
+  "utf8",
+);
 const rawRewriteContext = await readFile(
   resolve(projectRoot, rewriteResult.contextPath),
   "utf8",
@@ -354,6 +358,16 @@ record(
     parsedRewriteContext.affectedRegions?.some(
       (region) => region.componentTargetIds?.length > 0,
     ),
+);
+record(
+  "rewrite executor preserves build visual direction",
+  parsedRewriteContext.visualDirection?.themeId === "poster-archive" &&
+    parsedRewriteContext.visualDirection?.atmosphereId ===
+      "constructivist-poster" &&
+    parsedRewriteContext.buildContract?.visualDirection?.themeId ===
+      "poster-archive" &&
+    rawRewritePreview.includes('data-canvax-theme="poster-archive"') &&
+    rawRewritePreview.includes('data-canvax-atmosphere="constructivist-poster"'),
 );
 
 const rewriteManifestDryRun = await executeJson("node", [

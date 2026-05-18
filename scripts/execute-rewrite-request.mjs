@@ -59,6 +59,8 @@ const contextPath = resolve(outputRoot, "context.json");
 const relativeHtmlPath = toProjectRelative(htmlPath);
 const relativeContextPath = toProjectRelative(contextPath);
 const frameCodeMap = await loadFrameCodeMap(request, frameId);
+const buildContract = await loadBuildContract(request, frameId);
+const visualDirection = buildRewriteVisualDirection(buildContract);
 const affectedRegions = buildAffectedRegions(selected, request, frameCodeMap);
 const affectedComponents = affectedComponentsFromRegions(affectedRegions);
 
@@ -71,6 +73,7 @@ await writeFile(
     frameId,
     frameTitle,
     affectedRegions,
+    visualDirection,
   }),
   "utf8",
 );
@@ -85,6 +88,8 @@ await writeFile(
       affectedRegions,
       affectedComponents,
       frameCodeMap,
+      buildContract,
+      visualDirection,
       previewPath: relativeHtmlPath,
     }),
     null,
@@ -220,6 +225,8 @@ function buildContextPayload({
   affectedRegions,
   affectedComponents,
   frameCodeMap,
+  buildContract,
+  visualDirection,
   previewPath,
 }) {
   return {
@@ -237,6 +244,7 @@ function buildContextPayload({
       null,
     affectedRegions,
     affectedComponents,
+    visualDirection,
     frameCodeMap: frameCodeMap
       ? {
           path: frameCodeMap.path,
@@ -244,6 +252,14 @@ function buildContextPayload({
           regionCount: Array.isArray(frameCodeMap.map?.regions)
             ? frameCodeMap.map.regions.length
             : 0,
+        }
+      : null,
+    buildContract: buildContract
+      ? {
+          path: buildContract.path,
+          kind: buildContract.contract?.kind || "canvax-build-integration-contract",
+          visualDirection:
+            buildContract.contract?.visualDirection || null,
         }
       : null,
     outputTargets: request.outputManifest?.targets || [],
@@ -430,12 +446,211 @@ async function loadFrameCodeMap(request, frameId) {
   return { path, map };
 }
 
+async function loadBuildContract(request, frameId) {
+  const artifacts = Array.isArray(request.outputManifest?.artifacts)
+    ? request.outputManifest.artifacts
+    : [];
+  const artifact = artifacts.find((entry) => {
+    const path = cleanString(entry?.path);
+    const frameIds = Array.isArray(entry?.frameIds) ? entry.frameIds : [];
+    return (
+      path.endsWith("canvax-build-contract.json") &&
+      (!frameIds.length || frameIds.includes(frameId))
+    );
+  });
+  if (!artifact?.path) {
+    return null;
+  }
+  const path = artifact.path;
+  const contract = await readOptionalJson(resolve(projectRoot, path));
+  if (contract?.kind !== "canvax-build-integration-contract") {
+    return null;
+  }
+  return { path, contract };
+}
+
+function buildRewriteVisualDirection(buildContract) {
+  const contractDirection = buildContract?.contract?.visualDirection || {};
+  const themeId = cleanString(contractDirection.themeId) || "studio-paper";
+  const atmosphereId =
+    cleanString(contractDirection.atmosphereId) || "studio-diagram";
+  const atmosphereLabel =
+    cleanString(contractDirection.atmosphereLabel) || "LIVE REWRITE MAP";
+  const themeClass = `theme-${safeCssClass(themeId)}`;
+  const base = {
+    themeId,
+    themeClass,
+    themeLabel: cleanString(contractDirection.themeLabel) || "Studio Paper",
+    atmosphereId,
+    atmosphereLabel,
+    atmosphereMotion:
+      cleanString(contractDirection.atmosphereMotion) ||
+      "Rewrite marks stay visually bound to the generated surface.",
+    designerBrief: contractDirection.designerBrief || [],
+    paper: "#fff8ec",
+    ink: "#171412",
+    muted: "rgba(23, 20, 18, 0.68)",
+    rust: "#f25a32",
+    mint: "#0c8d7b",
+    blue: "#2364aa",
+    gold: "#f0a202",
+    pageBg: "#1d1916",
+    nodePalette: ["#f25a32", "#0c8d7b", "#2364aa", "#f0a202", "#b246a8"],
+  };
+
+  if (themeId === "poster-archive") {
+    return {
+      ...base,
+      themeLabel: cleanString(contractDirection.themeLabel) || "Poster Archive",
+      paper: "#f1dfb8",
+      ink: "#14100d",
+      muted: "rgba(20, 16, 13, 0.68)",
+      rust: "#c43122",
+      mint: "#1b7f75",
+      blue: "#315f86",
+      gold: "#c6922f",
+      pageBg: "#241916",
+      nodePalette: ["#c43122", "#14100d", "#c6922f", "#315f86", "#f1dfb8"],
+    };
+  }
+  if (themeId === "midnight-cinema") {
+    return {
+      ...base,
+      themeLabel: cleanString(contractDirection.themeLabel) || "Midnight Cinema",
+      paper: "#101820",
+      ink: "#f8efe2",
+      muted: "rgba(248, 239, 226, 0.68)",
+      rust: "#ff6b4a",
+      mint: "#33d6c0",
+      blue: "#7aa7ff",
+      gold: "#f3b43f",
+      pageBg: "#07090d",
+      nodePalette: ["#ff6b4a", "#33d6c0", "#7aa7ff", "#f3b43f", "#e66bd6"],
+    };
+  }
+  if (themeId === "quiet-editorial") {
+    return {
+      ...base,
+      themeLabel: cleanString(contractDirection.themeLabel) || "Quiet Editorial",
+      paper: "#fbf5ea",
+      ink: "#20201d",
+      muted: "rgba(32, 32, 29, 0.62)",
+      rust: "#cc6a4d",
+      mint: "#6f9688",
+      blue: "#6d83a6",
+      gold: "#c8a45a",
+      pageBg: "#efeee7",
+      nodePalette: ["#cc6a4d", "#6f9688", "#6d83a6", "#c8a45a", "#d7b6a4"],
+    };
+  }
+  return base;
+}
+
+function rewriteThemeVariables(visualDirection) {
+  return [
+    `--paper: ${visualDirection.paper};`,
+    `--ink: ${visualDirection.ink};`,
+    `--muted: ${visualDirection.muted};`,
+    `--rust: ${visualDirection.rust};`,
+    `--mint: ${visualDirection.mint};`,
+    `--blue: ${visualDirection.blue};`,
+    `--gold: ${visualDirection.gold};`,
+    `--page-bg: ${visualDirection.pageBg};`,
+  ].join("\n      ");
+}
+
+function buildRewriteAtmosphereMarkup(visualDirection) {
+  return `<div class="atmosphere" aria-hidden="true">
+      <span class="atmosphere-layer atmosphere-band-one"></span>
+      <span class="atmosphere-layer atmosphere-band-two"></span>
+      <span class="atmosphere-layer atmosphere-orb"></span>
+      <span class="atmosphere-label">${escapeHtml(visualDirection.atmosphereLabel)}</span>
+    </div>`;
+}
+
+function rewriteAtmosphereCss() {
+  return `.atmosphere {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .atmosphere-layer {
+      position: absolute;
+      display: block;
+    }
+    .atmosphere-band-one {
+      left: -16%;
+      top: 40%;
+      width: 80%;
+      height: 20%;
+      background: color-mix(in srgb, var(--rust), transparent 20%);
+      transform: rotate(-15deg);
+      mix-blend-mode: multiply;
+    }
+    .atmosphere-band-two {
+      right: 4%;
+      top: 18%;
+      width: 34%;
+      height: 16%;
+      background: color-mix(in srgb, var(--gold), transparent 26%);
+      clip-path: polygon(0 0, 92% 14%, 100% 82%, 8% 100%);
+    }
+    .atmosphere-orb {
+      right: 11%;
+      bottom: 10%;
+      width: clamp(180px, 24vw, 380px);
+      aspect-ratio: 1;
+      border: 12px solid color-mix(in srgb, var(--rust), transparent 76%);
+      border-radius: 50%;
+    }
+    .atmosphere-label {
+      position: absolute;
+      right: clamp(24px, 4vw, 64px);
+      top: clamp(82px, 11vw, 150px);
+      color: color-mix(in srgb, var(--ink), transparent 22%);
+      font-size: clamp(12px, 1vw, 15px);
+      font-weight: 900;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    .theme-midnight-cinema .atmosphere-band-one,
+    .theme-midnight-cinema .atmosphere-band-two {
+      border: 1px solid color-mix(in srgb, var(--blue), transparent 48%);
+      border-radius: 999px;
+      background: transparent;
+      mix-blend-mode: screen;
+    }
+    .theme-midnight-cinema .atmosphere-orb {
+      border-color: color-mix(in srgb, var(--mint), transparent 68%);
+      background: radial-gradient(circle, color-mix(in srgb, var(--blue), transparent 76%), transparent 62%);
+    }
+    .theme-quiet-editorial .atmosphere-band-one {
+      left: 8%;
+      top: 18%;
+      width: 1px;
+      height: 64%;
+      background: color-mix(in srgb, var(--ink), transparent 82%);
+      transform: none;
+    }
+    .theme-quiet-editorial .atmosphere-band-two {
+      right: 12%;
+      top: 18%;
+      width: 22%;
+      height: 1px;
+      background: color-mix(in srgb, var(--ink), transparent 82%);
+      clip-path: none;
+    }`;
+}
+
 function buildPreviewHtml({
   request,
   selected,
   frameId,
   frameTitle,
   affectedRegions,
+  visualDirection,
 }) {
   const frame = selected.frame || selected.requestFrame || {};
   const composition = frame.composition || {};
@@ -469,12 +684,7 @@ function buildPreviewHtml({
   <title>${escapeHtml(frameTitle)} rewrite</title>
   <style>
     :root {
-      --paper: #fff8ec;
-      --ink: #171412;
-      --rust: #f25a32;
-      --mint: #0c8d7b;
-      --blue: #2364aa;
-      --gold: #f0a202;
+      ${rewriteThemeVariables(visualDirection)}
       --shadow: 0 32px 90px rgba(23, 20, 18, 0.24);
     }
     * { box-sizing: border-box; }
@@ -488,7 +698,7 @@ function buildPreviewHtml({
         radial-gradient(circle at 10% 10%, rgba(242, 90, 50, 0.26), transparent 28%),
         radial-gradient(circle at 78% 18%, rgba(35, 100, 170, 0.2), transparent 32%),
         repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 16px),
-        #1d1916;
+        var(--page-bg);
       color: var(--ink);
       font-family: "Avenir Next", "Gill Sans", sans-serif;
     }
@@ -508,6 +718,7 @@ function buildPreviewHtml({
       background-size: 72px 72px, 72px 72px, auto, auto;
       box-shadow: var(--shadow);
     }
+    ${rewriteAtmosphereCss()}
     .tagline,
     .revision {
       position: absolute;
@@ -593,7 +804,7 @@ function buildPreviewHtml({
       min-height: 42px;
       padding: 13px;
       border: 2px solid color-mix(in srgb, var(--node-color), var(--ink) 20%);
-      background: color-mix(in srgb, var(--node-color), white 86%);
+      background: color-mix(in srgb, var(--node-color), var(--paper) 86%);
       box-shadow: 11px 13px 0 rgba(23, 20, 18, 0.11);
       color: var(--ink);
       font-weight: 800;
@@ -674,10 +885,11 @@ function buildPreviewHtml({
   </style>
 </head>
 <body>
-  <main class="surface" data-frame-id="${escapeHtml(frameId)}">
+  <main class="surface ${escapeHtml(visualDirection.themeClass)}" data-frame-id="${escapeHtml(frameId)}" data-canvax-theme="${escapeHtml(visualDirection.themeId)}" data-canvax-atmosphere="${escapeHtml(visualDirection.atmosphereId)}">
+    ${buildRewriteAtmosphereMarkup(visualDirection)}
     <div class="tagline">${escapeHtml(frameTitle)} · Canvax rewrite surface</div>
     <div class="revision">${escapeHtml(cleanString(queueItem.label) || "Rewrite")}</div>
-    ${buildElementMarkup(elements)}
+    ${buildElementMarkup(elements, visualDirection)}
     ${buildAffectedRegionMarkup(affectedRegions, width, height)}
     <section class="hero">
       <div class="eyebrow">${escapeHtml(cleanString(queueItem.reason) || "Codex refinement")}</div>
@@ -695,13 +907,15 @@ function buildPreviewHtml({
 `;
 }
 
-function buildElementMarkup(elements) {
-  return elements.map((element, index) => buildElementNode(element, index)).join("\n");
+function buildElementMarkup(elements, visualDirection) {
+  return elements
+    .map((element, index) => buildElementNode(element, index, visualDirection))
+    .join("\n");
 }
 
-function buildElementNode(element, index) {
+function buildElementNode(element, index, visualDirection) {
   const bounds = element.bounds || {};
-  const color = normalizeColor(element.color) || elementColor(index);
+  const color = normalizeColor(element.color) || elementColor(index, visualDirection);
   const left = percent(bounds.x, 0.12 + index * 0.03);
   const top = percent(bounds.y, 0.14 + index * 0.04);
   const width = percent(Math.max(bounds.w || 0.16, 0.04), 0.2);
@@ -766,10 +980,13 @@ function firstMeaningfulLabel(elements) {
   );
 }
 
-function elementColor(index) {
-  return ["#f25a32", "#0c8d7b", "#2364aa", "#f0a202", "#b246a8"][
-    index % 5
-  ];
+function elementColor(index, visualDirection = null) {
+  const colors =
+    Array.isArray(visualDirection?.nodePalette) &&
+    visualDirection.nodePalette.length
+      ? visualDirection.nodePalette
+      : ["#f25a32", "#0c8d7b", "#2364aa", "#f0a202", "#b246a8"];
+  return colors[index % colors.length];
 }
 
 function percent(value, fallback) {

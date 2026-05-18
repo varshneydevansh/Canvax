@@ -764,6 +764,7 @@ It reads:
 - `exports/canvax-rewrite-request-latest.json`
 - `exports/canvax-task-pack-latest.json`
 - frame-to-code ownership maps from `canvax-component-map.json` artifacts when the connected output includes one
+- build integration contracts from `canvax-build-contract.json` artifacts when the connected output includes one
 
 It writes:
 
@@ -781,6 +782,8 @@ latest sketch / voice / correction marks
 ```
 
 The generated context includes the selected rewrite queue item, affected regions, affected generated component targets, connected output targets, and the original request. This keeps the rough-sketch-to-refined-output path testable without an API key while leaving real app/code rewrites to Codex.
+
+When a build contract is attached, the rewrite executor also preserves `visualDirection`: theme id, atmosphere id, atmosphere label, and designer brief. That keeps a refined preview visually aligned with the generated build surface instead of falling back to a generic rewrite skin.
 
 Preview now has a `Rewrite handoff` lane beside the rewrite queue. It shows whether the latest request exists, whether a local executor artifact has been published, the frame-bound manifest state, and quick links to the request/output/context files.
 

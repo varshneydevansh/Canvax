@@ -210,7 +210,13 @@ const checks = [
       },
       {
         path: "scripts/execute-rewrite-request.mjs",
-        includes: ["affectedComponents", "canvax-component-map.json"],
+        includes: [
+          "affectedComponents",
+          "canvax-component-map.json",
+          "loadBuildContract",
+          "visualDirection",
+          "data-canvax-atmosphere",
+        ],
       },
     ],
     remainingGap:

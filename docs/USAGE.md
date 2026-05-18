@@ -759,6 +759,7 @@ This is the local no-API proof path for the live refinement loop:
 - `canvax-rewrite-request-latest.*` tells Codex what needs attention.
 - `execute-rewrite-request.mjs` consumes that request plus the task pack composition.
 - when the connected output includes `implementation/canvax-component-map.json`, the executor maps correction regions to generated selectors/components.
+- when the connected output includes `implementation/canvax-build-contract.json`, the executor preserves the generated surface's `visualDirection` so the rewrite preview keeps the same theme and atmosphere.
 - it writes a refreshed HTML artifact under `artifacts/preview/codex-rewrite/frames/<frame-id>/`.
 - it publishes the refreshed target through `artifacts/canvax/codex-output.json`.
 

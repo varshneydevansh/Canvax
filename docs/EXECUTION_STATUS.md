@@ -154,6 +154,7 @@ Status: In progress
 - [x] Board saves `canvax-rewrite-request-latest.*` so Codex gets one focused refinement handoff for sketch, voice, correction marks, queued frames, and connected outputs
 - [x] Rewrite requests include a `revisionGraph` mapping frame revisions to output targets, artifacts, changed files, stale state, and queue reasons
 - [x] Workbench `Apply to Codex` now calls the local no-API rewrite executor after saving the checkpoint, so a refreshed frame-bound preview artifact can be attached without a terminal command
+- [x] Rewrite executor preserves generated build `visualDirection` from attached build contracts, so refinement previews keep the same theme and atmosphere as the generated surface
 - [x] Board exports now include task and image prompt packs with normalized coordinates, an HTML/CSS placement scaffold, and a no-API style lock for host-side image generation
 - [x] Task, image prompt, rewrite, and build handoffs now include compact selected-Map-object spatial context with prompts and context Markdown
 - [x] Board exports now include a spatial workspace summary for Workbench Map positions and links
