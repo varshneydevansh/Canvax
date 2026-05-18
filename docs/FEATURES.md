@@ -780,13 +780,21 @@ Preview now has a `Rewrite handoff` lane beside the rewrite queue. It shows whet
 
 ## Editable Variant Branches
 
-`Create variants` turns the active frame into three editable branch frames:
+`Create variants` turns the active frame into three editable semantic branch frames:
 
 - `Structure`
 - `Visual`
 - `Adaptive`
 
 These are not static thumbnails. They are normal Canvax frames with copied sketch elements, a visible variant label, lineage metadata, and Flow connections back to the source frame.
+
+Each branch also carries a deterministic no-API design recipe:
+
+- `Structure` clarifies layout, hierarchy, alignment, spacing, and component grouping.
+- `Visual` pushes palette, typography, imagery, contrast, and atmosphere while preserving the same intent.
+- `Adaptive` translates the same sketch into another breakpoint, platform, or interaction state.
+
+The recipe is exported as `variant.recipeId`, `variant.thesis`, `variant.designMoves`, `variant.prompt`, and `variant.customProperties`. The matching Map object exposes the same recipe as Prompt / Context plus custom `key: value` properties such as `variant-recipe`, `variant-purpose`, `variant-thesis`, and `design-moves`. This gives Codex a readable design brief for each branch without calling a paid image or model API.
 
 They also export as `spatialWorkspace.variantBranches` and as `variant-branch` Map objects, so Codex can distinguish alternate generated directions from ordinary navigation links and from general notes/references.
 
@@ -797,30 +805,31 @@ In Map, select one or more branch cards from the same source frame and use `Bran
 ```text
 active frame
   -> clone editable sketch
-  -> add variant label
-  -> attach lineage metadata
+  -> add variant label and semantic recipe
+  -> attach lineage metadata, prompt, and custom properties
   -> connect branch in Flow view
 ```
 
 ```mermaid
 flowchart TD
     A[Active frame] --> B{Create variants}
-    B --> C[Structure frame]
-    B --> D[Visual frame]
-    B --> E[Adaptive frame]
-    C --> F[Sketch / Materialize / Build with Codex]
+    B --> C[Structure frame\nlayout + hierarchy recipe]
+    B --> D[Visual frame\nart direction recipe]
+    B --> E[Adaptive frame\nresponsive/state recipe]
+    C --> F[Editable sketch + recipe prompt]
     D --> F
     E --> F
+    F --> G[Materialize / Build with Codex]
 
     classDef source fill:#ffede8,stroke:#ff5d3a,color:#211815;
     classDef branch fill:#fff7e6,stroke:#f0a202,color:#211815;
     classDef action fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
     class A source;
     class B,C,D,E branch;
-    class F action;
+    class F,G action;
 ```
 
-The first implementation is deterministic and local. It creates branchable design surfaces that Codex can later build from, rather than claiming to be a semantic AI variant generator.
+The implementation is deterministic and local. It creates branchable design surfaces that Codex can later build from. Host-level AI variant generation can still be layered on top later, but the core Canvax variant workflow does not require an API key.
 
 ## Asset Candidate Records
 

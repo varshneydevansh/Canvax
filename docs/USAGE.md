@@ -801,18 +801,30 @@ Each variant is a real Canvax frame:
 
 - it can be selected, drawn on, labeled, resized, connected, materialized, or built with Codex
 - it keeps lineage metadata pointing back to the source frame
+- it carries a local semantic recipe with a thesis, design moves, prompt, and custom properties
 - it appears in Flow view as a connected branch
 - it appears in `spatialWorkspace.variantBranches` as an editable branch object for Codex and Map-aware workflows
 - it also appears as a movable/resizable/selectable `variant-branch` Map object with Copy context, Duplicate, Delete, grouping, lasso selection, and `Use variant`
 - `Use variant` marks the selected branch as the primary variant and makes it the entry frame
 - it remains local-first and does not require an API key
 
+The exported recipe fields are:
+
+- `variant.recipeId`
+- `variant.thesis`
+- `variant.designMoves`
+- `variant.prompt`
+- `variant.customProperties`
+- `spatialWorkspace.variantBranches[].semanticRecipe`
+
+On the Map object, these same values are available through Prompt / Context and custom `key: value` properties, so Codex can tell whether a branch is meant to be structural, art-directed, or adaptive.
+
 ```text
 source frame
   -> Create variants
-      -> Structure branch
-      -> Visual branch
-      -> Adaptive branch
+      -> Structure branch: hierarchy + spacing recipe
+      -> Visual branch: palette + art direction recipe
+      -> Adaptive branch: breakpoint/state recipe
   -> choose a branch
   -> sketch more or Build with Codex
 ```

@@ -121,17 +121,26 @@ const checks = [
         includes: [
           "createVariantFramesFromCurrent",
           "buildSpatialVariantBranches",
+          "semanticVariantRecipes",
+          "variantRecipeCustomProperties",
+          "semanticRecipe",
           "Use variant",
           "outputEditBinding",
         ],
       },
       {
         path: "docs/USAGE.md",
-        includes: ["Editable Variants", "Use variant", "Output edit"],
+        includes: [
+          "Editable Variants",
+          "semantic recipe",
+          "spatialWorkspace.variantBranches[].semanticRecipe",
+          "Use variant",
+          "Output edit",
+        ],
       },
     ],
     remainingGap:
-      "Semantic AI variant generation and deep per-property style editing remain future work.",
+      "Hosted AI variant generation and deep per-property style editing remain future work; local deterministic semantic recipes now ship.",
   },
   {
     id: "codex-built-screen",

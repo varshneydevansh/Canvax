@@ -444,13 +444,14 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 5.2: Add Variants Lane
 
-- **Status**: Expanded initial local version shipped. Variant frames now render as branch cards with visible lineage, expose `Use variant` directly in Map, can be promoted to the primary branch without leaving the spatial workbench, and export as explicit editable spatial branch records.
+- **Status**: Expanded local semantic version shipped. Variant frames now render as branch cards with visible lineage, expose `Use variant` directly in Map, can be promoted to the primary branch without leaving the spatial workbench, and export as explicit editable spatial branch records. `Create variants` now attaches deterministic no-API semantic recipes to each branch: `Structure` focuses hierarchy and spacing, `Visual` focuses art direction, and `Adaptive` focuses breakpoint/platform/state translation. Those recipes export through `variant.recipeId`, `variant.thesis`, `variant.designMoves`, `variant.prompt`, `variant.customProperties`, `spatialWorkspace.variantBranches[].semanticRecipe`, and the matching `variant-branch` Map object's Prompt / Context plus custom properties.
 - **Location**: `web/app.js`, `web/index.html`
 - **Description**: Let Canvax create multiple editable directions from one sketch and show them as connected Flow branches.
 - **Complexity**: 7/10
 - **Dependencies**: Task 5.1
 - **Acceptance Criteria**:
   - Variants have labels, notes, and lineage. **Done for deterministic local branches and `spatialWorkspace.variantBranches`.**
+  - Variants have explicit design intent. **Done through local semantic recipes, branch prompts, design-move lists, and exported custom properties.**
   - User can choose one as primary. **Done with `Use variant` on the variant card and in the Workbench tray, which marks the selected variant as primary, makes it the entry frame, and renders it with primary branch styling.**
   - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the promoted variant; automatic route/component binding still depends on the Codex build pass.**
 - **Validation**:

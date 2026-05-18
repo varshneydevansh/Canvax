@@ -2018,9 +2018,20 @@ function normalizeFrameVariant(value) {
         ? source.sourceFrameTitle.trim()
         : "",
     label,
+    recipeId:
+      typeof source.recipeId === "string" ? source.recipeId.trim() : "",
     direction:
       typeof source.direction === "string" ? source.direction.trim() : "",
+    thesis: typeof source.thesis === "string" ? source.thesis.trim() : "",
+    designMoves: normalizeStringArray(source.designMoves),
+    prompt: typeof source.prompt === "string" ? source.prompt.trim() : "",
+    customProperties: normalizeMapCustomProperties(source.customProperties),
     index: Math.max(1, Number(source.index) || 1),
+    primary: Boolean(source.primary),
+    promotedAt:
+      typeof source.promotedAt === "string" ? source.promotedAt.trim() : "",
+    reorderedAt:
+      typeof source.reorderedAt === "string" ? source.reorderedAt.trim() : "",
     createdAt:
       typeof source.createdAt === "string" && source.createdAt.trim()
         ? source.createdAt.trim()
@@ -9338,7 +9349,9 @@ function mapObjectInspectorRows(object) {
     );
   } else if (object.sourceKind === "variant-branch") {
     rows.push(
+      { label: "Recipe", value: meta.recipeId || meta.label || "variant" },
       { label: "Direction", value: meta.direction || object.subtitle || "variant direction" },
+      { label: "Thesis", value: meta.thesis || "semantic branch recipe" },
       {
         label: "State",
         value: frameById(object.frameIds?.[0])?.variant?.primary
@@ -9480,11 +9493,23 @@ function buildMapObjectInspectorContract(object, spatialGrouping = null) {
   if (object.sourceKind === "variant-branch") {
     const variantFrame = frameById(frameIds[0]);
     const variant = [];
+    addItem(variant, "Recipe", meta.recipeId || variantFrame?.variant?.recipeId);
     addItem(
       variant,
       "Direction",
       inspectorOverrideValue(object, "primary", meta.direction || object.subtitle),
     );
+    addItem(variant, "Thesis", meta.thesis || variantFrame?.variant?.thesis);
+    addItem(
+      variant,
+      "Design moves",
+      Array.isArray(meta.designMoves)
+        ? meta.designMoves.join("; ")
+        : Array.isArray(variantFrame?.variant?.designMoves)
+          ? variantFrame.variant.designMoves.join("; ")
+          : "",
+    );
+    addItem(variant, "Prompt", meta.prompt || variantFrame?.variant?.prompt);
     addItem(variant, "State", variantFrame?.variant?.primary ? "primary variant" : "editable variant");
     addItem(variant, "Source frame", variantFrame?.variant?.sourceFrameTitle || frameTitleById(variantFrame?.variant?.sourceFrameId));
     addItem(
@@ -13414,23 +13439,89 @@ function duplicateFrame() {
   renderStatus("Frame duplicated");
 }
 
-const variantFrameRecipes = [
+const semanticVariantRecipes = [
   {
+    id: "structure",
     label: "Structure",
     direction: "Preserve the rough layout while strengthening hierarchy, spacing, and content grouping.",
     connectionLabel: "variant: structure",
+    thesis:
+      "Make the sketch easier to build by clarifying information architecture, hierarchy, and spacing before changing the mood.",
+    designMoves: [
+      "name the primary, secondary, and supporting regions",
+      "tighten alignment and whitespace rhythm",
+      "turn ambiguous strokes into component blocks",
+      "keep the original platform and rough placement",
+    ],
+    prompt:
+      "Create a structure-first branch. Preserve the sketch intent, clarify layout hierarchy, and produce a build-ready UI direction without over-styling it.",
   },
   {
+    id: "visual",
     label: "Visual",
     direction: "Keep the same intent but push the visual mood, palette, contrast, and art direction harder.",
     connectionLabel: "variant: visual",
+    thesis:
+      "Explore a stronger art-directed surface from the same sketch while keeping the functional layout recognizable.",
+    designMoves: [
+      "commit to a bolder palette and typographic contrast",
+      "add image/art direction slots where the sketch suggests atmosphere",
+      "raise visual drama without hiding the user flow",
+      "keep labels and notes as semantic constraints",
+    ],
+    prompt:
+      "Create a visual-direction branch. Keep the same user intent, but push palette, typography, imagery, and atmosphere into a distinctive designed surface.",
   },
   {
+    id: "adaptive",
     label: "Adaptive",
     direction: "Explore an alternate platform, breakpoint, or interaction state from the same source sketch.",
     connectionLabel: "variant: adaptive",
+    thesis:
+      "Translate the same idea into a responsive or alternate-state branch so Codex can reason about platform adaptation.",
+    designMoves: [
+      "identify what collapses, stacks, or changes priority",
+      "preserve interaction rules and flow links",
+      "mark platform-specific controls or states",
+      "convert vague regions into adaptive component behavior",
+    ],
+    prompt:
+      "Create an adaptive branch. Reinterpret the sketch for another breakpoint, platform, or interaction state while preserving the core concept.",
   },
 ];
+
+const variantFrameRecipes = semanticVariantRecipes;
+
+function variantRecipeCustomProperties(recipe, index) {
+  return [
+    {
+      key: "variant-recipe",
+      value: recipe.id || recipe.recipeId || recipe.label || `variant-${index + 1}`,
+    },
+    { key: "variant-purpose", value: recipe.label || "Variant" },
+    { key: "variant-thesis", value: recipe.thesis || recipe.direction || "" },
+    {
+      key: "design-moves",
+      value: Array.isArray(recipe.designMoves)
+        ? recipe.designMoves.join(" | ")
+        : "",
+    },
+  ].filter((property) => cleanString(property.value));
+}
+
+function variantRecipeExport(recipe, index) {
+  return {
+    id: recipe.id || recipe.recipeId || `variant-${index + 1}`,
+    label: recipe.label || "Variant",
+    direction: recipe.direction || "",
+    thesis: recipe.thesis || "",
+    designMoves: Array.isArray(recipe.designMoves)
+      ? [...recipe.designMoves]
+      : [],
+    prompt: recipe.prompt || "",
+    customProperties: variantRecipeCustomProperties(recipe, index),
+  };
+}
 
 function cloneElementsForVariant(elements, recipe, index) {
   const copies = structuredClone(elements || []);
@@ -13500,18 +13591,30 @@ function createVariantFramesFromCurrent(options = {}) {
 
   const sourceIndex = Math.max(0, state.frames.indexOf(source));
   const createdAt = new Date().toISOString();
-  const createdFrames = variantFrameRecipes.map((recipe, index) =>
-    createFrame({
+  const createdFrames = variantFrameRecipes.map((recipe, index) => {
+    const semanticRecipe = variantRecipeExport(recipe, index);
+    return createFrame({
       title: `${source.title} · ${recipe.label}`,
       viewport: source.viewport,
       objective: [
         source.objective || state.board.goal,
-        `Variant direction: ${recipe.direction}`,
+        `Variant direction: ${semanticRecipe.direction}`,
+        semanticRecipe.thesis
+          ? `Variant thesis: ${semanticRecipe.thesis}`
+          : "",
+        semanticRecipe.prompt
+          ? `Codex prompt: ${semanticRecipe.prompt}`
+          : "",
       ]
         .filter(Boolean)
         .join("\n\n"),
       layout: [
         source.layout,
+        semanticRecipe.designMoves.length
+          ? `Design moves:\n${semanticRecipe.designMoves
+              .map((move) => `- ${move}`)
+              .join("\n")}`
+          : "",
         `Lineage: editable variant ${index + 1} of ${source.title}. Use this as a branch, not a replacement.`,
       ]
         .filter(Boolean)
@@ -13531,13 +13634,18 @@ function createVariantFramesFromCurrent(options = {}) {
       variant: {
         sourceFrameId: source.id,
         sourceFrameTitle: source.title,
-        label: recipe.label,
-        direction: recipe.direction,
+        recipeId: semanticRecipe.id,
+        label: semanticRecipe.label,
+        direction: semanticRecipe.direction,
+        thesis: semanticRecipe.thesis,
+        designMoves: semanticRecipe.designMoves,
+        prompt: semanticRecipe.prompt,
+        customProperties: semanticRecipe.customProperties,
         index: index + 1,
         createdAt,
       },
-    }),
-  );
+    });
+  });
 
   state.frames.splice(sourceIndex + 1, 0, ...createdFrames);
   createdFrames.forEach((frame, index) => {
@@ -13602,8 +13710,17 @@ function createSpatialObjectsForVariantFrames(source, frames) {
         sourceFrameId: source.id,
         sourceFrameTitle: source.title,
         variantFrameId: frame.id,
+        recipeId: frame.variant?.recipeId || `variant-${index + 1}`,
         label: frame.variant?.label || "Variant",
         direction: frame.variant?.direction || "",
+        thesis: frame.variant?.thesis || "",
+        designMoves: Array.isArray(frame.variant?.designMoves)
+          ? [...frame.variant.designMoves]
+          : [],
+        prompt: frame.variant?.prompt || "",
+        customProperties: normalizeMapCustomProperties(
+          frame.variant?.customProperties,
+        ),
         index: frame.variant?.index || index + 1,
         outputObjectId: frame.variant?.outputObjectId || "",
         outputSourceKind: frame.variant?.outputSourceKind || "",
@@ -13624,18 +13741,37 @@ function syncVariantSpatialObjectState(sourceFrameId) {
       return object;
     }
     const frame = frameById(object.frameIds?.[0] || object.sourceId);
+    const manualFields = object.meta?.manualFields || {};
+    const variant = frame?.variant || {};
     return {
       ...object,
-      status: frame?.variant?.primary ? "primary" : "editable",
-      title: frame?.variant?.label
-        ? `${frame.variant.label} branch`
+      status: variant?.primary ? "primary" : "editable",
+      title: variant?.label
+        ? `${variant.label} branch`
         : object.title,
       meta: {
         ...object.meta,
-        primary: Boolean(frame?.variant?.primary),
-        promotedAt: frame?.variant?.promotedAt || "",
-        index: Number(frame?.variant?.index) || object.meta?.index || 0,
-        reorderedAt: frame?.variant?.reorderedAt || object.meta?.reorderedAt || "",
+        recipeId: variant.recipeId || object.meta?.recipeId || "",
+        label: variant.label || object.meta?.label || "Variant",
+        direction: variant.direction || object.meta?.direction || "",
+        thesis: variant.thesis || object.meta?.thesis || "",
+        designMoves: Array.isArray(variant.designMoves)
+          ? [...variant.designMoves]
+          : object.meta?.designMoves || [],
+        ...(manualFields.prompt
+          ? {}
+          : { prompt: variant.prompt || object.meta?.prompt || "" }),
+        ...(manualFields.customProperties
+          ? {}
+          : {
+              customProperties: normalizeMapCustomProperties(
+                variant.customProperties || object.meta?.customProperties,
+              ),
+            }),
+        primary: Boolean(variant.primary),
+        promotedAt: variant.promotedAt || "",
+        index: Number(variant.index) || object.meta?.index || 0,
+        reorderedAt: variant.reorderedAt || object.meta?.reorderedAt || "",
       },
     };
   });
@@ -15501,6 +15637,10 @@ function buildSpatialVariantBranches(frameSelection) {
           candidate.fromFrameId === frame.variant.sourceFrameId &&
           candidate.toFrameId === frame.id,
       );
+      const semanticRecipe = variantRecipeExport(
+        frame.variant,
+        Math.max(0, (Number(frame.variant.index) || index + 1) - 1),
+      );
       return {
         id: `variant-branch-${frame.id}`,
         spatialObjectId: `variant-object-${frame.id}`,
@@ -15510,8 +15650,14 @@ function buildSpatialVariantBranches(frameSelection) {
         sourceFrameTitle:
           frame.variant.sourceFrameTitle ||
           frameTitleById(frame.variant.sourceFrameId),
-        label: frame.variant.label || "Variant",
-        direction: frame.variant.direction || "",
+        label: semanticRecipe.label,
+        direction: semanticRecipe.direction,
+        recipeId: semanticRecipe.id,
+        thesis: semanticRecipe.thesis,
+        designMoves: semanticRecipe.designMoves,
+        prompt: semanticRecipe.prompt,
+        customProperties: semanticRecipe.customProperties,
+        semanticRecipe,
         index: Number(frame.variant.index) || 0,
         primary: Boolean(frame.variant.primary),
         promotedAt: frame.variant.promotedAt || "",
@@ -19412,10 +19558,14 @@ async function runSelfTest() {
               (branch) =>
                 branch.frameId === frame.id &&
                 branch.sourceFrameId === variantSourceId &&
-                branch.editable === true,
+                branch.editable === true &&
+                branch.semanticRecipe?.id === frame.variant?.recipeId &&
+                Array.isArray(branch.semanticRecipe?.designMoves) &&
+                branch.semanticRecipe.designMoves.length >= 3 &&
+                branch.prompt === frame.variant?.prompt,
             ),
           ),
-        "variant branches export as editable spatial branches",
+        "variant branches export editable semantic recipes",
       ),
     );
     results.push(
@@ -19425,7 +19575,13 @@ async function runSelfTest() {
             (object) =>
               object.id === `variant-object-${frame.id}` &&
               object.sourceKind === "variant-branch" &&
-              object.frameIds.includes(frame.id),
+              object.frameIds.includes(frame.id) &&
+              object.prompt === frame.variant?.prompt &&
+              object.customProperties?.some(
+                (property) =>
+                  property.key === "variant-recipe" &&
+                  property.value === frame.variant?.recipeId,
+              ),
           ),
         ) &&
           variantFrames.every((frame) =>
@@ -19435,7 +19591,7 @@ async function runSelfTest() {
               ),
             ),
           ),
-        "variant branches render and export as editable Map objects",
+        "variant branches render and export as editable semantic Map objects",
       ),
     );
     const branchTimelineTrack = variantSpatialExport.timeline?.tracks?.find(

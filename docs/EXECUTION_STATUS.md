@@ -193,7 +193,9 @@ Status: In progress
 - [x] `Apply to Codex` now triggers that rewrite executor from the board after saving the latest Workbench checkpoint
 - [x] Preview includes a `Rewrite handoff` lane showing request export, local executor artifact, and manifest binding state
 - [x] `Create variants` creates three editable Flow-connected branch frames with lineage metadata
+- [x] `Create variants` now attaches deterministic no-API semantic recipes to Structure, Visual, and Adaptive branches, including thesis, design moves, prompt/context, and custom properties for Codex handoff
 - [x] Variant branches export through `spatialWorkspace.variantBranches` as editable generated-direction objects with source/target/primary metadata
+- [x] Variant branches export `semanticRecipe`, `prompt`, `designMoves`, and custom `key: value` recipe properties so branches are meaningful design directions instead of generic copies
 - [x] Variant branch Map objects export through `spatialWorkspace.objects` with object-level status/context and primary-state sync
 - [x] `Image pack` writes prompt-ready asset candidate records alongside the image prompt pack
 - [x] Asset candidate packs include placement contracts, style-lock references, output slots, and a `canvax-asset-candidate-review` summary with frame-grouped pending/placed/attached/accepted queues, accepted candidate IDs, image element bindings, and no-API host handoff files
