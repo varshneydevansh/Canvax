@@ -114,6 +114,9 @@ record(
     ) &&
     buildResult.implementationFiles.some((file) =>
       file.path.endsWith("/implementation/FRAMEWORK_ADAPTERS.md"),
+    ) &&
+    buildResult.implementationFiles.some((file) =>
+      file.path.endsWith("/implementation/codex-port-task.json"),
     ),
   buildResult.previewPath,
 );
@@ -216,6 +219,9 @@ const buildContractFile = buildResult.implementationFiles.find(
 const integrationGuideFile = buildResult.implementationFiles.find(
   (file) => file.kind === "integration-guide",
 );
+const portTaskFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "codex-port-task",
+);
 if (nextAdapterFile?.path && viteAdapterFile?.path && adapterDocsFile?.path) {
   await assertReadableProjectFile(nextAdapterFile.path);
   await assertReadableProjectFile(viteAdapterFile.path);
@@ -258,6 +264,7 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
       parsedBuildContract.visualDirection?.themeId === "poster-archive" &&
       parsedBuildContract.visualDirection?.atmosphereId ===
         "constructivist-poster" &&
+      parsedBuildContract.ownership?.portTask === "codex-port-task.json" &&
       parsedBuildContract.ownership?.componentMap ===
         "canvax-component-map.json" &&
       parsedBuildContract.codexNextActions?.some((action) =>
@@ -265,6 +272,32 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
       ) &&
       rawIntegrationGuide.includes("Recommended Codex Port") &&
       rawIntegrationGuide.includes("Requires OpenAI API key: no"),
+  );
+}
+if (portTaskFile?.path) {
+  await assertReadableProjectFile(portTaskFile.path);
+  const rawPortTask = await readFile(
+    resolve(projectRoot, portTaskFile.path),
+    "utf8",
+  );
+  const parsedPortTask = JSON.parse(rawPortTask);
+  record(
+    "build executor creates machine-readable Codex port task",
+    parsedPortTask.kind === "canvax-codex-port-task" &&
+      parsedPortTask.requiresOpenAiApiKey === false &&
+      parsedPortTask.frame?.id === frameId &&
+      parsedPortTask.visualDirection?.themeId === "poster-archive" &&
+      parsedPortTask.sourceArtifacts?.componentMap ===
+        "canvax-component-map.json" &&
+      parsedPortTask.suggestedDestinations?.nextAppRouter?.files?.includes(
+        "page.jsx",
+      ) &&
+      parsedPortTask.requiredBindings?.some((binding) =>
+        binding.selector?.includes("data-canvax-node-id"),
+      ) &&
+      parsedPortTask.publishCommands?.some((command) =>
+        command.includes("write-codex-output.mjs"),
+      ),
   );
 }
 
@@ -298,6 +331,12 @@ const buildManifestDryRun = await executeJson("node", [
         `${integrationGuideFile.path}::E2E integration guide::${frameId}`,
       ]
     : []),
+  ...(portTaskFile?.path
+    ? [
+        "--artifact",
+        `${portTaskFile.path}::E2E Codex port task::${frameId}`,
+      ]
+    : []),
   "--dry-run",
   "--json",
 ]);
@@ -312,6 +351,9 @@ record(
     ) &&
     buildManifestDryRun.manifest?.artifacts?.some((artifact) =>
       artifact.path?.endsWith("/implementation/canvax-build-contract.json"),
+    ) &&
+    buildManifestDryRun.manifest?.artifacts?.some((artifact) =>
+      artifact.path?.endsWith("/implementation/codex-port-task.json"),
     ),
 );
 

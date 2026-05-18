@@ -177,6 +177,8 @@ const checks = [
           "NextAppPage.jsx",
           "canvax-component-map.json",
           "canvax-build-contract.json",
+          "codex-port-task.json",
+          "canvax-codex-port-task",
           "INTEGRATION.md",
           "scripts/write-codex-output.mjs",
         ],
@@ -186,6 +188,7 @@ const checks = [
         includes: [
           "build executor preserves designer implementation context",
           "build executor applies designer context to generated preview theme",
+          "build executor creates machine-readable Codex port task",
           "build executor creates framework adapter handoffs",
           "build preview can bind to Codex output manifest",
         ],

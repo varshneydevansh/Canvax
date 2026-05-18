@@ -698,6 +698,8 @@ The request and executor context now include `implementationContext`. This is th
 
 The local executor also consumes that context. It chooses a deterministic visual theme from the variant/style/Map guidance, writes `data-canvax-theme` and `data-canvax-atmosphere` onto the generated preview and starter screen, adds theme-specific atmosphere layers, and adds a visible `Designer context` panel to the generated artifact. This keeps the no-API starter output aligned with directions such as poster/archive, midnight/cinematic, or quiet/editorial before Codex ports the result into real app files.
 
+The bundle also includes `implementation/codex-port-task.json`, a machine-readable task for Codex. It lists source artifacts, suggested React/Vite/Next destinations, required `data-canvax-*` bindings, port steps, acceptance criteria, and publish commands so the generated screen can become real workspace code without inventing the handoff each time.
+
 Outputs:
 
 - `exports/canvax-build-real-latest.json`
@@ -709,6 +711,7 @@ Outputs:
 - `implementation/ViteApp.jsx`, `implementation/NextAppPage.jsx`, and `implementation/FRAMEWORK_ADAPTERS.md` for framework porting
 - `implementation/canvax-component-map.json` for frame-to-code ownership
 - `implementation/canvax-build-contract.json` for machine-readable integration boundaries, adapter paths, and no-API requirements
+- `implementation/codex-port-task.json` for a machine-readable Codex production-port task
 - `implementation/INTEGRATION.md` for the human-readable Vite/React/Next porting path
 
 What the request includes:
@@ -727,7 +730,7 @@ Generate screen:
   local renderer -> HTML preview artifact
 
 Build with Codex:
-  frame request -> implementationContext -> themed local preview + implementation bundle -> output manifest
+  frame request -> implementationContext -> themed local preview + implementation bundle + Codex port task -> output manifest
   frame request -> Codex writes real files -> output manifest -> Preview binding
 
 Local smoke executor:

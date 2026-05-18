@@ -169,6 +169,9 @@ function buildContextPayload(request, previewPath, implementationFiles = []) {
   const integrationGuide = implementationFiles.find(
     (file) => file.kind === "integration-guide",
   );
+  const portTask = implementationFiles.find(
+    (file) => file.kind === "codex-port-task",
+  );
   return {
     kind: "canvax-executed-build-preview",
     createdAt: new Date().toISOString(),
@@ -197,6 +200,13 @@ function buildContextPayload(request, previewPath, implementationFiles = []) {
           path: integrationGuide.relativePath,
           label: integrationGuide.label,
           kind: integrationGuide.kind,
+        }
+      : null,
+    portTask: portTask
+      ? {
+          path: portTask.relativePath,
+          label: portTask.label,
+          kind: portTask.kind,
         }
       : null,
     implementationFiles: implementationFiles.map((file) => ({
@@ -275,6 +285,16 @@ function buildImplementationFiles(request, { frameId, frameTitle, outputRoot }) 
       kind: "build-integration-contract",
       content: `${JSON.stringify(
         buildBuildIntegrationContract(request, { frameId, frameTitle }),
+        null,
+        2,
+      )}\n`,
+    },
+    {
+      name: "codex-port-task.json",
+      label: `${frameTitle} Codex port task`,
+      kind: "codex-port-task",
+      content: `${JSON.stringify(
+        buildCodexPortTask(request, { frameId, frameTitle }),
         null,
         2,
       )}\n`,
@@ -1238,6 +1258,7 @@ production architecture.
 - \`ViteApp.jsx\`: minimal Vite/React app entry wrapper.
 - \`NextAppPage.jsx\`: minimal Next.js App Router page wrapper.
 - \`canvax-component-map.json\`: frame-to-code ownership and source-element map.
+- \`codex-port-task.json\`: machine-readable task for porting into real app files.
 
 ## Vite / React
 
@@ -1371,6 +1392,7 @@ function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
     },
     ownership: {
       componentMap: "canvax-component-map.json",
+      portTask: "codex-port-task.json",
       preserveSelectors: [
         `[data-frame-id="${frameId}"]`,
         "[data-canvax-node-id]",
@@ -1394,6 +1416,131 @@ function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
   };
 }
 
+function buildCodexPortTask(request, { frameId, frameTitle }) {
+  const model = buildScreenModel(request);
+  const slug = safeSlug(frameTitle || frameId);
+  const implementationContext = request.implementationContext || {};
+  return {
+    schemaVersion: 1,
+    kind: "canvax-codex-port-task",
+    createdAt: new Date().toISOString(),
+    source: "scripts/execute-build-request.mjs",
+    requiresOpenAiApiKey: false,
+    purpose:
+      "Port this no-API Canvax starter surface into the real application codebase while preserving frame-to-code bindings.",
+    frame: {
+      id: frameId,
+      title: frameTitle,
+      viewport:
+        request.frame?.viewport || (model.width >= 900 ? "desktop" : "mobile"),
+      width: model.width,
+      height: model.height,
+    },
+    visualDirection: {
+      themeId: model.theme.id,
+      themeLabel: model.theme.label,
+      atmosphereId: model.atmosphere.id,
+      atmosphereLabel: model.atmosphere.label,
+      designerBrief: model.designerBrief,
+    },
+    designerContext: {
+      workbenchPath:
+        implementationContext.workbench?.startPath ||
+        "1 Sketch -> 2 Talk -> 3 Make -> 4 Map",
+      action:
+        implementationContext.workbench?.actionModeLabel ||
+        implementationContext.workbench?.actionMode ||
+        request.actionModeLabel ||
+        request.actionMode ||
+        "",
+      selectedMapPrompts:
+        implementationContext.selectedMapContext?.prompts?.map((entry) => ({
+          title: entry.title || "",
+          prompt: entry.prompt || entry.contextMarkdown || "",
+        })) || [],
+      variant: implementationContext.variant || null,
+      outputEditBinding:
+        implementationContext.frameRole?.outputEditBinding ||
+        request.outputEditBinding ||
+        null,
+    },
+    sourceArtifacts: {
+      previewHtml: "../index.html",
+      contextJson: "../context.json",
+      componentMap: "canvax-component-map.json",
+      buildContract: "canvax-build-contract.json",
+      integrationGuide: "INTEGRATION.md",
+      standaloneHtml: "index.html",
+      standaloneCss: "styles.css",
+      standaloneJs: "app.js",
+      reactComponent: "CanvaxScreen.jsx",
+      reactCss: "CanvaxScreen.css",
+      viteAdapter: "ViteApp.jsx",
+      nextAdapter: "NextAppPage.jsx",
+    },
+    suggestedDestinations: {
+      react: {
+        directory: `src/canvax/${slug}/`,
+        files: ["CanvaxScreen.jsx", "CanvaxScreen.css"],
+      },
+      vite: {
+        directory: `src/canvax/${slug}/`,
+        files: ["CanvaxScreen.jsx", "CanvaxScreen.css", "ViteApp.jsx"],
+      },
+      nextAppRouter: {
+        directory: `app/canvax/${slug}/`,
+        files: ["page.jsx", "CanvaxScreen.jsx", "CanvaxScreen.css"],
+      },
+    },
+    requiredBindings: [
+      {
+        selector: `[data-frame-id="${frameId}"]`,
+        reason: "keeps future Canvax correction marks bound to this frame",
+      },
+      {
+        selector: "[data-canvax-node-id]",
+        reason: "maps sketch elements to generated regions/components",
+      },
+      {
+        selector: "[data-canvax-node-type]",
+        reason: "preserves rough sketch role/type during refactors",
+      },
+      {
+        selector: "[data-canvax-theme]",
+        reason: "keeps generated visual direction available to future rewrites",
+      },
+      {
+        selector: "[data-canvax-atmosphere]",
+        reason: "keeps generated atmosphere available to future rewrites",
+      },
+    ],
+    portSteps: [
+      "Inspect the host app framework, routing, styling, and design-system conventions before copying files.",
+      "Choose the closest suggested destination for the host framework; do not create a parallel app if a real route/component already exists.",
+      "Port or refactor CanvaxScreen.jsx and CanvaxScreen.css into production-quality host files.",
+      "Replace placeholder links/text only when the host product context provides better content; preserve the sketched hierarchy unless the user asks otherwise.",
+      "Preserve required data bindings or equivalent source comments from this task.",
+      `Publish the final route/artifact with scripts/write-codex-output.mjs --frame ${frameId}.`,
+    ],
+    acceptanceCriteria: [
+      "A real app/page/component renders the Canvax-designed screen.",
+      "The output is bound back to the same frame through artifacts/canvax/codex-output.json.",
+      "Future Canvax correction marks can map to data-canvax-node-id regions or equivalent comments.",
+      "No OPENAI_API_KEY or paid local API requirement is introduced.",
+      "The generated theme and atmosphere remain visible in the implementation or are intentionally translated into the host design system.",
+    ],
+    publishCommands: [
+      `node scripts/write-codex-output.mjs --preview-path <real-preview-url-or-artifact> --label "${frameTitle} production implementation" --type implementation-preview --frame ${frameId}`,
+      `node scripts/write-codex-output.mjs --change <path>::"Ported Canvax frame ${frameId}"::${frameId}`,
+    ],
+    nonGoals: [
+      "Do not treat the local deterministic scaffold as finished production code.",
+      "Do not remove source bindings unless replacing them with equivalent comments or component metadata.",
+      "Do not add paid API-key configuration to complete this port task.",
+    ],
+  };
+}
+
 function buildIntegrationGuide(request, { frameId, frameTitle }) {
   const model = buildScreenModel(request);
   const slug = safeSlug(frameTitle || frameId);
@@ -1405,6 +1552,7 @@ This guide is generated beside the Canvax implementation starter bundle.
 - Frame title: ${frameTitle}
 - Requires OpenAI API key: no
 - Contract: \`canvax-build-contract.json\`
+- Codex port task: \`codex-port-task.json\`
 - Ownership map: \`canvax-component-map.json\`
 
 ## What This Bundle Is
@@ -1480,6 +1628,7 @@ This folder was generated by \`scripts/execute-build-request.mjs\` from the late
 - \`NextAppPage.jsx\`: minimal Next.js App Router page wrapper
 - \`FRAMEWORK_ADAPTERS.md\`: adapter copy/porting notes for Codex
 - \`canvax-build-contract.json\`: machine-readable porting and binding contract
+- \`codex-port-task.json\`: machine-readable Codex task for production porting
 - \`INTEGRATION.md\`: human-readable real-app integration guide
 
 ## Intent
@@ -2294,6 +2443,10 @@ function buildFrameCodeMap(request, { frameId, frameTitle }) {
         {
           path: "implementation/canvax-build-contract.json",
           role: "machine-readable integration and no-API boundary contract",
+        },
+        {
+          path: "implementation/codex-port-task.json",
+          role: "machine-readable task for Codex to port this starter into real app files",
         },
         {
           path: "implementation/INTEGRATION.md",
