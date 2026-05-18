@@ -338,9 +338,19 @@ Needed:
 
 Canvax records mood, notes, color, and generated direction, and it can now create a starter reusable design-system document.
 
+Update: Canvax now exposes a first-class local `Design kit` in the UI and
+handoffs. The Workbench chip shows whether the active rules come from
+`DESIGN.md` or board-local rules, and the Advanced generation panel lists the
+active sources before a designer presses Generate, Build, Image pack, or Apply.
+The exported task pack, image prompt pack, and Build-with-Codex request now
+carry the same `designKit` object so Codex can see the active design-system
+source, generation recipe, action mode, board mood, surface, frame notes, and
+variant style knobs without guessing.
+
 Needed:
 
-- Richer `DESIGN.md` import controls inside the board UI.
+- Richer `DESIGN.md` import controls inside the board UI beyond the current
+  active-source summary.
 - Extract visual tokens from a URL, screenshot, or existing app.
 - Enforce those tokens when Codex generates or refines UI.
 

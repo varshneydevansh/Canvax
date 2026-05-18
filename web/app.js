@@ -292,6 +292,10 @@ const dom = {
   focusActionChip: document.querySelector("#focus-action-chip"),
   focusHostChip: document.querySelector("#focus-host-chip"),
   focusDesignChip: document.querySelector("#focus-design-chip"),
+  designKitCard: document.querySelector("#design-kit-card"),
+  designKitTitle: document.querySelector("#design-kit-title"),
+  designKitSummary: document.querySelector("#design-kit-summary"),
+  designKitSources: document.querySelector("#design-kit-sources"),
   focusToolButtons: document.querySelector("#focus-tool-buttons"),
   focusAddFrame: document.querySelector("#focus-add-frame"),
   focusAddSection: document.querySelector("#focus-add-section"),
@@ -1773,17 +1777,147 @@ function describeHostCapabilities() {
 }
 
 function describeDesignContext() {
-  const designContext = state?.serverStatus?.designContext;
-  if (designContext?.exists) {
+  const designKit = buildDesignKitSummary();
+  if (designKit.designContext?.exists) {
     return {
-      label: "DESIGN.md linked",
-      detail: `${designContext.relativePath || "DESIGN.md"} is included in task and image prompt packs.`,
+      label: "Design kit: DESIGN.md",
+      detail: designKit.summary,
     };
   }
   return {
-    label: "DESIGN.md: none",
-    detail:
-      "No project DESIGN.md was found. Canvax will use board mood, labels, and notes as the design contract.",
+    label: "Design kit: board",
+    detail: designKit.summary,
+  };
+}
+
+function buildDesignKitSummary(frames = state?.frames || []) {
+  const designContext = currentDesignContextForExport();
+  const generation = normalizeGenerationConfig(state?.board?.generation);
+  const generationRecipe = generationSummaryText(generation);
+  const actionMode = currentActionMode();
+  const frame =
+    (typeof currentFrame === "function" && currentFrame()) || frames[0] || {};
+  const frameNotes = [frame.objective, frame.layout, frame.motion, frame.assets]
+    .map((value) => cleanString(value))
+    .filter(Boolean);
+  const variantStyle = normalizeVariantStyleProperties(
+    frame.variant?.styleProperties || {},
+  );
+  const styleEntries = variantStylePropertyKeys
+    .map((key) => [key, cleanString(variantStyle[key])])
+    .filter(([, value]) => value);
+  const boardMood = cleanString(state?.board?.designMood);
+  const surface = cleanString(state?.board?.audience);
+  const sources = [
+    designContext.exists
+      ? {
+          label: designContext.relativePath || "DESIGN.md",
+          detail:
+            designContext.summary ||
+            "Project design-system rules are active in task, image, and build handoffs.",
+          active: true,
+        }
+      : {
+          label: "Board rules",
+          detail:
+            "No DESIGN.md was found. Board mood, labels, notes, and sketch geometry become the local design contract.",
+          active: true,
+        },
+    {
+      label: generationRecipe,
+      detail: "Active Make recipe.",
+      active: true,
+    },
+    {
+      label: actionMode.label,
+      detail: actionMode.description || "Current output intent.",
+      active: true,
+    },
+    ...(boardMood
+      ? [
+          {
+            label: `Mood: ${compactDisplayText(boardMood, 44)}`,
+            detail: "Board-level visual direction.",
+            active: true,
+          },
+        ]
+      : []),
+    ...(surface
+      ? [
+          {
+            label: `Surface: ${compactDisplayText(surface, 44)}`,
+            detail: "Target medium or platform.",
+            active: true,
+          },
+        ]
+      : []),
+    ...(styleEntries.length
+      ? [
+          {
+            label: `${styleEntries.length} style knobs`,
+            detail: styleEntries
+              .map(([key, value]) => `${key}: ${compactDisplayText(value, 80)}`)
+              .join("; "),
+            active: true,
+          },
+        ]
+      : []),
+    ...(frameNotes.length
+      ? [
+          {
+            label: `${frameNotes.length} frame notes`,
+            detail: compactDisplayText(frameNotes.join(" | "), 220),
+            active: true,
+          },
+        ]
+      : []),
+  ];
+  const summary = compactDisplayText(
+    [
+      designContext.exists
+        ? `${designContext.relativePath || "DESIGN.md"} is active`
+        : "Using local board rules",
+      generationRecipe,
+      actionMode.label,
+      boardMood ? `Mood: ${boardMood}` : "",
+      styleEntries.length
+        ? `Style knobs: ${styleEntries.map(([key]) => key).join(", ")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(". "),
+    420,
+  );
+
+  return {
+    kind: "canvax-design-kit",
+    label: designContext.exists ? "Project design kit" : "Board design kit",
+    statusLabel: designContext.exists ? "DESIGN.md active" : "Board rules active",
+    summary,
+    designContext,
+    generationRecipe,
+    actionMode: {
+      id: actionMode.id,
+      label: actionMode.label,
+      description: actionMode.description,
+    },
+    board: {
+      project: cleanString(state?.board?.project),
+      mood: boardMood,
+      surface,
+    },
+    activeFrame: {
+      id: frame.id || "",
+      title: frame.title || "",
+      noteCount: frameNotes.length,
+    },
+    styleKnobs: Object.fromEntries(styleEntries),
+    sources,
+    instructions: [
+      "Treat this design kit as the active local substitute for a hosted design-system/skill gallery.",
+      "If DESIGN.md exists, treat it as the highest-priority project rule source.",
+      "Use the active recipe, board mood, frame notes, and style knobs to constrain generated screens, image prompts, and Codex build requests.",
+    ],
   };
 }
 
@@ -2791,6 +2925,7 @@ function renderGenerationRecipe() {
   dom.generateScreenPanel.title = `Generate a richer screen using ${summary}`;
   dom.buildRealScreen.title = `Create a Codex-ready real implementation request using ${summary}`;
   dom.buildRealScreenPanel.title = `Create a Codex-ready real implementation request using ${summary}`;
+  renderDesignKitCard();
 }
 
 function renderTools() {
@@ -2798,6 +2933,23 @@ function renderTools() {
     .map(
       (tool) =>
         `<button class="tool-chip ${tool.id === state.tool ? "active" : ""}" data-tool="${tool.id}" title="${escapeHtml(toolMeta[tool.id] || tool.label)}">${tool.label}</button>`,
+    )
+    .join("");
+}
+
+function renderDesignKitCard() {
+  if (!dom.designKitCard) {
+    return;
+  }
+  const kit = buildDesignKitSummary();
+  dom.designKitTitle.textContent = kit.statusLabel;
+  dom.designKitSummary.textContent = kit.summary;
+  dom.designKitCard.title = kit.instructions.join(" ");
+  dom.designKitSources.innerHTML = kit.sources
+    .slice(0, 6)
+    .map(
+      (source) =>
+        `<li title="${escapeHtml(source.detail || source.label)}">${escapeHtml(source.label)}</li>`,
     )
     .join("");
 }
@@ -2881,6 +3033,7 @@ function renderFocusPad() {
   const designSummary = describeDesignContext();
   dom.focusDesignChip.textContent = designSummary.label;
   dom.focusDesignChip.title = designSummary.detail;
+  renderDesignKitCard();
   dom.focusFreeCanvas.classList.toggle("active", frame.viewport === "free");
   syncManualVoiceDraftControls();
   dom.focusApply.disabled = Boolean(state.focusApplyInFlight);
@@ -13681,6 +13834,12 @@ function isElementMeaningful(element) {
 function updateBoard(field, value) {
   state.board[field] = value;
   persistState();
+  if (dom.focusDesignChip) {
+    const designSummary = describeDesignContext();
+    dom.focusDesignChip.textContent = designSummary.label;
+    dom.focusDesignChip.title = designSummary.detail;
+  }
+  renderDesignKitCard();
   renderSpec();
 }
 
@@ -15020,6 +15179,7 @@ function buildPromptMarkdown() {
   const generationRecipe = generationSummaryText(state.board.generation);
   const actionMode = currentActionMode();
   const designContext = currentDesignContextForExport();
+  const designKit = buildDesignKitSummary(state.frames);
   const lines = [
     `# ${state.board.project || "Canvax live canvas"}`,
     "",
@@ -15031,6 +15191,7 @@ function buildPromptMarkdown() {
     `- Canvax mode: ${state.workspaceMode === "simple" ? "Workbench" : "Advanced"}`,
     `- Preferred screen generation: ${generationRecipe}`,
     `- Design rules: ${designContext.exists ? designContext.relativePath : "No DESIGN.md found"}`,
+    `- Design kit: ${designKit.statusLabel} (${designKit.sources.map((source) => source.label).slice(0, 4).join("; ")})`,
     "",
     "## How Codex should read this",
     "- Treat frame order as sequence, alternate states, or visual variants depending on the notes.",
@@ -16458,6 +16619,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
         "Canvax prepares the task. Codex/ChatGPT host capabilities may generate images or code when available.",
     },
     designContext: currentDesignContextForExport(),
+    designKit: buildDesignKitSummary(frames),
     board: structuredClone(state.board),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
@@ -16502,6 +16664,7 @@ function buildImagePromptPack(frames) {
     actionMode: actionMode.id,
     actionModeLabel: actionMode.label,
     designContext: currentDesignContextForExport(),
+    designKit: buildDesignKitSummary(frames),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
     board: {
@@ -17002,10 +17165,17 @@ function buildTaskPackMarkdown(taskPack) {
     `- Active frame: ${taskPack.activeFrameTitle}`,
     `- Requires OpenAI API key: ${taskPack.hostLane?.requiresOpenAiApiKey ? "yes" : "no"}`,
     `- Design context: ${taskPack.designContext?.exists ? taskPack.designContext.relativePath : "No DESIGN.md found"}`,
+    `- Design kit: ${taskPack.designKit?.statusLabel || "Board rules active"}`,
     "",
     "## Instruction",
     "Use this task pack with the live Canvax export to build, refine, write a spec, or generate image prompts. Prefer frame composition and voice notes over guessing.",
   ];
+  if (taskPack.designKit?.sources?.length) {
+    lines.push("", "## Design Kit", taskPack.designKit.summary || "");
+    taskPack.designKit.sources.slice(0, 8).forEach((source) => {
+      lines.push(`- ${source.label}: ${compactDisplayText(source.detail || "", 220)}`);
+    });
+  }
   appendSpatialContextMarkdown(lines, taskPack.spatialContext);
   lines.push("", "## Frames");
   taskPack.frames.forEach((frame) => {
@@ -17124,6 +17294,7 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
     spatialContext,
     voice: taskPack.voice || buildVoiceExport(state.frames),
     designContext: taskPack.designContext || currentDesignContextForExport(),
+    designKit: implementationContext.designKit || taskPack.designKit || null,
     generation,
     handoff: {
       liveJsonPath: "exports/canvax-live-latest.json",
@@ -17207,6 +17378,7 @@ function buildImplementationContext({
     spatialWorkspace,
   );
   const styleLock = imageStyleLock || imagePromptFrame?.styleLock || null;
+  const designKit = buildDesignKitSummary(state.frames);
 
   return {
     kind: "canvax-implementation-context",
@@ -17268,6 +17440,7 @@ function buildImplementationContext({
       checkpoints: Number(timelineSummary.checkpoints) || 0,
       collapsedLanes: timelineSummary.collapsedLanes || [],
     },
+    designKit,
     imageDirection: styleLock
       ? {
           styleLockId: styleLock.id || "",
@@ -17349,10 +17522,24 @@ function appendImplementationContextMarkdown(lines, context) {
   lines.push(
     `- Generation recipe: ${context.workbench?.generationRecipe || "Product UI - Studio - Balanced"}`,
   );
+  if (context.designKit) {
+    lines.push(
+      `- Design kit: ${context.designKit.statusLabel || context.designKit.label || "Board rules active"}`,
+    );
+  }
   if (context.frameRole?.isOutputEditBranch && context.frameRole.outputEditBinding) {
     lines.push(
       `- Output edit target: ${context.frameRole.outputEditBinding.target || context.frameRole.outputEditBinding.href || context.frameRole.outputEditBinding.objectId}`,
     );
+  }
+  if (context.designKit?.sources?.length) {
+    lines.push("", "### Design Kit", "");
+    lines.push(context.designKit.summary || "Use the active board rules.");
+    context.designKit.sources.slice(0, 8).forEach((source) => {
+      lines.push(
+        `- ${source.label}: ${compactDisplayText(source.detail || "", 220)}`,
+      );
+    });
   }
   if (context.variant) {
     lines.push("", "### Variant / Branch Direction", "");
@@ -17416,6 +17603,7 @@ function buildBuildRealRequestMarkdown(request) {
     `- Active frame: ${frame.title || request.activeFrameId}`,
     `- Action mode: ${request.actionModeLabel || request.actionMode}`,
     `- Design context: ${request.designContext?.exists ? request.designContext.relativePath : "No DESIGN.md found"}`,
+    `- Design kit: ${request.designKit?.statusLabel || request.implementationContext?.designKit?.statusLabel || "Board rules active"}`,
     "",
     "## Objective",
     request.board?.goal ||
@@ -17498,10 +17686,17 @@ function buildImagePromptPackMarkdown(pack) {
     `- Active frame: ${pack.activeFrameTitle}`,
     `- Action mode: ${pack.actionModeLabel || pack.actionMode || "Image prompt"}`,
     `- Design context: ${pack.designContext?.exists ? pack.designContext.relativePath : "No DESIGN.md found"}`,
+    `- Design kit: ${pack.designKit?.statusLabel || "Board rules active"}`,
     "",
     "## How To Use",
     "Use the prompt, composition map, and HTML/CSS scaffold as placement guidance for ChatGPT image generation. The scaffold is a spatial reference, not production code.",
   ];
+  if (pack.designKit?.sources?.length) {
+    lines.push("", "## Design Kit", pack.designKit.summary || "");
+    pack.designKit.sources.slice(0, 8).forEach((source) => {
+      lines.push(`- ${source.label}: ${compactDisplayText(source.detail || "", 220)}`);
+    });
+  }
   appendSpatialContextMarkdown(lines, pack.spatialContext);
   appendStyleLockMarkdown(lines, pack.styleLock);
   pack.frames.forEach((frame) => {
@@ -19936,8 +20131,9 @@ async function runSelfTest() {
       assert(
         exportPackage.taskPack?.actionMode === currentActionMode().id &&
           exportPackage.taskPack?.designContext &&
+          exportPackage.taskPack?.designKit?.kind === "canvax-design-kit" &&
           exportPackage.taskPack?.hostLane?.requiresOpenAiApiKey === false,
-        "task pack includes action mode, design context, and no-API host lane",
+        "task pack includes action mode, design kit, design context, and no-API host lane",
       ),
     );
     results.push(
@@ -19955,6 +20151,8 @@ async function runSelfTest() {
       assert(
         exportPackage.imagePromptPack?.kind === "canvax-image-prompt-pack" &&
           exportPackage.imagePromptPack.requiresOpenAiApiKey === false &&
+          exportPackage.imagePromptPack.designKit?.kind ===
+            "canvax-design-kit" &&
           exportPackage.imagePromptPack.styleLock?.kind ===
             "canvax-style-lock" &&
           exportPackage.imagePromptPack.frames?.every(
@@ -20140,10 +20338,13 @@ async function runSelfTest() {
             "artifacts/canvax/codex-output.json" &&
           buildRealResult.request.implementationContext?.kind ===
             "canvax-implementation-context" &&
+          buildRealResult.request.designKit?.kind === "canvax-design-kit" &&
+          buildRealResult.request.implementationContext.designKit?.kind ===
+            "canvax-design-kit" &&
           buildRealResult.request.implementationContext.workbench?.startPath?.includes(
             "Sketch",
           ),
-        "build real request creates no-API frame-to-code contract with designer context",
+        "build real request creates no-API frame-to-code contract with design kit and designer context",
         buildRealResult?.latestMarkdownPath ||
           "Build real request did not return a latest markdown path.",
       ),

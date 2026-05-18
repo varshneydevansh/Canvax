@@ -4532,6 +4532,90 @@ select,
     flex: 1 1 13rem;
 }
 
+.design-kit-card {
+    display: grid;
+    gap: 0.7rem;
+    padding: 0.85rem;
+    border: 0.0625rem solid rgba(12, 141, 123, 0.22);
+    border-radius: var(--radius-md);
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(12, 141, 123, 0.12),
+            transparent 42%
+        ),
+        linear-gradient(135deg, rgba(255, 248, 236, 0.78), rgba(255, 93, 58, 0.08));
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 248, 236, 0.52);
+}
+
+.design-kit-card strong,
+.design-kit-card p {
+    display: block;
+    margin: 0;
+}
+
+.design-kit-card strong {
+    margin-top: 0.18rem;
+    color: var(--ink);
+    font-size: 0.98rem;
+}
+
+.design-kit-card p {
+    margin-top: 0.32rem;
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+.design-kit-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.38rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.design-kit-sources li {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0.34rem 0.54rem;
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+    border-radius: 999px;
+    background: rgba(255, 252, 247, 0.72);
+    color: var(--ink);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body[data-workspace-mode="advanced"] .design-kit-card {
+    border-color: rgba(255, 248, 236, 0.14);
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(12, 141, 123, 0.2),
+            transparent 44%
+        ),
+        rgba(255, 248, 236, 0.12);
+}
+
+body[data-workspace-mode="advanced"] .design-kit-card strong,
+body[data-workspace-mode="advanced"] .design-kit-sources li {
+    color: var(--paper);
+}
+
+body[data-workspace-mode="advanced"] .design-kit-card p {
+    color: rgba(255, 248, 236, 0.76);
+}
+
+body[data-workspace-mode="advanced"] .design-kit-sources li {
+    border-color: rgba(255, 248, 236, 0.14);
+    background: rgba(255, 248, 236, 0.11);
+}
+
 .voice-scope-control {
     width: min(100%, 18rem);
 }

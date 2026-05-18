@@ -77,6 +77,10 @@ Current completed baseline:
 - Surface presets now include slide, book spread, storyboard, and comic page in addition to UI/poster/free-canvas presets, so the same loop can support product screens, decks, illustration planning, and sequential art.
 - `DESIGN.md` is detected when present and included as project design context in handoffs.
 - Advanced mode can create a starter `DESIGN.md` from board mood, palette, labels, frames, and generation direction without overwriting an existing file.
+- A visible local `Design kit` now summarizes whether Canvax is using
+  `DESIGN.md` or board-local rules, plus the active generation recipe, action
+  mode, mood, surface, frame notes, and variant style knobs; task packs, image
+  prompt packs, and Build-with-Codex requests export the same `designKit` object.
 - A host capability registry tells the UI/export whether the current path is local no-API handoff, Codex browser, host image generation, or native microphone bridge.
 - `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
 - `canvax-rewrite-request-latest.*` is exported for live output refinement from queued frames, voice notes, correction marks, and connected output manifests.
