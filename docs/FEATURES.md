@@ -696,7 +696,7 @@ That automatic artifact is a local starter target. Codex should replace or port 
 
 The request and executor context now include `implementationContext`. This is the compact designer brief Codex should read before coding: Workbench path, focus mode, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe/style knobs, image style lock, and output-edit binding.
 
-The local executor also consumes that context. It chooses a deterministic visual theme from the variant/style/Map guidance, writes `data-canvax-theme` onto the generated preview and starter screen, and adds a visible `Designer context` panel to the generated artifact. This keeps the no-API starter output aligned with directions such as poster/archive, midnight/cinematic, or quiet/editorial before Codex ports the result into real app files.
+The local executor also consumes that context. It chooses a deterministic visual theme from the variant/style/Map guidance, writes `data-canvax-theme` and `data-canvax-atmosphere` onto the generated preview and starter screen, adds theme-specific atmosphere layers, and adds a visible `Designer context` panel to the generated artifact. This keeps the no-API starter output aligned with directions such as poster/archive, midnight/cinematic, or quiet/editorial before Codex ports the result into real app files.
 
 Outputs:
 

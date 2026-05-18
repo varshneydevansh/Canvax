@@ -151,6 +151,9 @@ record(
 record(
   "build executor applies designer context to generated preview theme",
   rawBuildPreview.includes('data-canvax-theme="poster-archive"') &&
+    rawBuildPreview.includes('data-canvax-atmosphere="constructivist-poster"') &&
+    rawBuildPreview.includes("ARCHIVE DISPATCH") &&
+    rawBuildPreview.includes("atmosphere-band-one") &&
     rawBuildPreview.includes("Designer context") &&
     rawBuildPreview.includes("Poster Archive"),
 );
@@ -193,7 +196,9 @@ if (reactComponentFile?.path) {
     rawComponent.includes("export default function CanvaxScreen") &&
       rawComponent.includes("data-canvax-node-id") &&
       rawComponent.includes("CanvaxScreen.css") &&
-      rawComponent.includes("designerBrief"),
+      rawComponent.includes("designerBrief") &&
+      rawComponent.includes("CanvaxAtmosphere") &&
+      rawComponent.includes("data-canvax-atmosphere"),
   );
 }
 const nextAdapterFile = buildResult.implementationFiles.find(
@@ -250,6 +255,9 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
       ) &&
       parsedBuildContract.designerImplementationContext?.selectedMapObjectCount ===
         1 &&
+      parsedBuildContract.visualDirection?.themeId === "poster-archive" &&
+      parsedBuildContract.visualDirection?.atmosphereId ===
+        "constructivist-poster" &&
       parsedBuildContract.ownership?.componentMap ===
         "canvax-component-map.json" &&
       parsedBuildContract.codexNextActions?.some((action) =>

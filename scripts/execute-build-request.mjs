@@ -314,7 +314,8 @@ function buildImplementationHtml(request, { frameId, frameTitle }) {
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <main class="canvax-screen ${escapeHtml(model.theme.className)}" data-frame-id="${escapeHtml(frameId)}" data-canvax-theme="${escapeHtml(model.theme.id)}" style="--surface-ratio:${model.width} / ${model.height}">
+  <main class="canvax-screen ${escapeHtml(model.theme.className)}" data-frame-id="${escapeHtml(frameId)}" data-canvax-theme="${escapeHtml(model.theme.id)}" data-canvax-atmosphere="${escapeHtml(model.atmosphere.id)}" style="--surface-ratio:${model.width} / ${model.height}">
+    ${buildAtmosphereMarkup(model.atmosphere)}
     <header class="topbar">
       <a class="brand" href="#" aria-label="${escapeHtml(frameTitle)} home">
         <span class="brand-mark" aria-hidden="true">${escapeHtml(model.brandInitials)}</span>
@@ -394,6 +395,8 @@ a {
   background-size: 64px 64px, 64px 64px, auto, auto;
   box-shadow: var(--shadow);
 }
+
+${themeAtmosphereCss()}
 
 .topbar {
   position: absolute;
@@ -704,6 +707,7 @@ function buildImplementationJs(request, { frameId, frameTitle }) {
       requiresOpenAiApiKey: false,
       elementCount: model.elements.length,
       theme: model.theme.id,
+      atmosphere: model.atmosphere.id,
       designerBrief: model.designerBrief,
     },
     null,
@@ -742,6 +746,7 @@ const screen = ${JSON.stringify(
       width: model.width,
       height: model.height,
       theme: model.theme,
+      atmosphere: model.atmosphere,
       designerBrief: model.designerBrief,
       nodes,
     },
@@ -752,11 +757,13 @@ const screen = ${JSON.stringify(
 export default function CanvaxScreen() {
   return (
     <main
-      className="canvaxReactScreen"
+      className={\`canvaxReactScreen \${screen.theme.className}\`}
       data-frame-id={screen.frameId}
       data-canvax-theme={screen.theme.id}
+      data-canvax-atmosphere={screen.atmosphere.id}
       style={{ "--surface-ratio": \`\${screen.width} / \${screen.height}\` }}
     >
+      <CanvaxAtmosphere atmosphere={screen.atmosphere} />
       <header className="canvaxReactTopbar">
         <a className="canvaxReactBrand" href="#" aria-label={\`\${screen.frameTitle} home\`}>
           <span className="canvaxReactBrandMark" aria-hidden="true">
@@ -808,6 +815,17 @@ export default function CanvaxScreen() {
         </aside>
       )}
     </main>
+  );
+}
+
+function CanvaxAtmosphere({ atmosphere }) {
+  return (
+    <div className="atmosphere" aria-hidden="true">
+      <span className="atmosphere-layer atmosphere-band-one" />
+      <span className="atmosphere-layer atmosphere-band-two" />
+      <span className="atmosphere-layer atmosphere-orb" />
+      <span className="atmosphere-label">{atmosphere.label}</span>
+    </div>
   );
 }
 
@@ -886,6 +904,8 @@ function buildReactScreenCss(request) {
   color: var(--ink);
   font-family: var(--font-body);
 }
+
+${themeAtmosphereCss()}
 
 .canvaxReactTopbar {
   position: absolute;
@@ -1288,6 +1308,14 @@ function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
       latestMarkdown: "exports/canvax-build-real-latest.md",
       context: "../context.json",
     },
+    visualDirection: {
+      themeId: model.theme.id,
+      themeLabel: model.theme.label,
+      atmosphereId: model.atmosphere.id,
+      atmosphereLabel: model.atmosphere.label,
+      atmosphereMotion: model.atmosphere.motion,
+      designerBrief: model.designerBrief,
+    },
     designerImplementationContext: implementationContext
       ? {
           workbenchPath:
@@ -1571,6 +1599,192 @@ function buildImplementationTheme(request) {
   return theme;
 }
 
+function buildThemeAtmosphere(theme = defaultImplementationTheme()) {
+  if (theme.id === "poster-archive") {
+    return {
+      id: "constructivist-poster",
+      label: "ARCHIVE DISPATCH",
+      motion: "Diagonal poster geometry with public-information tension.",
+    };
+  }
+  if (theme.id === "midnight-cinema") {
+    return {
+      id: "orbital-cinema",
+      label: "ORBITAL FIELD",
+      motion: "Slow cinematic halo layers behind the generated interface.",
+    };
+  }
+  if (theme.id === "quiet-editorial") {
+    return {
+      id: "editorial-index",
+      label: "FIELD NOTES",
+      motion: "Quiet index marks and magazine pacing.",
+    };
+  }
+  return {
+    id: "studio-diagram",
+    label: "LIVE BUILD MAP",
+    motion: "Warm studio diagram layers behind the rough-to-real surface.",
+  };
+}
+
+function buildAtmosphereMarkup(atmosphere) {
+  return `<div class="atmosphere" aria-hidden="true">
+      <span class="atmosphere-layer atmosphere-band-one"></span>
+      <span class="atmosphere-layer atmosphere-band-two"></span>
+      <span class="atmosphere-layer atmosphere-orb"></span>
+      <span class="atmosphere-label">${escapeHtml(atmosphere.label)}</span>
+    </div>`;
+}
+
+function themeAtmosphereCss() {
+  return `.atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.atmosphere-layer {
+  position: absolute;
+  display: block;
+}
+
+.atmosphere-band-one {
+  left: -14%;
+  top: 36%;
+  width: 72%;
+  height: 24%;
+  background: color-mix(in srgb, var(--red), transparent 24%);
+  transform: rotate(-16deg);
+  transform-origin: center;
+  mix-blend-mode: multiply;
+}
+
+.atmosphere-band-two {
+  right: -18%;
+  top: 10%;
+  width: 54%;
+  height: 18%;
+  border: 2px solid color-mix(in srgb, var(--gold), transparent 22%);
+  transform: rotate(12deg);
+}
+
+.atmosphere-orb {
+  right: 12%;
+  bottom: 10%;
+  width: clamp(220px, 26vw, 420px);
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--blue), transparent 42%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 42% 38%, color-mix(in srgb, var(--gold), transparent 42%), transparent 34%),
+    radial-gradient(circle at 60% 70%, color-mix(in srgb, var(--red), transparent 68%), transparent 44%);
+  opacity: 0.7;
+}
+
+.atmosphere-label {
+  position: absolute;
+  right: clamp(24px, 4vw, 64px);
+  top: clamp(82px, 11vw, 150px);
+  max-width: 18ch;
+  color: color-mix(in srgb, var(--ink), transparent 20%);
+  font-size: clamp(12px, 1vw, 15px);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.theme-poster-archive .atmosphere {
+  background:
+    linear-gradient(115deg, transparent 0 48%, color-mix(in srgb, var(--ink), transparent 91%) 48% 50%, transparent 50%),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink), transparent 94%) 0 1px, transparent 1px 28px);
+}
+
+.theme-poster-archive .atmosphere-band-one {
+  left: -18%;
+  top: 42%;
+  width: 86%;
+  height: 20%;
+  background: color-mix(in srgb, var(--red), transparent 8%);
+}
+
+.theme-poster-archive .atmosphere-band-two {
+  right: 4%;
+  top: 18%;
+  width: 34%;
+  height: 16%;
+  background: color-mix(in srgb, var(--gold), transparent 18%);
+  border: 0;
+  clip-path: polygon(0 0, 92% 14%, 100% 82%, 8% 100%);
+}
+
+.theme-poster-archive .atmosphere-orb {
+  border-width: 18px;
+  border-color: color-mix(in srgb, var(--red), transparent 74%);
+  background: transparent;
+}
+
+.theme-midnight-cinema .atmosphere {
+  background:
+    radial-gradient(circle at 72% 22%, color-mix(in srgb, var(--blue), transparent 70%), transparent 26%),
+    radial-gradient(circle at 28% 78%, color-mix(in srgb, var(--teal), transparent 82%), transparent 30%);
+}
+
+.theme-midnight-cinema .atmosphere-band-one,
+.theme-midnight-cinema .atmosphere-band-two {
+  border: 1px solid color-mix(in srgb, var(--blue), transparent 50%);
+  border-radius: 999px;
+  background: transparent;
+  mix-blend-mode: screen;
+}
+
+.theme-midnight-cinema .atmosphere-band-one {
+  left: 38%;
+  top: 12%;
+  width: 58%;
+  height: 58%;
+  transform: rotate(-20deg);
+}
+
+.theme-midnight-cinema .atmosphere-band-two {
+  right: 8%;
+  top: 34%;
+  width: 44%;
+  height: 22%;
+  transform: rotate(18deg);
+}
+
+.theme-quiet-editorial .atmosphere-band-one {
+  left: 8%;
+  top: 18%;
+  width: 1px;
+  height: 64%;
+  background: color-mix(in srgb, var(--ink), transparent 82%);
+  transform: none;
+}
+
+.theme-quiet-editorial .atmosphere-band-two {
+  right: 12%;
+  top: 18%;
+  width: 22%;
+  height: 1px;
+  border: 0;
+  background: color-mix(in srgb, var(--ink), transparent 82%);
+  transform: none;
+}
+
+.theme-quiet-editorial .atmosphere-orb {
+  right: 8%;
+  bottom: 12%;
+  width: clamp(160px, 20vw, 320px);
+  border-color: color-mix(in srgb, var(--teal), transparent 64%);
+  background: transparent;
+}`;
+}
+
 function collectImplementationSignalText(request) {
   const context = request.implementationContext || {};
   const variant = context.variant || {};
@@ -1664,6 +1878,7 @@ function buildScreenModel(request) {
   const composition = frame.composition || {};
   const viewport = composition.viewport || {};
   const theme = buildImplementationTheme(request);
+  const atmosphere = buildThemeAtmosphere(theme);
   const width = Number(viewport.width || frame.viewportWidth || 1440);
   const height = Number(viewport.height || frame.viewportHeight || 1024);
   const elements = Array.isArray(composition.elements)
@@ -1696,6 +1911,7 @@ function buildScreenModel(request) {
     secondaryCta: "Review design",
     navItems: ["Overview", "Details", "Archive"],
     theme,
+    atmosphere,
     designerBrief: buildDesignerBrief(request, theme),
   };
 }
@@ -1795,6 +2011,7 @@ function buildPreviewHtml(request) {
       background-size: 64px 64px, 64px 64px, auto, auto;
       box-shadow: var(--shadow);
     }
+    ${themeAtmosphereCss()}
     .chrome {
       position: absolute;
       inset: 24px 24px auto;
@@ -1966,7 +2183,8 @@ function buildPreviewHtml(request) {
   </style>
 </head>
 <body>
-  <main class="surface ${escapeHtml(theme.className)}" data-frame-id="${escapeHtml(frame.id || "")}" data-canvax-theme="${escapeHtml(theme.id)}">
+  <main class="surface ${escapeHtml(theme.className)}" data-frame-id="${escapeHtml(frame.id || "")}" data-canvax-theme="${escapeHtml(theme.id)}" data-canvax-atmosphere="${escapeHtml(model.atmosphere.id)}">
+    ${buildAtmosphereMarkup(model.atmosphere)}
     <div class="chrome">
       <span>${escapeHtml(cleanString(frame.title) || "Canvax frame")}</span>
       <span>${escapeHtml(actionMode || "Build UI")}</span>

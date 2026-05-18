@@ -167,6 +167,9 @@ const checks = [
         includes: [
           "implementationContext",
           "buildImplementationTheme",
+          "buildThemeAtmosphere",
+          "data-canvax-atmosphere",
+          "visualDirection",
           "Designer context",
           "data-canvax-theme",
           "designerImplementationContext",
