@@ -638,12 +638,21 @@ design-system loop inspectable: extraction creates token artifacts, Build with
 Codex records them in the contract, and verification proves the local generated
 surface actually used them.
 
+The same verifier can read `artifacts/canvax/codex-output.json` with
+`--manifest` and `--frame`. In that mode it checks the real changed files,
+artifacts, or preview paths Codex published back to Canvax for the frame. That is
+the production-port gate: the token contract follows the design into workspace
+files instead of stopping at the local starter bundle.
+
 ```text
 reference CSS / sketch / image samples
   -> design token pack
   -> Build with Codex contract
   -> implementation CSS/HTML/JSX
   -> verify-token-enforcement
+  -> Codex output manifest
+  -> production changed files
+  -> verify-token-enforcement --manifest
 ```
 
 Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. The Workbench candidate tray lets users copy a one-candidate host task, place those records as editable frame slots, or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.

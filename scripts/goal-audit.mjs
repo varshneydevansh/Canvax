@@ -237,6 +237,7 @@ const checks = [
         path: "scripts/verify-token-enforcement.mjs",
         includes: [
           "canvax-token-enforcement-verification",
+          "collectManifestCandidateFiles",
           "missingPalette",
           "requiresOpenAiApiKey: false",
         ],
@@ -246,11 +247,12 @@ const checks = [
         includes: [
           "external design token extractor dry-run is valid",
           "design token enforcement verifier dry-run is valid",
+          "design token production manifest verifier dry-run is valid",
         ],
       },
     ],
     remainingGap:
-      "Current-frame, reference-image, text/CSS token extraction, latest-pack UI import, and local artifact token enforcement are proven, but rendered screenshot/app semantic extraction and strict enforcement after real production ports remain open.",
+      "Current-frame, reference-image, text/CSS token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but rendered screenshot/app semantic extraction and evidence from a real user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

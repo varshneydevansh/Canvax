@@ -710,6 +710,15 @@ actually contain those colors. Use it after Build with Codex or after a Codex
 port when you need evidence that the generated artifact preserved the active
 Design kit instead of only carrying token metadata.
 
+For production ports, pass the Codex output manifest too:
+
+```bash
+npm run verify-tokens -- --contract <canvax-build-contract.json> --manifest artifacts/canvax/codex-output.json --frame <frame-id>
+```
+
+That checks the real files published through `write-codex-output`, not only the
+local starter bundle.
+
 The bundle also includes `implementation/codex-port-task.json`, a machine-readable task for Codex. It lists source artifacts, suggested React/Vite/Next destinations, required `data-canvax-*` bindings, port steps, acceptance criteria, and publish commands so the generated screen can become real workspace code without inventing the handoff each time.
 
 Outputs:

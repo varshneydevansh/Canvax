@@ -1551,6 +1551,7 @@ function buildCodexPortTask(request, { frameId, frameTitle }) {
       "Replace placeholder links/text only when the host product context provides better content; preserve the sketched hierarchy unless the user asks otherwise.",
       "Preserve required data bindings or equivalent source comments from this task.",
       `Publish the final route/artifact with scripts/write-codex-output.mjs --frame ${frameId}.`,
+      `Run scripts/verify-token-enforcement.mjs --contract <canvax-build-contract.json> --manifest artifacts/canvax/codex-output.json --frame ${frameId} after publishing changed files.`,
     ],
     acceptanceCriteria: [
       "A real app/page/component renders the Canvax-designed screen.",
@@ -1558,10 +1559,12 @@ function buildCodexPortTask(request, { frameId, frameTitle }) {
       "Future Canvax correction marks can map to data-canvax-node-id regions or equivalent comments.",
       "No OPENAI_API_KEY or paid local API requirement is introduced.",
       "The generated theme and atmosphere remain visible in the implementation or are intentionally translated into the host design system.",
+      "If design tokens are present, verify-token-enforcement passes against the published production files in the Codex output manifest.",
     ],
     publishCommands: [
       `node scripts/write-codex-output.mjs --preview-path <real-preview-url-or-artifact> --label "${frameTitle} production implementation" --type implementation-preview --frame ${frameId}`,
       `node scripts/write-codex-output.mjs --change <path>::"Ported Canvax frame ${frameId}"::${frameId}`,
+      `node scripts/verify-token-enforcement.mjs --contract <canvax-build-contract.json> --manifest artifacts/canvax/codex-output.json --frame ${frameId}`,
     ],
     nonGoals: [
       "Do not treat the local deterministic scaffold as finished production code.",
@@ -1659,6 +1662,7 @@ website, presentation surface, or product screen.
 - Preserve the visual direction: ${model.theme.label} / ${model.atmosphere.label}.
 - Preserve the sketched hierarchy unless the user explicitly asks for a structural redesign.
 - Preserve the no-API boundary: no \`OPENAI_API_KEY\` or paid local API dependency is required for this handoff.
+- If this contract includes design tokens, preserve them in the real implementation or document the intentional translation in the Codex output summary.
 
 ## Production Readiness
 
@@ -1667,6 +1671,7 @@ website, presentation surface, or product screen.
 - Text, buttons, links, and interactive elements have accessible labels and visible focus states.
 - Placeholder content is replaced only when the host product context provides better copy.
 - The generated theme/atmosphere is either visible in the final implementation or intentionally translated into the host design system.
+- Run \`node scripts/verify-token-enforcement.mjs --contract <canvax-build-contract.json> --manifest artifacts/canvax/codex-output.json --frame ${frameId}\` after publishing the changed production files.
 
 ## Publish Back To Canvax
 
@@ -1676,6 +1681,7 @@ sketch-to-real loop alive:
 \`\`\`bash
 node scripts/write-codex-output.mjs --preview-path <real-preview-url-or-artifact> --label "${frameTitle} production implementation" --type implementation-preview --frame ${frameId}
 node scripts/write-codex-output.mjs --change <path>::"Ported Canvax frame ${frameId}"::${frameId}
+node scripts/verify-token-enforcement.mjs --contract <canvax-build-contract.json> --manifest artifacts/canvax/codex-output.json --frame ${frameId}
 \`\`\`
 
 ## Definition Of Done
@@ -1683,6 +1689,7 @@ node scripts/write-codex-output.mjs --change <path>::"Ported Canvax frame ${fram
 - A real route/component exists in the host project.
 - \`artifacts/canvax/codex-output.json\` points to the current implementation preview or artifact.
 - Future Canvax correction marks can map back to generated regions through preserved bindings or equivalent comments.
+- Design-token enforcement passes for manifest-listed production files when this contract carries tokens.
 - No paid API key requirement was introduced.
 `;
 }

@@ -411,10 +411,24 @@ async function validateDesignTokenEnforcementDryRun() {
     "regression-token-fixture",
     "implementation",
   );
+  const productionRoot = resolve(
+    projectRoot,
+    ".canvax",
+    "regression-token-fixture",
+    "production",
+  );
   const contractPath = resolve(fixtureRoot, "canvax-build-contract.json");
   const cssPath = resolve(fixtureRoot, "styles.css");
+  const productionPath = resolve(productionRoot, "Home.jsx");
+  const manifestPath = resolve(
+    projectRoot,
+    ".canvax",
+    "regression-token-fixture",
+    "codex-output.json",
+  );
   try {
     await mkdir(fixtureRoot, { recursive: true });
+    await mkdir(productionRoot, { recursive: true });
     await writeFile(
       contractPath,
       JSON.stringify(
@@ -436,6 +450,31 @@ async function validateDesignTokenEnforcementDryRun() {
     await writeFile(
       cssPath,
       `:root{--red:#e85d3a;--ink:#14323f;--gold:#f2b84b;}`,
+      "utf8",
+    );
+    await writeFile(
+      productionPath,
+      `export function Home(){return <main style={{"--red":"#e85d3a","--ink":"#14323f","--gold":"#f2b84b"}} />}`,
+      "utf8",
+    );
+    await writeFile(
+      manifestPath,
+      JSON.stringify(
+        {
+          version: 1,
+          changes: [
+            {
+              id: "change-1",
+              path: productionPath,
+              frameIds: ["frame-token-fixture"],
+            },
+          ],
+          artifacts: [],
+          targets: [],
+        },
+        null,
+        2,
+      ),
       "utf8",
     );
     const { stdout } = await runCommand("node", [
@@ -462,9 +501,40 @@ async function validateDesignTokenEnforcementDryRun() {
         ? `${payload.matchedPalette.length} token colors matched`
         : "verifier did not match expected token palette",
     });
+    const { stdout: productionStdout } = await runCommand("node", [
+      "scripts/verify-token-enforcement.mjs",
+      "--contract",
+      contractPath,
+      "--manifest",
+      manifestPath,
+      "--frame",
+      "frame-token-fixture",
+      "--json",
+    ]);
+    const productionPayload = JSON.parse(productionStdout);
+    const productionPassed = Boolean(
+      productionPayload?.ok &&
+        productionPayload?.manifestPath?.endsWith("codex-output.json") &&
+        productionPayload.checkedFiles?.some((path) =>
+          path.endsWith("production/Home.jsx"),
+        ) &&
+        productionPayload.matchedPalette?.length === 3,
+    );
+    results.push({
+      name: "design token production manifest verifier dry-run is valid",
+      passed: productionPassed,
+      detail: productionPassed
+        ? `${productionPayload.checkedFiles.length} production files checked`
+        : "manifest verifier did not inspect the expected production file",
+    });
   } catch (error) {
     results.push({
       name: "design token enforcement verifier dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+    results.push({
+      name: "design token production manifest verifier dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

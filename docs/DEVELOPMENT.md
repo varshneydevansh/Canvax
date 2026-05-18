@@ -211,6 +211,12 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 `Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes a standalone HTML/CSS/JS target, a portable `CanvaxScreen.jsx` plus `CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, `codex-port-task.json`, `INTEGRATION.md`, and `ACCEPTANCE.md`. The component map links source sketch elements to generated selectors and files; the build contract gives Codex machine-readable adapter paths, selector preservation rules, publish guidance, the designer implementation context summary, and the explicit no-API boundary. The acceptance checklist gives Codex and designers one human-readable production-readiness gate before publishing the real implementation back into Canvax.
 
+Use `npm run verify-tokens` after a generated starter or real Codex port when
+the build contract includes extracted design tokens. Without `--manifest`, it
+checks the local implementation bundle next to the contract. With
+`--manifest artifacts/canvax/codex-output.json --frame <frame-id>`, it checks
+the real changed files and artifacts published back to Canvax for that frame.
+
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.

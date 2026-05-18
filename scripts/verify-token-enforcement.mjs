@@ -82,6 +82,10 @@ async function verifyTokenEnforcement(options) {
     kind: "canvax-token-enforcement-verification",
     requiresOpenAiApiKey: false,
     contractPath: relativeProjectPath(contractPath),
+    manifestPath: options.manifest
+      ? relativeProjectPath(resolveProjectPath(options.manifest))
+      : "",
+    frameFilter: options.frame,
     checkedFiles: filePayloads.map((entry) => entry.path),
     requiredPalette,
     matchedPalette,
@@ -174,8 +178,11 @@ async function resolveCandidateFiles(contractPath, options) {
     ...options.cssFiles,
     ...options.htmlFiles,
   ].map(resolveProjectPath);
-  if (explicit.length) {
-    return uniqueStrings(explicit);
+  const manifestFiles = options.manifest
+    ? await collectManifestCandidateFiles(options.manifest, options.frame)
+    : [];
+  if (explicit.length || manifestFiles.length) {
+    return uniqueStrings([...explicit, ...manifestFiles]);
   }
 
   const contractDir = dirname(contractPath);
@@ -188,6 +195,51 @@ async function resolveCandidateFiles(contractPath, options) {
     resolve(previewRoot, "index.html"),
   ];
   return uniqueStrings(candidates);
+}
+
+async function collectManifestCandidateFiles(manifestPath, frameFilter = "") {
+  const parsed = JSON.parse(
+    await readFile(resolveProjectPath(manifestPath), "utf8"),
+  );
+  const entries = [
+    ...collectManifestEntries(parsed?.changes, "path"),
+    ...collectManifestEntries(parsed?.artifacts, "path"),
+    ...collectManifestEntries(parsed?.targets, "previewPath"),
+  ];
+  return entries
+    .filter((entry) => frameMatches(entry.record, frameFilter))
+    .map((entry) => entry.value)
+    .filter((value) => isLocalPath(value))
+    .map(resolveProjectPath)
+    .filter(isReadableArtifact);
+}
+
+function collectManifestEntries(records, key) {
+  if (!Array.isArray(records)) {
+    return [];
+  }
+  return records
+    .map((record) => ({
+      record,
+      value: typeof record?.[key] === "string" ? record[key].trim() : "",
+    }))
+    .filter((entry) => entry.value);
+}
+
+function frameMatches(record, frameFilter) {
+  if (!frameFilter) {
+    return true;
+  }
+  return (
+    Array.isArray(record?.frameIds) && record.frameIds.includes(frameFilter)
+  );
+}
+
+function isLocalPath(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return false;
+  }
+  return !/^https?:\/\//i.test(value) && !/^data:/i.test(value);
 }
 
 async function readCandidateFiles(files) {
@@ -257,6 +309,8 @@ function parseArgs(argv) {
     files: [],
     cssFiles: [],
     htmlFiles: [],
+    manifest: "",
+    frame: "",
     limit: 5,
     json: false,
   };
@@ -270,6 +324,10 @@ function parseArgs(argv) {
       options.cssFiles.push(argv[++index] || "");
     } else if (arg === "--html") {
       options.htmlFiles.push(argv[++index] || "");
+    } else if (arg === "--manifest") {
+      options.manifest = argv[++index] || "";
+    } else if (arg === "--frame") {
+      options.frame = argv[++index] || "";
     } else if (arg === "--limit") {
       options.limit = Math.max(1, Number(argv[++index] || 5) || 5);
     } else if (arg === "--json") {
@@ -306,8 +364,9 @@ function printResult(result, json) {
 
 function printHelp() {
   console.log(`Usage:
-  node scripts/verify-token-enforcement.mjs [--contract path] [--css path] [--html path] [--file path] [--json]
+  node scripts/verify-token-enforcement.mjs [--contract path] [--css path] [--html path] [--file path] [--manifest path] [--frame id] [--json]
 
 Checks that design-token palette colors recorded in a Canvax build contract are
-present in generated implementation artifacts. This is a local no-API gate.`);
+present in generated implementation artifacts or real files listed in a Codex
+output manifest. This is a local no-API gate.`);
 }

@@ -98,8 +98,11 @@ The useful lesson for Canvax:
 - Make design rules enforceable, not decorative. The current local loop now has
   extraction (`Extract tokens`, `npm run extract-tokens`), import (`Import
   external`), contract recording (`Build with Codex`), and implementation
-  verification (`npm run verify-tokens`). The remaining gap is enforcing the
-  same rules after Codex ports the design into arbitrary production app files.
+  verification (`npm run verify-tokens`). The verifier can now also read
+  `artifacts/canvax/codex-output.json` to check the real files Codex published
+  for a frame, so production-port token enforcement has a concrete gate. The
+  remaining gap is proving that gate against real user project ports and adding
+  richer rendered screenshot/app semantic extraction.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.

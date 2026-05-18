@@ -84,7 +84,8 @@ Current completed baseline:
   packs, image prompt packs, and Build-with-Codex requests export the same
   `designKit` object. `npm run verify-tokens` now checks that a generated
   implementation artifact actually uses the token palette recorded in its build
-  contract.
+  contract, and can also verify real files listed in the Codex output manifest
+  after a production port.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every
