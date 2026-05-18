@@ -393,6 +393,9 @@ const dom = {
   mapObjectSubtitle: document.querySelector("#map-object-subtitle"),
   mapObjectStatus: document.querySelector("#map-object-status"),
   mapObjectPrompt: document.querySelector("#map-object-prompt"),
+  mapObjectCustomProperties: document.querySelector(
+    "#map-object-custom-properties",
+  ),
   mapDetailEditor: document.querySelector("#map-detail-editor"),
   mapDetailPrimaryLabel: document.querySelector("#map-detail-primary-label"),
   mapDetailSecondaryLabel: document.querySelector("#map-detail-secondary-label"),
@@ -886,6 +889,11 @@ function bindEvents() {
   });
   dom.mapObjectPrompt.addEventListener("change", () => {
     updateSelectedSpatialObjectProperty("prompt", dom.mapObjectPrompt.value);
+  });
+  dom.mapObjectCustomProperties.addEventListener("change", () => {
+    updateSelectedSpatialObjectCustomProperties(
+      dom.mapObjectCustomProperties.value,
+    );
   });
   dom.mapObjectDetailPrimary.addEventListener("change", () => {
     updateSelectedSpatialObjectDetail(
@@ -3441,6 +3449,9 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
   const manualPrompt = manualFields.prompt
     ? cleanString(existing.meta?.prompt)
     : "";
+  const manualCustomProperties = manualFields.customProperties
+    ? normalizeMapCustomProperties(existing.meta?.customProperties)
+    : [];
   const manualLaneOrder =
     existing.meta?.manualLaneOrder === true &&
     existing.meta?.laneId &&
@@ -3457,6 +3468,9 @@ function upsertSpatialObject(objects, existingIds, nextObject) {
     meta: {
       ...nextObject.meta,
       ...(manualFields.prompt ? { prompt: manualPrompt } : {}),
+      ...(manualCustomProperties.length
+        ? { customProperties: manualCustomProperties }
+        : {}),
       ...(manualLaneOrder
         ? {
             laneIndex: Number.isFinite(existing.meta?.laneIndex)
@@ -5620,6 +5634,18 @@ function buildSpatialObjectContextText(object) {
     if (secondaryOverride) {
       details.push(`- Secondary detail: ${secondaryOverride}`);
     }
+  }
+  const customProperties = normalizeMapCustomProperties(
+    object.meta?.customProperties,
+  );
+  if (customProperties.length) {
+    details.push(
+      "",
+      "## Custom Properties",
+      ...customProperties.map(
+        (property) => `- ${property.key}: ${property.value}`,
+      ),
+    );
   }
   if (object.sourceKind === "asset-candidate" && object.meta?.placementMap) {
     const placement = object.meta.placementMap;
@@ -9105,6 +9131,7 @@ function renderMapSelectionActions() {
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
     dom.mapObjectPrompt.value = "";
+    dom.mapObjectCustomProperties.value = "";
     renderMapDetailEditor(null);
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
@@ -9125,6 +9152,7 @@ function renderMapSelectionActions() {
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
     dom.mapObjectPrompt.value = "";
+    dom.mapObjectCustomProperties.value = "";
     renderMapDetailEditor(null);
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
@@ -9152,6 +9180,9 @@ function renderMapSelectionActions() {
   dom.mapObjectSubtitle.value = object.subtitle || "";
   dom.mapObjectStatus.value = object.status || "";
   dom.mapObjectPrompt.value = object.meta?.prompt || "";
+  dom.mapObjectCustomProperties.value = formatMapCustomProperties(
+    object.meta?.customProperties,
+  );
   renderMapDetailEditor(object);
   dom.mapObjectTypeDetails.innerHTML = renderMapObjectTypeDetails(object);
 }
@@ -9250,6 +9281,16 @@ function mapObjectInspectorRows(object) {
   ];
   if (cleanString(meta.prompt)) {
     rows.push({ label: "Prompt", value: cleanString(meta.prompt) });
+  }
+  const customProperties = normalizeMapCustomProperties(meta.customProperties);
+  if (customProperties.length) {
+    rows.push({
+      label: "Properties",
+      value: customProperties
+        .slice(0, 3)
+        .map((property) => `${property.key}: ${property.value}`)
+        .join(" · "),
+    });
   }
 
   if (object.sourceKind === "asset-candidate") {
@@ -9371,6 +9412,18 @@ function buildMapObjectInspectorContract(object, spatialGrouping = null) {
   addItem(layout, "Pinned", isSpatialObjectPinned(object) ? "yes" : "no");
   addItem(layout, "Locked", isSpatialObjectLocked(object) ? "yes" : "no");
   sections.push({ id: "layout", title: "Layout", items: layout });
+
+  const customProperties = normalizeMapCustomProperties(meta.customProperties);
+  if (customProperties.length) {
+    sections.push({
+      id: "custom-properties",
+      title: "Custom Properties",
+      items: customProperties.map((property) => ({
+        label: property.key,
+        value: property.value,
+      })),
+    });
+  }
 
   if (isManifestSpatialObject(object)) {
     const target = [];
@@ -9522,6 +9575,13 @@ function buildMapObjectInspectorContract(object, spatialGrouping = null) {
     inspectorOverrideValue(object, "secondary", meta.codexAction),
   );
   addItem(manual, "Prompt", meta.prompt);
+  addItem(
+    manual,
+    "Custom properties",
+    customProperties
+      .map((property) => `${property.key}: ${property.value}`)
+      .join("; "),
+  );
   addItem(manual, "Manual fields", Object.keys(meta.manualFields || {}).join(", "));
   sections.push({ id: "manual", title: "Designer Notes", items: manual });
 
@@ -9703,6 +9763,97 @@ function selectedMapObjectDetailSchema(object) {
 
 function inspectorOverrideValue(object, key, fallback = "") {
   return cleanString(object?.meta?.inspectorOverrides?.[key]) || cleanString(fallback);
+}
+
+function normalizeMapCustomProperties(properties) {
+  if (!Array.isArray(properties)) {
+    return [];
+  }
+  const seen = new Set();
+  return properties
+    .map((property, index) => {
+      const key = cleanString(property?.key || property?.name);
+      const value = cleanString(property?.value);
+      const safeKey = key || (value ? `note-${index + 1}` : "");
+      if (!safeKey || !value) {
+        return null;
+      }
+      const normalizedKey = safeKey.toLowerCase();
+      if (seen.has(normalizedKey)) {
+        return null;
+      }
+      seen.add(normalizedKey);
+      return { key: safeKey, value };
+    })
+    .filter(Boolean);
+}
+
+function parseMapCustomProperties(text) {
+  return normalizeMapCustomProperties(
+    cleanString(text)
+      .split(/\n+/)
+      .map((line, index) => {
+        const trimmed = cleanString(line);
+        if (!trimmed) {
+          return null;
+        }
+        const separatorCandidates = [
+          trimmed.indexOf(":"),
+          trimmed.indexOf("="),
+        ].filter((entry) => entry >= 0);
+        const separatorIndex = separatorCandidates.length
+          ? Math.min(...separatorCandidates)
+          : -1;
+        if (separatorIndex > 0) {
+          return {
+            key: trimmed.slice(0, separatorIndex),
+            value: trimmed.slice(separatorIndex + 1),
+          };
+        }
+        return {
+          key: `note-${index + 1}`,
+          value: trimmed,
+        };
+      })
+      .filter(Boolean),
+  );
+}
+
+function formatMapCustomProperties(properties) {
+  return normalizeMapCustomProperties(properties)
+    .map((property) => `${property.key}: ${property.value}`)
+    .join("\n");
+}
+
+function updateSelectedSpatialObjectCustomProperties(value) {
+  const selectedObjects = selectedSpatialObjects();
+  const object = selectedObjects.length === 1 ? selectedObjects[0] : null;
+  if (!object) {
+    return false;
+  }
+  const properties = parseMapCustomProperties(value);
+  object.meta = {
+    ...(object.meta || {}),
+    manualFields: {
+      ...(object.meta?.manualFields || {}),
+    },
+  };
+  if (properties.length) {
+    object.meta.customProperties = properties;
+    object.meta.manualFields.customProperties = true;
+  } else {
+    delete object.meta.customProperties;
+    delete object.meta.manualFields.customProperties;
+  }
+  if (!Object.keys(object.meta.manualFields).length) {
+    delete object.meta.manualFields;
+  }
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(`Updated custom properties for ${spatialObjectTitle(object)}`);
+  return true;
 }
 
 function updateSelectedSpatialObjectDetail(key, value) {
@@ -15255,6 +15406,9 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     layerIndex: spatialObjectLayerIndex(object),
     layerLabel: spatialObjectLayerLabel(object),
     laneId: object.meta?.laneId || "",
+    customProperties: normalizeMapCustomProperties(
+      object.meta?.customProperties,
+    ),
     frameIds: object.frameIds || [],
     groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
     groupHierarchy,
@@ -20969,6 +21123,7 @@ function assertManualSpatialObjectControls() {
     dom.mapObjectSubtitle.value === object.subtitle &&
     dom.mapObjectStatus.value === object.status &&
     dom.mapObjectPrompt.value === "" &&
+    dom.mapObjectCustomProperties.value === "" &&
     dom.mapSelectedObjectTitle.textContent === object.title &&
     !dom.mapCopyObjectContext.disabled &&
     !dom.mapPinObject.disabled &&
@@ -21001,15 +21156,24 @@ function assertManualSpatialObjectControls() {
       "prompt",
       "Use this map note as a Codex refinement instruction",
     ) &&
+    updateSelectedSpatialObjectCustomProperties(
+      [
+        "component: hero annotation",
+        "state: review-needed",
+        "constraint: keep near generated output",
+      ].join("\n"),
+    ) &&
     objectRecord?.title === "Renamed map note" &&
     objectRecord?.subtitle === "Manual spatial object property note" &&
     objectRecord?.status === "ready-for-codex" &&
     objectRecord?.meta?.prompt ===
       "Use this map note as a Codex refinement instruction" &&
+    objectRecord?.meta?.customProperties?.length === 3 &&
     objectRecord?.meta?.manualFields?.title === true &&
     objectRecord?.meta?.manualFields?.subtitle === true &&
     objectRecord?.meta?.manualFields?.status === true &&
     objectRecord?.meta?.manualFields?.prompt === true &&
+    objectRecord?.meta?.manualFields?.customProperties === true &&
     buildSpatialWorkspaceExport().objects.some(
       (entry) =>
         entry.id === object?.id &&
@@ -21020,7 +21184,22 @@ function assertManualSpatialObjectControls() {
         entry.contextMarkdown.includes(
           "Use this map note as a Codex refinement instruction",
         ) &&
-        entry.contextMarkdown.includes("Manual spatial object property note"),
+        entry.contextMarkdown.includes("Manual spatial object property note") &&
+        entry.contextMarkdown.includes("component: hero annotation") &&
+        entry.customProperties?.some(
+          (property) =>
+            property.key === "component" &&
+            property.value === "hero annotation",
+        ) &&
+        entry.inspector?.sections?.some(
+          (section) =>
+            section.id === "custom-properties" &&
+            section.items.some(
+              (item) =>
+                item.label === "component" &&
+                item.value === "hero annotation",
+            ),
+        ),
     );
   const detailEdited =
     updateSelectedSpatialObjectDetail("primary", "Designer-edited map detail") &&
@@ -21107,6 +21286,8 @@ function assertManualSpatialObjectControls() {
     contextText.includes("- Pinned: yes") &&
     contextText.includes("- Locked: no") &&
     contextText.includes("- Layer: Layer") &&
+    contextText.includes("## Custom Properties") &&
+    contextText.includes("- constraint: keep near generated output") &&
     contextText.includes("Prompt / Context");
   const activeViewport =
     viewportPresets[activeFrame.viewport] || viewportPresets.desktop;
@@ -21125,6 +21306,10 @@ function assertManualSpatialObjectControls() {
   const spatialContextExported =
     taskPackSpatialContext?.selectedObject?.prompt ===
       "Use this map note as a Codex refinement instruction" &&
+    taskPackSpatialContext?.selectedObject?.customProperties?.some(
+      (property) =>
+        property.key === "state" && property.value === "review-needed",
+    ) &&
     taskPackSpatialContext.prompts?.some(
       (entry) =>
         entry.objectId === object?.id &&

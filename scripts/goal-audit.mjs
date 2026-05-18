@@ -79,6 +79,9 @@ const checks = [
           "panMomentum",
           "inspector",
           "inspectorOverrides",
+          "customProperties",
+          "function updateSelectedSpatialObjectCustomProperties",
+          "Custom Properties",
           "STORAGE_VERSION = 4",
           "outputLaneCollapsed: true",
           "Map output/history shelves default to compressed designer focus",
@@ -97,6 +100,7 @@ const checks = [
           "momentum/coast",
           "structured per-type inspector sections",
           "safe type-detail overrides",
+          "custom `key: value` properties",
           "Map timeline",
           "frames/branches/outputs/checkpoints",
           "groupHierarchy",
@@ -105,7 +109,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Map is a strong spatial project layer with recursive geometry-based group movement/resizing, not a fully arbitrary infinite design canvas with schema-specific property panels and a full nested object model.",
+      "Map is a strong spatial project layer with recursive geometry-based group movement/resizing and a custom-property metadata layer, not a fully arbitrary infinite design canvas with full schema-specific property panels and a full nested object model.",
   },
   {
     id: "editable-variants",
