@@ -706,9 +706,7 @@ function bindEvents() {
     updateFrameField("viewport", "free", { capture: true });
     setZoom(0.5);
   });
-  dom.focusAddImage.addEventListener("click", () => {
-    dom.focusImageInput.click();
-  });
+  dom.focusAddImage.addEventListener("click", openWorkbenchImagePicker);
   dom.focusImageInput.addEventListener("change", (event) => {
     const [file] = Array.from(event.target.files || []).filter((item) =>
       item.type.startsWith("image/"),
@@ -2574,6 +2572,11 @@ function applyDesignerStartAction(action) {
   renderStatus("Sketch mode: draw rough placement directly on the frame");
 }
 
+function openWorkbenchImagePicker() {
+  dom.focusImageInput?.click();
+  renderStatus("Choose an image to place as an editable canvas object");
+}
+
 function handleWorkbenchRailAction(action) {
   if (action === "size-down") {
     adjustActiveSize(-2);
@@ -2609,6 +2612,10 @@ function handleWorkbenchRailAction(action) {
   }
   if (action === "create-variants") {
     createVariantFramesFromCurrent();
+    return;
+  }
+  if (action === "image-import") {
+    openWorkbenchImagePicker();
     return;
   }
   if (action === "image-pack") {
@@ -20940,8 +20947,16 @@ function assertWorkbenchRailSizeControls() {
   renderColors();
   renderBrushPreview();
   renderFocusPad();
+  const railImportsImages = Boolean(
+    dom.workbenchRail.querySelector('[data-rail-action="image-import"]'),
+  );
   return assert(
-    increased && restored && selectedIncreased && globalUnchanged,
+    increased &&
+      restored &&
+      selectedIncreased &&
+      globalUnchanged &&
+      railImportsImages &&
+      dom.focusImageInput?.accept.includes("image"),
     "Workbench rail size controls update brush or selected element",
   );
 }

@@ -176,6 +176,7 @@ Behavior:
 - exposes one voice action and one manual spoken-note field
 - exposes quick-prompt chips for common refinements such as `Try another font`, `Make it more dramatic`, `Show mobile variant`, `Tighten spacing`, and `Add image candidates`
 - exposes `Make real` for the local generated-screen pass
+- exposes `Import` in the primary controls and focused floating rail so a designer can place an image without reopening panels
 - exposes `Image pack` for a no-API image-generation handoff with coordinates and an HTML/CSS scaffold
 - turns pasted or dropped images into editable frame elements for generated candidates, reference crops, storyboards, posters, or UI assets
 - exposes `Add image` as the primary Workbench file-picker path for editable references, generated candidates, book/storyboard art, and UI assets

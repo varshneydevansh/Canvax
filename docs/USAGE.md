@@ -130,6 +130,8 @@ Apply to Codex or Live rewrite
   -> refreshed output manifest target
 ```
 
+`Import` brings an image file into the active frame as an editable canvas object. Use it for references, generated candidates, book/storyboard art, UI screenshots, or visual assets. The same behavior is also available by paste or drag/drop.
+
 `Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, an HTML/CSS placement scaffold, and a style-lock block. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs. The style lock tells the host to preserve visual identity, palette, rendering language, character/object continuity, and frame-to-frame consistency across image candidates.
 
 Paste or drop an image onto the canvas when you want to bring a generated candidate, reference crop, book illustration pass, or UI asset back into the frame as an editable object. It can be selected, moved, resized, duplicated, layered, labeled, included in prompt packs, and passed into Materialize. Use `Reference underlay` only when the image should sit behind the sketch as tracing/context.
