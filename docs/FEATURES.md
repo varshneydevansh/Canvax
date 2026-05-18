@@ -247,7 +247,7 @@ Boundary:
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, scaffold, and style lock; it does not directly invoke a paid image API or require an API key.
 - The host capability chip is explicit about what Canvax can do locally today: Codex workspace/browser handoff is available, direct host image generation and native Codex microphone access require a future first-party bridge.
 - If `DESIGN.md` exists at the project root, Canvax includes it as design context in task packs and image prompt packs.
-- The Advanced `Design kit` card shows the active rule stack, can apply local presets for product apps, poster systems, book spreads, dashboards, and storyboards, and can extract current-frame sketch tokens locally. The selected kit and extracted tokens export as `designKit` in task packs, image prompt packs, and Build-with-Codex requests.
+- The Advanced `Design kit` card shows the active rule stack, can apply local presets for product apps, poster systems, book spreads, dashboards, and storyboards, and can extract current-frame sketch/reference tokens locally. The selected kit and extracted tokens export as `designKit` in task packs, image prompt packs, and Build-with-Codex requests.
 - Image prompt packs include a `canvax-style-lock` block with palette, continuity rules, adaptation rules, negative rules, design-context summary, frame signals, and extracted sketch-token cues so image/book/comic/poster candidates can stay consistent across frames.
 - In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
 

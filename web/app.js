@@ -1260,7 +1260,7 @@ function bindEvents() {
     applyDesignKitPreset(dom.designKitPresetSelect.value);
   });
   dom.extractDesignTokens.addEventListener("click", () => {
-    extractDesignTokensFromCurrentFrame();
+    void extractDesignTokensFromCurrentFrame();
   });
   dom.voiceScopeButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-voice-scope]");
@@ -1578,6 +1578,12 @@ function normalizeDesignTokens(value) {
       elementCount: Number(density.elementCount) || 0,
       viewportArea: Number(density.viewportArea) || 0,
       coverage: Number(density.coverage) || 0,
+    },
+    visualSamples: {
+      sourceCount: Number(value.visualSamples?.sourceCount) || 0,
+      sampledSources: Number(value.visualSamples?.sampledSources) || 0,
+      skippedSources: Number(value.visualSamples?.skippedSources) || 0,
+      colorCount: Number(value.visualSamples?.colorCount) || 0,
     },
     shapeLanguage: cleanString(value.shapeLanguage) || "mixed sketch",
     typographyCue: cleanString(value.typographyCue) || "",
@@ -14148,9 +14154,9 @@ function applyDesignKitPreset(presetId, options = {}) {
   return true;
 }
 
-function extractDesignTokensFromCurrentFrame(options = {}) {
+async function extractDesignTokensFromCurrentFrame(options = {}) {
   const frame = currentFrame();
-  const tokens = buildDesignTokensFromFrame(frame);
+  const tokens = await buildDesignTokensFromFrame(frame);
   state.board.designTokens = tokens;
   touchFrame(frame, {
     capture: options.capture !== false,
@@ -14164,7 +14170,7 @@ function extractDesignTokensFromCurrentFrame(options = {}) {
   return tokens;
 }
 
-function buildDesignTokensFromFrame(frame = currentFrame()) {
+async function buildDesignTokensFromFrame(frame = currentFrame()) {
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
   const meaningfulElements = (frame.elements || []).filter(
     (element) => !isEraserElement(element) && isElementMeaningful(element),
@@ -14179,6 +14185,13 @@ function buildDesignTokensFromFrame(frame = currentFrame()) {
   };
   const colorCounts = new Map();
   let coveredArea = 0;
+  const addColorCount = (hex, count = 1) => {
+    const color = normalizeColor(hex, "");
+    if (!color) {
+      return;
+    }
+    colorCounts.set(color, (colorCounts.get(color) || 0) + Math.max(1, count));
+  };
 
   meaningfulElements.forEach((element) => {
     if (element.type === "path" || element.type === "line") {
@@ -14199,7 +14212,7 @@ function buildDesignTokensFromFrame(frame = currentFrame()) {
 
     const color = normalizeColor(element.color, "");
     if (color) {
-      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+      addColorCount(color, 12);
     }
 
     const bounds = getElementBounds(element, frame);
@@ -14208,6 +14221,11 @@ function buildDesignTokensFromFrame(frame = currentFrame()) {
         Math.max(0, bounds.right - bounds.left) *
         Math.max(0, bounds.bottom - bounds.top);
     }
+  });
+
+  const visualSamples = await collectFrameVisualTokenSamples(frame);
+  visualSamples.palette.forEach((entry) => {
+    addColorCount(entry.hex, entry.count);
   });
 
   const paletteTokens = [...colorCounts.entries()]
@@ -14255,6 +14273,12 @@ function buildDesignTokensFromFrame(frame = currentFrame()) {
       viewportArea,
       coverage,
     },
+    visualSamples: {
+      sourceCount: visualSamples.sourceCount,
+      sampledSources: visualSamples.sampledSources,
+      skippedSources: visualSamples.skippedSources,
+      colorCount: visualSamples.colorCount,
+    },
     shapeLanguage,
     typographyCue,
     assetCue,
@@ -14262,10 +14286,125 @@ function buildDesignTokensFromFrame(frame = currentFrame()) {
       `${shapeLanguage} with ${densityLabel} density`,
       `${elementMix.total} sketch element${elementMix.total === 1 ? "" : "s"}`,
       `${paletteTokens.length} sampled color${paletteTokens.length === 1 ? "" : "s"}`,
+      visualSamples.sampledSources
+        ? `${visualSamples.sampledSources} visual reference source${visualSamples.sampledSources === 1 ? "" : "s"} sampled`
+        : "",
       typographyCue,
       assetCue,
-    ].join(". "),
+    ]
+      .filter(Boolean)
+      .join(". "),
   });
+}
+
+async function collectFrameVisualTokenSamples(frame = currentFrame()) {
+  const sources = frameVisualTokenSources(frame).slice(0, 8);
+  const colorCounts = new Map();
+  let sampledSources = 0;
+  let skippedSources = 0;
+
+  for (const source of sources) {
+    try {
+      const image = await ensureImage(source.src);
+      if (!image) {
+        skippedSources += 1;
+        continue;
+      }
+      const sourcePalette = sampleImagePalette(image);
+      if (!sourcePalette.size) {
+        skippedSources += 1;
+        continue;
+      }
+      sampledSources += 1;
+      sourcePalette.forEach((count, hex) => {
+        colorCounts.set(hex, (colorCounts.get(hex) || 0) + count);
+      });
+    } catch {
+      skippedSources += 1;
+    }
+  }
+
+  const palette = [...colorCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([hex, count]) => ({ hex, count }));
+
+  return {
+    sourceCount: sources.length,
+    sampledSources,
+    skippedSources,
+    colorCount: colorCounts.size,
+    palette,
+  };
+}
+
+function frameVisualTokenSources(frame = currentFrame()) {
+  const sources = [];
+  const backgroundSrc = cleanString(frame?.backgroundImage);
+  if (backgroundSrc) {
+    sources.push({
+      src: backgroundSrc,
+      label: "Reference underlay",
+      role: "background",
+    });
+  }
+  (frame?.elements || []).forEach((element) => {
+    if (element?.type !== "image" || isEraserElement(element)) {
+      return;
+    }
+    const src = cleanString(element.imageDataUrl || element.src);
+    if (!src) {
+      return;
+    }
+    sources.push({
+      src,
+      label: cleanString(element.sourceName) || "Image element",
+      role: "image",
+      elementId: element.id || "",
+    });
+  });
+  return sources;
+}
+
+function sampleImagePalette(image, options = {}) {
+  const maxSize = options.maxSize || 96;
+  const width = Math.max(1, image.naturalWidth || image.width || maxSize);
+  const height = Math.max(1, image.naturalHeight || image.height || maxSize);
+  const scale = Math.min(1, maxSize / Math.max(width, height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  let pixels;
+  try {
+    pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  } catch {
+    return new Map();
+  }
+
+  const colorCounts = new Map();
+  for (let offset = 0; offset < pixels.length; offset += 16) {
+    const alpha = pixels[offset + 3];
+    if (alpha < 64) {
+      continue;
+    }
+    const hex = rgbToQuantizedHex(
+      pixels[offset],
+      pixels[offset + 1],
+      pixels[offset + 2],
+    );
+    colorCounts.set(hex, (colorCounts.get(hex) || 0) + 1);
+  }
+  return colorCounts;
+}
+
+function rgbToQuantizedHex(red, green, blue) {
+  const quantize = (value) =>
+    Math.max(0, Math.min(255, Math.round(value / 16) * 16));
+  const toHex = (value) => quantize(value).toString(16).padStart(2, "0");
+  return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
 }
 
 function describeDesignTokenShapeLanguage(elementMix) {
@@ -17224,6 +17363,7 @@ function buildImageStyleLock(frames = [], generationRecipe = "") {
           sourceFrameTitle: designTokens.sourceFrameTitle,
           palette: designTokens.palette,
           density: designTokens.density,
+          visualSamples: designTokens.visualSamples,
           shapeLanguage: designTokens.shapeLanguage,
           typographyCue: designTokens.typographyCue,
           assetCue: designTokens.assetCue,
@@ -20493,7 +20633,7 @@ async function runSelfTest() {
     results.push(assertEraserPreservesPaperLayer());
     results.push(assertEraserRemovesInk());
     results.push(assertOutputAnnotationEraserRemovesMarks());
-    const extractedTokens = extractDesignTokensFromCurrentFrame({
+    const extractedTokens = await extractDesignTokensFromCurrentFrame({
       capture: false,
       silent: true,
     });
@@ -20508,6 +20648,7 @@ async function runSelfTest() {
         "design tokens extract from sketch and export through Design kit",
       ),
     );
+    results.push(await assertVisualReferenceTokenExtraction());
     results.push(assertWorkbenchRailSizeControls());
     setSelfTestProgress("image and asset candidates");
     results.push(await assertImageAssetPlacement());
@@ -23536,6 +23677,59 @@ function assertManualSpatialObjectControls() {
       frameBeforeGroupDrag,
       frameAfterGroupDrag: activeFrame.flowPosition,
     }),
+  );
+}
+
+async function assertVisualReferenceTokenExtraction() {
+  const frame = currentFrame();
+  const previousElements = structuredClone(frame.elements);
+  const previousDesignTokens = structuredClone(state.board.designTokens);
+  const previousSelection = selectionIds();
+  const previousSelectedElementId = state.selectedElementId;
+  const history = ensureHistory(frame.id);
+  const previousHistory = {
+    past: structuredClone(history.past),
+    future: structuredClone(history.future),
+  };
+
+  const file = await createSelfTestImageFile();
+  const imageDataUrl = await readFileAsDataUrl(file);
+  frame.elements.push({
+    id: uid("image"),
+    type: "image",
+    start: { x: 260, y: 220 },
+    end: { x: 460, y: 360 },
+    color: state.color,
+    size: 2,
+    alpha: 1,
+    composite: "source-over",
+    imageDataUrl,
+    sourceName: "Self-test reference image",
+  });
+
+  const tokens = await extractDesignTokensFromCurrentFrame({
+    capture: false,
+    silent: true,
+  });
+  const visualTokensOk =
+    tokens.visualSamples.sampledSources > 0 &&
+    tokens.visualSamples.colorCount > 0 &&
+    tokens.summary.includes("visual reference") &&
+    tokens.palette.some((entry) => entry.count > 12);
+
+  window.clearTimeout(state.captureTimer);
+  state.captureTimer = null;
+  frame.elements = previousElements;
+  state.board.designTokens = previousDesignTokens;
+  history.past = previousHistory.past;
+  history.future = previousHistory.future;
+  setSelectedElements(previousSelection, previousSelectedElementId);
+  persistState();
+  renderAll();
+
+  return assert(
+    visualTokensOk,
+    "design tokens sample pasted/reference image pixels",
   );
 }
 

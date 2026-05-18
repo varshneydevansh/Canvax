@@ -230,7 +230,7 @@ Purpose:
 - avoid implying direct ChatGPT image-generation or Codex microphone access when the local page does not have that bridge
 - include reusable design rules in task/image prompt packs without manually pasting them into every sketch
 - expose a local `Design kit` rule stack and preset selection so the board can export active design-system intent even when no root `DESIGN.md` exists
-- extract local current-frame sketch tokens into the `Design kit` so palette, density, shape language, text cues, and asset-slot cues can travel with the handoff
+- extract local current-frame sketch/reference tokens into the `Design kit` so palette, density, shape language, text cues, asset-slot cues, and readable placed/reference-image color samples can travel with the handoff
 - write a starter `DESIGN.md` from board state through `/api/write-design-context` without overwriting an existing design contract
 
 ```text
@@ -623,7 +623,7 @@ Image/asset handoff files:
 - `exports/canvax-image-generation-brief-latest.json`
 - `artifacts/canvax/asset-candidates/...`
 
-Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from the active Design kit, board mood, surface, generation recipe, `DESIGN.md` when present, current palette, extracted current-frame sketch tokens when present, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, palette/density/shape cues, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
+Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from the active Design kit, board mood, surface, generation recipe, `DESIGN.md` when present, current palette, extracted current-frame sketch/reference tokens when present, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, palette/density/shape cues, visual reference sample metadata, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
 
 Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. The Workbench candidate tray lets users copy a one-candidate host task, place those records as editable frame slots, or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
 

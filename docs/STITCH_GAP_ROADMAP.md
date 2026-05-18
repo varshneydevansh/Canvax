@@ -354,16 +354,18 @@ preset gallery for common designer surfaces such as product apps, poster
 systems, book spreads, dashboards, and storyboards; applying a preset updates
 the board surface, mood, action mode, generation recipe, and empty frame notes
 without touching the sketch. `Extract tokens` now adds a local current-frame
-token pass that samples non-eraser sketch elements for palette, density, shape
-language, text cues, and asset-slot cues, then exports those tokens through the
-Design kit and style lock.
+token pass that samples non-eraser sketch elements plus locally readable
+reference underlays, pasted screenshots, dropped images, and generated
+candidates for palette, density, shape language, text cues, and asset-slot cues,
+then exports those tokens through the Design kit and style lock.
 
 Needed:
 
 - Richer `DESIGN.md` import controls inside the board UI beyond the current
   active-source summary, local preset gallery, and current-frame token pass.
 - Extract visual tokens from a URL, screenshot, or existing app. **Current-frame
-  sketch token extraction shipped; external-source extraction remains open.**
+  sketch token extraction and locally readable placed/reference-image sampling
+  shipped; direct URL/existing-app extraction remains open.**
 - Enforce those tokens when Codex generates or refines UI.
 
 ### 6. Image Model And Asset Workflow
