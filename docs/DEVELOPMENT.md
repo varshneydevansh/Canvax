@@ -209,7 +209,7 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 ## Build With Codex Development Path
 
-`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes a standalone HTML/CSS/JS target, a portable `CanvaxScreen.jsx` plus `CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, and `INTEGRATION.md`. The component map links source sketch elements to generated selectors and files; the build contract gives Codex machine-readable adapter paths, selector preservation rules, publish guidance, the designer implementation context summary, and the explicit no-API boundary.
+`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes a standalone HTML/CSS/JS target, a portable `CanvaxScreen.jsx` plus `CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, `codex-port-task.json`, `INTEGRATION.md`, and `ACCEPTANCE.md`. The component map links source sketch elements to generated selectors and files; the build contract gives Codex machine-readable adapter paths, selector preservation rules, publish guidance, the designer implementation context summary, and the explicit no-API boundary. The acceptance checklist gives Codex and designers one human-readable production-readiness gate before publishing the real implementation back into Canvax.
 
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 
@@ -245,7 +245,9 @@ scripts/canvax.mjs
   artifacts/preview/codex-build/frames/<frame-id>/implementation/FRAMEWORK_ADAPTERS.md
   artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-component-map.json
   artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-build-contract.json
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/codex-port-task.json
   artifacts/preview/codex-build/frames/<frame-id>/implementation/INTEGRATION.md
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/ACCEPTANCE.md
   artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md
   artifacts/canvax/codex-output.json
 

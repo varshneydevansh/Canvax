@@ -282,6 +282,9 @@ async function validateExecuteBuildRequestDryRun() {
         implementationFilePaths.some((path) =>
           path.endsWith("/implementation/README.md"),
         ) &&
+        implementationFilePaths.some((path) =>
+          path.endsWith("/implementation/ACCEPTANCE.md"),
+        ) &&
         payload?.published === false,
     );
     results.push({

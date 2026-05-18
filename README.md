@@ -139,7 +139,7 @@ flowchart LR
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
 - Lets you save preview compare snapshots into the workspace for later review.
 - Adds a `Generate screen` mode with direction, style, and focus controls for richer local website/app screen generation from both box wireframes and rough stroke-first sketches.
-- Adds `Build code` / `Build with Codex`, which writes a no-API frame-to-code request and immediately runs the local build executor so Workbench and Preview get a frame-bound preview, implementation starter bundle, React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, `canvax-component-map.json` ownership map, and `canvax-build-contract.json` integration contract before Codex replaces or ports it into real app/page files.
+- Adds `Build code` / `Build with Codex`, which writes a no-API frame-to-code request and immediately runs the local build executor so Workbench and Preview get a frame-bound preview, implementation starter bundle, React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, `canvax-component-map.json` ownership map, `canvax-build-contract.json` integration contract, `codex-port-task.json`, and `ACCEPTANCE.md` before Codex replaces or ports it into real app/page files.
 - Materializes the active frame into a styled local HTML preview artifact without changing the sketch board.
 - Reuses a stable per-frame materialized preview target so repeated updates refresh the same output surface instead of spawning unrelated preview routes.
 - Reuses that same per-frame target for richer generated-screen output, so Preview stays attached while the active frame is regenerated.

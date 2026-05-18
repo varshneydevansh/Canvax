@@ -695,7 +695,7 @@ Build with Codex is the first real-code bridge.
 
 It writes a task artifact that Codex can execute in the current workspace. The board now also calls the local `execute-build-request` path after saving the request, so designers immediately get a frame-bound preview artifact, implementation starter files, and output manifest without opening a terminal or using a paid API.
 
-That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation. The bundle includes a React-ready `CanvaxScreen.jsx`/`CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, and `INTEGRATION.md` so Codex can map sketch element ids to generated selectors, preserve that relationship during the port, and know the no-API boundaries.
+That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation. The bundle includes a React-ready `CanvaxScreen.jsx`/`CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, `codex-port-task.json`, `INTEGRATION.md`, and `ACCEPTANCE.md` so Codex can map sketch element ids to generated selectors, preserve that relationship during the port, know the no-API boundaries, and review production readiness from one checklist.
 
 The request and executor context now include `implementationContext`. This is the compact designer brief Codex should read before coding: Workbench path, focus mode, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe/style knobs, image style lock, and output-edit binding.
 
@@ -716,6 +716,7 @@ Outputs:
 - `implementation/canvax-build-contract.json` for machine-readable integration boundaries, adapter paths, and no-API requirements
 - `implementation/codex-port-task.json` for a machine-readable Codex production-port task
 - `implementation/INTEGRATION.md` for the human-readable Vite/React/Next porting path
+- `implementation/ACCEPTANCE.md` for the production-readiness checklist and publish-back commands
 
 What the request includes:
 

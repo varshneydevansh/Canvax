@@ -134,6 +134,9 @@ record(
     ) &&
     buildResult.implementationFiles.some((file) =>
       file.path.endsWith("/implementation/codex-port-task.json"),
+    ) &&
+    buildResult.implementationFiles.some((file) =>
+      file.path.endsWith("/implementation/ACCEPTANCE.md"),
     ),
   buildResult.previewPath,
 );
@@ -236,6 +239,9 @@ const buildContractFile = buildResult.implementationFiles.find(
 const integrationGuideFile = buildResult.implementationFiles.find(
   (file) => file.kind === "integration-guide",
 );
+const acceptanceChecklistFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "acceptance-checklist",
+);
 const portTaskFile = buildResult.implementationFiles.find(
   (file) => file.kind === "codex-port-task",
 );
@@ -282,6 +288,8 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
       parsedBuildContract.visualDirection?.atmosphereId ===
         "constructivist-poster" &&
       parsedBuildContract.ownership?.portTask === "codex-port-task.json" &&
+      parsedBuildContract.ownership?.acceptanceChecklist ===
+        "ACCEPTANCE.md" &&
       parsedBuildContract.ownership?.componentMap ===
         "canvax-component-map.json" &&
       parsedBuildContract.codexNextActions?.some((action) =>
@@ -289,6 +297,21 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
       ) &&
       rawIntegrationGuide.includes("Recommended Codex Port") &&
       rawIntegrationGuide.includes("Requires OpenAI API key: no"),
+  );
+}
+if (acceptanceChecklistFile?.path) {
+  await assertReadableProjectFile(acceptanceChecklistFile.path);
+  const rawAcceptanceChecklist = await readFile(
+    resolve(projectRoot, acceptanceChecklistFile.path),
+    "utf8",
+  );
+  record(
+    "build executor creates production acceptance checklist",
+    rawAcceptanceChecklist.includes("Production Acceptance Checklist") &&
+      rawAcceptanceChecklist.includes("Requires OpenAI API key: no") &&
+      rawAcceptanceChecklist.includes("data-canvax-node-id") &&
+      rawAcceptanceChecklist.includes("write-codex-output.mjs") &&
+      rawAcceptanceChecklist.includes("Definition Of Done"),
   );
 }
 if (portTaskFile?.path) {
@@ -348,6 +371,12 @@ const buildManifestDryRun = await executeJson("node", [
         `${integrationGuideFile.path}::E2E integration guide::${frameId}`,
       ]
     : []),
+  ...(acceptanceChecklistFile?.path
+    ? [
+        "--artifact",
+        `${acceptanceChecklistFile.path}::E2E production acceptance checklist::${frameId}`,
+      ]
+    : []),
   ...(portTaskFile?.path
     ? [
         "--artifact",
@@ -371,6 +400,9 @@ record(
     ) &&
     buildManifestDryRun.manifest?.artifacts?.some((artifact) =>
       artifact.path?.endsWith("/implementation/codex-port-task.json"),
+    ) &&
+    buildManifestDryRun.manifest?.artifacts?.some((artifact) =>
+      artifact.path?.endsWith("/implementation/ACCEPTANCE.md"),
     ),
 );
 

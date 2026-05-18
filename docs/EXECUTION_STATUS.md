@@ -99,6 +99,7 @@ Status: In progress
 - [x] No-API end-to-end workflow regression proves rough frame + voice + image prompt assets + build request + rewrite request + manifest binding as one chain
 - [x] Build with Codex local executor consumes designer implementation context to theme the generated preview/starter bundle, add theme-specific atmosphere layers, and expose a visible `Designer context` panel in the generated surface
 - [x] Build with Codex local executor writes `implementation/codex-port-task.json`, a machine-readable task that tells Codex how to port the starter into real React/Vite/Next app files while preserving Canvax bindings
+- [x] Build with Codex local executor writes `implementation/ACCEPTANCE.md`, a human-readable production-readiness checklist with selector binding, responsive/accessibility, no-API, and publish-back gates
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service
 - [x] Isolated service lifecycle regression covers start, reuse, port mismatch, restart, status, and stop on throwaway ports without disrupting the default board
 - [x] CLI can recover a matching Canvax service from `/api/status` when runtime files are stale or missing

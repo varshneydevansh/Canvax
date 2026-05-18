@@ -671,6 +671,7 @@ This is different from `Generate screen`:
 - The request also includes an `implementationContext` block that carries the designer loop state: Workbench mode/focus, the `1 Sketch -> 2 Talk -> 3 Make -> 4 Map` start path, action mode, generation recipe, selected Map object prompts, variant recipe/style knobs, output-edit target, and image style lock.
 - The local executor reads that `implementationContext` too. Variant/style/Map guidance can select a visible starter theme such as `poster-archive`, `midnight-cinema`, or `quiet-editorial`; the generated preview/starter files include theme-specific atmosphere layers plus a `Designer context` panel so Codex and the designer can see which direction shaped the output.
 - The bundle also writes `implementation/codex-port-task.json`, which gives Codex a single machine-readable port task with source files, suggested React/Vite/Next destinations, required bindings, acceptance criteria, and publish commands.
+- The bundle also writes `implementation/ACCEPTANCE.md`, a human-readable production-readiness checklist that keeps selector bindings, responsiveness, accessibility, no-API boundaries, and publish-back commands in one place.
 - `node scripts/execute-build-request.mjs` remains available when you want to re-run that executor manually. This is a deterministic starter path, not a replacement for Codex editing real app files.
 
 Canvax writes the latest request to:
@@ -727,6 +728,7 @@ That writes:
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-build-contract.json`
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/codex-port-task.json`
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/INTEGRATION.md`
+- `artifacts/preview/codex-build/frames/<frame-id>/implementation/ACCEPTANCE.md`
 - `artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md`
 - `artifacts/canvax/codex-output.json`
 
