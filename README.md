@@ -86,19 +86,24 @@ flowchart LR
 
 - Opens a browser-based canvas optimized for Mac trackpad, mouse, or stylus use.
 - Starts in `Workbench`, a simplified talk-and-draw mode that keeps sketch, surface choice, generated output, correction marks, voice, apply, and preview actions available without the full advanced UI.
-- Adds a floating designer rail in Workbench, so tools, undo/redo, dictation, Make, and Apply stay available even when the tray is hidden for canvas-first work.
+- Adds a floating designer rail in `Focus canvas`, so tools, undo/redo, dictation, Make, and Apply stay available when the tray is intentionally hidden for canvas-first work.
 - Keeps a compact frame/surface/action/focus summary visible when the Workbench tray is hidden, so canvas-first mode does not lose context.
 - Adds a bottom Workbench command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching.
-- Keeps the Workbench rail as a bottom command dock with brush `-` / `+` controls and an `Image` action for spatial image-generation handoff.
+- Keeps the focused Workbench rail as a bottom command dock with brush `-` / `+` controls and an `Image` action for spatial image-generation handoff.
 - Keeps the main Workbench tray compact, with surface selection, action selection, host capability status, and design-context status visible without pushing the canvas below the fold.
 - Adds Workbench quick-prompt chips for common refinement directions like font, drama, mobile variant, spacing, and image candidates.
 - Adds designer surface presets for slides, book spreads, storyboards, and comic pages alongside UI, poster, square, and free-canvas presets.
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
 - Keeps Advanced as the same product language with a solid sticky command deck that stays readable over long frame/map scrolls.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
+- Adds Workbench/Advanced Map background pan with momentum/coast, cursor-centered zoom, minimap navigation, and exported `spatialWorkspace.interaction` metadata.
 - Exports Workbench Map group containment so Codex can read which frames, references, assets, generated outputs, artifacts, and changes belong to each exploration group.
 - Keeps Workbench/Advanced Map inside a bounded scroll viewport and adds `Tidy map` so frame cards, generated-output references, and checkpoint history can be compacted after long sessions.
+- Starts generated-output and checkpoint shelves compressed for new or migrated Map sessions, so older Materialize/Build/checkpoint cards stay available without becoming the first thing a designer sees.
+- Adds a compact `Map timeline` strip for frames, branches, outputs, and checkpoints, with click-to-focus navigation and `spatialWorkspace.timeline` export for Codex.
+- Exports nested Map group hierarchy through `spatialWorkspace.groupHierarchy`, so exploration boards can preserve parent/child group paths instead of only flat containment, and recursive nested group move/resize keeps geometry-contained boards together.
 - Lets selected output/history Map cards move earlier or later inside their lane, preserving the designer's output/checkpoint sequence in the live export.
+- Lets selected variant/output-edit branch cards move earlier or later in their source-frame branch sequence, and also updates branch order when dragged branch cards cross visible sibling drop targets, preserving branch order in `frame.variant.index` and `spatialWorkspace.variantBranches`.
 - Lets a selected Map object carry editable `Prompt / Context` guidance, so generated outputs, image assets, notes, references, and groups can explain exactly what Codex or a host image tool should do with that object.
 - Lets important Map objects be locked so generated outputs, references, and notes stay selectable/copyable but protected from accidental move, resize, reorder, duplicate, group, or delete actions; the lock state exports for Codex.
 - Turns a generated output preview card into an editable `Output edit` frame, so a result can become a normal sketch/correction branch while task, rewrite, build, and executor payloads still point at the exact generated output target.
@@ -109,8 +114,8 @@ flowchart LR
 - Generates a live Markdown prompt alongside the structured JSON export.
 - Writes a Codex task pack and image prompt pack with normalized coordinates, selected action mode, optional `DESIGN.md` context, plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
 - Adds a no-API style lock to image prompt and asset candidate packs so UI, poster, book-spread, comic, storyboard, and image-variant work can keep visual continuity across frames.
-- Writes a consolidated no-API image generation brief that combines candidate prompts, style lock, pixel/CSS placement contracts, output slots, and copy-ready host prompts for ChatGPT/Codex image-generation hosts.
-- Tracks attached asset candidate previews with file/path import, select, and accept actions, plus placement-map/output-slot metadata, so image-generation choices become explicit local handoff state with exact coordinates.
+- Writes a consolidated no-API image generation brief that combines candidate prompts, style lock, pixel/CSS placement contracts, output slots, frame-grouped review queues, and copy-ready host prompts for ChatGPT/Codex image-generation hosts.
+- Tracks attached asset candidate previews with file/path import, select, and accept actions, plus placement-map/output-slot/review-summary metadata, so image-generation choices become explicit local handoff state with exact coordinates.
 - Creates a starter `DESIGN.md` from the current board in Advanced mode, without overwriting an existing design contract.
 - Captures board-scoped or frame-scoped voice notes, using browser speech recognition when available and manual pasted dictation when it is not.
 - Lets Codex forward submitted chat microphone transcripts into Canvax voice notes with `./canvax --transcript "..." --scope frame`.
@@ -132,7 +137,7 @@ flowchart LR
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
 - Lets you save preview compare snapshots into the workspace for later review.
 - Adds a `Generate screen` mode with direction, style, and focus controls for richer local website/app screen generation from both box wireframes and rough stroke-first sketches.
-- Adds `Build code` / `Build with Codex`, which writes a no-API frame-to-code request and immediately runs the local build executor so Workbench and Preview get a frame-bound preview, implementation starter bundle, React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, and `canvax-component-map.json` ownership map before Codex replaces or ports it into real app/page files.
+- Adds `Build code` / `Build with Codex`, which writes a no-API frame-to-code request and immediately runs the local build executor so Workbench and Preview get a frame-bound preview, implementation starter bundle, React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, `canvax-component-map.json` ownership map, and `canvax-build-contract.json` integration contract before Codex replaces or ports it into real app/page files.
 - Materializes the active frame into a styled local HTML preview artifact without changing the sketch board.
 - Reuses a stable per-frame materialized preview target so repeated updates refresh the same output surface instead of spawning unrelated preview routes.
 - Reuses that same per-frame target for richer generated-screen output, so Preview stays attached while the active frame is regenerated.
@@ -375,11 +380,11 @@ The canonical Codex-written output file is:
 
 That file is merged automatically with the manual preview manifest so Canvax can show:
 
-- generated preview targets
+- generated screen targets
 - changed files
 - artifacts like specs, notes, or exported HTML
 
-Canvax normalizes that merged manifest before rendering it: duplicate note paragraphs are collapsed, and old targets/artifacts/changes are capped to recent unique entries so stale generated outputs do not overwhelm the Map.
+Canvax normalizes that merged manifest before rendering it: duplicate note paragraphs are collapsed, old targets/artifacts/changes are capped to recent unique entries, and Map output/history shelves start compressed so stale generated outputs do not overwhelm the first view.
 
 For Codex-side publishing, the preferred helper is now:
 

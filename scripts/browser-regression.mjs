@@ -348,6 +348,7 @@ function buildAdvancedMapSmokeExpression() {
     const toolbarRect = rect(".toolbar");
     const flow = rect("#flow-workspace");
     const flowShell = rect("#flow-shell");
+    const mapTimeline = rect("#map-timeline");
     const outputLane = rect(".spatial-lane-output");
     const guide = rect(".spatial-lane-output .spatial-lane-guide");
     const generatedLabels = [
@@ -361,6 +362,7 @@ function buildAdvancedMapSmokeExpression() {
     if (document.body?.dataset?.viewMode !== "flow") failures.push("flow map not active");
     if (!toolbarRect?.visible) failures.push("advanced toolbar missing");
     if (!flow?.visible || !flowShell?.visible) failures.push("flow map missing");
+    if (!mapTimeline?.visible) failures.push("map timeline missing");
     if (!outputLane?.visible) failures.push("output shelf missing");
     if (!guide?.visible) failures.push("output shelf guide missing");
     if (toolbarRect && toolbarRect.width > window.innerWidth + 16) failures.push("advanced toolbar wider than viewport");
@@ -368,6 +370,7 @@ function buildAdvancedMapSmokeExpression() {
     if (backdrop && backdrop !== "none" && backdrop !== "blur(0px)") failures.push("advanced toolbar uses backdrop blur");
     if (backgroundAlpha < 0.98) failures.push("advanced toolbar background is translucent");
     if (!generatedLabels.length) failures.push("generated output labels missing");
+    if (!generatedLabels.includes("generated screen")) failures.push("generated screen label missing");
     if (generatedLabels.some((label) => label === "generated-target")) failures.push("raw generated-target label is visible");
     return {
       passed: failures.length === 0,
@@ -375,6 +378,7 @@ function buildAdvancedMapSmokeExpression() {
       mode: document.body?.dataset?.workspaceMode || "",
       viewMode: document.body?.dataset?.viewMode || "",
       generatedLabels,
+      mapTimeline,
       toolbarBackground: toolbarStyle?.backgroundColor || "",
       toolbarBackdrop: backdrop,
       width: window.innerWidth,

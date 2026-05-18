@@ -179,7 +179,7 @@ Behavior:
 - turns pasted or dropped images into editable frame elements for generated candidates, reference crops, storyboards, posters, or UI assets
 - shows the connected generated output inside the Workbench tray when one exists
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
-- exposes the Flow graph as a Workbench `Map` with background drag-pan, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
+- exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
 - provides `Tidy map` to reflow frame cards plus generated-output and checkpoint shelf objects into compact readable lanes when a long session starts to sprawl
 - exposes a `visualfixture=advanced-map` browser-regression fixture so the dense Advanced Map state, output shelf, generated-output labels, and scrolled sticky command deck can be verified with screenshots
 - styles generated variant cards as branch objects with lineage chips and primary-variant state, so generated directions do not look like ordinary duplicate frames
@@ -187,27 +187,30 @@ Behavior:
 - exports editable generated variant branches through `spatialWorkspace.variantBranches` and `spatialWorkspace.objects`, including source frame, target frame, direction, connection, editable state, primary-promotion state, and object-level context
 - adds labeled group regions, manual note cards, and reference file/image cards directly to `Map`, including removable/resizable spatial cards and small image thumbnails for lightweight reference boards
 - lets Map group regions move contained frame cards and spatial objects together, so grouped explorations can be repositioned without rebuilding the board
-- exports group containment from `Map`, so frames and spatial objects carry `groupIds`, `spatialWorkspace.groups` lists member frames/objects, and selected group context includes a lightweight contents inspector for Codex-readable exploration boards
-- lets designers select Map objects, Shift-click multi-select them, Shift-drag empty Map space to lasso-select them, drag a selected set together, resize the selected set from a combined transform box, see a visible Copy context/Pin/Lock/Group/Ungroup/Select contents/Fit group/Lane earlier/Lane later/Send back/Bring front/Duplicate/Delete/Clear action strip, copy a no-API Markdown object or selection handoff for Codex or image-generation prompting, nudge objects with arrow keys, group them with `Cmd/Ctrl+G`, ungroup selected group regions with `Shift+Cmd/Ctrl+G`, select group contents, fit group regions around their current contents, duplicate them with `Cmd/Ctrl+D`, reorder layers with `Cmd/Ctrl+[` and `Cmd/Ctrl+]`, move selected output/history cards earlier or later inside their lane, delete them with `Delete`/`Backspace`, duplicate a group region with its contained Map objects, lock important references/outputs to block accidental move, resize, reorder, duplicate, group, ungroup, lane-order, or delete actions, and export the current pointed-at object/selection through `spatialWorkspace.selectedObjectId`, `spatialWorkspace.selectedObjectIds`, `spatialWorkspace.selectedObject`, `spatialWorkspace.selectedObjects`, per-object `prompt`, per-object `locked`, per-object `layerIndex` / `layerLabel`, lane order metadata, and per-object `contextMarkdown`
-- exposes Title, Note, Status, and Prompt / Context fields for a single selected Map object, plus per-type read-only details such as generated target path, asset placement bounds, checkpoint contents, variant state, group contents, or reference file metadata, so designers can inspect and clarify objects without editing raw manifests
+- exports group containment and hierarchy from `Map`, so frames and spatial objects carry `groupIds`, `spatialWorkspace.groups` lists member frames/objects, `spatialWorkspace.groupHierarchy` records parent/child group paths, recursive nested group move/resize keeps geometry-contained boards together, and selected group context includes a lightweight contents inspector for Codex-readable exploration boards
+- lets designers select Map objects, Shift-click multi-select them, Shift-drag empty Map space to lasso-select them, drag a selected set together, resize the selected set from a combined transform box, see a visible Copy context/Pin/Lock/Group/Ungroup/Select contents/Fit group/Lane earlier/Lane later/Send back/Bring front/Duplicate/Delete/Clear action strip, copy a no-API Markdown object or selection handoff for Codex or image-generation prompting, nudge objects with arrow keys, group them with `Cmd/Ctrl+G`, ungroup selected group regions with `Shift+Cmd/Ctrl+G`, select group contents, fit group regions around their current contents, duplicate them with `Cmd/Ctrl+D`, reorder layers with `Cmd/Ctrl+[` and `Cmd/Ctrl+]`, move selected output/history cards earlier or later inside their lane, move selected variant/output-edit branch cards earlier or later in their source-frame branch sequence, drag branch cards across sibling branch positions to update branch sequence, delete them with `Delete`/`Backspace`, duplicate a group region with its contained Map objects, lock important references/outputs to block accidental move, resize, reorder, duplicate, group, ungroup, lane-order, branch-order, or delete actions, and export the current pointed-at object/selection through `spatialWorkspace.selectedObjectId`, `spatialWorkspace.selectedObjectIds`, `spatialWorkspace.selectedObject`, `spatialWorkspace.selectedObjects`, per-object `prompt`, per-object `locked`, per-object `layerIndex` / `layerLabel`, lane order metadata, branch order metadata, and per-object `contextMarkdown`
+- exposes Title, Note, Status, Prompt / Context, and safe type-detail override fields for a single selected Map object, plus structured per-type inspector sections such as generated target path, asset placement bounds, checkpoint contents, variant state, group contents, or reference file metadata, so designers can inspect and clarify objects without editing raw manifests
 - uses the selected Map object's Prompt / Context field as the explicit instruction handoff for Codex or a host image tool, so generated outputs, image assets, references, notes, and groups can say what they should become without editing raw JSON
 - renders image/asset candidates as draggable spatial object cards in `Map`, so prompts and generated-asset slots can sit beside frames instead of only living in exports or side panels
-- renders generated preview targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
-- labels generated output cards as `Generated preview`, `Generated file`, or `Code change`, adds a `Reference` badge, canonicalizes older raw source labels, infers frame binding from current and legacy generated-output paths, and the Map help text plus inline Output shelf legend explain that those cards are prior Materialize/Build outputs rather than extra frames
-- provides `Clear outputs` in `Map` to hide generated preview/artifact/change cards when the exploration board gets cluttered
-- groups generated preview/artifact/change cards inside a collapsible `Output shelf` lane so Make/Build results read as generated references, not new frames; the lane legend defines `Generated preview`, `Generated file`, and `Code change` directly on the spatial map
+- renders generated screen targets, generated artifacts, and changed files from the Codex output manifest as draggable spatial object cards in `Map`, so implementation outputs sit in the same project space as sketches and asset candidates
+- labels generated output cards as `Generated screen`, `Generated file`, or `Code change`, adds an `Output ref` badge, canonicalizes older raw source labels, infers frame binding from current and legacy generated-output paths, and the Map help text plus inline Output shelf legend explain that those cards are prior Materialize/Build outputs rather than extra frames
+- provides `Clear outputs` in `Map` to hide generated screen/artifact/change cards when the exploration board gets cluttered
+- groups generated screen/file/code-change cards inside a collapsible `Output shelf` lane so Make/Build results read as generated references, not new frames; the lane legend defines `Generated screen`, `Generated file`, and `Code change` directly on the spatial map
+- starts new and migrated Maps with the output and history shelves compressed unless the designer is already focused on those shelves, so old generated screens, artifacts, changed files, and checkpoints remain reachable without overwhelming the first view
 - lets designers turn an output preview card into an editable `Output edit` frame, preserving the source frame, generated target path, flow connection, variant branch object, `spatialWorkspace.variantBranches[].outputBinding`, and task/rewrite/build `outputEditBinding` so corrections can happen on a normal sketch frame while Codex still knows the exact generated output being revised
 - saves output correction marks with normalized changed-region bounds, and treats Erase on the output surface as deletion of intersecting correction marks instead of a new exported eraser stroke
 - renders recent checkpoints inside a named spatial history lane in `Map`, so collaboration moments sit beside frames, variants, references, and generated outputs while still reading like a timeline
+- adds a compact `Map timeline` strip above the spatial board for frames, branches, outputs, and checkpoints; clicking an item focuses/scrolls the Map, and the same sequence exports as `spatialWorkspace.timeline`
 - lets selected output/history cards move earlier or later inside their lane, preserving the lane order in `meta.laneIndex`, the object inspector, context Markdown, and `spatialWorkspace.lanes[].memberObjectIds`
+- lets selected variant/output-edit branch cards move earlier or later in their source-frame branch sequence, or drag across visible sibling branch drop targets to update that sequence, preserving `frame.variant.index`, the branch track, and ordered `spatialWorkspace.variantBranches`
 - provides `Hide history` / `Show history` in `Map` to collapse checkpoint cards without deleting them, and exports the lane state as `spatialWorkspace.lanes[].collapsed`
 - provides Map focus chips for `All`, `Output`, `Assets`, `Notes`, and `History`, so designers can reduce spatial clutter without deleting cards; the active focus exports as `spatialWorkspace.objectFilter`
 - lets designers pin important Map objects so they stay visible across focus filters and collapsed history, with pinned state exported on each `spatialWorkspace.objects[]` record
 - lets designers lock important Map objects so reference images, generated outputs, and notes can stay selectable/copyable but protected from accidental move, resize, grouping, reordering, duplication, or deletion; locked state exports on each `spatialWorkspace.objects[]` record and in copied context Markdown
 - exports the current or last rendered Map viewport as `spatialWorkspace.viewport`, including zoom, scroll offset, visible bounds, and normalized center, so Codex can understand which part of a large board the designer is looking at
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
-- provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply
-- provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching
+- provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply when `Focus canvas` is active
+- provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching in focused canvas mode
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
 - `Focus canvas` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible; `Show brief` brings the context tray back
@@ -233,7 +236,7 @@ Workbench
 Boundary:
 
 - Workbench is intentionally simple, but it must not hide core decisions like mobile vs desktop or "add another screen".
-- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, labeled group regions, manual notes, reference file/image cards, asset candidate objects, generated output targets, artifacts, changed files, and checkpoint history lane objects exported through `spatialWorkspace.lanes`, including the collapsible `Output shelf` lane for generated Make/Build results and whether each lane is collapsed. The Map focus filter can show all objects or focus only output, assets, notes, or history without deleting anything, and the `Find` field narrows large Maps by generated-output title, asset prompt, note text, path, frame label, or status while exporting `spatialWorkspace.objectFilter.searchQuery`. Generated outputs are now labeled as designer-facing output references, frame binding is inferred from generated artifact paths when possible, outputs bound only to deleted frames are hidden, repeated outputs collapse to the latest useful per-frame/per-kind card, the minimap navigator gives orientation plus click-to-pan movement, `Fit map` recovers visible frames/objects after zooming or panning, and `Tidy map` compacts output/history shelves back into readable lanes. Spatial objects can be selected, Shift-click or lasso multi-selected, moved as a selected set, resized individually or as a combined selected set, grouped into a region wrapper, ungrouped without deleting contents, selected from group contents, fit back into a group region, reordered front/back, moved earlier/later inside output/history lanes, renamed/clarified through a lightweight property editor, inspected through per-type details, nudged, duplicated, deleted, group-duplicated with contained Map objects, and exported as the active selected object with layer order and lane order, but Map is not yet a finished infinite canvas with advanced nested object editing.
+- `Free canvas` is a large board preset. `Map` is the first persistent spatial project layer for frame/variant cards, labeled group regions, manual notes, reference file/image cards, asset candidate objects, generated output targets, artifacts, changed files, checkpoint history lane objects, and a compact timeline strip exported through `spatialWorkspace.timeline`, including branch tracks for variant/output-edit lineage, the collapsible `Output shelf` lane for generated Make/Build results, and whether each lane is collapsed. The Map focus filter can show all objects or focus only output, assets, notes, or history without deleting anything, and the `Find` field narrows large Maps by generated-output title, asset prompt, note text, path, frame label, or status while exporting `spatialWorkspace.objectFilter.searchQuery`. Generated outputs are now labeled as designer-facing output references, frame binding is inferred from generated artifact paths when possible, outputs bound only to deleted frames are hidden, repeated outputs collapse to the latest useful per-frame/per-kind card, background flicks can coast with pan momentum, the minimap navigator gives orientation plus click-to-pan movement, `Fit map` recovers visible frames/objects after zooming or panning, and `Tidy map` compacts output/history shelves back into readable lanes. Spatial objects can be selected, Shift-click or lasso multi-selected, moved as a selected set, resized individually or as a combined selected set, grouped into a region wrapper, ungrouped without deleting contents, selected from group contents, fit back into a group region, reordered front/back, moved earlier/later inside output/history lanes, moved earlier/later or drag-positioned inside branch sequences, renamed/clarified through a lightweight property editor, given type-specific detail overrides, inspected through structured per-type sections, nudged, duplicated, deleted, group-duplicated with contained Map objects, and exported as the active selected object with layer order, lane order, branch order, timeline order, group hierarchy path, and an `inspector` contract, but Map is not yet a finished infinite canvas with advanced nested object editing.
 - Preview manifests are normalized before the board reads them: duplicate note paragraphs are collapsed, long note history is capped, and old target/artifact/change arrays are pruned to recent unique entries so generated output context does not overwhelm the designer surface.
 - Pasted/dropped image assets are editable canvas elements. `Reference underlay` remains the explicit path for a non-editable tracing/background image.
 - Native Codex microphone reuse is not available from the local web board; use browser speech recognition, paste Codex/macOS dictation into the note field, or let Codex forward submitted chat transcripts through `./canvax --transcript "..." --scope frame`.
@@ -256,7 +259,7 @@ The browser regression harness validates the board and Preview at the widths des
 
 The smoke check is structural, not a replacement for visual taste review. It verifies that the shell, toolbar, canvas/stage, Preview header, and compare surfaces remain visible and do not collapse at those sizes. The browser regression harness also captures board and Preview PNGs for each viewport and writes an index under `artifacts/canvax/browser-snapshots/latest/`.
 
-The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated preview targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use.
+The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated screen targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use. The same test asserts that the default Workbench brief keeps the fixed rail/composer hidden, while `Focus canvas` makes those controls visible.
 
 `npm run e2e-workflow` is the explicit rough-sketch-to-real-output proof. It creates a synthetic sketch frame with voice, correction marks, image prompt data, and asset candidates, then verifies the no-API build executor, dry-run Codex manifest binding, and rewrite executor as one chain. The proof manifest is written to `artifacts/canvax/e2e-workflow/latest/result.json`.
 
@@ -275,7 +278,9 @@ active role, and Advanced labels its frame stack, frame workspace/flow map, and
 handoff inspector so the density reads as an inspector deck instead of a
 different app. The Advanced command deck is intentionally solid and sticky, so
 canvas/grid content does not visually bleed through the controls while long
-frame or Map pages scroll.
+frame or Map pages scroll. On narrower windows, Advanced collapses into a
+single-column inspector deck instead of preserving the desktop three-rail shell,
+so the mode switch and command controls remain usable.
 
 ### Task, Rewrite, And Image Prompt Packs
 
@@ -686,7 +691,7 @@ Build with Codex is the first real-code bridge.
 
 It writes a task artifact that Codex can execute in the current workspace. The board now also calls the local `execute-build-request` path after saving the request, so designers immediately get a frame-bound preview artifact, implementation starter files, and output manifest without opening a terminal or using a paid API.
 
-That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation. The bundle includes a React-ready `CanvaxScreen.jsx`/`CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, and a `canvax-component-map.json` ownership file so Codex can map sketch element ids to generated selectors and preserve that relationship during the port.
+That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation. The bundle includes a React-ready `CanvaxScreen.jsx`/`CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, and `INTEGRATION.md` so Codex can map sketch element ids to generated selectors, preserve that relationship during the port, and know the no-API boundaries.
 
 Outputs:
 
@@ -698,6 +703,8 @@ Outputs:
 - `implementation/CanvaxScreen.jsx` and `implementation/CanvaxScreen.css` for a portable React handoff
 - `implementation/ViteApp.jsx`, `implementation/NextAppPage.jsx`, and `implementation/FRAMEWORK_ADAPTERS.md` for framework porting
 - `implementation/canvax-component-map.json` for frame-to-code ownership
+- `implementation/canvax-build-contract.json` for machine-readable integration boundaries, adapter paths, and no-API requirements
+- `implementation/INTEGRATION.md` for the human-readable Vite/React/Next porting path
 
 What the request includes:
 
@@ -785,6 +792,8 @@ They also export as `spatialWorkspace.variantBranches` and as `variant-branch` M
 
 Select a variant and use `Use variant` when that branch should become the primary direction. Canvax marks the frame as a primary variant, makes it the entry frame, updates the matching variant Map object, and preserves the lineage metadata for Codex handoff.
 
+In Map, select one or more branch cards from the same source frame and use `Branch earlier` / `Branch later` to reorder that branch sequence without changing unrelated screen order. Dragging a branch card across visible sibling drop targets also updates the branch sequence from Map position. The order is stored in `frame.variant.index`, reflected in the branch timeline track, shown as `Branch n of m` on the card/context, and exported through `spatialWorkspace.variantBranches`.
+
 ```text
 active frame
   -> clone editable sketch
@@ -841,6 +850,8 @@ Each candidate is a prompt-ready asset slot:
 - aspect ratio
 - HTML/CSS slot scaffold
 - output slot for a generated image path later
+- frame-grouped review queue for pending, placed, attached, and accepted state
+- no-API host handoff files and workflow
 
 Every candidate now carries a `placementMap`:
 
@@ -860,6 +871,7 @@ The image generation brief is the copy-ready host handoff. It combines:
 - style-lock summary and continuity rules
 - normalized, pixel, and CSS placement contracts
 - output-slot status for reattaching generated images
+- a `canvax-asset-candidate-review` summary grouped by frame
 - a `hostPrompt` block per candidate for ChatGPT/Codex image-generation hosts
 
 Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
@@ -872,7 +884,7 @@ Workbench now reads the latest candidate pack and renders a compact `Asset candi
 - select the placed image element on its source frame
 - accept an attached generated image as the chosen candidate for that frame or region
 - preserve the candidate id on the image element for later export, materialize, and Codex handoff
-- export a `reviewSummary` with accepted candidate IDs and image element bindings so Codex can identify the chosen visual without reading the tray UI
+- export a `reviewSummary` with grouped pending/placed/attached/accepted queues, accepted candidate IDs, host handoff files, and image element bindings so Codex can identify the chosen visual without reading the tray UI
 - export placement-ready Map object context so a selected image prompt can be copied or read by Codex without coordinate guessing
 
 ```mermaid

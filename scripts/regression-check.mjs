@@ -134,7 +134,10 @@ await validateOptionalJsonSchema(
     Number.isInteger(value?.schemaVersion) &&
     value.schemaVersion >= 1 &&
     Array.isArray(value?.candidates) &&
-    value.candidates.length > 0,
+    value.candidates.length > 0 &&
+    value.reviewSummary?.kind === "canvax-asset-candidate-review" &&
+    Array.isArray(value.reviewSummary.groups) &&
+    value.reviewSummary.hostHandoff?.requiresOpenAiApiKey === false,
   "asset candidates schema is valid",
 );
 await validateOptionalJsonSchema(
@@ -151,7 +154,9 @@ await validateOptionalJsonSchema(
         typeof block.hostPrompt === "string" &&
         block.hostPrompt.length > 0 &&
         block.placementContract?.targetSelector,
-    ),
+    ) &&
+    value.reviewSummary?.kind === "canvax-asset-candidate-review" &&
+    Array.isArray(value.reviewSummary.groups),
   "image generation brief schema is valid",
 );
 await validateOptionalJsonSchema(
@@ -516,10 +521,17 @@ async function validateAssetCandidatesEndpoint() {
           "canvax-asset-placement" &&
         payload.assetCandidatePack.candidates?.[0]?.outputSlots?.[0]
           ?.targetSelector &&
+        payload.assetCandidatePack.reviewSummary?.kind ===
+          "canvax-asset-candidate-review" &&
+        Array.isArray(payload.assetCandidatePack.reviewSummary.groups) &&
+        payload.assetCandidatePack.reviewSummary.hostHandoff
+          ?.requiresOpenAiApiKey === false &&
         payload.imageGenerationBrief?.kind ===
           "canvax-image-generation-brief" &&
         payload.imageGenerationBrief.requiresOpenAiApiKey === false &&
         payload.imageGenerationBrief.copyBlocks?.[0]?.hostPrompt &&
+        payload.imageGenerationBrief.reviewSummary?.kind ===
+          "canvax-asset-candidate-review" &&
         typeof payload.latestImageGenerationBriefJsonPath === "string" &&
         typeof payload.latestJsonPath === "string",
     );

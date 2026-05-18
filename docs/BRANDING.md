@@ -33,7 +33,7 @@ flowchart LR
     Sketch["Sketch stroke"] --> Canvas["Canvas surface"]
     Canvas --> Code["Code brackets"]
     Code --> Codex["Codex handoff"]
-    Codex --> Preview["Generated preview"]
+    Codex --> Preview["Generated screen"]
     Preview --> Sketch
 
     classDef sketch fill:#ffede8,stroke:#ff5d3a,color:#18110e

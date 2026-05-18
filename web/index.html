@@ -104,7 +104,7 @@
             </aside>
 
             <main class="studio">
-                <header class="panel toolbar">
+                <header class="panel toolbar command-deck">
                     <div class="mode-strip">
                         <div>
                             <p class="eyebrow">Workspace mode</p>
@@ -1247,7 +1247,7 @@
                                         id="map-lane-earlier"
                                         class="ghost-button"
                                         type="button"
-                                        title="Move selected output/history cards earlier in their Map lane"
+                                        title="Move selected output/history cards earlier in their Map lane, or selected branch cards earlier in their branch sequence"
                                     >
                                         Lane earlier
                                     </button>
@@ -1255,7 +1255,7 @@
                                         id="map-lane-later"
                                         class="ghost-button"
                                         type="button"
-                                        title="Move selected output/history cards later in their Map lane"
+                                        title="Move selected output/history cards later in their Map lane, or selected branch cards later in their branch sequence"
                                     >
                                         Lane later
                                     </button>
@@ -1338,11 +1338,57 @@
                                         ></textarea>
                                     </label>
                                     <div
+                                        id="map-detail-editor"
+                                        class="map-detail-editor map-property-editor-wide"
+                                        hidden
+                                    >
+                                        <label>
+                                            <span id="map-detail-primary-label">
+                                                Type detail
+                                            </span>
+                                            <input
+                                                id="map-object-detail-primary"
+                                                type="text"
+                                                placeholder="Clarify the selected object's type-specific detail"
+                                            />
+                                        </label>
+                                        <label>
+                                            <span id="map-detail-secondary-label">
+                                                Secondary detail
+                                            </span>
+                                            <input
+                                                id="map-object-detail-secondary"
+                                                type="text"
+                                                placeholder="Optional target, selector, direction, or note"
+                                            />
+                                        </label>
+                                    </div>
+                                    <div
                                         id="map-object-type-details"
                                         class="map-object-type-details"
                                         aria-live="polite"
                                     ></div>
                                 </div>
+                            </div>
+                            <div
+                                id="map-timeline"
+                                class="map-timeline"
+                                hidden
+                            >
+                                <div class="map-timeline-header">
+                                    <div>
+                                        <span>Map timeline</span>
+                                        <strong>Sequence, outputs, and checkpoints</strong>
+                                    </div>
+                                    <small id="map-timeline-summary">
+                                        No timeline items yet
+                                    </small>
+                                </div>
+                                <div
+                                    id="map-timeline-tracks"
+                                    class="map-timeline-tracks"
+                                    aria-label="Map timeline tracks"
+                                ></div>
                             </div>
                             <div id="flow-shell" class="flow-shell">
                                 <button

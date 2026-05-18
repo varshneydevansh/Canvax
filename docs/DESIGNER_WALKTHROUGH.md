@@ -145,10 +145,10 @@ Generated output cards in Map:
 
 ```text
 Frame card                 = an editable sketch/design surface
-Generated preview card     = a local output/reference produced by Make, Build, or Materialize
+Generated screen card      = a local output/reference produced by Make, Build, or Materialize
 Generated file card        = a spec, HTML, prompt, image note, or other output file
 Code change card           = a workspace file changed by Codex
-Output shelf               = the lane that groups generated previews/files/changes
+Output shelf               = the lane that groups generated screens/files/changes
 ```
 
 Those output cards are references, not extra frames. Use `Open output` to inspect one, `Edit as frame` when it should become an editable correction branch, `Pin` when it should stay visible, or `Clear outputs` when stale generated references are crowding the map.

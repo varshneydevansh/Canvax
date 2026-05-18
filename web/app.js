@@ -1,5 +1,5 @@
 const STORAGE_KEY = "canvax-studio-v1";
-const STORAGE_VERSION = 3;
+const STORAGE_VERSION = 4;
 const HANDOFF_SCHEMA_VERSION = 1;
 const FRAME_RENDERER_VERSION = 5;
 const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
@@ -37,6 +37,9 @@ const FLOW_SURFACE_PADDING = 120;
 const FLOW_EDGE_EXPAND_MARGIN = 96;
 const FLOW_EDGE_EXPAND_STEP = 520;
 const FLOW_TRAILING_SPACE = 720;
+const FLOW_PAN_MOMENTUM_DECAY = 0.92;
+const FLOW_PAN_MOMENTUM_STOP = 0.018;
+const FLOW_PAN_MOMENTUM_MIN_VELOCITY = 0.16;
 const SELECTION_HANDLE_SIZE = 14;
 const PREVIEW_WINDOW_NAME = "canvax-preview-window";
 const urlParams = new URLSearchParams(window.location.search);
@@ -378,6 +381,9 @@ const dom = {
   clearSpatialGenerated: document.querySelector("#clear-spatial-generated"),
   toggleOutputLane: document.querySelector("#toggle-output-lane"),
   toggleHistoryLane: document.querySelector("#toggle-history-lane"),
+  mapTimeline: document.querySelector("#map-timeline"),
+  mapTimelineSummary: document.querySelector("#map-timeline-summary"),
+  mapTimelineTracks: document.querySelector("#map-timeline-tracks"),
   spatialFileInput: document.querySelector("#spatial-file-input"),
   mapSelectionActions: document.querySelector("#map-selection-actions"),
   mapSelectedObjectTitle: document.querySelector("#map-selected-object-title"),
@@ -387,6 +393,11 @@ const dom = {
   mapObjectSubtitle: document.querySelector("#map-object-subtitle"),
   mapObjectStatus: document.querySelector("#map-object-status"),
   mapObjectPrompt: document.querySelector("#map-object-prompt"),
+  mapDetailEditor: document.querySelector("#map-detail-editor"),
+  mapDetailPrimaryLabel: document.querySelector("#map-detail-primary-label"),
+  mapDetailSecondaryLabel: document.querySelector("#map-detail-secondary-label"),
+  mapObjectDetailPrimary: document.querySelector("#map-object-detail-primary"),
+  mapObjectDetailSecondary: document.querySelector("#map-object-detail-secondary"),
   mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapMakeEditable: document.querySelector("#map-make-editable"),
@@ -827,6 +838,7 @@ function bindEvents() {
   });
   dom.toggleOutputLane.addEventListener("click", toggleOutputLane);
   dom.toggleHistoryLane.addEventListener("click", toggleHistoryLane);
+  dom.mapTimeline.addEventListener("click", onMapTimelineClick);
   dom.mapCopyObjectContext.addEventListener("click", () => {
     void copySelectedSpatialObjectContext();
   });
@@ -843,10 +855,10 @@ function bindEvents() {
   );
   dom.mapFitGroup.addEventListener("click", fitSelectedSpatialGroupsToContents);
   dom.mapLaneEarlier.addEventListener("click", () =>
-    reorderSelectedSpatialLane("earlier"),
+    reorderSelectedSpatialSequence("earlier"),
   );
   dom.mapLaneLater.addEventListener("click", () =>
-    reorderSelectedSpatialLane("later"),
+    reorderSelectedSpatialSequence("later"),
   );
   dom.mapSendObjectBack.addEventListener("click", sendSelectedSpatialObjectsBack);
   dom.mapBringObjectFront.addEventListener(
@@ -874,6 +886,18 @@ function bindEvents() {
   });
   dom.mapObjectPrompt.addEventListener("change", () => {
     updateSelectedSpatialObjectProperty("prompt", dom.mapObjectPrompt.value);
+  });
+  dom.mapObjectDetailPrimary.addEventListener("change", () => {
+    updateSelectedSpatialObjectDetail(
+      "primary",
+      dom.mapObjectDetailPrimary.value,
+    );
+  });
+  dom.mapObjectDetailSecondary.addEventListener("change", () => {
+    updateSelectedSpatialObjectDetail(
+      "secondary",
+      dom.mapObjectDetailSecondary.value,
+    );
   });
   dom.spatialFileInput.addEventListener("change", () => {
     const file = dom.spatialFileInput.files?.[0];
@@ -1406,8 +1430,12 @@ function hydrateState() {
         ? migrated.workbenchFocus
         : empty.workbenchFocus,
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
-      outputLaneCollapsed: Boolean(migrated.outputLaneCollapsed),
-      historyLaneCollapsed: Boolean(migrated.historyLaneCollapsed),
+      outputLaneCollapsed: Boolean(
+        migrated.outputLaneCollapsed ?? empty.outputLaneCollapsed,
+      ),
+      historyLaneCollapsed: Boolean(
+        migrated.historyLaneCollapsed ?? empty.historyLaneCollapsed,
+      ),
       mapObjectFilter: normalizeMapObjectFilter(migrated.mapObjectFilter),
       mapObjectSearch: normalizeMapSearchQuery(migrated.mapObjectSearch),
       assetCandidatePack: normalizeAssetCandidatePack(
@@ -1458,6 +1486,7 @@ function hydrateState() {
       flowDrag: null,
       flowConnectionDraft: null,
       flowPan: null,
+      flowPanMomentum: null,
       flowLasso: null,
       brushPreview: {
         visible: false,
@@ -1492,10 +1521,19 @@ function migratePersistedSnapshot(snapshot, empty) {
     return snapshot;
   }
 
-  return {
+  const previousVersion = Number.isFinite(snapshot.version) ? snapshot.version : 0;
+  const nextSnapshot = {
     ...snapshot,
     version: STORAGE_VERSION,
   };
+
+  if (previousVersion < 4) {
+    const activeMapFilter = normalizeMapObjectFilter(snapshot.mapObjectFilter);
+    nextSnapshot.outputLaneCollapsed = activeMapFilter !== "outputs";
+    nextSnapshot.historyLaneCollapsed = activeMapFilter !== "history";
+  }
+
+  return nextSnapshot;
 }
 
 function isLegacyBlankStoryboard(snapshot) {
@@ -1731,8 +1769,8 @@ function createInitialState() {
     workspaceMode: "simple",
     workbenchFocus: "sketch",
     workbenchTrayCollapsed: false,
-    outputLaneCollapsed: false,
-    historyLaneCollapsed: false,
+    outputLaneCollapsed: true,
+    historyLaneCollapsed: true,
     mapObjectFilter: "all",
     mapObjectSearch: "",
     assetCandidatePack: null,
@@ -1778,6 +1816,7 @@ function createInitialState() {
     flowDrag: null,
     flowConnectionDraft: null,
     flowPan: null,
+    flowPanMomentum: null,
     flowLasso: null,
     brushPreview: {
       visible: false,
@@ -3093,6 +3132,31 @@ function normalizeSpatialObjects(objects) {
 function normalizeSpatialSourceKind(value) {
   const source = cleanString(value).toLowerCase().replace(/[_\s]+/g, "-");
   if (
+    source.includes("generated-target") ||
+    source.includes("generated-preview") ||
+    source.includes("output-target") ||
+    source.includes("output-preview") ||
+    source.includes("materialized-preview") ||
+    source.includes("implementation-preview")
+  ) {
+    return "generated-target";
+  }
+  if (
+    source.includes("generated-artifact") ||
+    source.includes("generated-file") ||
+    source.includes("output-artifact") ||
+    source.includes("output-file")
+  ) {
+    return "generated-artifact";
+  }
+  if (
+    source.includes("workspace-change") ||
+    source.includes("code-change") ||
+    source.includes("code-update")
+  ) {
+    return "workspace-change";
+  }
+  if (
     [
       "generated-target",
       "generated-preview",
@@ -3621,6 +3685,112 @@ function toggleOutputLane() {
   );
 }
 
+function onMapTimelineClick(event) {
+  const button = event.target.closest("[data-map-timeline-type]");
+  if (!button) {
+    return;
+  }
+  const targetId = button.dataset.mapTimelineId;
+  if (button.dataset.mapTimelineType === "frame") {
+    focusMapTimelineFrame(targetId);
+    return;
+  }
+  if (button.dataset.mapTimelineType === "branch") {
+    focusMapTimelineBranch(targetId);
+    return;
+  }
+  if (button.dataset.mapTimelineType === "object") {
+    focusMapTimelineObject(targetId);
+  }
+}
+
+function focusMapTimelineBranch(frameId) {
+  const frame = frameById(frameId);
+  if (!frame) {
+    renderStatus("Timeline branch is no longer available");
+    return false;
+  }
+  state.activeFrameId = frame.id;
+  state.viewMode = "flow";
+  const object = spatialObjectById(`variant-object-${frame.id}`);
+  if (object) {
+    setSelectedSpatialObjects([object.id], object.id);
+  } else {
+    clearSpatialObjectSelection({ render: false });
+  }
+  persistState();
+  renderFlowBoard();
+  centerFlowOnFrame(frame.id);
+  renderSpec();
+  renderStatus(`Focused ${frame.title} branch in the Map timeline`);
+  return true;
+}
+
+function focusMapTimelineFrame(frameId) {
+  const frame = state.frames.find((candidate) => candidate.id === frameId);
+  if (!frame) {
+    renderStatus("Timeline frame is no longer available");
+    return false;
+  }
+  state.activeFrameId = frame.id;
+  state.viewMode = "flow";
+  clearSpatialObjectSelection({ render: false });
+  persistState();
+  renderFlowBoard();
+  centerFlowOnFrame(frame.id);
+  renderSpec();
+  renderStatus(`Focused ${frame.title} in the Map timeline`);
+  return true;
+}
+
+function focusMapTimelineObject(objectId) {
+  const object = selectSpatialObject(objectId, {
+    render: true,
+    announce: true,
+  });
+  if (!object) {
+    renderStatus("Timeline object is no longer available");
+    return false;
+  }
+  centerFlowOnSpatialObject(object.id);
+  return true;
+}
+
+function centerFlowOnFrame(frameId) {
+  const index = state.frames.findIndex((frame) => frame.id === frameId);
+  const frame = state.frames[index];
+  if (!frame) {
+    return false;
+  }
+  return centerFlowOnRect(flowCardRect(frame, index));
+}
+
+function centerFlowOnSpatialObject(objectId) {
+  const object = spatialObjectById(objectId);
+  if (!object) {
+    return false;
+  }
+  return centerFlowOnRect(spatialObjectRect(object));
+}
+
+function centerFlowOnRect(rect) {
+  if (!dom.flowShell || !rect) {
+    return false;
+  }
+  cancelFlowPanMomentum();
+  const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
+  dom.flowShell.scrollLeft = Math.max(
+    0,
+    (rect.x + rect.width / 2) * zoom - dom.flowShell.clientWidth / 2,
+  );
+  dom.flowShell.scrollTop = Math.max(
+    0,
+    (rect.y + rect.height / 2) * zoom - dom.flowShell.clientHeight / 2,
+  );
+  renderFlowNavigatorViewport();
+  return true;
+}
+
 function normalizeMapObjectFilter(value) {
   const candidate = cleanString(value).toLowerCase();
   return MAP_OBJECT_FILTERS.some((filter) => filter.id === candidate)
@@ -3724,25 +3894,42 @@ function designerManifestTitle(kind, item, index = 0) {
   const source = cleanString(item?.type || item?.kind || item?.source);
   const rawLabel = cleanString(item?.label || item?.title);
   const targetLabel = frameTitle || "Board";
+  const frameScopedTargetLabel = frameTitle || "Generated";
+  const rawLooksMaterialized = /materialized|generated-target/i.test(rawLabel);
 
   if (kind === "target") {
-    if (source === "generated-screen-preview") {
-      return `${targetLabel} output preview`;
+    const fallbackTitle = frameTitle
+      ? `Generated screen for ${frameScopedTargetLabel}`
+      : "Generated screen";
+    if (
+      source === "generated-screen-preview" ||
+      source === "materialized-preview" ||
+      source === "implementation-preview" ||
+      rawLooksMaterialized
+    ) {
+      return fallbackTitle;
     }
-    if (source === "materialized-preview") {
-      return `${targetLabel} output preview`;
-    }
-    return rawLabel || `${targetLabel} output preview`;
+    return rawLabel || fallbackTitle;
   }
 
   if (kind === "artifact") {
+    const fallbackTitle = frameTitle
+      ? `Generated file for ${frameScopedTargetLabel}`
+      : `Generated file ${index + 1}`;
     if (source === "preview") {
-      return `${targetLabel} output file`;
+      return fallbackTitle;
     }
-    return rawLabel || cleanString(item?.path) || `Generated file ${index + 1}`;
+    return rawLooksMaterialized
+      ? fallbackTitle
+      : rawLabel || cleanString(item?.path) || fallbackTitle;
   }
 
-  return rawLabel || `${targetLabel} output`;
+  const fallbackTitle = frameTitle
+    ? `Code change for ${frameScopedTargetLabel}`
+    : `${targetLabel} output`;
+  return rawLooksMaterialized
+    ? fallbackTitle
+    : rawLabel || fallbackTitle;
 }
 
 function inferFrameIdFromManifestPath(item) {
@@ -3883,6 +4070,32 @@ function shiftSpatialMemberOrigins(memberOrigins, deltaX, deltaY) {
       origin.y += deltaY;
     });
   });
+}
+
+function setOriginEntry(map, entry) {
+  if (!entry?.id || map.has(entry.id)) {
+    return;
+  }
+  map.set(entry.id, entry);
+}
+
+function spatialObjectOrigin(object) {
+  return {
+    id: object.id,
+    x: object.x,
+    y: object.y,
+    width: object.width || SPATIAL_OBJECT_WIDTH,
+    height: object.height || SPATIAL_OBJECT_HEIGHT,
+  };
+}
+
+function spatialFrameOrigin(frame) {
+  const position = flowPositionForFrame(frame);
+  return {
+    id: frame.id,
+    x: position.x,
+    y: position.y,
+  };
 }
 
 function currentAssetCandidates() {
@@ -4261,6 +4474,23 @@ function spatialLaneOrderLabel(object) {
   return `${descriptor.label} ${index + 1} of ${objects.length}`;
 }
 
+function spatialBranchOrderLabel(object) {
+  if (normalizeSpatialSourceKind(object?.sourceKind) !== "variant-branch") {
+    return "";
+  }
+  const frame = frameById(object.frameIds?.[0] || object.sourceId);
+  const sourceFrameId = frame?.variant?.sourceFrameId || object.meta?.sourceFrameId;
+  if (!frame || !sourceFrameId) {
+    return "";
+  }
+  const branches = variantBranchFramesForSource(sourceFrameId);
+  const index = branches.findIndex((candidate) => candidate.id === frame.id);
+  if (!branches.length || index < 0) {
+    return "";
+  }
+  return `Branch ${index + 1} of ${branches.length}`;
+}
+
 function canReorderSelectedSpatialObjects(direction) {
   if (hasLockedSpatialObjects()) {
     return false;
@@ -4371,6 +4601,192 @@ function canMoveSelectedLaneObjects(objects, selectedSet, direction) {
       index < objects.length - 1 &&
       !selectedSet.has(objects[index + 1]?.id),
   );
+}
+
+function selectedVariantBranchFrames() {
+  const selectedObjects = selectedSpatialObjects();
+  if (!selectedObjects.length) {
+    return [];
+  }
+  const branchObjects = selectedObjects.filter(
+    (object) => normalizeSpatialSourceKind(object.sourceKind) === "variant-branch",
+  );
+  if (branchObjects.length !== selectedObjects.length) {
+    return [];
+  }
+  return branchObjects
+    .map((object) => frameById(object.frameIds?.[0] || object.sourceId))
+    .filter((frame) => frame?.variant?.sourceFrameId);
+}
+
+function selectedVariantBranchSourceId() {
+  const frames = selectedVariantBranchFrames();
+  if (!frames.length) {
+    return "";
+  }
+  const sourceFrameId = frames[0]?.variant?.sourceFrameId || "";
+  return frames.every((frame) => frame.variant?.sourceFrameId === sourceFrameId)
+    ? sourceFrameId
+    : "";
+}
+
+function variantBranchFramesForSource(sourceFrameId) {
+  return state.frames
+    .filter((frame) => frame.variant?.sourceFrameId === sourceFrameId)
+    .sort(compareVariantBranchFrames);
+}
+
+function compareVariantBranchFrames(a, b) {
+  const orderA = Number.isFinite(Number(a?.variant?.index))
+    ? Number(a.variant.index)
+    : Number.MAX_SAFE_INTEGER;
+  const orderB = Number.isFinite(Number(b?.variant?.index))
+    ? Number(b.variant.index)
+    : Number.MAX_SAFE_INTEGER;
+  if (orderA !== orderB) {
+    return orderA - orderB;
+  }
+  return state.frames.indexOf(a) - state.frames.indexOf(b);
+}
+
+function variantBranchFrameMapPosition(frame) {
+  const object = spatialObjectById(`variant-object-${frame?.id || ""}`);
+  if (object) {
+    return {
+      x: object.x + (object.width || SPATIAL_OBJECT_WIDTH) / 2,
+      y: object.y + (object.height || SPATIAL_OBJECT_HEIGHT) / 2,
+    };
+  }
+  return {
+    x: frame?.flowPosition?.x || 0,
+    y: frame?.flowPosition?.y || 0,
+  };
+}
+
+function compareVariantBranchFramesByMapPosition(a, b) {
+  const pointA = variantBranchFrameMapPosition(a);
+  const pointB = variantBranchFrameMapPosition(b);
+  const rowTolerance = Math.max(80, SPATIAL_OBJECT_HEIGHT * 0.55);
+  if (Math.abs(pointA.y - pointB.y) > rowTolerance) {
+    return pointA.y - pointB.y;
+  }
+  if (pointA.x !== pointB.x) {
+    return pointA.x - pointB.x;
+  }
+  return compareVariantBranchFrames(a, b);
+}
+
+function canReorderSelectedVariantBranches(direction) {
+  if (hasLockedSpatialObjects()) {
+    return false;
+  }
+  const sourceFrameId = selectedVariantBranchSourceId();
+  if (!sourceFrameId) {
+    return false;
+  }
+  const selectedFrameIds = new Set(
+    selectedVariantBranchFrames().map((frame) => frame.id),
+  );
+  return canMoveSelectedLaneObjects(
+    variantBranchFramesForSource(sourceFrameId),
+    selectedFrameIds,
+    direction,
+  );
+}
+
+function reorderSelectedSpatialSequence(direction) {
+  if (selectedVariantBranchFrames().length) {
+    return reorderSelectedVariantBranches(direction);
+  }
+  return reorderSelectedSpatialLane(direction);
+}
+
+function reorderSelectedVariantBranches(direction) {
+  const sourceFrameId = selectedVariantBranchSourceId();
+  if (!sourceFrameId) {
+    renderStatus("Select branch cards from the same source frame to reorder branches");
+    return false;
+  }
+  if (hasLockedSpatialObjects()) {
+    renderLockedSpatialObjectStatus("reorder their branch sequence");
+    return false;
+  }
+  const selectedFrameIds = new Set(
+    selectedVariantBranchFrames().map((frame) => frame.id),
+  );
+  const branchFrames = variantBranchFramesForSource(sourceFrameId);
+  const reordered = moveSelectedLaneObjects(
+    branchFrames,
+    selectedFrameIds,
+    direction,
+  );
+  if (!reordered.changed) {
+    renderStatus(
+      `Selected branches are already at the ${direction === "earlier" ? "start" : "end"} of this branch sequence`,
+    );
+    return false;
+  }
+  reordered.objects.forEach((frame, index) => {
+    frame.variant = {
+      ...frame.variant,
+      index: index + 1,
+      reorderedAt: new Date().toISOString(),
+    };
+  });
+  syncVariantSpatialObjectState(sourceFrameId);
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    `Moved ${selectedFrameIds.size} branch${selectedFrameIds.size === 1 ? "" : "es"} ${direction}`,
+  );
+  return true;
+}
+
+function variantBranchSourceIdForObjectIds(objectIds = []) {
+  const sourceIds = objectIds
+    .map((id) => spatialObjectById(id))
+    .filter(
+      (object) => normalizeSpatialSourceKind(object?.sourceKind) === "variant-branch",
+    )
+    .map((object) => {
+      const frame = frameById(object.frameIds?.[0] || object.sourceId);
+      return frame?.variant?.sourceFrameId || object.meta?.sourceFrameId || "";
+    })
+    .filter(Boolean);
+  if (!sourceIds.length || sourceIds.length !== objectIds.length) {
+    return "";
+  }
+  const first = sourceIds[0];
+  return sourceIds.every((id) => id === first) ? first : "";
+}
+
+function reorderVariantBranchesByMapPosition(sourceFrameId) {
+  if (!sourceFrameId) {
+    return false;
+  }
+  const before = variantBranchFramesForSource(sourceFrameId).map((frame) => frame.id);
+  const ordered = [...variantBranchFramesForSource(sourceFrameId)].sort(
+    compareVariantBranchFramesByMapPosition,
+  );
+  const after = ordered.map((frame) => frame.id);
+  if (
+    before.length !== after.length ||
+    before.every((frameId, index) => frameId === after[index])
+  ) {
+    return false;
+  }
+  const reorderedAt = new Date().toISOString();
+  ordered.forEach((frame, index) => {
+    frame.variant = {
+      ...frame.variant,
+      index: index + 1,
+      reorderedAt,
+    };
+  });
+  syncVariantSpatialObjectState(sourceFrameId);
+  return true;
 }
 
 function isSpatialObjectVisibleInCurrentMap(object) {
@@ -4566,11 +4982,16 @@ function selectedSpatialObjectsForTransform() {
       !selectedGroups.some(
         (group) =>
           group.id !== object.id &&
-          rectContainsRectCenter(
-            spatialObjectRect(group),
-            spatialObjectRect(object),
-          ),
+          spatialGroupDragMemberObjectIds(group).has(object.id),
       ),
+  );
+}
+
+function spatialGroupDragMemberObjectIds(group) {
+  return new Set(
+    (buildSpatialGroupDragMemberOrigins(group).objects || []).map(
+      (origin) => origin.id,
+    ),
   );
 }
 
@@ -4867,6 +5288,9 @@ function applySpatialSelectionResize(originBounds, nextBounds, objectOrigins) {
       SPATIAL_OBJECT_MIN_HEIGHT,
       origin.height * scaleY,
     );
+    if (object.type === "map-group" && origin.memberOrigins) {
+      resizeSpatialGroupMembers(origin.memberOrigins, origin, object);
+    }
   });
 }
 
@@ -5159,6 +5583,7 @@ function buildSpatialObjectContextText(object) {
     `- Frame: ${frameLabel}`,
     `- Layer: ${spatialObjectLayerLabel(object) || "unlayered"}`,
     `- Lane order: ${spatialLaneOrderLabel(object) || "not in a lane"}`,
+    `- Branch order: ${spatialBranchOrderLabel(object) || "not a branch"}`,
     `- Position: ${Math.round(object.x)}, ${Math.round(object.y)}`,
     `- Size: ${Math.round(object.width || SPATIAL_OBJECT_WIDTH)} x ${Math.round(object.height || SPATIAL_OBJECT_HEIGHT)}`,
   ];
@@ -5183,6 +5608,18 @@ function buildSpatialObjectContextText(object) {
   }
   if (noteText && noteText !== promptText) {
     details.push("", "## Note", noteText);
+  }
+  const inspectorOverrides = object.meta?.inspectorOverrides || {};
+  const primaryOverride = cleanString(inspectorOverrides.primary);
+  const secondaryOverride = cleanString(inspectorOverrides.secondary);
+  if (primaryOverride || secondaryOverride) {
+    details.push("", "## Inspector Overrides");
+    if (primaryOverride) {
+      details.push(`- Primary detail: ${primaryOverride}`);
+    }
+    if (secondaryOverride) {
+      details.push(`- Secondary detail: ${secondaryOverride}`);
+    }
   }
   if (object.sourceKind === "asset-candidate" && object.meta?.placementMap) {
     const placement = object.meta.placementMap;
@@ -5313,20 +5750,170 @@ function buildAssetCandidateReviewSummary(candidates = []) {
   const acceptedCandidates = items
     .map(summarizeAcceptedAssetCandidate)
     .filter(Boolean);
+  const groups = buildAssetCandidateReviewGroups(items);
+  const pendingCandidateIds = items
+    .filter((candidate) => assetCandidateEffectiveStatus(candidate) === "prompt-ready")
+    .map((candidate) => candidate.id);
+  const placedCandidateIds = items
+    .filter((candidate) => assetCandidateEffectiveStatus(candidate) === "placed")
+    .map((candidate) => candidate.id);
+  const attachedCandidateIds = items
+    .filter((candidate) => assetCandidateEffectiveStatus(candidate) === "attached")
+    .map((candidate) => candidate.id);
   return {
+    kind: "canvax-asset-candidate-review",
     total: items.length,
     placementReady: items.filter((candidate) => candidate.placementMap).length,
     slotCount: slots.length,
     emptySlots: slots.filter((slot) => !slot.attached && !slot.accepted).length,
-    promptReady: items.filter((candidate) => candidate.status === "prompt-ready")
-      .length,
-    placed: items.filter((candidate) => candidate.status === "placed").length,
-    attached: items.filter((candidate) => candidate.status === "attached")
-      .length,
+    promptReady: pendingCandidateIds.length,
+    placed: placedCandidateIds.length,
+    attached: attachedCandidateIds.length,
     accepted: acceptedCandidates.length,
+    statusCounts: {
+      promptReady: pendingCandidateIds.length,
+      placed: placedCandidateIds.length,
+      attached: attachedCandidateIds.length,
+      accepted: acceptedCandidates.length,
+      emptySlots: slots.filter((slot) => !slot.attached && !slot.accepted).length,
+    },
+    pendingCandidateIds,
+    placedCandidateIds,
+    attachedCandidateIds,
     acceptedCandidateIds: acceptedCandidates.map((candidate) => candidate.id),
     acceptedCandidates,
+    groups,
+    hostHandoff: buildAssetCandidateHostHandoff(),
+    nextActions: buildAssetCandidateReviewNextActions({
+      total: items.length,
+      pending: pendingCandidateIds.length,
+      placed: placedCandidateIds.length,
+      attached: attachedCandidateIds.length,
+      accepted: acceptedCandidates.length,
+    }),
   };
+}
+
+function assetCandidateEffectiveStatus(candidate) {
+  const slots = Array.isArray(candidate?.outputSlots)
+    ? candidate.outputSlots
+    : [];
+  if (slots.some((slot) => slot?.accepted)) {
+    return "accepted";
+  }
+  if (slots.some((slot) => slot?.attached || slot?.imagePath)) {
+    return "attached";
+  }
+  if (slots.some((slot) => slot?.imageElementId)) {
+    return "placed";
+  }
+  return candidate?.status || "prompt-ready";
+}
+
+function buildAssetCandidateReviewGroups(candidates = []) {
+  const groupsByFrame = new Map();
+  candidates.forEach((candidate) => {
+    const frameId = candidate.sourceFrameId || "board";
+    if (!groupsByFrame.has(frameId)) {
+      groupsByFrame.set(frameId, {
+        frameId,
+        frameTitle: candidate.sourceFrameTitle || frameTitleById(frameId) || "Board",
+        total: 0,
+        promptReady: 0,
+        placed: 0,
+        attached: 0,
+        accepted: 0,
+        candidateIds: [],
+        acceptedCandidateIds: [],
+        candidates: [],
+      });
+    }
+    const group = groupsByFrame.get(frameId);
+    const status = assetCandidateEffectiveStatus(candidate);
+    const bucket = assetCandidateReviewBucket(status);
+    group.total += 1;
+    group[bucket] = Number(group[bucket] || 0) + 1;
+    group.candidateIds.push(candidate.id);
+    if (status === "accepted") {
+      group.acceptedCandidateIds.push(candidate.id);
+    }
+    group.candidates.push(summarizeAssetCandidateReviewItem(candidate, status));
+  });
+  return [...groupsByFrame.values()];
+}
+
+function summarizeAssetCandidateReviewItem(candidate, status) {
+  const placement = candidate.placementMap || {};
+  const pixelBounds = placement.pixelBounds || {};
+  const slot = Array.isArray(candidate.outputSlots)
+    ? candidate.outputSlots[0] || null
+    : null;
+  return {
+    id: candidate.id,
+    title: candidate.title || "Asset candidate",
+    type: candidate.type || "region",
+    status,
+    sourceFrameId: candidate.sourceFrameId || "",
+    sourceFrameTitle: candidate.sourceFrameTitle || "",
+    sourceElementId: candidate.sourceElementId || "",
+    placement: candidate.placement || placement.placement || "whole frame",
+    prompt: candidate.prompt || "",
+    slotId: slot?.slotId || placement.slotId || "",
+    targetSelector: slot?.targetSelector || placement.targetSelector || "",
+    pixelBounds: slot?.pixelBounds || pixelBounds || null,
+    cssPlacement: slot?.cssPlacement || placement.cssPlacement || null,
+    imageElementId: slot?.imageElementId || "",
+    imagePath: slot?.imagePath || "",
+    accepted: Boolean(slot?.accepted),
+  };
+}
+
+function assetCandidateReviewBucket(status) {
+  switch (status) {
+    case "accepted":
+      return "accepted";
+    case "attached":
+      return "attached";
+    case "placed":
+      return "placed";
+    default:
+      return "promptReady";
+  }
+}
+
+function buildAssetCandidateHostHandoff() {
+  return {
+    requiresOpenAiApiKey: false,
+    lane: "host-image-generation",
+    copyReadyFiles: [
+      "exports/canvax-image-generation-brief-latest.md",
+      "exports/canvax-image-generation-brief-latest.json",
+      "exports/canvax-asset-candidates-latest.json",
+    ],
+    workflow: [
+      "Copy a candidate block from the image generation brief into the current Codex/ChatGPT image host.",
+      "Generate or edit the image in that host without Canvax calling an API.",
+      "Attach the returned image back to the matching candidate card or workspace path.",
+      "Accept the chosen candidate so Codex can read the selected visual and placement contract.",
+    ],
+  };
+}
+
+function buildAssetCandidateReviewNextActions(counts) {
+  if (!counts.total) {
+    return ["Create an Image pack from a frame with image, avatar, visual, or illustration regions."];
+  }
+  const actions = [];
+  if (counts.pending) {
+    actions.push("Generate pending candidates in the host image lane using the copy-ready brief.");
+  }
+  if (counts.placed || counts.attached) {
+    actions.push("Review attached images on the frame, then accept the strongest candidate.");
+  }
+  if (counts.accepted) {
+    actions.push("Use accepted candidates in Materialize, Build with Codex, or image prompt continuation.");
+  }
+  return actions;
 }
 
 function summarizeAcceptedAssetCandidate(candidate) {
@@ -5376,7 +5963,12 @@ function renderAssetCandidateTray() {
         <p class="eyebrow">Asset candidates</p>
         <strong>${candidates.length} slot${candidates.length === 1 ? "" : "s"} · ${reviewSummary.accepted} accepted</strong>
       </div>
-      <span>No API key required</span>
+      <div class="asset-candidate-review-meter" aria-label="Asset candidate review status">
+        <span>${reviewSummary.promptReady || 0} pending</span>
+        <span>${reviewSummary.attached || 0} attached</span>
+        <span>${reviewSummary.accepted || 0} accepted</span>
+        <b>No API key</b>
+      </div>
     </div>
     <div class="asset-candidate-grid">
       ${candidates
@@ -6241,6 +6833,7 @@ function updateZoom(delta) {
 }
 
 function setFlowZoom(nextZoom) {
+  cancelFlowPanMomentum();
   state.flowZoom = Math.max(
     0.35,
     Math.min(2.25, Number(nextZoom.toFixed(2))),
@@ -6271,6 +6864,7 @@ function flowMapContentBounds() {
 
 function fitFlowMapToContent(options = {}) {
   const { silent = false } = options;
+  cancelFlowPanMomentum();
   const bounds = flowMapContentBounds();
   const shell = dom.flowShell;
   if (!bounds || !shell) {
@@ -6396,6 +6990,7 @@ function onFlowNavigatorPointerDown(event) {
     return;
   }
   event.preventDefault();
+  cancelFlowPanMomentum();
   const layout = computeFlowSurfaceSize();
   const zoom = Number.isFinite(state.flowZoom) ? state.flowZoom : 1;
   const normalizedX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
@@ -7808,13 +8403,14 @@ function renderFlowBoard() {
     .map((object) => renderSpatialObjectNode(object))
     .join("");
   const spatialLaneMarkup = renderSpatialLanesMarkup(spatialLanes);
-  dom.flowBoard.innerHTML = `${spatialLaneMarkup}${spatialGroupMarkup}${frameMarkup}${spatialObjectMarkup}${renderSpatialSelectionBoxMarkup()}${renderFlowLassoMarkup()}`;
+  const branchDropTargetMarkup = renderBranchDropTargetMarkup();
+  dom.flowBoard.innerHTML = `${spatialLaneMarkup}${spatialGroupMarkup}${frameMarkup}${branchDropTargetMarkup}${spatialObjectMarkup}${renderSpatialSelectionBoxMarkup()}${renderFlowLassoMarkup()}`;
 
   dom.flowSvg.innerHTML = buildFlowSvgMarkup(layout.width, layout.height);
   const defaultStatus =
     state.workspaceMode === "simple"
-      ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag background to pan, drag cards/objects into an edge to expand space, Shift-drag empty space to lasso, or pinch/ctrl-wheel to zoom."
-      : "Drag cards to arrange screens. Output preview cards are generated Materialize/Build results, not extra frames; remove stale preview cards with x. Drag cards/objects into an edge to expand space, pan the background, zoom, or pull from the dot on a frame to connect screens.";
+      ? "Spatial map: arrange frames, variants, references, asset candidates, generated outputs, and branches. Drag or flick background to pan, drag cards/objects into an edge to expand space, Shift-drag empty space to lasso, or pinch/ctrl-wheel to zoom."
+      : "Advanced Map: arrange frames plus generated reference cards. Output cards are Materialize/Build results, not extra frames; open, pin, edit as frame, or remove stale cards with x. Drag or flick background to pan, pinch/ctrl-wheel to zoom, or pull from a frame dot to connect screens.";
   const searchSuffix = state.mapObjectSearch
     ? ` Search is filtering Map objects for "${state.mapObjectSearch}".`
     : "";
@@ -7824,6 +8420,7 @@ function renderFlowBoard() {
   renderMapObjectFilterChips();
   renderOutputLaneToggle(spatialLanes);
   renderHistoryLaneToggle(spatialLanes);
+  renderMapTimeline(spatialLanes);
   renderMapSelectionActions();
   renderFlowNavigator(layout);
 }
@@ -7855,14 +8452,14 @@ function renderSpatialLanesMarkup(lanes) {
 
 function renderOutputShelfGuideMarkup() {
   const guideItems = [
-    ["Generated preview", "A Make/Build result attached to a frame."],
+    ["Generated screen", "A Make/Build result attached to a frame."],
     ["Generated file", "A generated spec, HTML, prompt, or asset file."],
     ["Code change", "A workspace file changed by Codex."],
   ];
   return `
     <div class="spatial-lane-guide" aria-hidden="true">
-      <strong>These are generated references, not extra frames.</strong>
-      <span>Open an output, make it editable, pin it near a frame, or clear stale cards after a new direction.</span>
+      <strong>Generated references, not extra frames.</strong>
+      <span>These cards point to outputs Canvax or Codex created. Clearing a card only cleans the Map; it does not delete the generated file.</span>
       <div class="spatial-lane-guide-grid">
         ${guideItems
           .map(
@@ -7876,6 +8473,78 @@ function renderOutputShelfGuideMarkup() {
           .join("")}
       </div>
     </div>
+  `;
+}
+
+function renderMapTimeline(lanes = buildSpatialWorkspaceLanes()) {
+  if (!dom.mapTimeline || !dom.mapTimelineTracks || !dom.mapTimelineSummary) {
+    return;
+  }
+  const timeline = buildSpatialTimeline(state.frames, state.spatialObjects, lanes);
+  const tracks = timeline.tracks.filter((track) => track.items.length);
+  dom.mapTimeline.hidden = state.viewMode !== "flow" || tracks.length === 0;
+  if (dom.mapTimeline.hidden) {
+    dom.mapTimelineTracks.innerHTML = "";
+    dom.mapTimelineSummary.textContent = "No timeline items yet";
+    return;
+  }
+  dom.mapTimelineSummary.textContent =
+    `${timeline.summary.frames} frame${timeline.summary.frames === 1 ? "" : "s"} ` +
+    `• ${timeline.summary.branches} branch${timeline.summary.branches === 1 ? "" : "es"} ` +
+    `• ${timeline.summary.outputs} output${timeline.summary.outputs === 1 ? "" : "s"} ` +
+    `• ${timeline.summary.checkpoints} checkpoint${timeline.summary.checkpoints === 1 ? "" : "s"}`;
+  dom.mapTimelineTracks.innerHTML = tracks
+    .map(
+      (track) => `
+        <section class="map-timeline-track map-timeline-track-${escapeHtml(classToken(track.kind))}">
+          <div class="map-timeline-track-label">
+            <span>${escapeHtml(track.title)}</span>
+            <strong>${track.items.length}</strong>
+          </div>
+          <div class="map-timeline-items">
+            ${track.items
+              .map((item) => renderMapTimelineItem(item))
+              .join("")}
+          </div>
+        </section>
+      `,
+    )
+    .join("");
+}
+
+function renderMapTimelineItem(item) {
+  const type =
+    item.type === "branch" ? "branch" : item.objectId ? "object" : "frame";
+  const targetId =
+    item.type === "branch"
+      ? item.frameId
+      : item.objectId || item.frameId || item.id;
+  const classes = [
+    "map-timeline-item",
+    item.active ? "active" : "",
+    item.selected ? "selected" : "",
+    item.entry ? "entry" : "",
+    item.locked ? "locked" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const flags = [
+    item.entry ? "Entry" : "",
+    item.pinned ? "Pinned" : "",
+    item.locked ? "Locked" : "",
+    item.selected ? "Selected" : "",
+  ].filter(Boolean);
+  return `
+    <button
+      class="${classes}"
+      type="button"
+      data-map-timeline-type="${escapeHtml(type)}"
+      data-map-timeline-id="${escapeHtml(targetId)}"
+      title="${escapeHtml(item.description || item.label)}"
+    >
+      <span>${escapeHtml(item.label)}</span>
+      <small>${escapeHtml(flags.join(" • ") || item.status || item.kindLabel || "")}</small>
+    </button>
   `;
 }
 
@@ -8010,7 +8679,7 @@ function renderSpatialObjectNode(object) {
   const isOutputReference = isManifestSpatialObject(object);
   const badgeMarkup = [
     isOutputReference
-      ? '<span class="spatial-object-reference-badge">Reference</span>'
+      ? '<span class="spatial-object-reference-badge">Output ref</span>'
       : "",
     isPinned ? '<span class="spatial-object-pin-badge">Pinned</span>' : "",
     isLocked ? '<span class="spatial-object-lock-badge">Locked</span>' : "",
@@ -8066,6 +8735,67 @@ function renderSpatialObjectNode(object) {
       ${actionMarkup}
     </article>
   `;
+}
+
+function renderBranchDropTargetMarkup() {
+  const drag = state.flowDrag;
+  if (drag?.kind !== "spatial-selection") {
+    return "";
+  }
+  const sourceFrameId = variantBranchSourceIdForObjectIds(
+    (drag.objectOrigins || []).map((origin) => origin.id),
+  );
+  if (!sourceFrameId) {
+    return "";
+  }
+  const branches = [...variantBranchFramesForSource(sourceFrameId)].sort(
+    compareVariantBranchFramesByMapPosition,
+  );
+  if (branches.length < 2) {
+    return "";
+  }
+  const targets = branches
+    .map((frame, index) => {
+      const object = spatialObjectById(`variant-object-${frame.id}`);
+      if (!object) {
+        return null;
+      }
+      return {
+        id: frame.id,
+        label: `Branch ${index + 1}`,
+        x: Math.max(24, object.x - 18),
+        y: object.y - 8,
+        height: object.height || SPATIAL_OBJECT_HEIGHT,
+      };
+    })
+    .filter(Boolean);
+  const lastFrame = branches.at(-1);
+  const lastObject = lastFrame
+    ? spatialObjectById(`variant-object-${lastFrame.id}`)
+    : null;
+  if (lastObject) {
+    targets.push({
+      id: `${lastFrame.id}-end`,
+      label: "End",
+      x: lastObject.x + (lastObject.width || SPATIAL_OBJECT_WIDTH) + 18,
+      y: lastObject.y - 8,
+      height: lastObject.height || SPATIAL_OBJECT_HEIGHT,
+    });
+  }
+  return targets
+    .map(
+      (target) => `
+        <div
+          class="branch-drop-target"
+          data-branch-drop-target="${escapeHtml(target.id)}"
+          style="left:${target.x}px; top:${target.y}px; height:${target.height + 16}px;"
+          aria-hidden="true"
+        >
+          <span>${escapeHtml(target.label)}</span>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function spatialObjectActionMarkup(object) {
@@ -8327,6 +9057,8 @@ function renderMapSelectionActions() {
   const canMutateSelection = canMutateSpatialObjects(selectedObjects);
   const copyText = buildSpatialSelectionContextText(selectedObjects);
   const canMakeEditable = canCreateEditableFrameFromSelectedOutput();
+  const branchSelection = selectedVariantBranchFrames();
+  const hasBranchSelection = branchSelection.length > 0;
   dom.mapSelectionActions.hidden = !hasSelection;
   dom.mapPropertyEditor.hidden = !hasSelection || selectedObjects.length !== 1;
   dom.mapCopyObjectContext.disabled = !copyText;
@@ -8345,10 +9077,20 @@ function renderMapSelectionActions() {
   dom.mapSelectGroupContents.disabled = selectedGroups.length === 0;
   dom.mapFitGroup.disabled =
     selectedGroups.length === 0 || hasLockedSpatialObjects(selectedGroups);
+  dom.mapLaneEarlier.textContent = hasBranchSelection
+    ? "Branch earlier"
+    : "Lane earlier";
+  dom.mapLaneLater.textContent = hasBranchSelection ? "Branch later" : "Lane later";
   dom.mapLaneEarlier.disabled =
-    hasLockedSelection || !canReorderSelectedSpatialLane("earlier");
+    hasLockedSelection ||
+    !(hasBranchSelection
+      ? canReorderSelectedVariantBranches("earlier")
+      : canReorderSelectedSpatialLane("earlier"));
   dom.mapLaneLater.disabled =
-    hasLockedSelection || !canReorderSelectedSpatialLane("later");
+    hasLockedSelection ||
+    !(hasBranchSelection
+      ? canReorderSelectedVariantBranches("later")
+      : canReorderSelectedSpatialLane("later"));
   dom.mapSendObjectBack.disabled =
     hasLockedSelection || !canReorderSelectedSpatialObjects("back");
   dom.mapBringObjectFront.disabled =
@@ -8363,6 +9105,7 @@ function renderMapSelectionActions() {
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
     dom.mapObjectPrompt.value = "";
+    renderMapDetailEditor(null);
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
     dom.mapMakeEditable.disabled = true;
@@ -8382,6 +9125,7 @@ function renderMapSelectionActions() {
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
     dom.mapObjectPrompt.value = "";
+    renderMapDetailEditor(null);
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
     dom.mapMakeEditable.disabled = true;
@@ -8408,11 +9152,36 @@ function renderMapSelectionActions() {
   dom.mapObjectSubtitle.value = object.subtitle || "";
   dom.mapObjectStatus.value = object.status || "";
   dom.mapObjectPrompt.value = object.meta?.prompt || "";
+  renderMapDetailEditor(object);
   dom.mapObjectTypeDetails.innerHTML = renderMapObjectTypeDetails(object);
+}
+
+function renderMapDetailEditor(object) {
+  if (
+    !dom.mapDetailEditor ||
+    !dom.mapObjectDetailPrimary ||
+    !dom.mapObjectDetailSecondary
+  ) {
+    return;
+  }
+  const schema = selectedMapObjectDetailSchema(object);
+  dom.mapDetailEditor.hidden = !schema;
+  if (!schema) {
+    dom.mapObjectDetailPrimary.value = "";
+    dom.mapObjectDetailSecondary.value = "";
+    return;
+  }
+  dom.mapDetailPrimaryLabel.textContent = schema.primary.label;
+  dom.mapObjectDetailPrimary.placeholder = schema.primary.placeholder;
+  dom.mapObjectDetailPrimary.value = schema.primary.value || "";
+  dom.mapDetailSecondaryLabel.textContent = schema.secondary.label;
+  dom.mapObjectDetailSecondary.placeholder = schema.secondary.placeholder;
+  dom.mapObjectDetailSecondary.value = schema.secondary.value || "";
 }
 
 function renderMapObjectTypeDetails(object) {
   const rows = mapObjectInspectorRows(object);
+  const inspector = buildMapObjectInspectorContract(object);
   if (!rows.length) {
     return "";
   }
@@ -8425,6 +9194,42 @@ function renderMapObjectTypeDetails(object) {
               <span>${escapeHtml(row.label)}</span>
               <strong>${escapeHtml(row.value)}</strong>
             </div>
+          `,
+        )
+        .join("")}
+    </div>
+    ${renderMapObjectInspectorSections(inspector)}
+  `;
+}
+
+function renderMapObjectInspectorSections(inspector) {
+  const sections = Array.isArray(inspector?.sections) ? inspector.sections : [];
+  const visibleSections = sections.filter((section) =>
+    Array.isArray(section.items) && section.items.length,
+  );
+  if (!visibleSections.length) {
+    return "";
+  }
+  return `
+    <div class="map-object-inspector-sections">
+      ${visibleSections
+        .map(
+          (section) => `
+            <section class="map-object-inspector-section">
+              <h4>${escapeHtml(section.title)}</h4>
+              <dl>
+                ${section.items
+                  .map(
+                    (item) => `
+                      <div>
+                        <dt>${escapeHtml(item.label)}</dt>
+                        <dd>${escapeHtml(compactDisplayText(item.value, 140))}</dd>
+                      </div>
+                    `,
+                  )
+                  .join("")}
+              </dl>
+            </section>
           `,
         )
         .join("")}
@@ -8501,6 +9306,10 @@ function mapObjectInspectorRows(object) {
       },
     );
   } else if (object.type === "map-group") {
+    const hierarchy = currentSpatialGroupHierarchyNode(object);
+    if (hierarchy?.pathLabel) {
+      rows.push({ label: "Path", value: hierarchy.pathLabel });
+    }
     rows.push({
       label: "Contains",
       value: spatialGroupMemberSummary(object, { limit: 6 }),
@@ -8523,6 +9332,405 @@ function mapObjectInspectorRows(object) {
       value: compactDisplayText(row.value, 96),
     }))
     .filter((row) => row.label && row.value);
+}
+
+function buildMapObjectInspectorContract(object, spatialGrouping = null) {
+  if (!object) {
+    return null;
+  }
+  const meta = object.meta || {};
+  const sourceKind = normalizeSpatialSourceKind(object.sourceKind);
+  const frameIds = Array.isArray(object.frameIds) ? object.frameIds : [];
+  const placement = meta.placementMap || {};
+  const pixel = placement.pixelBounds || {};
+  const normalized = placement.normalizedBounds || {};
+  const targetPath = cleanString(meta.previewPath || meta.path || meta.url);
+  const addItem = (items, label, value) => {
+    const text =
+      typeof value === "number" && Number.isFinite(value)
+        ? String(value)
+        : cleanString(value);
+    if (text) {
+      items.push({ label, value: text });
+    }
+  };
+  const sections = [];
+  const identity = [];
+  addItem(identity, "Role", mapObjectInspectorRole(object));
+  addItem(identity, "Source kind", sourceKind || object.sourceKind || object.type);
+  addItem(identity, "Source id", object.sourceId || object.id);
+  addItem(identity, "Frame", spatialObjectFrameLabel(object));
+  addItem(identity, "Status", object.status || spatialObjectFooterStatus(object));
+  sections.push({ id: "identity", title: "Identity", items: identity });
+
+  const layout = [];
+  addItem(layout, "Position", `${Math.round(object.x || 0)}, ${Math.round(object.y || 0)}`);
+  addItem(layout, "Size", `${Math.round(object.width || SPATIAL_OBJECT_WIDTH)} x ${Math.round(object.height || SPATIAL_OBJECT_HEIGHT)}`);
+  addItem(layout, "Layer", spatialObjectLayerLabel(object));
+  addItem(layout, "Lane", spatialLaneOrderLabel(object));
+  addItem(layout, "Pinned", isSpatialObjectPinned(object) ? "yes" : "no");
+  addItem(layout, "Locked", isSpatialObjectLocked(object) ? "yes" : "no");
+  sections.push({ id: "layout", title: "Layout", items: layout });
+
+  if (isManifestSpatialObject(object)) {
+    const target = [];
+    addItem(target, "Target", targetPath);
+    addItem(
+      target,
+      "Summary",
+      inspectorOverrideValue(
+        object,
+        "primary",
+        meta.summary || meta.description || object.subtitle,
+      ),
+    );
+    addItem(target, "Revision", meta.revision || meta.refinementIteration);
+    addItem(
+      target,
+      "Output binding",
+      inspectorOverrideValue(
+        object,
+        "secondary",
+        meta.targetNote || meta.outputObjectId || meta.outputTarget || meta.outputHref,
+      ),
+    );
+    sections.push({ id: "target", title: "Generated Screen", items: target });
+  }
+
+  if (object.sourceKind === "asset-candidate" || meta.placementMap) {
+    const asset = [];
+    addItem(asset, "Slot", placement.slotId || object.sourceId || object.id);
+    addItem(
+      asset,
+      "Placement",
+      inspectorOverrideValue(
+        object,
+        "primary",
+        placement.placement || meta.placement || object.subtitle,
+      ),
+    );
+    addItem(asset, "Normalized bounds", Object.keys(normalized).length ? JSON.stringify(normalized) : "");
+    addItem(asset, "Pixel bounds", pixel.width || pixel.height ? `${Math.round(pixel.left || 0)}, ${Math.round(pixel.top || 0)} · ${Math.round(pixel.width || 0)} x ${Math.round(pixel.height || 0)}` : "");
+    addItem(
+      asset,
+      "Target selector",
+      inspectorOverrideValue(
+        object,
+        "secondary",
+        placement.targetSelector || meta.targetSelector,
+      ),
+    );
+    addItem(asset, "Output slots", Array.isArray(meta.outputSlots) ? `${meta.outputSlots.length || 1}` : "");
+    sections.push({ id: "asset", title: "Asset Placement", items: asset });
+  }
+
+  if (object.sourceKind === "variant-branch") {
+    const variantFrame = frameById(frameIds[0]);
+    const variant = [];
+    addItem(
+      variant,
+      "Direction",
+      inspectorOverrideValue(object, "primary", meta.direction || object.subtitle),
+    );
+    addItem(variant, "State", variantFrame?.variant?.primary ? "primary variant" : "editable variant");
+    addItem(variant, "Source frame", variantFrame?.variant?.sourceFrameTitle || frameTitleById(variantFrame?.variant?.sourceFrameId));
+    addItem(
+      variant,
+      "Output target",
+      inspectorOverrideValue(
+        object,
+        "secondary",
+        meta.promotionRule || meta.outputTarget || meta.outputHref,
+      ),
+    );
+    sections.push({ id: "variant", title: "Variant Branch", items: variant });
+  }
+
+  if (object.sourceKind === "checkpoint") {
+    const checkpoint = [];
+    addItem(
+      checkpoint,
+      "Checkpoint note",
+      inspectorOverrideValue(object, "primary", meta.summary || object.subtitle),
+    );
+    addItem(
+      checkpoint,
+      "Resume note",
+      inspectorOverrideValue(object, "secondary", meta.resumeNote),
+    );
+    addItem(checkpoint, "Saved", timeLabel(meta.savedAt) || meta.savedAt);
+    addItem(checkpoint, "Captures", meta.captureCount);
+    addItem(checkpoint, "Voice", meta.voiceSegmentCount);
+    addItem(checkpoint, "Artifacts", meta.artifactCount);
+    addItem(checkpoint, "Changes", meta.changeCount);
+    sections.push({ id: "checkpoint", title: "Checkpoint", items: checkpoint });
+  }
+
+  if (object.type === "map-group") {
+    const groupMembers = spatialGroupMemberDetails(object);
+    const hierarchy =
+      spatialGroupHierarchyNodeForObject(object, spatialGrouping) ||
+      currentSpatialGroupHierarchyNode(object);
+    const group = [];
+    addItem(
+      group,
+      "Group intent",
+      inspectorOverrideValue(object, "primary", meta.text || object.subtitle),
+    );
+    addItem(
+      group,
+      "Contents rule",
+      inspectorOverrideValue(object, "secondary", meta.contentsNote),
+    );
+    addItem(group, "Contains", spatialGroupMemberSummary(object, { limit: 12 }));
+    addItem(group, "Path", hierarchy?.pathLabel);
+    addItem(group, "Parent groups", hierarchy?.parentLabels?.join(", "));
+    addItem(group, "Child groups", hierarchy?.childLabels?.join(", "));
+    addItem(group, "Frames", groupMembers.frames.map((frame) => frame.title).join(", "));
+    addItem(group, "Objects", groupMembers.objects.map((entry) => entry.title).join(", "));
+    addItem(group, "Nested groups", groupMembers.groups.map((entry) => entry.title).join(", "));
+    sections.push({ id: "group", title: "Group Contents", items: group });
+  }
+
+  if (object.sourceKind === "reference-file") {
+    const reference = [];
+    addItem(
+      reference,
+      "Reference role",
+      inspectorOverrideValue(object, "primary", meta.referenceRole || object.subtitle),
+    );
+    addItem(
+      reference,
+      "Usage rule",
+      inspectorOverrideValue(object, "secondary", meta.usageRule),
+    );
+    addItem(reference, "File", meta.fileName || object.title);
+    addItem(reference, "Type", meta.mimeType || object.status);
+    addItem(reference, "Path", meta.path || meta.url);
+    sections.push({ id: "reference", title: "Reference", items: reference });
+  }
+
+  const manual = [];
+  addItem(
+    manual,
+    "Note",
+    inspectorOverrideValue(object, "primary", meta.text || object.subtitle),
+  );
+  addItem(
+    manual,
+    "Codex action",
+    inspectorOverrideValue(object, "secondary", meta.codexAction),
+  );
+  addItem(manual, "Prompt", meta.prompt);
+  addItem(manual, "Manual fields", Object.keys(meta.manualFields || {}).join(", "));
+  sections.push({ id: "manual", title: "Designer Notes", items: manual });
+
+  return {
+    kind: "canvax-map-object-inspector",
+    schemaVersion: 1,
+    objectId: object.id,
+    objectType: object.type,
+    sourceKind: sourceKind || object.sourceKind || "",
+    frameIds,
+    sections: sections.filter((section) => section.items.length),
+  };
+}
+
+function mapObjectInspectorRole(object) {
+  if (!object) {
+    return "";
+  }
+  if (object.type === "map-group") {
+    return "Exploration/reference group";
+  }
+  if (object.sourceKind === "asset-candidate") {
+    return "Prompt-ready image or asset slot";
+  }
+  if (isManifestSpatialObject(object)) {
+    return "Generated implementation/output reference";
+  }
+  if (object.sourceKind === "checkpoint") {
+    return "Saved collaboration checkpoint";
+  }
+  if (object.sourceKind === "variant-branch") {
+    return "Editable generated variant branch";
+  }
+  if (object.sourceKind === "reference-file") {
+    return "Reference file or image";
+  }
+  return "Manual spatial note";
+}
+
+function selectedMapObjectDetailSchema(object) {
+  if (!object) {
+    return null;
+  }
+  const meta = object.meta || {};
+  const overrides = meta.inspectorOverrides || {};
+  const placement = meta.placementMap || {};
+  const sourceKind = normalizeSpatialSourceKind(object.sourceKind);
+  const buildSchema = (primary, secondary) => ({
+    primary: {
+      label: primary.label,
+      placeholder: primary.placeholder || "",
+      value: cleanString(overrides.primary) || cleanString(primary.value),
+    },
+    secondary: {
+      label: secondary.label,
+      placeholder: secondary.placeholder || "",
+      value: cleanString(overrides.secondary) || cleanString(secondary.value),
+    },
+  });
+
+  if (object.type === "map-group") {
+    return buildSchema(
+      {
+        label: "Group intent",
+        value: meta.text || object.subtitle,
+        placeholder: "What exploration, board, or cluster does this group mean?",
+      },
+      {
+        label: "Contents rule",
+        value: meta.contentsNote,
+        placeholder: "How should Codex treat objects inside this group?",
+      },
+    );
+  }
+
+  if (object.sourceKind === "asset-candidate" || meta.placementMap) {
+    return buildSchema(
+      {
+        label: "Placement intent",
+        value: placement.placement || meta.placement || object.subtitle,
+        placeholder: "Hero image, book spread background, product shot, etc.",
+      },
+      {
+        label: "Target selector",
+        value: placement.targetSelector || meta.targetSelector,
+        placeholder: "Optional CSS/data selector for the generated asset slot",
+      },
+    );
+  }
+
+  if (sourceKind === "generated-target" || sourceKind === "generated-artifact") {
+    return buildSchema(
+      {
+        label: "Output summary",
+        value: meta.summary || meta.description || object.subtitle,
+        placeholder: "What is this generated output for?",
+      },
+      {
+        label: "Revision instruction",
+        value: meta.targetNote || meta.outputTarget || meta.outputHref,
+        placeholder: "How should Codex revise or use this generated output?",
+      },
+    );
+  }
+
+  if (sourceKind === "workspace-change") {
+    return buildSchema(
+      {
+        label: "Change summary",
+        value: meta.summary || object.subtitle,
+        placeholder: "What changed in this file?",
+      },
+      {
+        label: "Review note",
+        value: meta.reviewNote,
+        placeholder: "What should Codex verify about this change?",
+      },
+    );
+  }
+
+  if (object.sourceKind === "variant-branch") {
+    return buildSchema(
+      {
+        label: "Variant direction",
+        value: meta.direction || object.subtitle,
+        placeholder: "What visual/product direction does this branch explore?",
+      },
+      {
+        label: "Promotion rule",
+        value: meta.promotionRule || meta.outputTarget,
+        placeholder: "When should this variant become primary?",
+      },
+    );
+  }
+
+  if (object.sourceKind === "checkpoint") {
+    return buildSchema(
+      {
+        label: "Checkpoint note",
+        value: meta.summary || object.subtitle,
+        placeholder: "Why is this saved moment important?",
+      },
+      {
+        label: "Resume from here",
+        value: meta.resumeNote,
+        placeholder: "What should Codex do if work resumes from this checkpoint?",
+      },
+    );
+  }
+
+  if (object.sourceKind === "reference-file") {
+    return buildSchema(
+      {
+        label: "Reference role",
+        value: meta.referenceRole || object.subtitle,
+        placeholder: "Mood, layout reference, character sheet, brand sample...",
+      },
+      {
+        label: "Usage rule",
+        value: meta.usageRule,
+        placeholder: "How should Codex or image generation use this reference?",
+      },
+    );
+  }
+
+  return buildSchema(
+    {
+      label: "Object note",
+      value: meta.text || object.subtitle,
+      placeholder: "What should this note mean on the Map?",
+    },
+    {
+      label: "Codex action",
+      value: meta.codexAction,
+      placeholder: "What should Codex do with this object?",
+    },
+  );
+}
+
+function inspectorOverrideValue(object, key, fallback = "") {
+  return cleanString(object?.meta?.inspectorOverrides?.[key]) || cleanString(fallback);
+}
+
+function updateSelectedSpatialObjectDetail(key, value) {
+  if (!["primary", "secondary"].includes(key)) {
+    return false;
+  }
+  const selectedObjects = selectedSpatialObjects();
+  const object = selectedObjects.length === 1 ? selectedObjects[0] : null;
+  if (!object || !selectedMapObjectDetailSchema(object)) {
+    return false;
+  }
+  object.meta = {
+    ...(object.meta || {}),
+    inspectorOverrides: {
+      ...(object.meta?.inspectorOverrides || {}),
+      [key]: cleanString(value),
+    },
+    manualFields: {
+      ...(object.meta?.manualFields || {}),
+      inspectorOverrides: true,
+    },
+  };
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  void saveExportToWorkspace({ silent: true });
+  renderStatus(`Updated ${key === "primary" ? "primary" : "secondary"} Map detail`);
+  return true;
 }
 
 function updateSelectedSpatialObjectProperty(field, value) {
@@ -8627,7 +9835,7 @@ function spatialObjectFrameLabel(object) {
       return frame.title;
     }
     return isManifestSpatialObject(object)
-      ? "Previous frame output"
+      ? "Unmatched output"
       : "Unknown frame";
   }
   if (object.frameIds?.length) {
@@ -8639,7 +9847,7 @@ function spatialObjectFrameLabel(object) {
 function spatialObjectTitle(object) {
   const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
   if (sourceKind === "generated-target") {
-    return object.title || "Generated preview";
+    return object.title || "Generated screen";
   }
   if (sourceKind === "generated-artifact") {
     return object.title || object.meta?.path || "Generated file";
@@ -8659,7 +9867,7 @@ function spatialObjectTitle(object) {
 function spatialObjectSourceLabel(object) {
   switch (normalizeSpatialSourceKind(object?.sourceKind)) {
     case "generated-target":
-      return "Generated preview";
+      return "Generated screen";
     case "generated-artifact":
       return "Generated file";
     case "workspace-change":
@@ -8683,11 +9891,11 @@ function spatialObjectBodyText(object, frameTitle = "") {
     return object.meta?.summary
       ? object.meta.summary
       : frameTitle &&
-          !["Board object", "Global output", "Previous frame output"].includes(
+          !["Board object", "Global output", "Unmatched output"].includes(
             frameTitle,
           )
-        ? `Generated result for ${frameTitle}. It is a reference card, not another frame. Open it, make it editable, sketch corrections, then Apply to Codex.`
-        : "Generated result from the output manifest. It is a reference card, not another frame; remove it if it belongs to an older iteration.";
+        ? `Generated result for ${frameTitle}. This is a reference card, not another frame; open it, edit as frame, pin it, or clear it when stale.`
+        : "Generated screen from Make, Materialize, Build, or Codex output. This is a reference card, not another frame; open it, edit it as a frame, pin it, or clear it when stale.";
   }
 
   if (sourceKind === "generated-artifact") {
@@ -8759,8 +9967,8 @@ function spatialObjectFooterStatus(object) {
   const sourceKind = normalizeSpatialSourceKind(object?.sourceKind);
   if (sourceKind === "generated-target") {
     return object.status === "materialized-preview"
-      ? "local preview"
-      : "preview reference";
+      ? "local generated screen"
+      : "generated screen";
   }
   if (sourceKind === "generated-artifact") {
     return "output file";
@@ -8769,9 +9977,11 @@ function spatialObjectFooterStatus(object) {
     return "workspace change";
   }
   if (sourceKind === "variant-branch") {
-    return frameById(object.frameIds?.[0])?.variant?.primary
+    const branchLabel = spatialBranchOrderLabel(object);
+    const status = frameById(object.frameIds?.[0])?.variant?.primary
       ? "primary variant"
       : "editable variant";
+    return branchLabel ? `${branchLabel} · ${status}` : status;
   }
   if (sourceKind === "checkpoint") {
     return checkpointReasonLabel(object.status);
@@ -10749,6 +11959,10 @@ function onFlowBoardPointerDown(event) {
         y: object.y,
         width: object.width || SPATIAL_OBJECT_WIDTH,
         height: object.height || SPATIAL_OBJECT_HEIGHT,
+        memberOrigins:
+          object.type === "map-group"
+            ? buildSpatialGroupDragMemberOrigins(object)
+            : null,
       })),
       didMove: false,
     };
@@ -10777,8 +11991,14 @@ function onFlowBoardPointerDown(event) {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
+      originX: object.x,
+      originY: object.y,
       originWidth: object.width || SPATIAL_OBJECT_WIDTH,
       originHeight: object.height || SPATIAL_OBJECT_HEIGHT,
+      memberOrigins:
+        object.type === "map-group"
+          ? buildSpatialGroupDragMemberOrigins(object)
+          : null,
       didMove: false,
     };
     return;
@@ -10865,6 +12085,8 @@ function onFlowShellPointerDown(event) {
     return;
   }
 
+  cancelFlowPanMomentum();
+
   if (event.shiftKey) {
     event.preventDefault();
     const point = pointFromFlowEvent(event);
@@ -10888,6 +12110,11 @@ function onFlowShellPointerDown(event) {
     startY: event.clientY,
     scrollLeft: dom.flowShell.scrollLeft,
     scrollTop: dom.flowShell.scrollTop,
+    lastX: event.clientX,
+    lastY: event.clientY,
+    lastTime: performance.now(),
+    velocityX: 0,
+    velocityY: 0,
   };
   dom.flowShell.classList.add("is-panning");
 }
@@ -10898,6 +12125,7 @@ function onFlowShellWheel(event) {
   }
 
   event.preventDefault();
+  cancelFlowPanMomentum();
   const rect = dom.flowShell.getBoundingClientRect();
   const previousZoom = state.flowZoom;
   const pointerX = event.clientX - rect.left;
@@ -10908,6 +12136,77 @@ function onFlowShellWheel(event) {
   setFlowZoom(previousZoom + delta);
   dom.flowShell.scrollLeft = contentX * state.flowZoom - pointerX;
   dom.flowShell.scrollTop = contentY * state.flowZoom - pointerY;
+}
+
+function prefersReducedMotion() {
+  return Boolean(
+    window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
+  );
+}
+
+function cancelFlowPanMomentum() {
+  if (state.flowPanMomentum?.frameId) {
+    cancelAnimationFrame(state.flowPanMomentum.frameId);
+  }
+  state.flowPanMomentum = null;
+  dom.flowShell?.classList.remove("is-coasting");
+}
+
+function startFlowPanMomentum(pan) {
+  if (!pan || prefersReducedMotion()) {
+    return false;
+  }
+
+  const velocityX = Number(pan.velocityX) || 0;
+  const velocityY = Number(pan.velocityY) || 0;
+  const speed = Math.hypot(velocityX, velocityY);
+  if (speed < FLOW_PAN_MOMENTUM_MIN_VELOCITY) {
+    return false;
+  }
+
+  cancelFlowPanMomentum();
+  state.flowPanMomentum = {
+    velocityX,
+    velocityY,
+    lastTime: performance.now(),
+    frameId: 0,
+  };
+  dom.flowShell?.classList.add("is-coasting");
+  state.flowPanMomentum.frameId = requestAnimationFrame(stepFlowPanMomentum);
+  return true;
+}
+
+function stepFlowPanMomentum(timestamp) {
+  const momentum = state.flowPanMomentum;
+  if (!momentum || state.viewMode !== "flow") {
+    cancelFlowPanMomentum();
+    return;
+  }
+
+  const elapsed = Math.min(48, Math.max(8, timestamp - momentum.lastTime));
+  momentum.lastTime = timestamp;
+  const beforeLeft = dom.flowShell.scrollLeft;
+  const beforeTop = dom.flowShell.scrollTop;
+  dom.flowShell.scrollLeft += momentum.velocityX * elapsed;
+  dom.flowShell.scrollTop += momentum.velocityY * elapsed;
+  const hitHorizontalEdge = dom.flowShell.scrollLeft === beforeLeft;
+  const hitVerticalEdge = dom.flowShell.scrollTop === beforeTop;
+  const decay = Math.pow(FLOW_PAN_MOMENTUM_DECAY, elapsed / 16.67);
+  momentum.velocityX = hitHorizontalEdge ? 0 : momentum.velocityX * decay;
+  momentum.velocityY = hitVerticalEdge ? 0 : momentum.velocityY * decay;
+
+  if (
+    Math.hypot(momentum.velocityX, momentum.velocityY) <
+    FLOW_PAN_MOMENTUM_STOP
+  ) {
+    cancelFlowPanMomentum();
+    renderFlowNavigatorViewport();
+    void saveExportToWorkspace({ silent: true });
+    return;
+  }
+
+  renderFlowNavigatorViewport();
+  momentum.frameId = requestAnimationFrame(stepFlowPanMomentum);
 }
 
 function onWindowPointerMove(event) {
@@ -10938,6 +12237,15 @@ function onWindowPointerMove(event) {
   }
 
   if (state.flowPan && event.pointerId === state.flowPan.pointerId) {
+    const now = performance.now();
+    const elapsed = Math.max(8, now - (state.flowPan.lastTime || now));
+    state.flowPan.velocityX =
+      -(event.clientX - (state.flowPan.lastX ?? event.clientX)) / elapsed;
+    state.flowPan.velocityY =
+      -(event.clientY - (state.flowPan.lastY ?? event.clientY)) / elapsed;
+    state.flowPan.lastX = event.clientX;
+    state.flowPan.lastY = event.clientY;
+    state.flowPan.lastTime = now;
     dom.flowShell.scrollLeft =
       state.flowPan.scrollLeft - (event.clientX - state.flowPan.startX);
     dom.flowShell.scrollTop =
@@ -11005,14 +12313,29 @@ function onWindowPointerMove(event) {
     if (!object || isSpatialObjectLocked(object)) {
       return;
     }
-    object.width = Math.max(
+    const nextWidth = Math.max(
       SPATIAL_OBJECT_MIN_WIDTH,
       state.flowDrag.originWidth + deltaX / state.flowZoom,
     );
-    object.height = Math.max(
+    const nextHeight = Math.max(
       SPATIAL_OBJECT_MIN_HEIGHT,
       state.flowDrag.originHeight + deltaY / state.flowZoom,
     );
+    object.width = nextWidth;
+    object.height = nextHeight;
+    if (object.type === "map-group" && state.flowDrag.memberOrigins) {
+      resizeSpatialGroupMembers(
+        state.flowDrag.memberOrigins,
+        {
+          id: object.id,
+          x: state.flowDrag.originX,
+          y: state.flowDrag.originY,
+          width: state.flowDrag.originWidth,
+          height: state.flowDrag.originHeight,
+        },
+        object,
+      );
+    }
   } else {
     const frame = frameById(state.flowDrag.frameId);
     if (!frame) {
@@ -11038,8 +12361,10 @@ function onWindowPointerUp(event) {
   }
 
   if (state.flowPan && event.pointerId === state.flowPan.pointerId) {
+    const pan = state.flowPan;
     state.flowPan = null;
     dom.flowShell.classList.remove("is-panning");
+    startFlowPanMomentum(pan);
     return;
   }
 
@@ -11092,12 +12417,30 @@ function onWindowPointerUp(event) {
     return;
   }
 
-  const didMove = state.flowDrag.didMove;
+  const completedDrag = state.flowDrag;
+  const didMove = completedDrag.didMove;
+  const branchSourceId =
+    completedDrag.kind === "spatial-selection"
+      ? variantBranchSourceIdForObjectIds(
+          (completedDrag.objectOrigins || []).map((origin) => origin.id),
+        )
+      : "";
+  const branchOrderChanged =
+    didMove && branchSourceId
+      ? reorderVariantBranchesByMapPosition(branchSourceId)
+      : false;
   state.flowDrag = null;
   if (didMove) {
     persistState();
     renderFlowBoard();
-    renderStatus("Flow layout updated");
+    renderSpec();
+    scheduleLivePreviewSync();
+    void saveExportToWorkspace({ silent: true });
+    renderStatus(
+      branchOrderChanged
+        ? "Branch sequence updated from Map position"
+        : "Flow layout updated",
+    );
   }
 }
 
@@ -12140,6 +13483,8 @@ function syncVariantSpatialObjectState(sourceFrameId) {
         ...object.meta,
         primary: Boolean(frame?.variant?.primary),
         promotedAt: frame?.variant?.promotedAt || "",
+        index: Number(frame?.variant?.index) || object.meta?.index || 0,
+        reorderedAt: frame?.variant?.reorderedAt || object.meta?.reorderedAt || "",
       },
     };
   });
@@ -13502,6 +14847,13 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         trailingSpace: FLOW_TRAILING_SPACE,
       },
     },
+    interaction: {
+      pan: "background-drag",
+      panMomentum: true,
+      panMomentumDecay: FLOW_PAN_MOMENTUM_DECAY,
+      zoom: "cursor-centered ctrl/cmd wheel, pinch, buttons, and minimap",
+      lasso: "shift-drag empty map space",
+    },
     viewport: buildSpatialViewportExport(bounds),
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
@@ -13539,6 +14891,8 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     }),
     variantBranches: buildSpatialVariantBranches(frameSelection),
     lanes: buildSpatialWorkspaceLanes(state.spatialObjects),
+    timeline: buildSpatialTimeline(frameSelection, state.spatialObjects),
+    groupHierarchy: spatialGrouping.groupHierarchy,
     groups: spatialGrouping.groups,
     objects: state.spatialObjects.map((object) =>
       buildSpatialWorkspaceObject(object, spatialGrouping),
@@ -13627,7 +14981,7 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
     kind: "output",
     title: "Output shelf",
     description:
-      "Generated preview, file, and code-change cards from Make or Build. These are not extra frames; open, pin, move, or clear them when they become stale.",
+      "Generated reference cards from Make, Materialize, Build, or Codex output manifests. They are not frames; open, pin, edit as frame, or clear stale cards.",
     objects: spatialObjects.filter(isManifestSpatialObject),
     collapsed: Boolean(state.outputLaneCollapsed),
     contextTitle: "Output shelf",
@@ -13645,6 +14999,182 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
   });
 
   return [outputLane, historyLane].filter(Boolean);
+}
+
+function buildSpatialTimeline(
+  frameSelection = state.frames,
+  spatialObjects = state.spatialObjects,
+  lanes = buildSpatialWorkspaceLanes(spatialObjects),
+) {
+  const selectedIds = new Set(currentSelectedSpatialObjectIds());
+  const frameItems = frameSelection.map((frame, index) => {
+    const status = describeFrameOutputStatus(frame, {
+      includeGlobal: frame.id === state.activeFrameId,
+    });
+    return {
+      id: `timeline-frame-${frame.id}`,
+      type: "frame",
+      frameId: frame.id,
+      label: frame.title || `Frame ${index + 1}`,
+      description: status?.label || "Frame sketch",
+      order: index,
+      status: status?.label || "",
+      kindLabel: frame.variant?.label ? "Variant frame" : "Frame",
+      active: frame.id === state.activeFrameId,
+      entry: frame.id === state.entryFrameId,
+      linkedCount: countFrameConnections(frame.id),
+      position: flowPositionForFrame(frame, index),
+    };
+  });
+  const outputItems = sortSpatialLaneObjects(
+    spatialObjects.filter(isManifestSpatialObject),
+  ).map((object, index) => buildSpatialTimelineObjectItem(object, index, selectedIds));
+  const branchItems = buildSpatialVariantBranches(frameSelection).map((branch) =>
+    buildSpatialTimelineBranchItem(branch, selectedIds),
+  );
+  const checkpointItems = sortSpatialLaneObjects(
+    spatialObjects.filter(isCheckpointSpatialObject),
+  ).map((object, index) =>
+    buildSpatialTimelineObjectItem(object, index, selectedIds),
+  );
+  const outputLane = lanes.find((lane) => lane.id === SPATIAL_OUTPUT_LANE_ID);
+  const historyLane = lanes.find((lane) => lane.id === SPATIAL_HISTORY_LANE_ID);
+  const tracks = [
+    {
+      id: "frames",
+      kind: "frames",
+      title: "Frames",
+      description: "Frame and variant sequence.",
+      collapsed: false,
+      items: frameItems,
+    },
+    {
+      id: "branches",
+      kind: "branches",
+      title: "Branches",
+      description:
+        "Variant and output-edit branches with source-frame lineage.",
+      collapsed: false,
+      items: branchItems,
+    },
+    {
+      id: SPATIAL_OUTPUT_LANE_ID,
+      kind: "outputs",
+      title: "Outputs",
+      description:
+        outputLane?.description || "Generated screen/file/code references.",
+      collapsed: Boolean(outputLane?.collapsed),
+      items: outputItems,
+    },
+    {
+      id: SPATIAL_HISTORY_LANE_ID,
+      kind: "history",
+      title: "Checkpoints",
+      description: historyLane?.description || "Saved collaboration moments.",
+      collapsed: Boolean(historyLane?.collapsed),
+      items: checkpointItems,
+    },
+  ];
+  const summary = {
+    frames: frameItems.length,
+    branches: branchItems.length,
+    outputs: outputItems.length,
+    checkpoints: checkpointItems.length,
+    selectedCount: selectedIds.size,
+    collapsedLanes: tracks
+      .filter((track) => track.collapsed)
+      .map((track) => track.id),
+  };
+  return {
+    kind: "canvax-spatial-timeline",
+    schemaVersion: 1,
+    activeFrameId: state.activeFrameId,
+    entryFrameId: state.entryFrameId,
+    selectedObjectIds: [...selectedIds],
+    summary,
+    tracks,
+    contextMarkdown: buildSpatialTimelineContextMarkdown(tracks, summary),
+  };
+}
+
+function buildSpatialTimelineBranchItem(branch, selectedIds = new Set()) {
+  const frame = frameById(branch.frameId);
+  const sourceTitle =
+    branch.sourceFrameTitle || frameTitleById(branch.sourceFrameId) || "Source";
+  const outputBinding = branch.outputBinding || null;
+  return {
+    id: `timeline-branch-${branch.frameId}`,
+    type: "branch",
+    branchId: branch.id,
+    objectId: branch.spatialObjectId || "",
+    frameId: branch.frameId,
+    sourceFrameId: branch.sourceFrameId,
+    label: branch.label || branch.title || "Branch",
+    description: outputBinding
+      ? `Output edit branch from ${sourceTitle} bound to ${outputBinding.target || outputBinding.href || outputBinding.objectId}.`
+      : `Editable variant branch from ${sourceTitle}.`,
+    order: Number.isFinite(branch.index) ? branch.index : 0,
+    status: branch.primary
+      ? "Primary branch"
+      : outputBinding
+        ? "Output edit"
+        : "Variant branch",
+    kindLabel: "Branch",
+    active: branch.frameId === state.activeFrameId,
+    entry: branch.frameId === state.entryFrameId,
+    selected:
+      Boolean(branch.spatialObjectId) && selectedIds.has(branch.spatialObjectId),
+    primary: Boolean(branch.primary),
+    outputBinding,
+    position: branch.position,
+    title: frame?.title || branch.title || "",
+  };
+}
+
+function buildSpatialTimelineObjectItem(object, index, selectedIds = new Set()) {
+  return {
+    id: `timeline-object-${object.id}`,
+    type: object.type,
+    objectId: object.id,
+    frameId: object.frameIds?.[0] || "",
+    label: spatialObjectTitle(object),
+    description: object.subtitle || spatialObjectSourceLabel(object),
+    order: Number.isFinite(object.meta?.laneIndex)
+      ? object.meta.laneIndex
+      : index,
+    laneId: object.meta?.laneId || "",
+    status: spatialObjectFooterStatus(object),
+    kindLabel: spatialObjectSourceLabel(object),
+    selected: selectedIds.has(object.id),
+    pinned: isSpatialObjectPinned(object),
+    locked: isSpatialObjectLocked(object),
+    layerLabel: spatialObjectLayerLabel(object),
+    position: {
+      x: object.x,
+      y: object.y,
+    },
+  };
+}
+
+function buildSpatialTimelineContextMarkdown(tracks, summary) {
+  return [
+    "## Map timeline",
+    "",
+    `Frames: ${summary.frames}`,
+    `Branches: ${summary.branches || 0}`,
+    `Outputs: ${summary.outputs}`,
+    `Checkpoints: ${summary.checkpoints}`,
+    "",
+    ...tracks.flatMap((track) => [
+      `### ${track.title}`,
+      track.items.length
+        ? track.items
+            .map((item) => `- ${item.label} (${item.status || item.kindLabel})`)
+            .join("\n")
+        : "- Empty",
+      "",
+    ]),
+  ].join("\n");
 }
 
 function buildSpatialWorkspaceLane({
@@ -13707,6 +15237,10 @@ function buildSpatialWorkspaceLane({
 }
 
 function buildSpatialWorkspaceObject(object, spatialGrouping) {
+  const groupHierarchy = spatialObjectGroupHierarchyForExport(
+    object,
+    spatialGrouping,
+  );
   return {
     id: object.id,
     type: object.type,
@@ -13723,13 +15257,57 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     laneId: object.meta?.laneId || "",
     frameIds: object.frameIds || [],
     groupIds: spatialGrouping.objectGroupIds.get(object.id) || [],
+    groupHierarchy,
     position: { x: object.x, y: object.y },
     size: {
       width: object.width || SPATIAL_OBJECT_WIDTH,
       height: object.height || SPATIAL_OBJECT_HEIGHT,
     },
+    inspector: buildMapObjectInspectorContract(object, spatialGrouping),
     contextMarkdown: buildSpatialObjectContextText(object),
     meta: object.meta || {},
+  };
+}
+
+function spatialObjectGroupHierarchyForExport(object, spatialGrouping) {
+  if (!object || !spatialGrouping) {
+    return null;
+  }
+  const groupNode = spatialGroupHierarchyNodeForObject(object, spatialGrouping);
+  if (groupNode) {
+    return {
+      parentGroupIds: groupNode.parentGroupIds,
+      childGroupIds: groupNode.childGroupIds,
+      depth: groupNode.depth,
+      pathGroupIds: groupNode.pathGroupIds,
+      pathLabel: groupNode.pathLabel,
+    };
+  }
+
+  const parentGroupIds = normalizeStringArray(
+    spatialGrouping.objectGroupIds?.get(object.id) || [],
+  );
+  if (!parentGroupIds.length) {
+    return null;
+  }
+  const groupNodes = Array.isArray(spatialGrouping.groupHierarchy?.nodes)
+    ? spatialGrouping.groupHierarchy.nodes
+    : [];
+  const groupNodeById = new Map(groupNodes.map((node) => [node.id, node]));
+  const deepestParent = parentGroupIds
+    .map((id) => groupNodeById.get(id))
+    .filter(Boolean)
+    .sort((a, b) => (b.depth || 0) - (a.depth || 0))[0];
+  const pathGroupIds = deepestParent?.pathGroupIds?.length
+    ? deepestParent.pathGroupIds
+    : parentGroupIds;
+  const pathLabel = deepestParent?.pathLabel || parentGroupIds.join(" / ");
+  return {
+    parentGroupIds,
+    childGroupIds: [],
+    depth: deepestParent ? (deepestParent.depth || 0) + 1 : parentGroupIds.length,
+    pathGroupIds,
+    pathLabel,
   };
 }
 
@@ -13762,6 +15340,7 @@ function buildSpatialHandoffContext(frameSelection = state.frames) {
 function buildSpatialVariantBranches(frameSelection) {
   return frameSelection
     .filter((frame) => frame.variant?.sourceFrameId)
+    .sort(compareVariantBranchFrames)
     .map((frame, index) => {
       const connection = state.connections.find(
         (candidate) =>
@@ -13862,12 +15441,119 @@ function computeSpatialGroupMembership(frameSelection, spatialObjects) {
       meta: group.meta || {},
     };
   });
+  const groupHierarchy = buildSpatialGroupHierarchy(
+    exportedGroups,
+    objectGroupIds,
+  );
 
   return {
     groups: exportedGroups,
+    groupHierarchy,
     cardGroupIds,
     objectGroupIds,
   };
+}
+
+function buildSpatialGroupHierarchy(groups = [], objectGroupIds = new Map()) {
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+  const parentGroupIdsById = new Map(
+    groups.map((group) => [
+      group.id,
+      normalizeStringArray(objectGroupIds.get(group.id) || []).filter((id) =>
+        groupById.has(id),
+      ),
+    ]),
+  );
+  const nodes = groups.map((group) => {
+    const parentGroupIds = parentGroupIdsById.get(group.id) || [];
+    const childGroupIds = normalizeStringArray(group.memberGroupIds).filter((id) =>
+      groupById.has(id),
+    );
+    const pathGroupIds = buildSpatialGroupPathIds(
+      group.id,
+      parentGroupIdsById,
+    );
+    const pathLabels = pathGroupIds
+      .map((id) => groupById.get(id)?.title || id)
+      .filter(Boolean);
+    return {
+      id: group.id,
+      title: group.title,
+      parentGroupIds,
+      parentLabels: parentGroupIds
+        .map((id) => groupById.get(id)?.title || id)
+        .filter(Boolean),
+      childGroupIds,
+      childLabels: childGroupIds
+        .map((id) => groupById.get(id)?.title || id)
+        .filter(Boolean),
+      depth: Math.max(0, pathGroupIds.length - 1),
+      pathGroupIds,
+      pathLabels,
+      pathLabel: pathLabels.join(" / "),
+      memberCardIds: group.memberCardIds || [],
+      memberObjectIds: group.memberObjectIds || [],
+    };
+  });
+  const rootGroupIds = nodes
+    .filter((node) => node.parentGroupIds.length === 0)
+    .map((node) => node.id);
+  const maxDepth = nodes.reduce(
+    (depth, node) => Math.max(depth, node.depth || 0),
+    0,
+  );
+  return {
+    schemaVersion: 1,
+    rootGroupIds,
+    maxDepth,
+    nodes,
+    contextMarkdown: buildSpatialGroupHierarchyContextMarkdown(nodes),
+  };
+}
+
+function buildSpatialGroupPathIds(groupId, parentGroupIdsById, seen = new Set()) {
+  if (!groupId || seen.has(groupId)) {
+    return [];
+  }
+  seen.add(groupId);
+  const parentId = (parentGroupIdsById.get(groupId) || [])[0];
+  return parentId
+    ? [...buildSpatialGroupPathIds(parentId, parentGroupIdsById, seen), groupId]
+    : [groupId];
+}
+
+function buildSpatialGroupHierarchyContextMarkdown(nodes = []) {
+  return [
+    "## Group hierarchy",
+    "",
+    ...(nodes.length
+      ? nodes.map((node) => {
+          const indent = "  ".repeat(Math.max(0, node.depth || 0));
+          const childText = node.childLabels.length
+            ? ` -> ${node.childLabels.join(", ")}`
+            : "";
+          return `${indent}- ${node.pathLabel || node.title}${childText}`;
+        })
+      : ["- No groups"]),
+  ].join("\n");
+}
+
+function currentSpatialGroupHierarchyNode(group) {
+  if (!group || group.type !== "map-group") {
+    return null;
+  }
+  const grouping = computeSpatialGroupMembership(state.frames, state.spatialObjects);
+  return spatialGroupHierarchyNodeForObject(group, grouping);
+}
+
+function spatialGroupHierarchyNodeForObject(object, spatialGrouping) {
+  if (!object || object.type !== "map-group") {
+    return null;
+  }
+  return (
+    spatialGrouping?.groupHierarchy?.nodes?.find((node) => node.id === object.id) ||
+    null
+  );
 }
 
 function appendMapArrayValue(map, key, value) {
@@ -13908,28 +15594,47 @@ function flowCardRect(frame, index = 0) {
 }
 
 function buildSpatialGroupDragMemberOrigins(group) {
-  const groupRect = spatialObjectRect(group);
+  const frameOrigins = new Map();
+  const objectOrigins = new Map();
+  collectSpatialGroupMemberOrigins(group, frameOrigins, objectOrigins);
   return {
-    frames: state.frames
-      .filter((frame) => rectContainsRectCenter(groupRect, flowCardRect(frame)))
-      .map((frame) => ({
-        id: frame.id,
-        x: frame.flowPosition.x,
-        y: frame.flowPosition.y,
-      })),
-    objects: state.spatialObjects
-      .filter(
-        (object) =>
-          object.id !== group.id &&
-          !isSpatialObjectLocked(object) &&
-          rectContainsRectCenter(groupRect, spatialObjectRect(object)),
-      )
-      .map((object) => ({
-        id: object.id,
-        x: object.x,
-        y: object.y,
-      })),
+    frames: [...frameOrigins.values()],
+    objects: [...objectOrigins.values()],
   };
+}
+
+function collectSpatialGroupMemberOrigins(
+  group,
+  frameOrigins,
+  objectOrigins,
+  seenGroups = new Set(),
+) {
+  if (!group || group.type !== "map-group" || seenGroups.has(group.id)) {
+    return;
+  }
+  seenGroups.add(group.id);
+  const groupRect = spatialObjectRect(group);
+  state.frames
+    .filter((frame) => rectContainsRectCenter(groupRect, flowCardRect(frame)))
+    .forEach((frame) => setOriginEntry(frameOrigins, spatialFrameOrigin(frame)));
+  state.spatialObjects
+    .filter(
+      (object) =>
+        object.id !== group.id &&
+        !isSpatialObjectLocked(object) &&
+        rectContainsRectCenter(groupRect, spatialObjectRect(object)),
+    )
+    .forEach((object) => {
+      setOriginEntry(objectOrigins, spatialObjectOrigin(object));
+      if (object.type === "map-group") {
+        collectSpatialGroupMemberOrigins(
+          object,
+          frameOrigins,
+          objectOrigins,
+          seenGroups,
+        );
+      }
+    });
 }
 
 function moveSpatialGroupMembers(memberOrigins, deltaX, deltaY) {
@@ -13955,6 +15660,52 @@ function moveSpatialGroupMembers(memberOrigins, deltaX, deltaY) {
     }
     object.x = Math.max(32, origin.x + deltaX);
     object.y = Math.max(32, origin.y + deltaY);
+  });
+}
+
+function resizeSpatialGroupMembers(memberOrigins, originGroup, nextGroup) {
+  if (
+    !memberOrigins ||
+    !originGroup ||
+    !nextGroup ||
+    !originGroup.width ||
+    !originGroup.height
+  ) {
+    return;
+  }
+  const scaleX = (nextGroup.width || originGroup.width) / originGroup.width;
+  const scaleY = (nextGroup.height || originGroup.height) / originGroup.height;
+  const originLeft = originGroup.x;
+  const originTop = originGroup.y;
+  const nextLeft = nextGroup.x;
+  const nextTop = nextGroup.y;
+
+  (memberOrigins.frames || []).forEach((origin) => {
+    const frame = frameById(origin.id);
+    if (!frame) {
+      return;
+    }
+    frame.flowPosition = {
+      x: Math.max(32, nextLeft + (origin.x - originLeft) * scaleX),
+      y: Math.max(32, nextTop + (origin.y - originTop) * scaleY),
+    };
+  });
+
+  (memberOrigins.objects || []).forEach((origin) => {
+    const object = spatialObjectById(origin.id);
+    if (!object || isSpatialObjectLocked(object)) {
+      return;
+    }
+    object.x = Math.max(32, nextLeft + (origin.x - originLeft) * scaleX);
+    object.y = Math.max(32, nextTop + (origin.y - originTop) * scaleY);
+    object.width = Math.max(
+      SPATIAL_OBJECT_MIN_WIDTH,
+      (origin.width || SPATIAL_OBJECT_WIDTH) * scaleX,
+    );
+    object.height = Math.max(
+      SPATIAL_OBJECT_MIN_HEIGHT,
+      (origin.height || SPATIAL_OBJECT_HEIGHT) * scaleY,
+    );
   });
 }
 
@@ -14837,6 +16588,7 @@ function buildAssetCandidatePackMarkdown(pack) {
     "",
     "## Review Summary",
     "",
+    `- Kind: ${reviewSummary.kind || "canvax-asset-candidate-review"}`,
     `- Placement-ready: ${reviewSummary.placementReady || 0}`,
     `- Output slots: ${reviewSummary.slotCount || 0}`,
     `- Empty slots: ${reviewSummary.emptySlots || 0}`,
@@ -14852,6 +16604,20 @@ function buildAssetCandidatePackMarkdown(pack) {
           candidate.imageElementId || "no image element"
         }`,
       );
+    });
+  }
+  if (reviewSummary.groups?.length) {
+    lines.push("", "### Review Groups", "");
+    reviewSummary.groups.forEach((group) => {
+      lines.push(
+        `- ${group.frameTitle || group.frameId}: ${group.total || 0} candidates, ${group.promptReady || 0} pending, ${group.attached || 0} attached, ${group.accepted || 0} accepted`,
+      );
+    });
+  }
+  if (reviewSummary.hostHandoff?.workflow?.length) {
+    lines.push("", "### Host Handoff", "");
+    reviewSummary.hostHandoff.workflow.forEach((step) => {
+      lines.push(`- ${step}`);
     });
   }
   candidates.forEach((candidate, index) => {
@@ -16158,7 +17924,7 @@ function derivePreviewTargetFromArtifacts(manifest, preferredFrameId = "") {
 
   return {
     id: "artifact-preview",
-    label: artifact.label || "Generated preview artifact",
+    label: artifact.label || "Generated screen artifact",
     source: "artifact-manifest",
     type: "implementation-preview",
     url: href,
@@ -16911,13 +18677,56 @@ async function runSelfTest() {
         "Workbench secondary actions are grouped",
       ),
     );
+    const initialDefaults = createInitialState();
+    const migratedDenseMap = migratePersistedSnapshot(
+      {
+        version: 3,
+        frames: initialDefaults.frames,
+        mapObjectFilter: "all",
+        outputLaneCollapsed: false,
+        historyLaneCollapsed: false,
+      },
+      initialDefaults,
+    );
+    const migratedOutputFocus = migratePersistedSnapshot(
+      {
+        version: 3,
+        frames: initialDefaults.frames,
+        mapObjectFilter: "outputs",
+        outputLaneCollapsed: false,
+        historyLaneCollapsed: false,
+      },
+      initialDefaults,
+    );
+    results.push(
+      assert(
+        initialDefaults.outputLaneCollapsed === true &&
+          initialDefaults.historyLaneCollapsed === true &&
+          migratedDenseMap.outputLaneCollapsed === true &&
+          migratedDenseMap.historyLaneCollapsed === true &&
+          migratedOutputFocus.outputLaneCollapsed === false,
+        "Map output/history shelves default to compressed designer focus",
+      ),
+    );
+    const previousWorkspaceMode = state.workspaceMode;
     const previousTrayCollapsed = state.workbenchTrayCollapsed;
     state.workspaceMode = "simple";
+    state.workbenchTrayCollapsed = false;
+    renderWorkspaceMode();
+    results.push(
+      assert(
+        getComputedStyle(dom.workbenchComposer).display === "none" &&
+          getComputedStyle(dom.workbenchRail).display === "none",
+        "Default Workbench keeps focus rail and composer hidden",
+      ),
+    );
     state.workbenchTrayCollapsed = true;
     renderWorkspaceMode();
     results.push(
       assert(
         document.body.dataset.workbenchTray === "collapsed" &&
+          getComputedStyle(dom.workbenchComposer).display !== "none" &&
+          getComputedStyle(dom.workbenchRail).display !== "none" &&
           !dom.workbenchFocusSummary.hidden &&
           dom.workbenchFocusSummary.textContent.includes(currentFrame().title) &&
           dom.workbenchFocusSummary.textContent.includes(
@@ -16926,6 +18735,7 @@ async function runSelfTest() {
         "Collapsed Workbench keeps current frame/action context visible",
       ),
     );
+    state.workspaceMode = previousWorkspaceMode;
     state.workbenchTrayCollapsed = previousTrayCollapsed;
     renderWorkspaceMode();
 
@@ -17472,6 +19282,130 @@ async function runSelfTest() {
             ),
           ),
         "variant branches render and export as editable Map objects",
+      ),
+    );
+    const branchTimelineTrack = variantSpatialExport.timeline?.tracks?.find(
+      (track) => track.id === "branches",
+    );
+    const branchTimelineExported =
+      variantSpatialExport.timeline?.summary?.branches >= 3 &&
+      branchTimelineTrack?.items?.length >= 3 &&
+      variantFrames.every((frame) =>
+        branchTimelineTrack.items.some(
+          (item) =>
+            item.type === "branch" &&
+            item.frameId === frame.id &&
+            item.sourceFrameId === variantSourceId,
+        ),
+      );
+    state.viewMode = "flow";
+    renderFlowBoard();
+    const branchTimelineRendered =
+      dom.mapTimeline?.textContent.includes("Branches") &&
+      variantFrames.every((frame) =>
+        Boolean(
+          dom.mapTimeline.querySelector(
+            `[data-map-timeline-type='branch'][data-map-timeline-id='${frame.id}']`,
+          ),
+        ),
+      );
+    const branchTimelineFocused = focusMapTimelineBranch(variantFrames[0].id);
+    results.push(
+      assert(
+        branchTimelineExported &&
+          branchTimelineRendered &&
+          branchTimelineFocused &&
+          state.activeFrameId === variantFrames[0].id,
+        "variant branches appear in the Map timeline and can focus branch frames",
+      ),
+    );
+    selectSpatialObject(`variant-object-${variantFrames[0].id}`, {
+      render: true,
+      announce: false,
+    });
+    const branchCanMoveLater = canReorderSelectedVariantBranches("later");
+    const branchMovedLater = reorderSelectedSpatialSequence("later");
+    const movedLaterExport = buildSpatialWorkspaceExport();
+    const movedLaterOrder = movedLaterExport.variantBranches.map(
+      (branch) => branch.frameId,
+    );
+    const branchMovedEarlier = reorderSelectedSpatialSequence("earlier");
+    const restoredOrder = buildSpatialWorkspaceExport().variantBranches.map(
+      (branch) => branch.frameId,
+    );
+    results.push(
+      assert(
+        branchCanMoveLater &&
+          branchMovedLater &&
+          branchMovedEarlier &&
+          movedLaterOrder.indexOf(variantFrames[0].id) >
+            movedLaterOrder.indexOf(variantFrames[1].id) &&
+          restoredOrder.indexOf(variantFrames[0].id) <
+            restoredOrder.indexOf(variantFrames[1].id),
+        "variant branch order can move earlier/later and exports through branch sequence",
+      ),
+    );
+    const firstBranchObject = spatialObjectById(
+      `variant-object-${variantFrames[0].id}`,
+    );
+    const secondBranchObject = spatialObjectById(
+      `variant-object-${variantFrames[1].id}`,
+    );
+    if (firstBranchObject && secondBranchObject) {
+      firstBranchObject.x =
+        secondBranchObject.x +
+        (secondBranchObject.width || SPATIAL_OBJECT_WIDTH) +
+        160;
+      firstBranchObject.y = secondBranchObject.y;
+    }
+    const branchDragReordered =
+      reorderVariantBranchesByMapPosition(variantSourceId);
+    const dragReorderExport = buildSpatialWorkspaceExport();
+    const dragReorderOrder = dragReorderExport.variantBranches.map(
+      (branch) => branch.frameId,
+    );
+    const reorderedBranchObject = spatialObjectById(
+      `variant-object-${variantFrames[0].id}`,
+    );
+    results.push(
+      assert(
+        branchDragReordered &&
+          dragReorderOrder.indexOf(variantFrames[0].id) >
+            dragReorderOrder.indexOf(variantFrames[1].id) &&
+          Boolean(reorderedBranchObject) &&
+          spatialObjectFooterStatus(reorderedBranchObject).includes("Branch") &&
+          buildSpatialObjectContextText(reorderedBranchObject).includes(
+            "Branch order",
+          ),
+        "dragged variant branch positions can update exported branch order",
+      ),
+    );
+    state.flowDrag = {
+      kind: "spatial-selection",
+      pointerId: 4242,
+      objectId: `variant-object-${variantFrames[0].id}`,
+      startX: 0,
+      startY: 0,
+      objectOrigins: [
+        {
+          id: `variant-object-${variantFrames[0].id}`,
+          x: reorderedBranchObject?.x || 0,
+          y: reorderedBranchObject?.y || 0,
+        },
+      ],
+      didMove: true,
+    };
+    renderFlowBoard();
+    const branchDropTargetsRendered =
+      dom.flowBoard.querySelectorAll(".branch-drop-target").length >= 3 &&
+      dom.flowBoard.textContent.includes("Branch 1") &&
+      dom.flowBoard.textContent.includes("End");
+    state.flowDrag = null;
+    renderFlowBoard();
+    results.push(
+      assert(
+        branchDropTargetsRendered,
+        "dragging a branch card renders visible branch drop targets",
       ),
     );
     const promoted = promoteVariantFrameFromMap(variantFrames[1].id, {
@@ -18059,7 +19993,7 @@ function assertWorkbenchSpatialMap() {
       id: "spatial-selftest-output",
       type: "generated-output",
       title: "Self-test output object",
-      subtitle: "Generated preview",
+      subtitle: "Generated screen",
       sourceKind: "generated-target",
       sourceId: "target-selftest",
       frameIds: [currentFrame().id],
@@ -18126,6 +20060,11 @@ function assertWorkbenchSpatialMap() {
     (dom.flowShell.scrollLeft !== panStartLeft ||
       dom.flowShell.scrollTop !== panStartTop);
   onWindowPointerUp({ pointerId: 919 });
+  const panMomentumStarted =
+    prefersReducedMotion() ||
+    (Boolean(state.flowPanMomentum) &&
+      dom.flowShell.classList.contains("is-coasting"));
+  cancelFlowPanMomentum();
   const panEnded =
     !state.flowPan && !dom.flowShell.classList.contains("is-panning");
   const objectBeforeEdgeExpand = spatialObjectById("spatial-selftest-asset");
@@ -18149,7 +20088,28 @@ function assertWorkbenchSpatialMap() {
       (object) => object.sourceKind === "asset-candidate",
     ) &&
     spatialExport.surface.edgeExpansion?.enabled === true &&
+    spatialExport.interaction?.panMomentum === true &&
     spatialExport.zoom === state.flowZoom;
+  const timelineExported =
+    spatialExport.timeline?.kind === "canvax-spatial-timeline" &&
+    spatialExport.timeline.summary?.frames === state.frames.length &&
+    spatialExport.timeline.tracks.some(
+      (track) =>
+        track.id === SPATIAL_OUTPUT_LANE_ID &&
+        track.items.some((item) => item.objectId === "spatial-selftest-output"),
+    );
+  const timelineRendered =
+    !dom.mapTimeline.hidden &&
+    dom.mapTimeline.textContent.includes("Map timeline") &&
+    dom.mapTimeline.textContent.includes("Self-test output object");
+  const timelineObjectFocused =
+    focusMapTimelineObject("spatial-selftest-output") &&
+    state.selectedSpatialObjectId === "spatial-selftest-output" &&
+    Boolean(dom.mapTimeline.querySelector(".map-timeline-item.selected"));
+  const timelineFrameFocused =
+    focusMapTimelineFrame(currentFrame().id) &&
+    state.activeFrameId === currentFrame().id &&
+    !state.selectedSpatialObjectId;
   const objectRendered = Boolean(
     dom.flowBoard.querySelector(
       "[data-spatial-object-id='spatial-selftest-asset']",
@@ -18253,9 +20213,14 @@ function assertWorkbenchSpatialMap() {
     zoomChanged,
     wheelZoomChanged,
     panned,
+    panMomentumStarted,
     panEnded,
     edgeExpanded,
     exportValid,
+    timelineExported,
+    timelineRendered,
+    timelineObjectFocused,
+    timelineFrameFocused,
     objectRendered,
     navigatorRendered,
     groupExported,
@@ -18290,6 +20255,7 @@ function assertWorkbenchSpatialMap() {
   state.mapObjectSearch = previous.mapObjectSearch;
   state.outputLaneCollapsed = previous.outputLaneCollapsed;
   state.spatialObjects = previous.spatialObjects;
+  cancelFlowPanMomentum();
   persistState();
   renderAll();
 
@@ -18298,9 +20264,14 @@ function assertWorkbenchSpatialMap() {
       zoomChanged &&
       wheelZoomChanged &&
       panned &&
+      panMomentumStarted &&
       panEnded &&
       edgeExpanded &&
       exportValid &&
+      timelineExported &&
+      timelineRendered &&
+      timelineObjectFocused &&
+      timelineFrameFocused &&
       objectRendered &&
       groupExported &&
       groupedObject &&
@@ -18313,7 +20284,7 @@ function assertWorkbenchSpatialMap() {
       fitMapWorked &&
       navigatorPanned &&
       viewportExported,
-    "Workbench spatial map renders, filters, searches, and exports frames, objects, and group containment",
+    "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, and exports frames, objects, and group containment",
     spatialMapDetail,
   );
 }
@@ -18428,7 +20399,7 @@ function assertSpatialObjectsFromOutputManifest() {
     ...dom.flowBoard.querySelectorAll(".spatial-object-header span"),
   ].map((node) => node.textContent.trim());
   const friendlyLabels =
-    labels.includes("Generated preview") &&
+    labels.includes("Generated screen") &&
     labels.includes("Generated file") &&
     labels.includes("Code change") &&
     !labels.some((label) => label.toLowerCase() === "generated-target");
@@ -18444,7 +20415,7 @@ function assertSpatialObjectsFromOutputManifest() {
     (object) =>
       object.sourceId === "legacy-active-target" &&
       object.frameIds.includes(frameId) &&
-      object.title === `${currentFrame().title} output preview`,
+      object.title === `Generated screen for ${currentFrame().title}`,
   );
   const legacyDeletedTargetHidden = !spatialExport.objects.some(
     (object) => object.sourceId === "legacy-deleted-target",
@@ -18462,8 +20433,8 @@ function assertSpatialObjectsFromOutputManifest() {
     dom.flowBoard.querySelector(".spatial-lane-output .spatial-lane-guide")
       ?.textContent || "";
   const outputGuideRendered =
-    outputGuideText.includes("generated references, not extra frames") &&
-    outputGuideText.includes("Generated preview") &&
+    outputGuideText.includes("Generated references, not extra frames") &&
+    outputGuideText.includes("Generated screen") &&
     outputGuideText.includes("Generated file") &&
     outputGuideText.includes("Code change");
   toggleOutputLane();
@@ -18534,7 +20505,8 @@ function assertSpatialObjectsFromOutputManifest() {
     dom.mapObjectTypeDetails.textContent.includes("Target") &&
     dom.mapObjectTypeDetails.textContent.includes(
       "Self-test preview target",
-    );
+    ) &&
+    dom.mapObjectTypeDetails.textContent.includes("Generated Screen");
   const generatedPrompt = "Use this generated target as the premium hero output";
   const generatedPromptEdited =
     Boolean(generatedTargetObject) &&
@@ -18551,6 +20523,9 @@ function assertSpatialObjectsFromOutputManifest() {
       (entry) =>
         entry.id === generatedTargetObject?.id &&
         entry.prompt === generatedPrompt &&
+        entry.inspector?.sections?.some(
+          (section) => section.id === "target",
+        ) &&
         entry.contextMarkdown.includes(generatedPrompt),
     ) &&
     buildSpatialObjectContextText(resyncedGeneratedTarget).includes(
@@ -18893,6 +20868,23 @@ function assertManualSpatialObjectControls() {
     width: SPATIAL_OBJECT_WIDTH * 2 + 44,
     height: SPATIAL_OBJECT_HEIGHT * 1.55,
   });
+  const nestedGroup = addSpatialObject({
+    type: "map-group",
+    title: "Self-test nested group",
+    subtitle: "Nested group region",
+    sourceKind: "spatial-group",
+    status: "group",
+    width: SPATIAL_OBJECT_WIDTH,
+    height: SPATIAL_OBJECT_HEIGHT,
+  });
+  const nestedChild = addSpatialObject({
+    type: "map-note",
+    title: "Self-test nested child",
+    subtitle: "Nested child outside parent bounds",
+    sourceKind: "manual-note",
+    status: "note",
+    meta: { text: "Nested child should move with ancestor groups" },
+  });
   const outsideObject = addSpatialObject({
     type: "map-note",
     title: "Self-test outside note",
@@ -18903,14 +20895,34 @@ function assertManualSpatialObjectControls() {
   });
   const objectRecord = object ? spatialObjectById(object.id) : null;
   const groupRecord = group ? spatialObjectById(group.id) : null;
+  const nestedGroupRecord = nestedGroup
+    ? spatialObjectById(nestedGroup.id)
+    : null;
+  const nestedChildRecord = nestedChild
+    ? spatialObjectById(nestedChild.id)
+    : null;
   const outsideRecord = outsideObject
     ? spatialObjectById(outsideObject.id)
     : null;
-  if (objectRecord && groupRecord && outsideRecord) {
+  if (
+    objectRecord &&
+    groupRecord &&
+    nestedGroupRecord &&
+    nestedChildRecord &&
+    outsideRecord
+  ) {
     groupRecord.x = 360;
     groupRecord.y = 460;
     groupRecord.width = 520;
     groupRecord.height = 320;
+    nestedGroupRecord.x = 740;
+    nestedGroupRecord.y = 585;
+    nestedGroupRecord.width = 260;
+    nestedGroupRecord.height = 160;
+    nestedChildRecord.x = 910;
+    nestedChildRecord.y = 625;
+    nestedChildRecord.width = 140;
+    nestedChildRecord.height = 90;
     objectRecord.x = 430;
     objectRecord.y = 535;
     outsideRecord.x = 1040;
@@ -18923,6 +20935,8 @@ function assertManualSpatialObjectControls() {
   const added = Boolean(
     object &&
       group &&
+      nestedGroup &&
+      nestedChild &&
       outsideObject &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${object.id}'] [data-spatial-object-remove]`,
@@ -18932,6 +20946,12 @@ function assertManualSpatialObjectControls() {
       ) &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${group.id}'].map-group`,
+      ) &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${nestedGroup.id}'].map-group`,
+      ) &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${nestedChild.id}']`,
       ),
   );
   selectSpatialObject(object?.id, { render: true });
@@ -19001,6 +21021,25 @@ function assertManualSpatialObjectControls() {
           "Use this map note as a Codex refinement instruction",
         ) &&
         entry.contextMarkdown.includes("Manual spatial object property note"),
+    );
+  const detailEdited =
+    updateSelectedSpatialObjectDetail("primary", "Designer-edited map detail") &&
+    updateSelectedSpatialObjectDetail("secondary", "Codex should prioritize this note") &&
+    objectRecord?.meta?.inspectorOverrides?.primary ===
+      "Designer-edited map detail" &&
+    objectRecord?.meta?.inspectorOverrides?.secondary ===
+      "Codex should prioritize this note" &&
+    buildSpatialWorkspaceExport().objects.some(
+      (entry) =>
+        entry.id === object?.id &&
+        entry.inspector?.sections?.some(
+          (section) =>
+            section.id === "manual" &&
+            section.items.some(
+              (item) => item.value === "Designer-edited map detail",
+            ),
+        ) &&
+        entry.contextMarkdown.includes("Designer-edited map detail"),
     );
   const pinned =
     toggleSelectedSpatialObjectPin() &&
@@ -19336,6 +21375,9 @@ function assertManualSpatialObjectControls() {
   const objectBeforeGroupDrag = objectRecord
     ? { x: objectRecord.x, y: objectRecord.y }
     : null;
+  const nestedChildBeforeGroupDrag = nestedChildRecord
+    ? { x: nestedChildRecord.x, y: nestedChildRecord.y }
+    : null;
   const frameBeforeGroupDrag = {
     x: activeFrame.flowPosition.x,
     y: activeFrame.flowPosition.y,
@@ -19364,6 +21406,9 @@ function assertManualSpatialObjectControls() {
     onWindowPointerUp({ pointerId: 928 });
   }
   const objectAfterGroupDrag = object ? spatialObjectById(object.id) : null;
+  const nestedChildAfterGroupDrag = nestedChild
+    ? spatialObjectById(nestedChild.id)
+    : null;
   const groupAfterDrag = group ? spatialObjectById(group.id) : null;
   const groupDragMovedMembers =
     Boolean(groupBeforeDrag && groupAfterDrag && groupAfterDrag.x > groupBeforeDrag.x) &&
@@ -19372,9 +21417,16 @@ function assertManualSpatialObjectControls() {
         objectAfterGroupDrag &&
         objectAfterGroupDrag.x > objectBeforeGroupDrag.x,
     ) &&
+    Boolean(
+      nestedChildBeforeGroupDrag &&
+        nestedChildAfterGroupDrag &&
+        nestedChildAfterGroupDrag.x > nestedChildBeforeGroupDrag.x,
+    ) &&
     activeFrame.flowPosition.x > frameBeforeGroupDrag.x;
   const groupForResize = group ? spatialObjectById(group.id) : null;
   const groupWidthBefore = groupForResize?.width || 0;
+  const nestedChildWidthBeforeGroupResize =
+    nestedChildAfterGroupDrag?.width || 0;
   if (groupForResize) {
     state.flowDrag = {
       kind: "spatial-object-resize",
@@ -19382,24 +21434,67 @@ function assertManualSpatialObjectControls() {
       pointerId: 929,
       startX: 100,
       startY: 100,
+      originX: groupForResize.x,
+      originY: groupForResize.y,
       originWidth: groupForResize.width,
       originHeight: groupForResize.height,
+      memberOrigins: buildSpatialGroupDragMemberOrigins(groupForResize),
       didMove: false,
     };
     onWindowPointerMove({ pointerId: 929, clientX: 170, clientY: 140 });
     onWindowPointerUp({ pointerId: 929 });
   }
   const resizedGroup = group ? spatialObjectById(group.id) : null;
-  const resized = resizedGroup ? resizedGroup.width > groupWidthBefore : false;
+  const nestedChildAfterGroupResize = nestedChild
+    ? spatialObjectById(nestedChild.id)
+    : null;
+  const resized =
+    Boolean(resizedGroup && resizedGroup.width > groupWidthBefore) &&
+    Boolean(
+      nestedChildAfterGroupResize &&
+        nestedChildAfterGroupResize.width > nestedChildWidthBeforeGroupResize,
+    );
   const spatialExport = buildSpatialWorkspaceExport();
   const groupExport = spatialExport.groups.find(
     (entry) => entry.id === group?.id,
   );
+  const groupHierarchyExported =
+    Boolean(
+      nestedGroup &&
+        groupExport?.memberGroupIds.includes(nestedGroup.id) &&
+        spatialExport.groupHierarchy?.nodes?.some(
+          (node) =>
+            node.id === nestedGroup.id &&
+            node.parentGroupIds.includes(group?.id || "") &&
+            node.pathGroupIds.includes(group?.id || "") &&
+            node.pathLabel.includes("Self-test group"),
+        ),
+    ) &&
+    spatialExport.objects.some(
+      (entry) =>
+        entry.id === nestedGroup?.id &&
+        entry.groupHierarchy?.parentGroupIds?.includes(group?.id || ""),
+    ) &&
+    spatialExport.objects.some(
+      (entry) =>
+        entry.id === nestedChild?.id &&
+        entry.groupHierarchy?.parentGroupIds?.includes(
+          nestedGroup?.id || "",
+        ),
+    );
   const selectedObjectExported =
     spatialExport.selectedObjectId === object?.id &&
     spatialExport.selectedObjectIds.includes(object?.id || "") &&
     spatialExport.selectedObject?.id === object?.id &&
     spatialExport.selectedObjects.some((entry) => entry.id === object?.id) &&
+    spatialExport.selectedObject?.inspector?.sections?.some(
+      (section) => section.id === "manual",
+    ) &&
+    spatialExport.selectedObject?.inspector?.sections?.some((section) =>
+      section.items.some(
+        (item) => item.value === "Codex should prioritize this note",
+      ),
+    ) &&
     spatialExport.selectedObject?.contextMarkdown.includes(
       "Manual spatial object property note",
     );
@@ -19439,9 +21534,21 @@ function assertManualSpatialObjectControls() {
   if (outsideObject) {
     removeSpatialObject(outsideObject.id);
   }
+  if (nestedGroup) {
+    removeSpatialObject(nestedGroup.id);
+  }
+  if (nestedChild) {
+    removeSpatialObject(nestedChild.id);
+  }
   const removed = object
     ? !state.spatialObjects.some((entry) =>
-        [object.id, group?.id, outsideObject?.id].includes(entry.id),
+        [
+          object.id,
+          group?.id,
+          nestedGroup?.id,
+          nestedChild?.id,
+          outsideObject?.id,
+        ].includes(entry.id),
       )
     : false;
 
@@ -19461,6 +21568,7 @@ function assertManualSpatialObjectControls() {
       selectedRendered &&
       selectionActionsVisible &&
       propertyEdited &&
+      detailEdited &&
       pinned &&
       locked &&
       lockedNudgeBlocked &&
@@ -19488,6 +21596,7 @@ function assertManualSpatialObjectControls() {
       ungroupedSelection &&
       groupDuplicatedWithMembers &&
       groupDragMovedMembers &&
+      groupHierarchyExported &&
       resized &&
       selectedObjectExported &&
       exported &&
@@ -19498,6 +21607,7 @@ function assertManualSpatialObjectControls() {
       selectedRendered,
       selectionActionsVisible,
       propertyEdited,
+      detailEdited,
       pinned,
       locked,
       lockedNudgeBlocked,
@@ -19528,14 +21638,31 @@ function assertManualSpatialObjectControls() {
       transformBoxRendered,
       groupDuplicatedWithMembers,
       groupDragMovedMembers,
+      groupHierarchyExported,
       resized,
       selectedObjectExported,
       exported,
       removed,
       groupExport,
+      groupHierarchy: spatialExport.groupHierarchy,
       objectBeforeGroupDrag,
       objectAfterGroupDrag: objectAfterGroupDrag
         ? { x: objectAfterGroupDrag.x, y: objectAfterGroupDrag.y }
+        : null,
+      nestedChildBeforeGroupDrag,
+      nestedChildAfterGroupDrag: nestedChildAfterGroupDrag
+        ? {
+            x: nestedChildAfterGroupDrag.x,
+            y: nestedChildAfterGroupDrag.y,
+            width: nestedChildAfterGroupDrag.width,
+          }
+        : null,
+      nestedChildAfterGroupResize: nestedChildAfterGroupResize
+        ? {
+            x: nestedChildAfterGroupResize.x,
+            y: nestedChildAfterGroupResize.y,
+            width: nestedChildAfterGroupResize.width,
+          }
         : null,
       frameBeforeGroupDrag,
       frameAfterGroupDrag: activeFrame.flowPosition,
@@ -19663,6 +21790,9 @@ async function assertAssetCandidateTrayPlacement() {
   const acceptedSlot = acceptedCandidate?.outputSlots?.[0] || null;
   const reviewSummary = state.assetCandidatePack?.reviewSummary || {};
   const acceptedSummary = reviewSummary.acceptedCandidates?.[0] || null;
+  const reviewGroup = reviewSummary.groups?.find(
+    (group) => group.frameId === frame.id,
+  );
   const placementMap = acceptedCandidate?.placementMap || {};
   const bounds = element ? getElementBounds(element, frame) : null;
   const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
@@ -19700,6 +21830,13 @@ async function assertAssetCandidateTrayPlacement() {
     reviewSummary.slotCount === 2 &&
     reviewSummary.attached === 1 &&
     reviewSummary.accepted === 1 &&
+    reviewSummary.kind === "canvax-asset-candidate-review" &&
+    reviewSummary.hostHandoff?.requiresOpenAiApiKey === false &&
+    reviewSummary.hostHandoff?.copyReadyFiles?.includes(
+      "exports/canvax-image-generation-brief-latest.md",
+    ) &&
+    reviewGroup?.total === 2 &&
+    reviewGroup?.acceptedCandidateIds?.includes(candidateId) &&
     reviewSummary.acceptedCandidateIds?.includes(candidateId) &&
     acceptedSummary?.imageElementId === imageElement.id;
 
@@ -19890,6 +22027,7 @@ async function exerciseLargeSessionSelfTest(results) {
     viewMode: state.viewMode,
     flowZoom: state.flowZoom,
     outputLaneCollapsed: state.outputLaneCollapsed,
+    historyLaneCollapsed: state.historyLaneCollapsed,
     spatialObjects: structuredClone(state.spatialObjects),
     hiddenSpatialObjectIds: structuredClone(state.hiddenSpatialObjectIds),
     assetCandidatePack: structuredClone(state.assetCandidatePack),
@@ -19912,6 +22050,7 @@ async function exerciseLargeSessionSelfTest(results) {
     };
     state.assetCandidatePack = fixture.assetCandidatePack;
     state.outputLaneCollapsed = false;
+    state.historyLaneCollapsed = false;
     state.hiddenSpatialObjectIds = [];
     state.serverStatus = {
       ...state.serverStatus,
@@ -20027,6 +22166,7 @@ async function exerciseLargeSessionSelfTest(results) {
     results.push(
       assert(
         generatedLabels.length > 0 &&
+          generatedLabels.includes("generated screen") &&
           generatedLabels.every((label) => label !== "generated-target"),
         "large-session generated output cards use designer-readable labels",
       ),
@@ -20050,6 +22190,7 @@ async function exerciseLargeSessionSelfTest(results) {
     state.viewMode = original.viewMode;
     state.flowZoom = original.flowZoom;
     state.outputLaneCollapsed = original.outputLaneCollapsed;
+    state.historyLaneCollapsed = original.historyLaneCollapsed;
     state.spatialObjects = original.spatialObjects;
     state.hiddenSpatialObjectIds = original.hiddenSpatialObjectIds;
     state.assetCandidatePack = original.assetCandidatePack;
@@ -20229,14 +22370,14 @@ function buildLargeSessionPreviewManifest(frames) {
   return {
     targets: frames.slice(0, 10).map((frame, index) => ({
       id: `large-target-${index + 1}`,
-      label: `${frame.title} generated preview`,
+      label: `${frame.title} generated screen`,
       type: index % 2 === 0 ? "generated-screen-preview" : "materialized-preview",
       source: index % 2 === 0 ? "canvax-generate-screen" : "canvax-materialize",
       previewPath: `artifacts/preview/large-session/${frame.id}/index.html`,
       frameIds: [frame.id],
       sourceFrameId: frame.id,
       sourceFrameUpdatedAt: frame.updatedAt,
-      changeSummary: `Generated preview for ${frame.title}`,
+      changeSummary: `Generated screen for ${frame.title}`,
     })),
     artifacts: frames.slice(0, 8).map((frame, index) => ({
       id: `large-artifact-${index + 1}`,
@@ -20267,7 +22408,7 @@ function buildLargeSessionCheckpointHistory(frames) {
       label: index % 2 === 0 ? "Workbench apply" : "Output update",
       frameId: frame.id,
       frameTitle: frame.title,
-      targetLabel: `${frame.title} generated preview`,
+      targetLabel: `${frame.title} generated screen`,
       voiceSegmentCount: 1 + (index % 3),
       captureCount: frame.captures.length,
       artifactCount: 1 + (index % 2),

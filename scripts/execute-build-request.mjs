@@ -163,6 +163,12 @@ function buildContextPayload(request, previewPath, implementationFiles = []) {
   const frameCodeMap = implementationFiles.find(
     (file) => file.kind === "frame-code-map",
   );
+  const integrationContract = implementationFiles.find(
+    (file) => file.kind === "build-integration-contract",
+  );
+  const integrationGuide = implementationFiles.find(
+    (file) => file.kind === "integration-guide",
+  );
   return {
     kind: "canvax-executed-build-preview",
     createdAt: new Date().toISOString(),
@@ -176,6 +182,20 @@ function buildContextPayload(request, previewPath, implementationFiles = []) {
           path: frameCodeMap.relativePath,
           label: frameCodeMap.label,
           kind: frameCodeMap.kind,
+        }
+      : null,
+    integrationContract: integrationContract
+      ? {
+          path: integrationContract.relativePath,
+          label: integrationContract.label,
+          kind: integrationContract.kind,
+        }
+      : null,
+    integrationGuide: integrationGuide
+      ? {
+          path: integrationGuide.relativePath,
+          label: integrationGuide.label,
+          kind: integrationGuide.kind,
         }
       : null,
     implementationFiles: implementationFiles.map((file) => ({
@@ -247,6 +267,22 @@ function buildImplementationFiles(request, { frameId, frameTitle, outputRoot }) 
         null,
         2,
       )}\n`,
+    },
+    {
+      name: "canvax-build-contract.json",
+      label: `${frameTitle} build integration contract`,
+      kind: "build-integration-contract",
+      content: `${JSON.stringify(
+        buildBuildIntegrationContract(request, { frameId, frameTitle }),
+        null,
+        2,
+      )}\n`,
+    },
+    {
+      name: "INTEGRATION.md",
+      label: `${frameTitle} integration guide`,
+      kind: "integration-guide",
+      content: buildIntegrationGuide(request, { frameId, frameTitle }),
     },
     {
       name: "README.md",
@@ -1115,6 +1151,140 @@ Those bindings let future Canvax correction marks map back to generated code.
 `;
 }
 
+function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
+  const model = buildScreenModel(request);
+  const slug = safeSlug(frameTitle || frameId);
+  return {
+    schemaVersion: 1,
+    kind: "canvax-build-integration-contract",
+    createdAt: new Date().toISOString(),
+    source: "scripts/execute-build-request.mjs",
+    requiresOpenAiApiKey: false,
+    frame: {
+      id: frameId,
+      title: frameTitle,
+      viewport:
+        request.frame?.viewport || (model.width >= 900 ? "desktop" : "mobile"),
+      width: model.width,
+      height: model.height,
+    },
+    sourceRequest: {
+      latestJson: "exports/canvax-build-real-latest.json",
+      latestMarkdown: "exports/canvax-build-real-latest.md",
+      context: "../context.json",
+    },
+    localPreview: {
+      html: "../index.html",
+      standaloneHtml: "index.html",
+      styles: "styles.css",
+      script: "app.js",
+    },
+    frameworkAdapters: {
+      react: {
+        component: "CanvaxScreen.jsx",
+        styles: "CanvaxScreen.css",
+        render: "<CanvaxScreen />",
+      },
+      vite: {
+        adapter: "ViteApp.jsx",
+        suggestedDirectory: `src/canvax/${slug}/`,
+      },
+      nextAppRouter: {
+        adapter: "NextAppPage.jsx",
+        suggestedRoute: `app/canvax/${slug}/page.jsx`,
+        cssNote:
+          "If route-level global CSS imports are restricted, move CanvaxScreen.css to the nearest layout or convert it to a CSS module.",
+      },
+    },
+    ownership: {
+      componentMap: "canvax-component-map.json",
+      preserveSelectors: [
+        `[data-frame-id="${frameId}"]`,
+        "[data-canvax-node-id]",
+        "[data-canvax-node-type]",
+      ],
+      generatedRegionCount: model.elements.length,
+    },
+    codexNextActions: [
+      "Inspect the real project framework before copying files.",
+      "Port CanvaxScreen.jsx and CanvaxScreen.css into the project's real component or route structure.",
+      "Preserve data-canvax-node-id bindings or equivalent source comments so future correction marks can target generated regions.",
+      `Publish the final route or artifact with scripts/write-codex-output.mjs --frame ${frameId}.`,
+      "Do not introduce any OPENAI_API_KEY requirement for this local build handoff.",
+    ],
+    boundaries: {
+      deterministicLocalScaffold: true,
+      productionRouteAlreadyEdited: false,
+      hostImageGenerationRequired: false,
+      paidApiRequired: false,
+    },
+  };
+}
+
+function buildIntegrationGuide(request, { frameId, frameTitle }) {
+  const model = buildScreenModel(request);
+  const slug = safeSlug(frameTitle || frameId);
+  return `# Integration Guide
+
+This guide is generated beside the Canvax implementation starter bundle.
+
+- Frame id: \`${frameId}\`
+- Frame title: ${frameTitle}
+- Requires OpenAI API key: no
+- Contract: \`canvax-build-contract.json\`
+- Ownership map: \`canvax-component-map.json\`
+
+## What This Bundle Is
+
+This is a frame-bound starter surface, not a finished production route. Use it
+to carry the sketch geometry, semantic labels, generated selectors, and visual
+direction into the real app codebase.
+
+## Recommended Codex Port
+
+1. Inspect the host app framework, routing, styling conventions, and existing
+   design system.
+2. Copy or refactor \`CanvaxScreen.jsx\` and \`CanvaxScreen.css\` into the
+   project's real source tree.
+3. Preserve \`data-frame-id="${frameId}"\`, \`data-canvax-node-id\`, and
+   \`data-canvax-node-type\` attributes, or add equivalent source comments.
+4. Use \`canvax-component-map.json\` to map future sketch correction marks back
+   to generated selectors.
+5. Publish the real output back to Canvax with
+   \`scripts/write-codex-output.mjs --frame ${frameId}\`.
+
+## Vite / React Shape
+
+\`\`\`text
+src/canvax/${slug}/CanvaxScreen.jsx
+src/canvax/${slug}/CanvaxScreen.css
+src/canvax/${slug}/ViteApp.jsx
+\`\`\`
+
+Render \`<CanvaxScreen />\` from an existing route or use \`ViteApp.jsx\` while
+prototyping.
+
+## Next.js App Router Shape
+
+\`\`\`text
+app/canvax/${slug}/page.jsx
+app/canvax/${slug}/CanvaxScreen.jsx
+app/canvax/${slug}/CanvaxScreen.css
+\`\`\`
+
+Rename \`NextAppPage.jsx\` to \`page.jsx\`. If the app blocks global CSS imports
+inside pages, move the CSS import to a route layout or convert the styles to a
+CSS module during the production port.
+
+## Current Screen Summary
+
+- Headline: ${model.headline}
+- Subhead: ${compactText(model.subhead, 180)}
+- Primary action: ${model.primaryCta}
+- Generated regions: ${model.elements.length}
+`;
+}
+
 function buildImplementationReadme(request, { frameId, frameTitle }) {
   const model = buildScreenModel(request);
   return `# ${frameTitle} Implementation Artifact
@@ -1136,6 +1306,8 @@ This folder was generated by \`scripts/execute-build-request.mjs\` from the late
 - \`ViteApp.jsx\`: minimal Vite/React app wrapper
 - \`NextAppPage.jsx\`: minimal Next.js App Router page wrapper
 - \`FRAMEWORK_ADAPTERS.md\`: adapter copy/porting notes for Codex
+- \`canvax-build-contract.json\`: machine-readable porting and binding contract
+- \`INTEGRATION.md\`: human-readable real-app integration guide
 
 ## Intent
 
@@ -1510,6 +1682,14 @@ function buildFrameCodeMap(request, { frameId, frameTitle }) {
         {
           path: "implementation/canvax-component-map.json",
           role: "frame-to-code ownership and source-element mapping",
+        },
+        {
+          path: "implementation/canvax-build-contract.json",
+          role: "machine-readable integration and no-API boundary contract",
+        },
+        {
+          path: "implementation/INTEGRATION.md",
+          role: "human-readable framework porting guide",
         },
         {
           path: "implementation/README.md",

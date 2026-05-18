@@ -60,7 +60,10 @@ record(
   "image prompt and asset packs stay no-API",
   imagePromptPack.requiresOpenAiApiKey === false &&
     assetCandidates.requiresOpenAiApiKey === false &&
-    assetCandidates.candidates.length === 2,
+    assetCandidates.candidates.length === 2 &&
+    assetCandidates.reviewSummary?.kind ===
+      "canvax-asset-candidate-review" &&
+    assetCandidates.reviewSummary.hostHandoff?.requiresOpenAiApiKey === false,
 );
 record(
   "asset candidates include placement contracts and output slots",
@@ -176,6 +179,12 @@ const viteAdapterFile = buildResult.implementationFiles.find(
 const adapterDocsFile = buildResult.implementationFiles.find(
   (file) => file.kind === "framework-adapter-docs",
 );
+const buildContractFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "build-integration-contract",
+);
+const integrationGuideFile = buildResult.implementationFiles.find(
+  (file) => file.kind === "integration-guide",
+);
 if (nextAdapterFile?.path && viteAdapterFile?.path && adapterDocsFile?.path) {
   await assertReadableProjectFile(nextAdapterFile.path);
   await assertReadableProjectFile(viteAdapterFile.path);
@@ -191,6 +200,32 @@ if (nextAdapterFile?.path && viteAdapterFile?.path && adapterDocsFile?.path) {
       rawViteAdapter.includes("export default function App") &&
       rawAdapterDocs.includes("Next.js App Router") &&
       rawAdapterDocs.includes("data-canvax-node-id"),
+  );
+}
+if (buildContractFile?.path && integrationGuideFile?.path) {
+  await assertReadableProjectFile(buildContractFile.path);
+  await assertReadableProjectFile(integrationGuideFile.path);
+  const [rawBuildContract, rawIntegrationGuide] = await Promise.all([
+    readFile(resolve(projectRoot, buildContractFile.path), "utf8"),
+    readFile(resolve(projectRoot, integrationGuideFile.path), "utf8"),
+  ]);
+  const parsedBuildContract = JSON.parse(rawBuildContract);
+  record(
+    "build executor creates integration contract and guide",
+    parsedBuildContract.kind === "canvax-build-integration-contract" &&
+      parsedBuildContract.requiresOpenAiApiKey === false &&
+      parsedBuildContract.frame?.id === frameId &&
+      parsedBuildContract.frameworkAdapters?.react?.component ===
+        "CanvaxScreen.jsx" &&
+      parsedBuildContract.frameworkAdapters?.nextAppRouter?.adapter ===
+        "NextAppPage.jsx" &&
+      parsedBuildContract.ownership?.componentMap ===
+        "canvax-component-map.json" &&
+      parsedBuildContract.codexNextActions?.some((action) =>
+        action.includes("write-codex-output.mjs"),
+      ) &&
+      rawIntegrationGuide.includes("Recommended Codex Port") &&
+      rawIntegrationGuide.includes("Requires OpenAI API key: no"),
   );
 }
 
@@ -212,6 +247,18 @@ const buildManifestDryRun = await executeJson("node", [
         `${buildFrameCodeMap.path}::E2E frame-to-code map::${frameId}`,
       ]
     : []),
+  ...(buildContractFile?.path
+    ? [
+        "--artifact",
+        `${buildContractFile.path}::E2E build integration contract::${frameId}`,
+      ]
+    : []),
+  ...(integrationGuideFile?.path
+    ? [
+        "--artifact",
+        `${integrationGuideFile.path}::E2E integration guide::${frameId}`,
+      ]
+    : []),
   "--dry-run",
   "--json",
 ]);
@@ -223,6 +270,9 @@ record(
       buildResult.previewPath &&
     buildManifestDryRun.manifest?.artifacts?.some((artifact) =>
       artifact.path?.endsWith("/implementation/canvax-component-map.json"),
+    ) &&
+    buildManifestDryRun.manifest?.artifacts?.some((artifact) =>
+      artifact.path?.endsWith("/implementation/canvax-build-contract.json"),
     ),
 );
 
@@ -329,7 +379,7 @@ function buildFrame() {
     element("label", "headline", "Make sketching feel like building", 0.1, 0.2, 0.34, 0.13, "#ff5d3a"),
     element("rect", "copy-block", "Left copy block", 0.09, 0.34, 0.36, 0.22, "#ff5d3a"),
     element("rect", "primary-cta", "Primary CTA", 0.1, 0.6, 0.16, 0.07, "#0c8d7b"),
-    element("rect", "preview-panel", "Generated preview area", 0.56, 0.18, 0.32, 0.45, "#2364aa"),
+    element("rect", "preview-panel", "Generated screen area", 0.56, 0.18, 0.32, 0.45, "#2364aa"),
     element("arrow", "shift-arrow", "Move CTA closer to headline", 0.18, 0.72, 0.18, 0.08, "#ff5d3a"),
     element("image", "asset-slot", "Book illustration candidate slot", 0.58, 0.68, 0.22, 0.14, "#f0a202"),
   ];
@@ -346,7 +396,7 @@ function buildFrame() {
     objective:
       "Build a polished hero section from rough geometry, labels, and voice.",
     layout:
-      "Left headline and CTA, right generated preview panel, asset slot for future image generation.",
+      "Left headline and CTA, right generated screen panel, asset slot for future image generation.",
     motion:
       "Correction arrow means move the CTA closer to the headline and refresh output.",
     assets:
@@ -449,7 +499,94 @@ function buildAssetCandidatePack(board, frame) {
     createdAt: now(),
     requiresOpenAiApiKey: false,
     board,
+    reviewSummary: buildAssetCandidateReviewSummary(candidates),
     candidates,
+  };
+}
+
+function buildAssetCandidateReviewSummary(candidates) {
+  const slots = candidates.flatMap((candidate) => candidate.outputSlots || []);
+  const groups = [
+    {
+      frameId: candidates[0]?.sourceFrameId || "",
+      frameTitle: candidates[0]?.sourceFrameTitle || "",
+      total: candidates.length,
+      promptReady: candidates.length,
+      placed: 0,
+      attached: 0,
+      accepted: 0,
+      candidateIds: candidates.map((candidate) => candidate.id),
+      acceptedCandidateIds: [],
+      candidates: candidates.map((candidate) => ({
+        id: candidate.id,
+        title: candidate.title,
+        type: candidate.type,
+        status: candidate.status || "prompt-ready",
+        sourceFrameId: candidate.sourceFrameId || "",
+        sourceFrameTitle: candidate.sourceFrameTitle || "",
+        sourceElementId: candidate.sourceElementId || "",
+        placement: candidate.placement || "whole frame",
+        prompt: candidate.prompt || "",
+        slotId: candidate.outputSlots?.[0]?.slotId || "",
+        targetSelector:
+          candidate.outputSlots?.[0]?.targetSelector ||
+          candidate.placementMap?.targetSelector ||
+          "",
+        pixelBounds:
+          candidate.outputSlots?.[0]?.pixelBounds ||
+          candidate.placementMap?.pixelBounds ||
+          null,
+        cssPlacement:
+          candidate.outputSlots?.[0]?.cssPlacement ||
+          candidate.placementMap?.cssPlacement ||
+          null,
+        imageElementId: "",
+        imagePath: "",
+        accepted: false,
+      })),
+    },
+  ];
+  return {
+    kind: "canvax-asset-candidate-review",
+    total: candidates.length,
+    placementReady: candidates.filter((candidate) => candidate.placementMap)
+      .length,
+    slotCount: slots.length,
+    emptySlots: slots.length,
+    promptReady: candidates.length,
+    placed: 0,
+    attached: 0,
+    accepted: 0,
+    statusCounts: {
+      promptReady: candidates.length,
+      placed: 0,
+      attached: 0,
+      accepted: 0,
+      emptySlots: slots.length,
+    },
+    pendingCandidateIds: candidates.map((candidate) => candidate.id),
+    placedCandidateIds: [],
+    attachedCandidateIds: [],
+    acceptedCandidateIds: [],
+    acceptedCandidates: [],
+    groups,
+    hostHandoff: {
+      requiresOpenAiApiKey: false,
+      lane: "host-image-generation",
+      copyReadyFiles: [
+        "exports/canvax-image-generation-brief-latest.md",
+        "exports/canvax-image-generation-brief-latest.json",
+        "exports/canvax-asset-candidates-latest.json",
+      ],
+      workflow: [
+        "Copy a candidate block into the host image-generation lane.",
+        "Attach the generated output back to the matching candidate.",
+        "Accept the chosen candidate for Codex use.",
+      ],
+    },
+    nextActions: [
+      "Generate pending candidates in the host image lane using the copy-ready brief.",
+    ],
   };
 }
 

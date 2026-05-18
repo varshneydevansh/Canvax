@@ -1454,15 +1454,196 @@ function normalizeServerAssetOutputSlots(slots, candidate, placementMap) {
 
 function buildServerAssetCandidateReviewSummary(candidates = []) {
   const slots = candidates.flatMap((candidate) => candidate.outputSlots || []);
+  const groups = buildServerAssetCandidateReviewGroups(candidates);
+  const pendingCandidateIds = candidates
+    .filter((candidate) => serverAssetCandidateEffectiveStatus(candidate) === "prompt-ready")
+    .map((candidate) => candidate.id);
+  const placedCandidateIds = candidates
+    .filter((candidate) => serverAssetCandidateEffectiveStatus(candidate) === "placed")
+    .map((candidate) => candidate.id);
+  const attachedCandidateIds = candidates
+    .filter((candidate) => serverAssetCandidateEffectiveStatus(candidate) === "attached")
+    .map((candidate) => candidate.id);
+  const acceptedCandidates = candidates
+    .map(summarizeServerAcceptedAssetCandidate)
+    .filter(Boolean);
   return {
+    kind: "canvax-asset-candidate-review",
     total: candidates.length,
     placementReady: candidates.filter((candidate) => candidate.placementMap)
       .length,
     slotCount: slots.length,
     emptySlots: slots.filter((slot) => !slot.accepted && !slot.attached).length,
-    accepted: slots.filter((slot) => slot.accepted).length,
-    attached: slots.filter((slot) => slot.attached).length,
+    promptReady: pendingCandidateIds.length,
+    placed: placedCandidateIds.length,
+    attached: attachedCandidateIds.length,
+    accepted: acceptedCandidates.length,
+    statusCounts: {
+      promptReady: pendingCandidateIds.length,
+      placed: placedCandidateIds.length,
+      attached: attachedCandidateIds.length,
+      accepted: acceptedCandidates.length,
+      emptySlots: slots.filter((slot) => !slot.accepted && !slot.attached).length,
+    },
+    pendingCandidateIds,
+    placedCandidateIds,
+    attachedCandidateIds,
+    acceptedCandidateIds: acceptedCandidates.map((candidate) => candidate.id),
+    acceptedCandidates,
+    groups,
+    hostHandoff: {
+      requiresOpenAiApiKey: false,
+      lane: "host-image-generation",
+      copyReadyFiles: [
+        "exports/canvax-image-generation-brief-latest.md",
+        "exports/canvax-image-generation-brief-latest.json",
+        "exports/canvax-asset-candidates-latest.json",
+      ],
+      workflow: [
+        "Copy a candidate block from the image generation brief into the current Codex/ChatGPT image host.",
+        "Generate or edit the image in that host without Canvax calling an API.",
+        "Attach the returned image back to the matching candidate card or workspace path.",
+        "Accept the chosen candidate so Codex can read the selected visual and placement contract.",
+      ],
+    },
+    nextActions: buildServerAssetCandidateReviewNextActions({
+      total: candidates.length,
+      pending: pendingCandidateIds.length,
+      placed: placedCandidateIds.length,
+      attached: attachedCandidateIds.length,
+      accepted: acceptedCandidates.length,
+    }),
   };
+}
+
+function serverAssetCandidateEffectiveStatus(candidate) {
+  const slots = Array.isArray(candidate?.outputSlots)
+    ? candidate.outputSlots
+    : [];
+  if (slots.some((slot) => slot?.accepted)) {
+    return "accepted";
+  }
+  if (slots.some((slot) => slot?.attached || slot?.imagePath)) {
+    return "attached";
+  }
+  if (slots.some((slot) => slot?.imageElementId)) {
+    return "placed";
+  }
+  return candidate?.status || "prompt-ready";
+}
+
+function buildServerAssetCandidateReviewGroups(candidates = []) {
+  const groupsByFrame = new Map();
+  candidates.forEach((candidate) => {
+    const frameId = candidate.sourceFrameId || "board";
+    if (!groupsByFrame.has(frameId)) {
+      groupsByFrame.set(frameId, {
+        frameId,
+        frameTitle: candidate.sourceFrameTitle || "Board",
+        total: 0,
+        promptReady: 0,
+        placed: 0,
+        attached: 0,
+        accepted: 0,
+        candidateIds: [],
+        acceptedCandidateIds: [],
+        candidates: [],
+      });
+    }
+    const group = groupsByFrame.get(frameId);
+    const status = serverAssetCandidateEffectiveStatus(candidate);
+    const bucket = serverAssetCandidateReviewBucket(status);
+    group.total += 1;
+    group[bucket] = Number(group[bucket] || 0) + 1;
+    group.candidateIds.push(candidate.id);
+    if (status === "accepted") {
+      group.acceptedCandidateIds.push(candidate.id);
+    }
+    group.candidates.push(summarizeServerAssetCandidateReviewItem(candidate, status));
+  });
+  return [...groupsByFrame.values()];
+}
+
+function summarizeServerAssetCandidateReviewItem(candidate, status) {
+  const placement = candidate.placementMap || {};
+  const slot = Array.isArray(candidate.outputSlots)
+    ? candidate.outputSlots[0] || null
+    : null;
+  return {
+    id: candidate.id,
+    title: candidate.title || "Asset candidate",
+    type: candidate.type || "region",
+    status,
+    sourceFrameId: candidate.sourceFrameId || "",
+    sourceFrameTitle: candidate.sourceFrameTitle || "",
+    sourceElementId: candidate.sourceElementId || "",
+    placement: candidate.placement || placement.placement || "whole frame",
+    prompt: candidate.prompt || "",
+    slotId: slot?.slotId || placement.slotId || "",
+    targetSelector: slot?.targetSelector || placement.targetSelector || "",
+    pixelBounds: slot?.pixelBounds || placement.pixelBounds || null,
+    cssPlacement: slot?.cssPlacement || placement.cssPlacement || null,
+    imageElementId: slot?.imageElementId || "",
+    imagePath: slot?.imagePath || "",
+    accepted: Boolean(slot?.accepted),
+  };
+}
+
+function summarizeServerAcceptedAssetCandidate(candidate) {
+  const slots = Array.isArray(candidate?.outputSlots)
+    ? candidate.outputSlots
+    : [];
+  const acceptedSlot = slots.find((slot) => slot?.accepted);
+  if (!acceptedSlot && candidate?.status !== "accepted") {
+    return null;
+  }
+  const fallbackSlot = acceptedSlot || slots[0] || {};
+  return {
+    id: candidate.id,
+    title: candidate.title || "Accepted asset candidate",
+    sourceFrameId: candidate.sourceFrameId || "",
+    sourceFrameTitle: candidate.sourceFrameTitle || "",
+    placement: candidate.placement || "",
+    bounds: candidate.bounds || null,
+    placementMap: candidate.placementMap || null,
+    slotId: fallbackSlot.slotId || fallbackSlot.id || "",
+    pixelBounds: fallbackSlot.pixelBounds || candidate.placementMap?.pixelBounds || null,
+    imageElementId: fallbackSlot.imageElementId || "",
+    frameId: fallbackSlot.frameId || candidate.sourceFrameId || "",
+    imagePath: fallbackSlot.imagePath || "",
+    acceptedAt: fallbackSlot.acceptedAt || "",
+    prompt: candidate.prompt || "",
+  };
+}
+
+function serverAssetCandidateReviewBucket(status) {
+  switch (status) {
+    case "accepted":
+      return "accepted";
+    case "attached":
+      return "attached";
+    case "placed":
+      return "placed";
+    default:
+      return "promptReady";
+  }
+}
+
+function buildServerAssetCandidateReviewNextActions(counts) {
+  if (!counts.total) {
+    return ["Create an Image pack from a frame with image, avatar, visual, or illustration regions."];
+  }
+  const actions = [];
+  if (counts.pending) {
+    actions.push("Generate pending candidates in the host image lane using the copy-ready brief.");
+  }
+  if (counts.placed || counts.attached) {
+    actions.push("Review attached images on the frame, then accept the strongest candidate.");
+  }
+  if (counts.accepted) {
+    actions.push("Use accepted candidates in Materialize, Build with Codex, or image prompt continuation.");
+  }
+  return actions;
 }
 
 function roundServerNumber(value) {
@@ -1470,6 +1651,9 @@ function roundServerNumber(value) {
 }
 
 function buildServerAssetCandidatesMarkdown(pack) {
+  const reviewSummary =
+    pack.reviewSummary ||
+    buildServerAssetCandidateReviewSummary(pack.candidates || []);
   const lines = [
     "# Canvax Asset Candidates",
     "",
@@ -1477,6 +1661,31 @@ function buildServerAssetCandidatesMarkdown(pack) {
     `- Created: ${pack.createdAt}`,
     `- Requires OpenAI API key: ${pack.requiresOpenAiApiKey ? "yes" : "no"}`,
     `- Candidates: ${Array.isArray(pack.candidates) ? pack.candidates.length : 0}`,
+    "",
+    "## Review Summary",
+    "",
+    `- Kind: ${reviewSummary.kind || "canvax-asset-candidate-review"}`,
+    `- Placement-ready: ${reviewSummary.placementReady || 0}`,
+    `- Output slots: ${reviewSummary.slotCount || 0}`,
+    `- Empty slots: ${reviewSummary.emptySlots || 0}`,
+    `- Prompt-ready: ${reviewSummary.promptReady || 0}`,
+    `- Attached: ${reviewSummary.attached || 0}`,
+    `- Accepted: ${reviewSummary.accepted || 0}`,
+    "",
+    "### Review Groups",
+    "",
+    ...(reviewSummary.groups?.length
+      ? reviewSummary.groups.map(
+          (group) =>
+            `- ${group.frameTitle || group.frameId}: ${group.total || 0} candidates, ${group.promptReady || 0} pending, ${group.attached || 0} attached, ${group.accepted || 0} accepted`,
+        )
+      : ["- No grouped candidates yet."]),
+    "",
+    "### Host Handoff",
+    "",
+    ...(reviewSummary.hostHandoff?.workflow?.length
+      ? reviewSummary.hostHandoff.workflow.map((step) => `- ${step}`)
+      : ["- Copy candidate prompts into the current host image-generation lane and attach results back to Canvax."]),
     "",
     "## Candidates",
   ];
@@ -1622,6 +1831,24 @@ function buildServerImageGenerationBriefMarkdown(brief) {
   if (continuityRules.length) {
     lines.push("", "### Continuity Rules", "");
     continuityRules.forEach((rule) => lines.push(`- ${rule}`));
+  }
+  if (brief.reviewSummary?.kind) {
+    lines.push(
+      "",
+      "## Review Queue",
+      "",
+      `- Total candidates: ${brief.reviewSummary.total || 0}`,
+      `- Pending: ${brief.reviewSummary.promptReady || 0}`,
+      `- Attached: ${brief.reviewSummary.attached || 0}`,
+      `- Accepted: ${brief.reviewSummary.accepted || 0}`,
+    );
+    if (brief.reviewSummary.groups?.length) {
+      brief.reviewSummary.groups.forEach((group) => {
+        lines.push(
+          `- ${group.frameTitle || group.frameId}: ${group.total || 0} candidates, ${group.promptReady || 0} pending, ${group.attached || 0} attached, ${group.accepted || 0} accepted`,
+        );
+      });
+    }
   }
   const copyBlocks = Array.isArray(brief.copyBlocks) ? brief.copyBlocks : [];
   lines.push("", "## Candidate Blocks");
@@ -3023,7 +3250,7 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
       {
         id: htmlArtifactId,
         label: generatedScreen
-          ? `${frameTitle} generated preview`
+          ? `${frameTitle} generated screen`
           : `${frameTitle} preview`,
         path: materialized.previewPath,
         kind: "preview",

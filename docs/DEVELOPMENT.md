@@ -103,7 +103,7 @@ http://localhost:3210/?selftest=1
 
 The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, Workbench action modes, host/design-context handoff fields, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, board-side rewrite execution, and large-session export consistency.
 
-The browser regression also includes a deterministic `visualfixture=advanced-map` route. It seeds a dense Map session, switches into Advanced Flow view, scrolls the page so the sticky command deck sits over frame/map content, captures desktop and tablet screenshots, and asserts that the Advanced deck has no backdrop blur, uses an opaque background, renders the Output shelf, and does not show raw `generated-target` labels.
+The browser regression also includes a deterministic `visualfixture=advanced-map` route. It seeds a dense Map session, switches into Advanced Flow view, scrolls the page so the sticky command deck sits over frame/map content, captures desktop and tablet screenshots, and asserts that the Advanced deck has no backdrop blur, uses an opaque background, renders the Output shelf, renders the compact Map timeline, and does not show raw `generated-target` labels.
 
 End-to-end no-API workflow proof:
 
@@ -209,7 +209,7 @@ Use `Generate screen` for hero-like website/app screens where Canvax should infe
 
 ## Build With Codex Development Path
 
-`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes a standalone HTML/CSS/JS target, a portable `CanvaxScreen.jsx` plus `CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, and `canvax-component-map.json`, a frame-to-code ownership map that links source sketch elements to generated selectors and files.
+`Build with Codex` is primarily a handoff contract for a real Codex implementation pass. A deterministic local executor also exists for validating the contract and publishing a frame-bound preview plus starter implementation bundle when no app route has been built yet. That bundle includes a standalone HTML/CSS/JS target, a portable `CanvaxScreen.jsx` plus `CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, and `INTEGRATION.md`. The component map links source sketch elements to generated selectors and files; the build contract gives Codex machine-readable adapter paths, selector preservation rules, publish guidance, and the explicit no-API boundary.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.
 
@@ -241,6 +241,8 @@ scripts/canvax.mjs
   artifacts/preview/codex-build/frames/<frame-id>/implementation/NextAppPage.jsx
   artifacts/preview/codex-build/frames/<frame-id>/implementation/FRAMEWORK_ADAPTERS.md
   artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-component-map.json
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-build-contract.json
+  artifacts/preview/codex-build/frames/<frame-id>/implementation/INTEGRATION.md
   artifacts/preview/codex-build/frames/<frame-id>/implementation/README.md
   artifacts/canvax/codex-output.json
 
@@ -289,7 +291,7 @@ sequenceDiagram
 
 Regression coverage:
 
-- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle, React-ready component/CSS pair, Vite/Next adapter stubs, framework adapter notes, and `canvax-component-map.json`
+- `scripts/execute-build-request.mjs --no-publish --json` can read the latest request and produce a local preview/context artifact plus implementation starter bundle, React-ready component/CSS pair, Vite/Next adapter stubs, framework adapter notes, `canvax-component-map.json`, `canvax-build-contract.json`, and `INTEGRATION.md`
 - Board self-test verifies the UI/server path executes and binds that artifact through the output manifest.
 - `scripts/execute-rewrite-request.mjs --no-publish --json` can read the latest rewrite request and produce a refreshed preview/context artifact, including component-target context when a frame-to-code map is attached
 - Board self-test verifies `POST /api/execute-rewrite-request` binds a refreshed preview artifact through the output manifest.
@@ -321,6 +323,7 @@ The current recipes are:
 
 The important behavior is that each variant remains a normal editable frame. Do not turn variants into read-only images or one-off prompt text.
 The matching `variant-branch` Map object is a spatial handle for that frame, not a duplicate source of truth. It lets designers select, move, resize, group, copy context, or promote the branch from the Map while the frame remains editable.
+When designers select branch Map objects from the same source frame, `Branch earlier` / `Branch later` reorders that branch sequence by updating `frame.variant.index` and resyncing the matching Map objects. Dragging branch cards across sibling branch positions also recomputes the sequence from Map position. Do not reorder unrelated frames or navigation links when only the branch sequence changes.
 
 Self-test coverage verifies:
 
@@ -329,6 +332,8 @@ Self-test coverage verifies:
 - each has a visible label element
 - each is connected as a branch in Flow view
 - each has a matching exported/rendered `variant-branch` Map object
+- branch objects can move earlier/later and the ordered `spatialWorkspace.variantBranches` export changes accordingly
+- branch objects can be drag-positioned across sibling branches and update the exported branch order
 - primary promotion syncs to both `spatialWorkspace.variantBranches` and the Map object
 
 ## Asset Candidate Implementation
@@ -353,7 +358,7 @@ Candidate types:
 - `frame-composite`: full-frame image direction
 - `region`: a prompt-ready image/avatar/visual region from the composition map
 
-The pack is intentionally no-API. The service also writes a consolidated `canvax-image-generation-brief` with copy-ready host prompts, style lock, placement contracts, and output-slot status. It is the durable target format for future host image-generation bridges and manual ChatGPT image workflows.
+The pack is intentionally no-API. The service also writes a consolidated `canvax-image-generation-brief` with copy-ready host prompts, style lock, placement contracts, output-slot status, and the same `canvax-asset-candidate-review` summary. That review summary groups candidates by frame, lists pending/placed/attached/accepted IDs, and includes a `hostHandoff` workflow so a future bridge or manual ChatGPT image workflow can consume the right files without requiring an API key.
 
 The Workbench candidate tray reads the latest saved pack from board state after `Image pack` succeeds. Tray actions create ordinary `type: "image"` elements:
 
