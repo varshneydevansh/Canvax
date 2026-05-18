@@ -217,6 +217,7 @@ const checks = [
           "affectedComponents",
           "canvax-component-map.json",
           "loadBuildContract",
+          "loadPortTask",
           "visualDirection",
           "data-canvax-atmosphere",
         ],

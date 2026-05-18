@@ -408,6 +408,10 @@ record(
       "constructivist-poster" &&
     parsedRewriteContext.buildContract?.visualDirection?.themeId ===
       "poster-archive" &&
+    parsedRewriteContext.portTask?.kind === "canvax-codex-port-task" &&
+    parsedRewriteContext.portTask?.requiredBindings?.some((binding) =>
+      binding.selector?.includes("data-canvax-node-id"),
+    ) &&
     rawRewritePreview.includes('data-canvax-theme="poster-archive"') &&
     rawRewritePreview.includes('data-canvax-atmosphere="constructivist-poster"'),
 );

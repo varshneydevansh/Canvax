@@ -60,6 +60,7 @@ const relativeHtmlPath = toProjectRelative(htmlPath);
 const relativeContextPath = toProjectRelative(contextPath);
 const frameCodeMap = await loadFrameCodeMap(request, frameId);
 const buildContract = await loadBuildContract(request, frameId);
+const portTask = await loadPortTask(request, frameId);
 const visualDirection = buildRewriteVisualDirection(buildContract);
 const affectedRegions = buildAffectedRegions(selected, request, frameCodeMap);
 const affectedComponents = affectedComponentsFromRegions(affectedRegions);
@@ -89,6 +90,7 @@ await writeFile(
       affectedComponents,
       frameCodeMap,
       buildContract,
+      portTask,
       visualDirection,
       previewPath: relativeHtmlPath,
     }),
@@ -108,6 +110,8 @@ if (!noPublish) {
     affectedRegions,
     affectedComponents,
     frameCodeMap,
+    buildContract,
+    portTask,
     queueItem: selected.queueItem,
   });
 }
@@ -147,12 +151,26 @@ async function publishCodexOutput({
   affectedRegions,
   affectedComponents,
   frameCodeMap,
+  buildContract,
+  portTask,
   queueItem,
 }) {
   const frameCodeMapArtifactArgs = frameCodeMap?.path
     ? [
         "--artifact",
         `${frameCodeMap.path}::Frame-to-code ownership map::${frameId}`,
+      ]
+    : [];
+  const buildContractArtifactArgs = buildContract?.path
+    ? [
+        "--artifact",
+        `${buildContract.path}::Build integration contract::${frameId}`,
+      ]
+    : [];
+  const portTaskArtifactArgs = portTask?.path
+    ? [
+        "--artifact",
+        `${portTask.path}::Codex port task::${frameId}`,
       ]
     : [];
   const child = spawn(
@@ -178,6 +196,8 @@ async function publishCodexOutput({
       "--artifact",
       `${relativeContextPath}::Rewrite request context::${frameId}`,
       ...frameCodeMapArtifactArgs,
+      ...buildContractArtifactArgs,
+      ...portTaskArtifactArgs,
       "--json",
     ],
     {
@@ -226,6 +246,7 @@ function buildContextPayload({
   affectedComponents,
   frameCodeMap,
   buildContract,
+  portTask,
   visualDirection,
   previewPath,
 }) {
@@ -260,6 +281,17 @@ function buildContextPayload({
           kind: buildContract.contract?.kind || "canvax-build-integration-contract",
           visualDirection:
             buildContract.contract?.visualDirection || null,
+        }
+      : null,
+    portTask: portTask
+      ? {
+          path: portTask.path,
+          kind: portTask.task?.kind || "canvax-codex-port-task",
+          suggestedDestinations:
+            portTask.task?.suggestedDestinations || null,
+          requiredBindings: portTask.task?.requiredBindings || [],
+          acceptanceCriteria: portTask.task?.acceptanceCriteria || [],
+          publishCommands: portTask.task?.publishCommands || [],
         }
       : null,
     outputTargets: request.outputManifest?.targets || [],
@@ -467,6 +499,29 @@ async function loadBuildContract(request, frameId) {
     return null;
   }
   return { path, contract };
+}
+
+async function loadPortTask(request, frameId) {
+  const artifacts = Array.isArray(request.outputManifest?.artifacts)
+    ? request.outputManifest.artifacts
+    : [];
+  const artifact = artifacts.find((entry) => {
+    const path = cleanString(entry?.path);
+    const frameIds = Array.isArray(entry?.frameIds) ? entry.frameIds : [];
+    return (
+      path.endsWith("codex-port-task.json") &&
+      (!frameIds.length || frameIds.includes(frameId))
+    );
+  });
+  if (!artifact?.path) {
+    return null;
+  }
+  const path = artifact.path;
+  const task = await readOptionalJson(resolve(projectRoot, path));
+  if (task?.kind !== "canvax-codex-port-task") {
+    return null;
+  }
+  return { path, task };
 }
 
 function buildRewriteVisualDirection(buildContract) {
