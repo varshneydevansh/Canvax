@@ -598,7 +598,17 @@ frame.variant + source connection
   -> editable branch metadata and semantic recipe for Codex
 ```
 
-Each branch record includes source frame, variant frame, recipe id, direction, thesis, design moves, branch prompt, custom properties, connection id/label, branch `index`, editable status, position, size, matching `variant-branch` Map object id, and primary-promotion state. The matching Map object is also exported through `spatialWorkspace.objects` so Codex can treat a generated direction like any other selectable spatial object. These recipes are deterministic and local: they give Codex enough semantic direction to build from Structure, Visual, or Adaptive branches without Canvax calling a hosted model.
+Each branch record includes source frame, variant frame, recipe id, direction, thesis, design moves, branch prompt, style properties, custom properties, connection id/label, branch `index`, editable status, position, size, matching `variant-branch` Map object id, and primary-promotion state. The matching Map object is also exported through `spatialWorkspace.objects` so Codex can treat a generated direction like any other selectable spatial object. These recipes are deterministic and local: they give Codex enough semantic direction to build from Structure, Visual, or Adaptive branches without Canvax calling a hosted model.
+
+Variant style fields are deliberately narrow and branch-specific:
+
+```text
+variant-branch Map object
+  -> Variant style knobs
+  -> frame.variant.styleProperties
+  -> spatialWorkspace.variantBranches[].styleProperties
+  -> copied Map context / Codex handoff
+```
 
 Image/asset handoff files:
 

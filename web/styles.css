@@ -4056,6 +4056,41 @@ select,
     display: none;
 }
 
+.map-variant-style-editor {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    padding: 0.72rem;
+    border: 0.0625rem solid rgba(240, 162, 2, 0.24);
+    border-radius: 1rem;
+    background:
+        linear-gradient(135deg, rgba(240, 162, 2, 0.16), transparent 58%),
+        rgba(255, 248, 230, 0.74);
+}
+
+.map-variant-style-editor[hidden] {
+    display: none;
+}
+
+.map-variant-style-editor > div:first-child {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 0.15rem;
+}
+
+.map-variant-style-editor strong {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 0.94rem;
+}
+
+.map-variant-style-editor small {
+    color: var(--ink-muted);
+    font-size: 0.68rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
 .map-object-type-details {
     grid-column: 1 / -1;
 }

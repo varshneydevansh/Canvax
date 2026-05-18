@@ -794,7 +794,17 @@ Each branch also carries a deterministic no-API design recipe:
 - `Visual` pushes palette, typography, imagery, contrast, and atmosphere while preserving the same intent.
 - `Adaptive` translates the same sketch into another breakpoint, platform, or interaction state.
 
-The recipe is exported as `variant.recipeId`, `variant.thesis`, `variant.designMoves`, `variant.prompt`, and `variant.customProperties`. The matching Map object exposes the same recipe as Prompt / Context plus custom `key: value` properties such as `variant-recipe`, `variant-purpose`, `variant-thesis`, and `design-moves`. This gives Codex a readable design brief for each branch without calling a paid image or model API.
+The recipe is exported as `variant.recipeId`, `variant.thesis`, `variant.designMoves`, `variant.prompt`, `variant.styleProperties`, and `variant.customProperties`. The matching Map object exposes the same recipe as Prompt / Context plus custom `key: value` properties such as `variant-recipe`, `variant-purpose`, `variant-thesis`, `design-moves`, and `style-*` values. This gives Codex a readable design brief for each branch without calling a paid image or model API.
+
+When a `variant-branch` Map object is selected, the inspector shows focused `Variant style knobs` for:
+
+- palette
+- typography
+- density
+- motion
+- imagery / asset direction
+
+Those fields update the variant frame and the Map object together, then export through `spatialWorkspace.variantBranches[].styleProperties`, `spatialWorkspace.variantBranches[].semanticRecipe.styleProperties`, object metadata, and copied Map context. This is still local deterministic metadata, but it gives designers a real per-branch style control surface instead of only a generic note field.
 
 They also export as `spatialWorkspace.variantBranches` and as `variant-branch` Map objects, so Codex can distinguish alternate generated directions from ordinary navigation links and from general notes/references.
 

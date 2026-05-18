@@ -123,7 +123,10 @@ const checks = [
           "buildSpatialVariantBranches",
           "semanticVariantRecipes",
           "variantRecipeCustomProperties",
+          "variantStylePropertyKeys",
+          "updateSelectedVariantStyleProperty",
           "semanticRecipe",
+          "styleProperties",
           "Use variant",
           "outputEditBinding",
         ],
@@ -133,14 +136,16 @@ const checks = [
         includes: [
           "Editable Variants",
           "semantic recipe",
+          "Variant style knobs",
           "spatialWorkspace.variantBranches[].semanticRecipe",
+          "spatialWorkspace.variantBranches[].styleProperties",
           "Use variant",
           "Output edit",
         ],
       },
     ],
     remainingGap:
-      "Hosted AI variant generation and deep per-property style editing remain future work; local deterministic semantic recipes now ship.",
+      "Hosted AI variant generation and full arbitrary design-token editing remain future work; local deterministic semantic recipes and branch style knobs now ship.",
   },
   {
     id: "codex-built-screen",

@@ -814,10 +814,21 @@ The exported recipe fields are:
 - `variant.thesis`
 - `variant.designMoves`
 - `variant.prompt`
+- `variant.styleProperties`
 - `variant.customProperties`
 - `spatialWorkspace.variantBranches[].semanticRecipe`
 
 On the Map object, these same values are available through Prompt / Context and custom `key: value` properties, so Codex can tell whether a branch is meant to be structural, art-directed, or adaptive.
+
+Select a variant branch in `Map` to edit its `Variant style knobs`:
+
+- `Palette`
+- `Typography`
+- `Density`
+- `Motion`
+- `Imagery / asset direction`
+
+These fields stay attached to that branch and export as `spatialWorkspace.variantBranches[].styleProperties` plus `spatialWorkspace.variantBranches[].semanticRecipe.styleProperties`. Use them when the sketch shape is right but the branch needs a clearer design direction before building with Codex.
 
 ```text
 source frame

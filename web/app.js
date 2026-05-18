@@ -33,6 +33,13 @@ const MAP_OBJECT_FILTERS = [
   { id: "notes", label: "Notes" },
   { id: "history", label: "History" },
 ];
+const variantStylePropertyKeys = [
+  "palette",
+  "typography",
+  "density",
+  "motion",
+  "imagery",
+];
 const FLOW_SURFACE_PADDING = 120;
 const FLOW_EDGE_EXPAND_MARGIN = 96;
 const FLOW_EDGE_EXPAND_STEP = 520;
@@ -393,6 +400,14 @@ const dom = {
   mapObjectSubtitle: document.querySelector("#map-object-subtitle"),
   mapObjectStatus: document.querySelector("#map-object-status"),
   mapObjectPrompt: document.querySelector("#map-object-prompt"),
+  mapVariantStyleEditor: document.querySelector("#map-variant-style-editor"),
+  mapVariantStylePalette: document.querySelector("#map-variant-style-palette"),
+  mapVariantStyleTypography: document.querySelector(
+    "#map-variant-style-typography",
+  ),
+  mapVariantStyleDensity: document.querySelector("#map-variant-style-density"),
+  mapVariantStyleMotion: document.querySelector("#map-variant-style-motion"),
+  mapVariantStyleImagery: document.querySelector("#map-variant-style-imagery"),
   mapObjectCustomProperties: document.querySelector(
     "#map-object-custom-properties",
   ),
@@ -889,6 +904,17 @@ function bindEvents() {
   });
   dom.mapObjectPrompt.addEventListener("change", () => {
     updateSelectedSpatialObjectProperty("prompt", dom.mapObjectPrompt.value);
+  });
+  [
+    ["palette", dom.mapVariantStylePalette],
+    ["typography", dom.mapVariantStyleTypography],
+    ["density", dom.mapVariantStyleDensity],
+    ["motion", dom.mapVariantStyleMotion],
+    ["imagery", dom.mapVariantStyleImagery],
+  ].forEach(([field, input]) => {
+    input?.addEventListener("change", () => {
+      updateSelectedVariantStyleProperty(field, input.value);
+    });
   });
   dom.mapObjectCustomProperties.addEventListener("change", () => {
     updateSelectedSpatialObjectCustomProperties(
@@ -2026,6 +2052,7 @@ function normalizeFrameVariant(value) {
     designMoves: normalizeStringArray(source.designMoves),
     prompt: typeof source.prompt === "string" ? source.prompt.trim() : "",
     customProperties: normalizeMapCustomProperties(source.customProperties),
+    styleProperties: normalizeVariantStyleProperties(source.styleProperties),
     index: Math.max(1, Number(source.index) || 1),
     primary: Boolean(source.primary),
     promotedAt:
@@ -5658,6 +5685,21 @@ function buildSpatialObjectContextText(object) {
       ),
     );
   }
+  if (object.sourceKind === "variant-branch") {
+    const variantFrame = frameById(object.frameIds?.[0] || object.sourceId);
+    const variantStyle = normalizeVariantStyleProperties(
+      object.meta?.variantStyle || variantFrame?.variant?.styleProperties,
+    );
+    if (hasVariantStyleProperties(variantStyle)) {
+      details.push(
+        "",
+        "## Variant Style",
+        ...variantStylePropertyKeys
+          .filter((key) => variantStyle[key])
+          .map((key) => `- ${key}: ${variantStyle[key]}`),
+      );
+    }
+  }
   if (object.sourceKind === "asset-candidate" && object.meta?.placementMap) {
     const placement = object.meta.placementMap;
     const pixel = placement.pixelBounds || {};
@@ -9143,6 +9185,7 @@ function renderMapSelectionActions() {
     dom.mapObjectStatus.value = "";
     dom.mapObjectPrompt.value = "";
     dom.mapObjectCustomProperties.value = "";
+    renderVariantStyleEditor(null);
     renderMapDetailEditor(null);
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
@@ -9164,6 +9207,7 @@ function renderMapSelectionActions() {
     dom.mapObjectStatus.value = "";
     dom.mapObjectPrompt.value = "";
     dom.mapObjectCustomProperties.value = "";
+    renderVariantStyleEditor(null);
     renderMapDetailEditor(null);
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
@@ -9194,6 +9238,7 @@ function renderMapSelectionActions() {
   dom.mapObjectCustomProperties.value = formatMapCustomProperties(
     object.meta?.customProperties,
   );
+  renderVariantStyleEditor(object);
   renderMapDetailEditor(object);
   dom.mapObjectTypeDetails.innerHTML = renderMapObjectTypeDetails(object);
 }
@@ -9219,6 +9264,31 @@ function renderMapDetailEditor(object) {
   dom.mapDetailSecondaryLabel.textContent = schema.secondary.label;
   dom.mapObjectDetailSecondary.placeholder = schema.secondary.placeholder;
   dom.mapObjectDetailSecondary.value = schema.secondary.value || "";
+}
+
+function renderVariantStyleEditor(object) {
+  if (!dom.mapVariantStyleEditor) {
+    return;
+  }
+  const isVariant = object?.sourceKind === "variant-branch";
+  dom.mapVariantStyleEditor.hidden = !isVariant;
+  const style = isVariant
+    ? normalizeVariantStyleProperties(
+        object.meta?.variantStyle ||
+          frameById(object.frameIds?.[0])?.variant?.styleProperties,
+      )
+    : {};
+  [
+    ["palette", dom.mapVariantStylePalette],
+    ["typography", dom.mapVariantStyleTypography],
+    ["density", dom.mapVariantStyleDensity],
+    ["motion", dom.mapVariantStyleMotion],
+    ["imagery", dom.mapVariantStyleImagery],
+  ].forEach(([key, input]) => {
+    if (input) {
+      input.value = style[key] || "";
+    }
+  });
 }
 
 function renderMapObjectTypeDetails(object) {
@@ -9348,10 +9418,12 @@ function mapObjectInspectorRows(object) {
       },
     );
   } else if (object.sourceKind === "variant-branch") {
+    const style = normalizeVariantStyleProperties(meta.variantStyle);
     rows.push(
       { label: "Recipe", value: meta.recipeId || meta.label || "variant" },
       { label: "Direction", value: meta.direction || object.subtitle || "variant direction" },
       { label: "Thesis", value: meta.thesis || "semantic branch recipe" },
+      { label: "Palette", value: style.palette || "recipe default" },
       {
         label: "State",
         value: frameById(object.frameIds?.[0])?.variant?.primary
@@ -9492,6 +9564,9 @@ function buildMapObjectInspectorContract(object, spatialGrouping = null) {
 
   if (object.sourceKind === "variant-branch") {
     const variantFrame = frameById(frameIds[0]);
+    const variantStyle = normalizeVariantStyleProperties(
+      meta.variantStyle || variantFrame?.variant?.styleProperties,
+    );
     const variant = [];
     addItem(variant, "Recipe", meta.recipeId || variantFrame?.variant?.recipeId);
     addItem(
@@ -9522,6 +9597,12 @@ function buildMapObjectInspectorContract(object, spatialGrouping = null) {
       ),
     );
     sections.push({ id: "variant", title: "Variant Branch", items: variant });
+
+    const style = [];
+    variantStylePropertyKeys.forEach((key) => {
+      addItem(style, key[0].toUpperCase() + key.slice(1), variantStyle[key]);
+    });
+    sections.push({ id: "variant-style", title: "Variant Style", items: style });
   }
 
   if (object.sourceKind === "checkpoint") {
@@ -9878,6 +9959,45 @@ function updateSelectedSpatialObjectCustomProperties(value) {
   renderSpec();
   scheduleLivePreviewSync();
   renderStatus(`Updated custom properties for ${spatialObjectTitle(object)}`);
+  return true;
+}
+
+function updateSelectedVariantStyleProperty(field, value) {
+  if (!variantStylePropertyKeys.includes(field)) {
+    return false;
+  }
+  const selectedObjects = selectedSpatialObjects();
+  const object = selectedObjects.length === 1 ? selectedObjects[0] : null;
+  if (!object || object.sourceKind !== "variant-branch") {
+    return false;
+  }
+  const nextStyle = normalizeVariantStyleProperties({
+    ...(object.meta?.variantStyle || {}),
+    [field]: value,
+  });
+  object.meta = {
+    ...(object.meta || {}),
+    variantStyle: nextStyle,
+    variantStyleManual: true,
+    manualFields: {
+      ...(object.meta?.manualFields || {}),
+      variantStyle: true,
+    },
+  };
+  const frame = frameById(object.frameIds?.[0] || object.sourceId);
+  if (frame?.variant) {
+    frame.variant = {
+      ...frame.variant,
+      styleProperties: nextStyle,
+    };
+  }
+  state.viewMode = "flow";
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  void saveExportToWorkspace({ silent: true });
+  renderStatus(`Updated variant ${field} style`);
   return true;
 }
 
@@ -13439,6 +13559,22 @@ function duplicateFrame() {
   renderStatus("Frame duplicated");
 }
 
+function normalizeVariantStyleProperties(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return variantStylePropertyKeys.reduce((style, key) => {
+    const nextValue = cleanString(source[key]);
+    if (nextValue) {
+      style[key] = nextValue;
+    }
+    return style;
+  }, {});
+}
+
+function hasVariantStyleProperties(value) {
+  return Object.keys(normalizeVariantStyleProperties(value)).length > 0;
+}
+
 const semanticVariantRecipes = [
   {
     id: "structure",
@@ -13455,6 +13591,13 @@ const semanticVariantRecipes = [
     ],
     prompt:
       "Create a structure-first branch. Preserve the sketch intent, clarify layout hierarchy, and produce a build-ready UI direction without over-styling it.",
+    styleProperties: {
+      palette: "neutral base, restrained accent, accessible contrast",
+      typography: "clear hierarchy, readable labels, practical component text",
+      density: "balanced spacing with stronger alignment rhythm",
+      motion: "quiet structure-first transitions",
+      imagery: "only use imagery where it clarifies a region or feature",
+    },
   },
   {
     id: "visual",
@@ -13471,6 +13614,13 @@ const semanticVariantRecipes = [
     ],
     prompt:
       "Create a visual-direction branch. Keep the same user intent, but push palette, typography, imagery, and atmosphere into a distinctive designed surface.",
+    styleProperties: {
+      palette: "bold mood palette, high contrast, deliberate accent color",
+      typography: "expressive display type with calmer supporting text",
+      density: "cinematic spacing with strong focal hierarchy",
+      motion: "dramatic but purposeful reveal and parallax moments",
+      imagery: "art-directed hero imagery or poster-like visual anchor",
+    },
   },
   {
     id: "adaptive",
@@ -13487,6 +13637,13 @@ const semanticVariantRecipes = [
     ],
     prompt:
       "Create an adaptive branch. Reinterpret the sketch for another breakpoint, platform, or interaction state while preserving the core concept.",
+    styleProperties: {
+      palette: "same visual identity adapted for the target surface",
+      typography: "responsive type scale with platform-appropriate controls",
+      density: "stacked or compact depending on breakpoint/state",
+      motion: "state-aware transitions and interaction feedback",
+      imagery: "crop, simplify, or reposition assets for the target surface",
+    },
   },
 ];
 
@@ -13506,6 +13663,12 @@ function variantRecipeCustomProperties(recipe, index) {
         ? recipe.designMoves.join(" | ")
         : "",
     },
+    ...Object.entries(normalizeVariantStyleProperties(recipe.styleProperties)).map(
+      ([key, value]) => ({
+        key: `style-${key}`,
+        value,
+      }),
+    ),
   ].filter((property) => cleanString(property.value));
 }
 
@@ -13519,6 +13682,7 @@ function variantRecipeExport(recipe, index) {
       ? [...recipe.designMoves]
       : [],
     prompt: recipe.prompt || "",
+    styleProperties: normalizeVariantStyleProperties(recipe.styleProperties),
     customProperties: variantRecipeCustomProperties(recipe, index),
   };
 }
@@ -13640,6 +13804,7 @@ function createVariantFramesFromCurrent(options = {}) {
         thesis: semanticRecipe.thesis,
         designMoves: semanticRecipe.designMoves,
         prompt: semanticRecipe.prompt,
+        styleProperties: semanticRecipe.styleProperties,
         customProperties: semanticRecipe.customProperties,
         index: index + 1,
         createdAt,
@@ -13718,6 +13883,9 @@ function createSpatialObjectsForVariantFrames(source, frames) {
           ? [...frame.variant.designMoves]
           : [],
         prompt: frame.variant?.prompt || "",
+        variantStyle: normalizeVariantStyleProperties(
+          frame.variant?.styleProperties,
+        ),
         customProperties: normalizeMapCustomProperties(
           frame.variant?.customProperties,
         ),
@@ -13768,6 +13936,11 @@ function syncVariantSpatialObjectState(sourceFrameId) {
                 variant.customProperties || object.meta?.customProperties,
               ),
             }),
+        variantStyle: normalizeVariantStyleProperties(
+          object.meta?.variantStyleManual
+            ? object.meta?.variantStyle
+            : variant.styleProperties || object.meta?.variantStyle,
+        ),
         primary: Boolean(variant.primary),
         promotedAt: variant.promotedAt || "",
         index: Number(variant.index) || object.meta?.index || 0,
@@ -15656,6 +15829,7 @@ function buildSpatialVariantBranches(frameSelection) {
         thesis: semanticRecipe.thesis,
         designMoves: semanticRecipe.designMoves,
         prompt: semanticRecipe.prompt,
+        styleProperties: semanticRecipe.styleProperties,
         customProperties: semanticRecipe.customProperties,
         semanticRecipe,
         index: Number(frame.variant.index) || 0,
@@ -19592,6 +19766,57 @@ async function runSelfTest() {
             ),
           ),
         "variant branches render and export as editable semantic Map objects",
+      ),
+    );
+    const styledVariantFrame = variantFrames[0];
+    selectSpatialObject(`variant-object-${styledVariantFrame.id}`, {
+      render: true,
+      announce: false,
+    });
+    const styleEdited =
+      updateSelectedVariantStyleProperty(
+        "palette",
+        "self-test red, aged paper, deep ink",
+      ) &&
+      updateSelectedVariantStyleProperty(
+        "motion",
+        "self-test parallax reveal",
+      );
+    const styledVariantExport = buildSpatialWorkspaceExport();
+    const styledBranch = styledVariantExport.variantBranches.find(
+      (branch) => branch.frameId === styledVariantFrame.id,
+    );
+    const styledObject = styledVariantExport.objects.find(
+      (object) => object.id === `variant-object-${styledVariantFrame.id}`,
+    );
+    results.push(
+      assert(
+        styleEdited &&
+          styledVariantFrame.variant?.styleProperties?.palette ===
+            "self-test red, aged paper, deep ink" &&
+          styledBranch?.styleProperties?.motion ===
+            "self-test parallax reveal" &&
+          styledBranch?.semanticRecipe?.styleProperties?.palette ===
+            "self-test red, aged paper, deep ink" &&
+          styledObject?.meta?.variantStyle?.palette ===
+            "self-test red, aged paper, deep ink" &&
+          styledObject?.contextMarkdown.includes("## Variant Style") &&
+          dom.mapVariantStyleEditor?.hidden === false &&
+          dom.mapVariantStylePalette?.value ===
+            "self-test red, aged paper, deep ink",
+        "variant style knobs edit and export branch-level design properties",
+        JSON.stringify({
+          styleEdited,
+          frameStyle: styledVariantFrame.variant?.styleProperties || null,
+          branchStyle: styledBranch?.styleProperties || null,
+          semanticStyle: styledBranch?.semanticRecipe?.styleProperties || null,
+          objectStyle: styledObject?.meta?.variantStyle || null,
+          contextHasVariantStyle: Boolean(
+            styledObject?.contextMarkdown?.includes("## Variant Style"),
+          ),
+          styleEditorHidden: dom.mapVariantStyleEditor?.hidden,
+          paletteInput: dom.mapVariantStylePalette?.value,
+        }),
       ),
     );
     const branchTimelineTrack = variantSpatialExport.timeline?.tracks?.find(
