@@ -4569,13 +4569,19 @@ select,
 
 .design-kit-controls {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.45rem;
     align-items: end;
 }
 
 .design-kit-controls label {
+    grid-column: 1 / -1;
     min-width: 0;
+}
+
+.design-kit-controls .ghost-button {
+    min-width: 0;
+    padding-inline: 0.72rem;
 }
 
 .design-kit-controls select {

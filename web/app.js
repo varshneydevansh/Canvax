@@ -408,6 +408,9 @@ const dom = {
   designKitPresetSelect: document.querySelector("#design-kit-preset"),
   applyDesignKit: document.querySelector("#apply-design-kit"),
   extractDesignTokens: document.querySelector("#extract-design-tokens"),
+  importExternalDesignTokens: document.querySelector(
+    "#import-external-design-tokens",
+  ),
   designKitSources: document.querySelector("#design-kit-sources"),
   focusToolButtons: document.querySelector("#focus-tool-buttons"),
   focusAddFrame: document.querySelector("#focus-add-frame"),
@@ -1261,6 +1264,9 @@ function bindEvents() {
   });
   dom.extractDesignTokens.addEventListener("click", () => {
     void extractDesignTokensFromCurrentFrame();
+  });
+  dom.importExternalDesignTokens.addEventListener("click", () => {
+    void importExternalDesignTokens();
   });
   dom.voiceScopeButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-voice-scope]");
@@ -14407,6 +14413,119 @@ function rgbToQuantizedHex(red, green, blue) {
   return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
 }
 
+async function importExternalDesignTokens(options = {}) {
+  let pack = options.pack || null;
+  if (!pack) {
+    try {
+      const response = await fetch(
+        "/workspace/exports/canvax-external-design-tokens-latest.json",
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        throw new Error("No external token pack found yet");
+      }
+      pack = await response.json();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "External token pack could not be read";
+      renderStatus(message);
+      dom.workspaceStatus.textContent =
+        "Run npm run extract-tokens first, then import the latest token pack.";
+      return null;
+    }
+  }
+
+  const tokens = normalizeExternalDesignTokenPack(pack);
+  if (!tokens) {
+    renderStatus("External token pack is invalid");
+    dom.workspaceStatus.textContent =
+      "Expected exports/canvax-external-design-tokens-latest.json.";
+    return null;
+  }
+
+  const frame = currentFrame();
+  state.board.designTokens = tokens;
+  touchFrame(frame, {
+    capture: options.capture !== false,
+    status: options.silent
+      ? ""
+      : `Imported ${tokens.palette.length} external design token color${tokens.palette.length === 1 ? "" : "s"}`,
+  });
+  if (options.silent) {
+    renderStatus("");
+  }
+  return tokens;
+}
+
+function normalizeExternalDesignTokenPack(pack) {
+  if (pack?.kind !== "canvax-external-design-tokens") {
+    return null;
+  }
+  const paletteTokens = Array.isArray(pack.palette)
+    ? pack.palette
+        .map((entry) => {
+          const hex = normalizeColor(entry?.hex || entry, "");
+          return hex
+            ? {
+                hex,
+                count: Number(entry?.count) || 0,
+                role: cleanString(entry?.role) || "external",
+              }
+            : null;
+        })
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+  if (!paletteTokens.length) {
+    return null;
+  }
+  const fontFamilies = Array.isArray(pack.typography?.fontFamilies)
+    ? pack.typography.fontFamilies.map((font) => cleanString(font)).filter(Boolean)
+    : [];
+  const sourceLabel =
+    cleanString(pack.source?.label) ||
+    cleanString(pack.source?.url) ||
+    cleanString(pack.source?.path) ||
+    "External design source";
+  return normalizeDesignTokens({
+    source: "external-design-token-pack",
+    sourceFrameId: "",
+    sourceFrameTitle: sourceLabel,
+    extractedAt: cleanString(pack.createdAt) || new Date().toISOString(),
+    palette: paletteTokens,
+    elementMix: {
+      total: 0,
+      paths: 0,
+      shapes: 0,
+      arrows: 0,
+      labels: 0,
+      imageSlots: 0,
+    },
+    density: {
+      label: "external",
+      elementCount: 0,
+      viewportArea: 0,
+      coverage: 0,
+    },
+    visualSamples: {
+      sourceCount: Number(pack.source?.linkedStylesheets?.length || 0) + 1,
+      sampledSources: 1,
+      skippedSources: 0,
+      colorCount: Number(pack.usage?.colorCount) || paletteTokens.length,
+    },
+    shapeLanguage: "external design-system reference",
+    typographyCue: fontFamilies.length
+      ? `Fonts: ${fontFamilies.slice(0, 3).join(" | ")}`
+      : "No font-family rules found",
+    assetCue: sourceLabel,
+    summary:
+      compactDisplayText(pack.summary, 360) ||
+      `External token pack from ${sourceLabel}`,
+  });
+}
+
 function describeDesignTokenShapeLanguage(elementMix) {
   if (elementMix.imageSlots > 0 && elementMix.labels > 0) {
     return "reference-driven annotated layout";
@@ -20649,6 +20768,7 @@ async function runSelfTest() {
       ),
     );
     results.push(await assertVisualReferenceTokenExtraction());
+    results.push(await assertExternalDesignTokenImport());
     results.push(assertWorkbenchRailSizeControls());
     setSelfTestProgress("image and asset candidates");
     results.push(await assertImageAssetPlacement());
@@ -23730,6 +23850,60 @@ async function assertVisualReferenceTokenExtraction() {
   return assert(
     visualTokensOk,
     "design tokens sample pasted/reference image pixels",
+  );
+}
+
+async function assertExternalDesignTokenImport() {
+  const frame = currentFrame();
+  const previousDesignTokens = structuredClone(state.board.designTokens);
+  const tokens = await importExternalDesignTokens({
+    capture: false,
+    silent: true,
+    pack: {
+      kind: "canvax-external-design-tokens",
+      createdAt: new Date().toISOString(),
+      requiresOpenAiApiKey: false,
+      source: {
+        type: "inline-text",
+        label: "Self-test CSS token source",
+        linkedStylesheets: [],
+      },
+      palette: [
+        { hex: "#e85d3a", count: 4, role: "primary" },
+        { hex: "#14323f", count: 2, role: "accent" },
+      ],
+      typography: {
+        fontFamilies: ["Georgia, serif"],
+      },
+      usage: {
+        colorCount: 2,
+      },
+      summary:
+        "inline-text source: Self-test CSS token source. Top colors: #e85d3a, #14323f.",
+    },
+  });
+  const imported =
+    tokens?.source === "external-design-token-pack" &&
+    tokens.sourceFrameTitle === "Self-test CSS token source" &&
+    tokens.palette[0]?.hex === "#e85d3a" &&
+    buildDesignKitSummary().designTokens?.source ===
+      "external-design-token-pack";
+
+  state.board.designTokens = previousDesignTokens;
+  window.clearTimeout(state.captureTimer);
+  state.captureTimer = null;
+  persistState();
+  renderAll();
+
+  return assert(
+    imported,
+    "external design token packs import into Design kit",
+    JSON.stringify({
+      source: tokens?.source,
+      title: tokens?.sourceFrameTitle,
+      palette: tokens?.palette,
+      frame: frame.id,
+    }),
   );
 }
 

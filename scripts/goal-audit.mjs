@@ -211,6 +211,8 @@ const checks = [
         path: "web/app.js",
         includes: [
           "extractDesignTokensFromCurrentFrame",
+          "importExternalDesignTokens",
+          "normalizeExternalDesignTokenPack",
           "sampleImagePalette",
           "visualSamples",
         ],
@@ -237,7 +239,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Current-frame and text/CSS token extraction are local and proven, but UI import, rendered screenshot/app semantic extraction, and strict production-code enforcement remain open.",
+      "Current-frame, reference-image, and text/CSS token extraction plus latest-pack UI import are local and proven, but rendered screenshot/app semantic extraction and strict production-code enforcement remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

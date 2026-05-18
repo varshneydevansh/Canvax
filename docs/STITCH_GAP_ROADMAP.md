@@ -364,12 +364,14 @@ integration contract and Codex port task.
 `npm run extract-tokens` now adds a no-API external-source pass for public URLs,
 local HTML/CSS files, generated screen artifacts, or pasted CSS/HTML text,
 writing `canvax-external-design-tokens` JSON/Markdown for future Design kit
-import.
+import. Advanced `Import external` imports the latest token pack into the active
+board Design kit.
 
 Needed:
 
 - Richer `DESIGN.md` import controls inside the board UI beyond the current
-  active-source summary, local preset gallery, and current-frame token pass.
+  active-source summary, local preset gallery, current-frame token pass, and
+  latest external-token import.
 - Extract visual tokens from a URL, screenshot, or existing app. **Current-frame
   sketch token extraction and locally readable placed/reference-image sampling
   shipped; text/CSS token extraction from URLs, files, generated artifacts, and
