@@ -1344,6 +1344,7 @@ function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
       atmosphereId: model.atmosphere.id,
       atmosphereLabel: model.atmosphere.label,
       atmosphereMotion: model.atmosphere.motion,
+      designTokens: model.theme.designTokens || null,
       designerBrief: model.designerBrief,
     },
     designerImplementationContext: implementationContext
@@ -1460,6 +1461,7 @@ function buildCodexPortTask(request, { frameId, frameTitle }) {
       themeLabel: model.theme.label,
       atmosphereId: model.atmosphere.id,
       atmosphereLabel: model.atmosphere.label,
+      designTokens: model.theme.designTokens || null,
       designerBrief: model.designerBrief,
     },
     designerContext: {
@@ -1845,6 +1847,8 @@ function buildImplementationTheme(request) {
     };
   }
 
+  theme = applyDesignTokenPalette(theme, request);
+
   const hexColors = collectHexColors(collectImplementationSignalText(request));
   if (hexColors.length) {
     theme = {
@@ -1857,6 +1861,36 @@ function buildImplementationTheme(request) {
   }
 
   return theme;
+}
+
+function applyDesignTokenPalette(theme, request) {
+  const designTokens = collectDesignTokens(request);
+  const tokenPalette = collectDesignTokenPalette(designTokens);
+  if (!tokenPalette.length) {
+    return theme;
+  }
+  const [primary, accent, support, highlight] = tokenPalette;
+  const washAccent = accent || support || primary;
+  return {
+    ...theme,
+    red: primary || theme.red,
+    teal: accent || theme.teal,
+    blue: support || theme.blue,
+    gold: highlight || theme.gold,
+    washA: hexToRgba(primary || theme.red, 0.24),
+    washB: hexToRgba(washAccent || theme.blue, 0.2),
+    surfaceWash: hexToRgba(primary || theme.red, 0.1),
+    nodePalette: [...tokenPalette, ...theme.nodePalette].slice(0, 5),
+    designTokens: {
+      sourceFrameId: cleanString(designTokens?.sourceFrameId),
+      sourceFrameTitle: cleanString(designTokens?.sourceFrameTitle),
+      shapeLanguage: cleanString(designTokens?.shapeLanguage),
+      density: cleanString(designTokens?.density?.label),
+      summary: cleanString(designTokens?.summary),
+      palette: tokenPalette,
+      visualSamples: designTokens?.visualSamples || null,
+    },
+  };
 }
 
 function buildPosterArchiveTheme(theme = defaultImplementationTheme()) {
@@ -2138,6 +2172,7 @@ function themeAtmosphereCss() {
 function collectImplementationSignalText(request) {
   const context = request.implementationContext || {};
   const designKit = request.designKit || context.designKit || {};
+  const designTokens = collectDesignTokens(request);
   const variant = context.variant || {};
   const styleProperties = variant.styleProperties || {};
   const selectedObjects = context.selectedMapContext?.objects || [];
@@ -2151,6 +2186,10 @@ function collectImplementationSignalText(request) {
     designKit.summary,
     designKit.preset?.label,
     designKit.preset?.summary,
+    designTokens?.summary,
+    designTokens?.shapeLanguage,
+    designTokens?.density?.label,
+    ...(designTokens?.palette || []).map((entry) => entry.hex),
     ...designKitSources.map((source) =>
       [source.label, source.detail].join(" "),
     ),
@@ -2181,6 +2220,56 @@ function collectHexColors(value) {
   ].slice(0, 5);
 }
 
+function collectDesignTokens(request) {
+  const context = request.implementationContext || {};
+  return (
+    request.designKit?.designTokens ||
+    context.designKit?.designTokens ||
+    context.imageDirection?.styleLock?.designTokens ||
+    null
+  );
+}
+
+function collectDesignTokenPalette(designTokens) {
+  if (!Array.isArray(designTokens?.palette)) {
+    return [];
+  }
+  return [
+    ...new Set(
+      designTokens.palette
+        .map((entry) => normalizeExpandedHex(entry?.hex || entry))
+        .filter(Boolean),
+    ),
+  ].slice(0, 5);
+}
+
+function normalizeExpandedHex(value) {
+  const color = normalizeColor(value);
+  if (!color) {
+    return "";
+  }
+  const hex = color.slice(1);
+  if (hex.length === 3) {
+    return `#${hex
+      .split("")
+      .map((character) => `${character}${character}`)
+      .join("")
+      .toLowerCase()}`;
+  }
+  return color.toLowerCase();
+}
+
+function hexToRgba(hex, alpha = 1) {
+  const color = normalizeExpandedHex(hex);
+  if (!color) {
+    return `rgba(24, 17, 14, ${alpha})`;
+  }
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
 function themeCssVariables(theme = defaultImplementationTheme()) {
   return [
     `--paper: ${theme.paper};`,
@@ -2203,6 +2292,7 @@ function themeCssVariables(theme = defaultImplementationTheme()) {
 function buildDesignerBrief(request, theme) {
   const context = request.implementationContext || {};
   const designKit = request.designKit || context.designKit || null;
+  const designTokens = collectDesignTokens(request);
   const variant = context.variant || null;
   const selectedObjects = context.selectedMapContext?.objects || [];
   const selectedPrompts = context.selectedMapContext?.prompts || [];
@@ -2212,6 +2302,9 @@ function buildDesignerBrief(request, theme) {
       : "",
     designKit?.preset?.summary
       ? `Kit preset: ${designKit.preset.summary}`
+      : "",
+    designTokens?.summary
+      ? `Sketch tokens: ${designTokens.summary}`
       : "",
     variant?.label ? `${variant.label} direction: ${variant.thesis || variant.prompt || variant.direction}` : "",
     context.workbench?.generationRecipe

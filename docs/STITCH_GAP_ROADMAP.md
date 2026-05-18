@@ -358,6 +358,9 @@ token pass that samples non-eraser sketch elements plus locally readable
 reference underlays, pasted screenshots, dropped images, and generated
 candidates for palette, density, shape language, text cues, and asset-slot cues,
 then exports those tokens through the Design kit and style lock.
+The Build-with-Codex executor now applies the extracted token palette to the
+local preview/starter CSS variables and carries the token block into the
+integration contract and Codex port task.
 
 Needed:
 
@@ -367,6 +370,9 @@ Needed:
   sketch token extraction and locally readable placed/reference-image sampling
   shipped; direct URL/existing-app extraction remains open.**
 - Enforce those tokens when Codex generates or refines UI.
+  **Initial deterministic executor enforcement shipped for generated CSS
+  variables and port contracts; stricter production-code enforcement remains
+  open.**
 
 ### 6. Image Model And Asset Workflow
 

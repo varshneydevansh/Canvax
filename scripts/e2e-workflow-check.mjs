@@ -181,7 +181,9 @@ record(
     rawBuildPreview.includes("ARCHIVE DISPATCH") &&
     rawBuildPreview.includes("atmosphere-band-one") &&
     rawBuildPreview.includes("Designer context") &&
-    rawBuildPreview.includes("Poster Archive"),
+    rawBuildPreview.includes("Poster Archive") &&
+    rawBuildPreview.includes("--red: #e85d3a;") &&
+    rawBuildPreview.includes("Sketch tokens:"),
 );
 if (buildFrameCodeMap?.path) {
   await assertReadableProjectFile(buildFrameCodeMap.path);
@@ -292,6 +294,8 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
       parsedBuildContract.visualDirection?.themeId === "poster-archive" &&
       parsedBuildContract.visualDirection?.atmosphereId ===
         "constructivist-poster" &&
+      parsedBuildContract.visualDirection?.designTokens?.palette?.[0] ===
+        "#e85d3a" &&
       parsedBuildContract.ownership?.portTask === "codex-port-task.json" &&
       parsedBuildContract.ownership?.acceptanceChecklist ===
         "ACCEPTANCE.md" &&
@@ -332,6 +336,8 @@ if (portTaskFile?.path) {
       parsedPortTask.requiresOpenAiApiKey === false &&
       parsedPortTask.frame?.id === frameId &&
       parsedPortTask.visualDirection?.themeId === "poster-archive" &&
+      parsedPortTask.visualDirection?.designTokens?.palette?.[0] ===
+        "#e85d3a" &&
       parsedPortTask.designerContext?.designKit?.presetId ===
         "poster-system" &&
       parsedPortTask.sourceArtifacts?.componentMap ===
@@ -923,6 +929,44 @@ function buildRealRequest(board, frame) {
           "Use public-poster hierarchy, strong geometry, and print-like visual language.",
       },
     ],
+    designTokens: {
+      kind: "canvax-extracted-design-tokens",
+      source: "current-frame-elements",
+      sourceFrameId: frame.id,
+      sourceFrameTitle: frame.title,
+      extractedAt: now(),
+      palette: [
+        { hex: "#e85d3a", count: 42, role: "primary" },
+        { hex: "#14323f", count: 31, role: "accent" },
+        { hex: "#f2b84b", count: 24, role: "support" },
+        { hex: "#6d8fb8", count: 18, role: "support" },
+      ],
+      elementMix: {
+        total: frame.composition?.elements?.length || 0,
+        paths: 1,
+        shapes: 4,
+        arrows: 0,
+        labels: 2,
+        imageSlots: 1,
+      },
+      density: {
+        label: "balanced",
+        elementCount: frame.composition?.elements?.length || 0,
+        viewportArea: 1440 * 1024,
+        coverage: 0.24,
+      },
+      visualSamples: {
+        sourceCount: 1,
+        sampledSources: 1,
+        skippedSources: 0,
+        colorCount: 4,
+      },
+      shapeLanguage: "structured geometric wireframe",
+      typographyCue: "2 label/text cues on canvas",
+      assetCue: "1 image/reference slot detected",
+      summary:
+        "structured geometric wireframe with balanced density. 1 visual reference source sampled.",
+    },
   };
   return {
     schemaVersion: 1,
