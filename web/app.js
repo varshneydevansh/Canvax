@@ -3636,10 +3636,7 @@ function selectSpatialMapArtifacts(artifacts, selectedTargets) {
   const selected = new Map();
   [...artifacts]
     .reverse()
-    .filter((artifact) => {
-      const path = cleanString(artifact.path || artifact.previewPath);
-      return artifact.kind !== "preview" || !targetPaths.has(path);
-    })
+    .filter((artifact) => isDesignerVisibleMapArtifact(artifact, targetPaths))
     .forEach((artifact) => {
       const key = spatialManifestGroupingKey(
         artifact,
@@ -3651,6 +3648,31 @@ function selectSpatialMapArtifacts(artifacts, selectedTargets) {
       selected.set(key, artifact);
     });
   return [...selected.values()].reverse().slice(0, 4);
+}
+
+function isDesignerVisibleMapArtifact(artifact, targetPaths = new Set()) {
+  const kind = cleanString(artifact?.kind || artifact?.type).toLowerCase();
+  const id = cleanString(artifact?.id).toLowerCase();
+  const path = cleanString(artifact?.path || artifact?.previewPath);
+  const lowerPath = path.toLowerCase();
+
+  if (kind === "preview" && targetPaths.has(path)) {
+    return false;
+  }
+
+  if (["context", "meta"].includes(kind)) {
+    return false;
+  }
+
+  if (
+    kind === "reference" &&
+    (id.startsWith("materialize-sketch-") ||
+      /\/sketch\.(png|jpe?g|webp|avif)$/.test(lowerPath))
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function selectSpatialMapCheckpoints(history) {
@@ -21383,6 +21405,27 @@ function assertSpatialObjectsFromOutputManifest() {
           kind: "spec",
           frameIds: [frameId],
         },
+        {
+          id: "materialize-context-selftest",
+          label: "Self-test context",
+          path: `artifacts/preview/materialized/frames/${frameId}/frame.json`,
+          kind: "context",
+          frameIds: [frameId],
+        },
+        {
+          id: "materialize-meta-selftest",
+          label: "Self-test meta",
+          path: `artifacts/preview/materialized/frames/${frameId}/meta.json`,
+          kind: "meta",
+          frameIds: [frameId],
+        },
+        {
+          id: "materialize-sketch-selftest",
+          label: "Self-test sketch overlay",
+          path: `artifacts/preview/materialized/frames/${frameId}/sketch.png`,
+          kind: "reference",
+          frameIds: [frameId],
+        },
       ],
       changes: [
         {
@@ -21442,6 +21485,14 @@ function assertSpatialObjectsFromOutputManifest() {
   );
   const legacyDeletedTargetHidden = !spatialExport.objects.some(
     (object) => object.sourceId === "legacy-deleted-target",
+  );
+  const internalMaterializeArtifactsHidden = !spatialExport.objects.some(
+    (object) =>
+      [
+        "materialize-context-selftest",
+        "materialize-meta-selftest",
+        "materialize-sketch-selftest",
+      ].includes(object.sourceId),
   );
   const outputLaneExported = spatialExport.lanes.some(
     (lane) =>
@@ -21693,6 +21744,7 @@ function assertSpatialObjectsFromOutputManifest() {
       legacyMaterializedTitle &&
       legacyActiveTargetBound &&
       legacyDeletedTargetHidden &&
+      internalMaterializeArtifactsHidden &&
       outputLaneExported &&
       outputLaneRendered &&
       outputGuideRendered &&
@@ -21726,6 +21778,7 @@ function assertSpatialObjectsFromOutputManifest() {
       legacyMaterializedTitle,
       legacyActiveTargetBound,
       legacyDeletedTargetHidden,
+      internalMaterializeArtifactsHidden,
       outputLaneExported,
       outputLaneRendered,
       outputGuideRendered,
