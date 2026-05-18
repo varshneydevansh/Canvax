@@ -91,6 +91,10 @@ The useful lesson for Canvax:
 - Treat reusable design knowledge as first-class. Canvax should continue
   expanding `DESIGN.md`, style locks, image packs, and semantic recipes so rough
   sketches inherit a durable design system instead of becoming one-off prompts.
+- Preserve the artifact loop as files. Open Design reinforces that prompts,
+  skills, design systems, previews, and exports should be inspectable artifacts,
+  not hidden state; Canvax should keep writing readable JSON/Markdown/HTML
+  handoffs that Codex can edit and users can review.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.
@@ -349,13 +353,17 @@ variant style knobs without guessing. The kit card also includes a compact
 preset gallery for common designer surfaces such as product apps, poster
 systems, book spreads, dashboards, and storyboards; applying a preset updates
 the board surface, mood, action mode, generation recipe, and empty frame notes
-without touching the sketch.
+without touching the sketch. `Extract tokens` now adds a local current-frame
+token pass that samples non-eraser sketch elements for palette, density, shape
+language, text cues, and asset-slot cues, then exports those tokens through the
+Design kit and style lock.
 
 Needed:
 
 - Richer `DESIGN.md` import controls inside the board UI beyond the current
-  active-source summary and local preset gallery.
-- Extract visual tokens from a URL, screenshot, or existing app.
+  active-source summary, local preset gallery, and current-frame token pass.
+- Extract visual tokens from a URL, screenshot, or existing app. **Current-frame
+  sketch token extraction shipped; external-source extraction remains open.**
 - Enforce those tokens when Codex generates or refines UI.
 
 ### 6. Image Model And Asset Workflow

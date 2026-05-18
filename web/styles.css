@@ -4569,7 +4569,7 @@ select,
 
 .design-kit-controls {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: 0.45rem;
     align-items: end;
 }

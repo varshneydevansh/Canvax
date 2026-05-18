@@ -407,6 +407,7 @@ const dom = {
   designKitSummary: document.querySelector("#design-kit-summary"),
   designKitPresetSelect: document.querySelector("#design-kit-preset"),
   applyDesignKit: document.querySelector("#apply-design-kit"),
+  extractDesignTokens: document.querySelector("#extract-design-tokens"),
   designKitSources: document.querySelector("#design-kit-sources"),
   focusToolButtons: document.querySelector("#focus-tool-buttons"),
   focusAddFrame: document.querySelector("#focus-add-frame"),
@@ -1258,6 +1259,9 @@ function bindEvents() {
   dom.applyDesignKit.addEventListener("click", () => {
     applyDesignKitPreset(dom.designKitPresetSelect.value);
   });
+  dom.extractDesignTokens.addEventListener("click", () => {
+    extractDesignTokensFromCurrentFrame();
+  });
   dom.voiceScopeButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-voice-scope]");
     if (!button) {
@@ -1529,6 +1533,63 @@ function designKitPresetById(id) {
   return designKitPresets.find((preset) => preset.id === id) || null;
 }
 
+function normalizeDesignTokens(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const paletteTokens = Array.isArray(value.palette)
+    ? value.palette
+        .map((entry) => {
+          const hex = normalizeColor(entry?.hex || entry, "");
+          return hex
+            ? {
+                hex,
+                count: Number(entry?.count) || 0,
+                role: cleanString(entry?.role) || "sampled",
+              }
+            : null;
+        })
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
+  const elementMix =
+    value.elementMix && typeof value.elementMix === "object"
+      ? value.elementMix
+      : {};
+  const density =
+    value.density && typeof value.density === "object" ? value.density : {};
+  return {
+    kind: "canvax-extracted-design-tokens",
+    source: cleanString(value.source) || "current-frame",
+    sourceFrameId: cleanString(value.sourceFrameId),
+    sourceFrameTitle: cleanString(value.sourceFrameTitle),
+    extractedAt: cleanString(value.extractedAt) || new Date().toISOString(),
+    palette: paletteTokens,
+    elementMix: {
+      total: Number(elementMix.total) || 0,
+      paths: Number(elementMix.paths) || 0,
+      shapes: Number(elementMix.shapes) || 0,
+      arrows: Number(elementMix.arrows) || 0,
+      labels: Number(elementMix.labels) || 0,
+      imageSlots: Number(elementMix.imageSlots) || 0,
+    },
+    density: {
+      label: cleanString(density.label) || "unknown",
+      elementCount: Number(density.elementCount) || 0,
+      viewportArea: Number(density.viewportArea) || 0,
+      coverage: Number(density.coverage) || 0,
+    },
+    shapeLanguage: cleanString(value.shapeLanguage) || "mixed sketch",
+    typographyCue: cleanString(value.typographyCue) || "",
+    assetCue: cleanString(value.assetCue) || "",
+    summary: compactDisplayText(value.summary || "", 420),
+  };
+}
+
+function currentDesignTokensForExport() {
+  return normalizeDesignTokens(state?.board?.designTokens);
+}
+
 function hydrateState() {
   const empty = createInitialState();
   try {
@@ -1585,6 +1646,7 @@ function hydrateState() {
         designKitPreset: designKitPresetById(migrated.board?.designKitPreset)
           ? migrated.board.designKitPreset
           : empty.board.designKitPreset,
+        designTokens: normalizeDesignTokens(migrated.board?.designTokens),
         generation: normalizeGenerationConfig(
           migrated.board?.generation,
           empty.board.generation,
@@ -1917,6 +1979,7 @@ function describeDesignContext() {
 
 function buildDesignKitSummary(frames = state?.frames || []) {
   const designContext = currentDesignContextForExport();
+  const designTokens = currentDesignTokensForExport();
   const generation = normalizeGenerationConfig(state?.board?.generation);
   const generationRecipe = generationSummaryText(generation);
   const actionMode = currentActionMode();
@@ -1986,6 +2049,17 @@ function buildDesignKitSummary(frames = state?.frames || []) {
           },
         ]
       : []),
+    ...(designTokens
+      ? [
+          {
+            label: `Tokens: ${designTokens.palette.length} colors`,
+            detail:
+              designTokens.summary ||
+              `${designTokens.shapeLanguage}, ${designTokens.density.label} density.`,
+            active: true,
+          },
+        ]
+      : []),
     ...(styleEntries.length
       ? [
           {
@@ -2016,6 +2090,9 @@ function buildDesignKitSummary(frames = state?.frames || []) {
       generationRecipe,
       actionMode.label,
       boardMood ? `Mood: ${boardMood}` : "",
+      designTokens
+        ? `Extracted: ${designTokens.shapeLanguage}, ${designTokens.density.label}`
+        : "",
       styleEntries.length
         ? `Style knobs: ${styleEntries.map(([key]) => key).join(", ")}`
         : "",
@@ -2063,6 +2140,7 @@ function buildDesignKitSummary(frames = state?.frames || []) {
       noteCount: frameNotes.length,
     },
     styleKnobs: Object.fromEntries(styleEntries),
+    designTokens,
     sources,
     instructions: [
       "Treat this design kit as the active local substitute for a hosted design-system/skill gallery.",
@@ -2102,6 +2180,7 @@ function createInitialState() {
       designMood: "Fast, visual, iterative.",
       actionMode: "build-ui",
       designKitPreset: "custom",
+      designTokens: null,
       generation: createDefaultGenerationConfig(),
     },
     frames: [firstFrame],
@@ -3107,8 +3186,13 @@ function renderDesignKitCard() {
   const activePreset = designKitPresetById(state.board.designKitPreset);
   dom.designKitPresetSelect.value = activePreset?.id || "custom";
   dom.applyDesignKit.disabled = dom.designKitPresetSelect.value === "custom";
+  if (dom.extractDesignTokens) {
+    dom.extractDesignTokens.title = kit.designTokens
+      ? `Refresh extracted tokens from ${kit.designTokens.sourceFrameTitle || "current frame"}`
+      : "Derive local design tokens from the current sketch without using an API";
+  }
   dom.designKitSources.innerHTML = kit.sources
-    .slice(0, 6)
+    .slice(0, 8)
     .map(
       (source) =>
         `<li title="${escapeHtml(source.detail || source.label)}">${escapeHtml(source.label)}</li>`,
@@ -14064,6 +14148,145 @@ function applyDesignKitPreset(presetId, options = {}) {
   return true;
 }
 
+function extractDesignTokensFromCurrentFrame(options = {}) {
+  const frame = currentFrame();
+  const tokens = buildDesignTokensFromFrame(frame);
+  state.board.designTokens = tokens;
+  touchFrame(frame, {
+    capture: options.capture !== false,
+    status: options.silent
+      ? ""
+      : `Extracted ${tokens.palette.length} design token color${tokens.palette.length === 1 ? "" : "s"} from ${frame.title}`,
+  });
+  if (options.silent) {
+    renderStatus("");
+  }
+  return tokens;
+}
+
+function buildDesignTokensFromFrame(frame = currentFrame()) {
+  const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
+  const meaningfulElements = (frame.elements || []).filter(
+    (element) => !isEraserElement(element) && isElementMeaningful(element),
+  );
+  const elementMix = {
+    total: meaningfulElements.length,
+    paths: 0,
+    shapes: 0,
+    arrows: 0,
+    labels: 0,
+    imageSlots: 0,
+  };
+  const colorCounts = new Map();
+  let coveredArea = 0;
+
+  meaningfulElements.forEach((element) => {
+    if (element.type === "path" || element.type === "line") {
+      elementMix.paths += 1;
+    }
+    if (element.type === "rect" || element.type === "ellipse") {
+      elementMix.shapes += 1;
+    }
+    if (element.type === "arrow") {
+      elementMix.arrows += 1;
+    }
+    if (element.type === "label") {
+      elementMix.labels += 1;
+    }
+    if (element.type === "image") {
+      elementMix.imageSlots += 1;
+    }
+
+    const color = normalizeColor(element.color, "");
+    if (color) {
+      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+    }
+
+    const bounds = getElementBounds(element, frame);
+    if (bounds) {
+      coveredArea +=
+        Math.max(0, bounds.right - bounds.left) *
+        Math.max(0, bounds.bottom - bounds.top);
+    }
+  });
+
+  const paletteTokens = [...colorCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([hex, count], index) => ({
+      hex,
+      count,
+      role: index === 0 ? "primary" : index === 1 ? "accent" : "support",
+    }));
+  if (!paletteTokens.length) {
+    paletteTokens.push({
+      hex: normalizeColor(state.color, palette[0]),
+      count: 1,
+      role: "active",
+    });
+  }
+
+  const viewportArea = Math.max(1, viewport.width * viewport.height);
+  const coverage = roundNumber(Math.min(1, coveredArea / viewportArea));
+  const densityLabel =
+    meaningfulElements.length >= 18 || coverage > 0.34
+      ? "dense"
+      : meaningfulElements.length >= 7 || coverage > 0.14
+        ? "balanced"
+        : "sparse";
+  const shapeLanguage = describeDesignTokenShapeLanguage(elementMix);
+  const typographyCue = elementMix.labels
+    ? `${elementMix.labels} label/text cue${elementMix.labels === 1 ? "" : "s"} on canvas`
+    : "No explicit text labels found";
+  const assetCue = elementMix.imageSlots
+    ? `${elementMix.imageSlots} image/reference slot${elementMix.imageSlots === 1 ? "" : "s"} detected`
+    : "No image slots detected";
+
+  return normalizeDesignTokens({
+    source: "current-frame-elements",
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    extractedAt: new Date().toISOString(),
+    palette: paletteTokens,
+    elementMix,
+    density: {
+      label: densityLabel,
+      elementCount: meaningfulElements.length,
+      viewportArea,
+      coverage,
+    },
+    shapeLanguage,
+    typographyCue,
+    assetCue,
+    summary: [
+      `${shapeLanguage} with ${densityLabel} density`,
+      `${elementMix.total} sketch element${elementMix.total === 1 ? "" : "s"}`,
+      `${paletteTokens.length} sampled color${paletteTokens.length === 1 ? "" : "s"}`,
+      typographyCue,
+      assetCue,
+    ].join(". "),
+  });
+}
+
+function describeDesignTokenShapeLanguage(elementMix) {
+  if (elementMix.imageSlots > 0 && elementMix.labels > 0) {
+    return "reference-driven annotated layout";
+  }
+  if (elementMix.arrows >= 2) {
+    return "motion-first storyboard";
+  }
+  if (elementMix.shapes >= elementMix.paths && elementMix.shapes >= 3) {
+    return "structured geometric wireframe";
+  }
+  if (elementMix.paths > elementMix.shapes && elementMix.paths >= 3) {
+    return "organic freehand sketch";
+  }
+  if (elementMix.labels > 0) {
+    return "text-led annotated sketch";
+  }
+  return "minimal mixed sketch";
+}
+
 function updateFrameField(field, value, options = { capture: true }) {
   const frame = currentFrame();
   frame[field] = value;
@@ -16916,6 +17139,8 @@ function buildImagePromptPack(frames) {
 }
 
 function buildImageStyleLock(frames = [], generationRecipe = "") {
+  const designKit = buildDesignKitSummary(frames);
+  const designTokens = designKit.designTokens;
   const designContext = currentDesignContextForExport();
   const mood = cleanString(state.board.designMood);
   const surface = cleanString(state.board.audience);
@@ -16941,16 +17166,18 @@ function buildImageStyleLock(frames = [], generationRecipe = "") {
       surface ? `Surface: ${surface}` : "",
       generationRecipe ? `Generation: ${generationRecipe}` : "",
       designContext.exists ? `Design context: ${designContext.summary}` : "",
+      designTokens ? `Sketch tokens: ${designTokens.summary}` : "",
     ]
       .filter(Boolean)
       .join(". "),
     420,
   );
+  const tokenSwatches = (designTokens?.palette || []).map((entry) => entry.hex);
 
   return {
     kind: "canvax-style-lock",
     id: `style-${classToken(project).toLowerCase() || "canvax"}`,
-    source: "board-design-context-and-frame-notes",
+    source: "board-design-kit-and-frame-notes",
     project,
     summary,
     mood,
@@ -16958,7 +17185,10 @@ function buildImageStyleLock(frames = [], generationRecipe = "") {
     generationRecipe,
     palette: {
       activeColor: state.color,
-      swatches: [...new Set([state.color, ...palette])].slice(0, 10),
+      swatches: [...new Set([state.color, ...tokenSwatches, ...palette])].slice(
+        0,
+        10,
+      ),
     },
     continuityRules: [
       "Keep character/object identity consistent across frames and variants.",
@@ -16982,6 +17212,24 @@ function buildImageStyleLock(frames = [], generationRecipe = "") {
       summary: compactDisplayText(designContext.summary || "", 420),
       excerpt: compactDisplayText(designContext.content || "", 1200),
     },
+    designKit: {
+      label: designKit.label,
+      statusLabel: designKit.statusLabel,
+      preset: designKit.preset,
+      summary: designKit.summary,
+    },
+    designTokens: designTokens
+      ? {
+          sourceFrameId: designTokens.sourceFrameId,
+          sourceFrameTitle: designTokens.sourceFrameTitle,
+          palette: designTokens.palette,
+          density: designTokens.density,
+          shapeLanguage: designTokens.shapeLanguage,
+          typographyCue: designTokens.typographyCue,
+          assetCue: designTokens.assetCue,
+          summary: designTokens.summary,
+        }
+      : null,
     frameSignals,
   };
 }
@@ -20245,6 +20493,21 @@ async function runSelfTest() {
     results.push(assertEraserPreservesPaperLayer());
     results.push(assertEraserRemovesInk());
     results.push(assertOutputAnnotationEraserRemovesMarks());
+    const extractedTokens = extractDesignTokensFromCurrentFrame({
+      capture: false,
+      silent: true,
+    });
+    const extractedKit = buildDesignKitSummary();
+    results.push(
+      assert(
+        extractedTokens?.kind === "canvax-extracted-design-tokens" &&
+          extractedTokens.elementMix.total > 0 &&
+          extractedTokens.palette.length > 0 &&
+          extractedKit.designTokens?.sourceFrameId === currentFrame().id &&
+          dom.designKitSources.textContent.includes("Tokens:"),
+        "design tokens extract from sketch and export through Design kit",
+      ),
+    );
     results.push(assertWorkbenchRailSizeControls());
     setSelfTestProgress("image and asset candidates");
     results.push(await assertImageAssetPlacement());
