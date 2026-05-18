@@ -4567,6 +4567,28 @@ select,
     line-height: 1.35;
 }
 
+.design-kit-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem;
+    align-items: end;
+}
+
+.design-kit-controls label {
+    min-width: 0;
+}
+
+.design-kit-controls select {
+    width: 100%;
+    margin-top: 0.28rem;
+}
+
+.design-kit-controls .ghost-button {
+    min-height: 2.55rem;
+    padding-inline: 0.78rem;
+    white-space: nowrap;
+}
+
 .design-kit-sources {
     display: flex;
     flex-wrap: wrap;
@@ -4611,9 +4633,19 @@ body[data-workspace-mode="advanced"] .design-kit-card p {
     color: rgba(255, 248, 236, 0.76);
 }
 
+body[data-workspace-mode="advanced"] .design-kit-controls label {
+    color: rgba(255, 248, 236, 0.78);
+}
+
 body[data-workspace-mode="advanced"] .design-kit-sources li {
     border-color: rgba(255, 248, 236, 0.14);
     background: rgba(255, 248, 236, 0.11);
+}
+
+@media (max-width: 44rem) {
+    .design-kit-controls {
+        grid-template-columns: 1fr;
+    }
 }
 
 .voice-scope-control {

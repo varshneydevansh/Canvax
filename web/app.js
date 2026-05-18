@@ -224,6 +224,116 @@ const generationFocuses = [
   { id: "utility", label: "Utility" },
 ];
 
+const designKitPresets = [
+  {
+    id: "product-studio",
+    label: "Product app",
+    summary: "Clean product UI with strong hierarchy, responsive components, and implementation-ready states.",
+    audience: "web app, product UI, responsive component surface",
+    mood: "Clear, premium, implementation-ready, direct.",
+    actionMode: "build-ui",
+    viewport: "desktop",
+    generation: { direction: "product", style: "studio", focus: "balanced" },
+    frame: {
+      objective: "Turn the sketch into a production-ready app or website screen.",
+      layout:
+        "Preserve the drawn hierarchy, convert rough boxes into real components, and keep spacing intentional.",
+      motion:
+        "Use subtle reveal, hover, and state transitions only where they clarify interaction.",
+      assets:
+        "Treat image boxes as replaceable asset slots with clear alt text and loading states.",
+      mobile:
+        "Adapt into a stacked mobile layout while preserving the primary action and hierarchy.",
+    },
+  },
+  {
+    id: "poster-system",
+    label: "Poster system",
+    summary: "Bold editorial/poster direction for campaigns, landing pages, and visual systems.",
+    audience: "poster, campaign page, editorial landing page, brand system",
+    mood:
+      "Bold poster logic, aged paper, sharp geometry, limited palette, dramatic type.",
+    actionMode: "image-prompt",
+    viewport: "poster",
+    generation: { direction: "editorial", style: "showcase", focus: "storytelling" },
+    frame: {
+      objective: "Turn the sketch into a striking poster-led visual direction.",
+      layout:
+        "Use large type, diagonal geometry, clear focal imagery, and strong foreground/background separation.",
+      motion:
+        "For web outputs, use parallax layers and poster-panel reveals without weakening the composition.",
+      assets:
+        "Generate or specify poster imagery, texture, print grain, symbols, and image-safe regions.",
+      mobile:
+        "Crop and stack poster layers carefully so the focal symbol and headline remain dominant.",
+    },
+  },
+  {
+    id: "storybook-spread",
+    label: "Book spread",
+    summary: "Landscape two-page spread planning for children's books, comics, and illustration prompts.",
+    audience: "children's book spread, illustration prompt, story scene, print layout",
+    mood:
+      "Warm, cinematic, storybook, consistent characters, strong scene continuity.",
+    actionMode: "image-prompt",
+    viewport: "bookSpread",
+    generation: { direction: "cinematic", style: "showcase", focus: "storytelling" },
+    frame: {
+      objective: "Turn the sketch into a two-page illustration spread direction.",
+      layout:
+        "Preserve character placement, camera angle, safe text zones, and page-spread balance.",
+      motion:
+        "Use arrows and labels as story action, camera motion, and emotional beats.",
+      assets:
+        "Describe character continuity, environment, lighting, texture, and negative prompts for image generation.",
+      mobile:
+        "Also provide single-page crop notes and thumbnail-safe composition guidance.",
+    },
+  },
+  {
+    id: "dashboard-ops",
+    label: "Dashboard",
+    summary: "Dense information product with charts, tables, filters, and decision-focused states.",
+    audience: "dashboard, admin app, analytics workspace, operations UI",
+    mood: "Analytical, structured, calm, high-density but readable.",
+    actionMode: "build-ui",
+    viewport: "desktop",
+    generation: { direction: "dashboard", style: "studio", focus: "utility" },
+    frame: {
+      objective: "Turn the sketch into a useful dashboard or admin workspace.",
+      layout:
+        "Map boxes to data cards, charts, filters, tables, empty states, and command surfaces.",
+      motion:
+        "Use transitions for filtering, drilldown, loading, and alert state changes.",
+      assets:
+        "Use real-looking placeholder data, clear legends, and accessible color contrast.",
+      mobile:
+        "Convert dense regions into priority cards, horizontal charts, and progressive disclosure.",
+    },
+  },
+  {
+    id: "comic-storyboard",
+    label: "Storyboard",
+    summary: "Sequential panels for comics, animation beats, manga, or scene planning.",
+    audience: "storyboard, comic page, manga beat sheet, motion sequence",
+    mood: "Sequential, expressive, camera-aware, readable at thumbnail size.",
+    actionMode: "image-prompt",
+    viewport: "storyboard",
+    generation: { direction: "cinematic", style: "rapid", focus: "storytelling" },
+    frame: {
+      objective: "Turn the sketch into a clear sequential visual plan.",
+      layout:
+        "Treat each rough panel as a beat with camera angle, subject scale, action, and transition.",
+      motion:
+        "Use arrows and labels as camera moves, action direction, pacing, and panel transitions.",
+      assets:
+        "Keep character identity, props, lighting, and environment consistent across panels.",
+      mobile:
+        "Provide panel-by-panel prompts plus a consolidated style lock for the full sequence.",
+    },
+  },
+];
+
 const toolDefinitions = [
   { id: "select", label: "Select" },
   { id: "pen", label: "Pen" },
@@ -295,6 +405,8 @@ const dom = {
   designKitCard: document.querySelector("#design-kit-card"),
   designKitTitle: document.querySelector("#design-kit-title"),
   designKitSummary: document.querySelector("#design-kit-summary"),
+  designKitPresetSelect: document.querySelector("#design-kit-preset"),
+  applyDesignKit: document.querySelector("#apply-design-kit"),
   designKitSources: document.querySelector("#design-kit-sources"),
   focusToolButtons: document.querySelector("#focus-tool-buttons"),
   focusAddFrame: document.querySelector("#focus-add-frame"),
@@ -1140,6 +1252,12 @@ function bindEvents() {
   dom.generationFocus.addEventListener("change", () =>
     updateGenerationField("focus", dom.generationFocus.value),
   );
+  dom.designKitPresetSelect.addEventListener("change", () => {
+    dom.applyDesignKit.disabled = dom.designKitPresetSelect.value === "custom";
+  });
+  dom.applyDesignKit.addEventListener("click", () => {
+    applyDesignKitPreset(dom.designKitPresetSelect.value);
+  });
   dom.voiceScopeButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-voice-scope]");
     if (!button) {
@@ -1407,6 +1525,10 @@ function generationSummaryText(config = state?.board?.generation) {
   ].join(" • ");
 }
 
+function designKitPresetById(id) {
+  return designKitPresets.find((preset) => preset.id === id) || null;
+}
+
 function hydrateState() {
   const empty = createInitialState();
   try {
@@ -1460,6 +1582,9 @@ function hydrateState() {
         ...empty.board,
         ...(migrated.board || {}),
         actionMode: normalizeActionMode(migrated.board?.actionMode).id,
+        designKitPreset: designKitPresetById(migrated.board?.designKitPreset)
+          ? migrated.board.designKitPreset
+          : empty.board.designKitPreset,
         generation: normalizeGenerationConfig(
           migrated.board?.generation,
           empty.board.generation,
@@ -1797,6 +1922,7 @@ function buildDesignKitSummary(frames = state?.frames || []) {
   const actionMode = currentActionMode();
   const frame =
     (typeof currentFrame === "function" && currentFrame()) || frames[0] || {};
+  const activePreset = designKitPresetById(state?.board?.designKitPreset);
   const frameNotes = [frame.objective, frame.layout, frame.motion, frame.assets]
     .map((value) => cleanString(value))
     .filter(Boolean);
@@ -1809,6 +1935,15 @@ function buildDesignKitSummary(frames = state?.frames || []) {
   const boardMood = cleanString(state?.board?.designMood);
   const surface = cleanString(state?.board?.audience);
   const sources = [
+    ...(activePreset
+      ? [
+          {
+            label: `Kit: ${activePreset.label}`,
+            detail: activePreset.summary,
+            active: true,
+          },
+        ]
+      : []),
     designContext.exists
       ? {
           label: designContext.relativePath || "DESIGN.md",
@@ -1877,6 +2012,7 @@ function buildDesignKitSummary(frames = state?.frames || []) {
       designContext.exists
         ? `${designContext.relativePath || "DESIGN.md"} is active`
         : "Using local board rules",
+      activePreset ? `Kit: ${activePreset.label}` : "",
       generationRecipe,
       actionMode.label,
       boardMood ? `Mood: ${boardMood}` : "",
@@ -1891,9 +2027,24 @@ function buildDesignKitSummary(frames = state?.frames || []) {
 
   return {
     kind: "canvax-design-kit",
-    label: designContext.exists ? "Project design kit" : "Board design kit",
-    statusLabel: designContext.exists ? "DESIGN.md active" : "Board rules active",
+    label: activePreset
+      ? activePreset.label
+      : designContext.exists
+        ? "Project design kit"
+        : "Board design kit",
+    statusLabel: activePreset
+      ? `${activePreset.label} kit`
+      : designContext.exists
+        ? "DESIGN.md active"
+        : "Board rules active",
     summary,
+    preset: activePreset
+      ? {
+          id: activePreset.id,
+          label: activePreset.label,
+          summary: activePreset.summary,
+        }
+      : null,
     designContext,
     generationRecipe,
     actionMode: {
@@ -1950,6 +2101,7 @@ function createInitialState() {
         "web UI, mobile UI, Qt, image direction, or any other visual surface",
       designMood: "Fast, visual, iterative.",
       actionMode: "build-ui",
+      designKitPreset: "custom",
       generation: createDefaultGenerationConfig(),
     },
     frames: [firstFrame],
@@ -2508,6 +2660,13 @@ function populateViewportSelect() {
         `<option value="${mode.id}">${mode.label}</option>`,
     )
     .join("");
+  dom.designKitPresetSelect.innerHTML = [
+    `<option value="custom">Manual board rules</option>`,
+    ...designKitPresets.map(
+      (preset) =>
+        `<option value="${preset.id}">${escapeHtml(preset.label)}</option>`,
+    ),
+  ].join("");
 }
 
 function renderAll() {
@@ -2945,6 +3104,9 @@ function renderDesignKitCard() {
   dom.designKitTitle.textContent = kit.statusLabel;
   dom.designKitSummary.textContent = kit.summary;
   dom.designKitCard.title = kit.instructions.join(" ");
+  const activePreset = designKitPresetById(state.board.designKitPreset);
+  dom.designKitPresetSelect.value = activePreset?.id || "custom";
+  dom.applyDesignKit.disabled = dom.designKitPresetSelect.value === "custom";
   dom.designKitSources.innerHTML = kit.sources
     .slice(0, 6)
     .map(
@@ -13865,6 +14027,43 @@ function updateGenerationField(field, value) {
   renderStatus(`Generation recipe updated: ${generationSummaryText()}`);
 }
 
+function applyDesignKitPreset(presetId, options = {}) {
+  const preset = designKitPresetById(presetId);
+  if (!preset) {
+    renderStatus("Choose a design kit preset first");
+    return false;
+  }
+
+  const frame = currentFrame();
+  const presetFrame = preset.frame || {};
+  state.board.designKitPreset = preset.id;
+  state.board.audience = preset.audience || state.board.audience;
+  state.board.designMood = preset.mood || state.board.designMood;
+  state.board.actionMode = normalizeActionMode(preset.actionMode).id;
+  state.board.generation = normalizeGenerationConfig(
+    preset.generation,
+    state.board.generation,
+  );
+
+  if (viewportPresets[preset.viewport]) {
+    frame.viewport = preset.viewport;
+  }
+  ["objective", "layout", "motion", "assets", "mobile"].forEach((field) => {
+    if (!cleanString(frame[field]) && cleanString(presetFrame[field])) {
+      frame[field] = presetFrame[field];
+    }
+  });
+
+  touchFrame(frame, {
+    capture: options.capture !== false,
+    status: options.silent ? "" : `${preset.label} design kit applied`,
+  });
+  if (options.silent) {
+    renderStatus("");
+  }
+  return true;
+}
+
 function updateFrameField(field, value, options = { capture: true }) {
   const frame = currentFrame();
   frame[field] = value;
@@ -19787,6 +19986,29 @@ async function runSelfTest() {
       assert(
         actionModes.length === dom.focusActionModeSelect.options.length,
         "Workbench action modes render",
+      ),
+    );
+    results.push(
+      assert(
+        dom.designKitPresetSelect.options.length ===
+          designKitPresets.length + 1,
+        "design kit presets render",
+      ),
+    );
+    const presetApplied = applyDesignKitPreset("product-studio", {
+      capture: false,
+      silent: true,
+    });
+    const appliedKit = buildDesignKitSummary();
+    results.push(
+      assert(
+        presetApplied &&
+          state.board.designKitPreset === "product-studio" &&
+          state.board.actionMode === "build-ui" &&
+          state.board.generation.direction === "product" &&
+          appliedKit.preset?.id === "product-studio" &&
+          dom.designKitSources.textContent.includes("Kit: Product app"),
+        "design kit preset applies and exports active kit context",
       ),
     );
     results.push(

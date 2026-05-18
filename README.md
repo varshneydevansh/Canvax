@@ -93,6 +93,7 @@ flowchart LR
 - Keeps the main Workbench tray compact, with surface selection, action selection, host capability status, and design-context status visible without pushing the canvas below the fold.
 - Adds Workbench quick-prompt chips for common refinement directions like font, drama, mobile variant, spacing, and image candidates.
 - Adds designer surface presets for slides, book spreads, storyboards, and comic pages alongside UI, poster, square, and free-canvas presets.
+- Adds a visible Advanced `Design kit` card with active rule sources and local kit presets for product apps, poster systems, book spreads, dashboards, and storyboards. Applying a kit updates the board surface, mood, action mode, generation recipe, and empty frame notes without touching the sketch.
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
 - Keeps Advanced in the same product language with a solid command deck and bounded frame/map workspace that stay readable over long sessions.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.
@@ -112,7 +113,7 @@ flowchart LR
 - Lets selected drawn elements become persistent prototype hotspots, so a button/image/region you sketch can navigate to a target frame in Preview Play.
 - Autosaves the latest handoff under `exports/`.
 - Generates a live Markdown prompt alongside the structured JSON export.
-- Writes a Codex task pack and image prompt pack with normalized coordinates, selected action mode, optional `DESIGN.md` context, plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
+- Writes a Codex task pack and image prompt pack with normalized coordinates, selected action mode, active Design kit context, optional `DESIGN.md` context, plus an HTML/CSS placement scaffold, so ChatGPT/image generation can preserve rough composition without a Canvax API key.
 - Adds a no-API style lock to image prompt and asset candidate packs so UI, poster, book-spread, comic, storyboard, and image-variant work can keep visual continuity across frames.
 - Writes a consolidated no-API image generation brief that combines candidate prompts, style lock, pixel/CSS placement contracts, output slots, frame-grouped review queues, and copy-ready host prompts for ChatGPT/Codex image-generation hosts.
 - Writes a no-API image host task that turns each candidate into a machine-readable hosted-image task with return-slot binding and acceptance criteria.

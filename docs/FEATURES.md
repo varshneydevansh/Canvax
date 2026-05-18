@@ -247,6 +247,7 @@ Boundary:
 - ChatGPT/image generation integration is host-driven. Canvax exports the composition, coordinates, prompt, scaffold, and style lock; it does not directly invoke a paid image API or require an API key.
 - The host capability chip is explicit about what Canvax can do locally today: Codex workspace/browser handoff is available, direct host image generation and native Codex microphone access require a future first-party bridge.
 - If `DESIGN.md` exists at the project root, Canvax includes it as design context in task packs and image prompt packs.
+- The Advanced `Design kit` card shows the active rule stack and can apply local presets for product apps, poster systems, book spreads, dashboards, and storyboards. The selected kit exports as `designKit` in task packs, image prompt packs, and Build-with-Codex requests.
 - Image prompt packs include a `canvax-style-lock` block with palette, continuity rules, adaptation rules, negative rules, design-context summary, and frame signals so image/book/comic/poster candidates can stay consistent across frames.
 - In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
 
@@ -697,7 +698,7 @@ It writes a task artifact that Codex can execute in the current workspace. The b
 
 That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation. The bundle includes a React-ready `CanvaxScreen.jsx`/`CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, `codex-port-task.json`, `INTEGRATION.md`, and `ACCEPTANCE.md` so Codex can map sketch element ids to generated selectors, preserve that relationship during the port, know the no-API boundaries, and review production readiness from one checklist.
 
-The request and executor context now include `implementationContext`. This is the compact designer brief Codex should read before coding: Workbench path, focus mode, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe/style knobs, image style lock, and output-edit binding.
+The request and executor context now include `implementationContext`. This is the compact designer brief Codex should read before coding: Workbench path, focus mode, action mode, generation recipe, active Design kit, selected Map prompts/custom properties, variant semantic recipe/style knobs, image style lock, and output-edit binding.
 
 The local executor also consumes that context. It chooses a deterministic visual theme from the variant/style/Map guidance, writes `data-canvax-theme` and `data-canvax-atmosphere` onto the generated preview and starter screen, adds theme-specific atmosphere layers, and adds a visible `Designer context` panel to the generated artifact. This keeps the no-API starter output aligned with directions such as poster/archive, midnight/cinematic, or quiet/editorial before Codex ports the result into real app files.
 

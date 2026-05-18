@@ -345,12 +345,16 @@ active sources before a designer presses Generate, Build, Image pack, or Apply.
 The exported task pack, image prompt pack, and Build-with-Codex request now
 carry the same `designKit` object so Codex can see the active design-system
 source, generation recipe, action mode, board mood, surface, frame notes, and
-variant style knobs without guessing.
+variant style knobs without guessing. The kit card also includes a compact
+preset gallery for common designer surfaces such as product apps, poster
+systems, book spreads, dashboards, and storyboards; applying a preset updates
+the board surface, mood, action mode, generation recipe, and empty frame notes
+without touching the sketch.
 
 Needed:
 
 - Richer `DESIGN.md` import controls inside the board UI beyond the current
-  active-source summary.
+  active-source summary and local preset gallery.
 - Extract visual tokens from a URL, screenshot, or existing app.
 - Enforce those tokens when Codex generates or refines UI.
 

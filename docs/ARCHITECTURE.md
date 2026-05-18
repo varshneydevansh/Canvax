@@ -229,6 +229,7 @@ Purpose:
 - tell the board whether it is running as a local no-API handoff, inside Codex Browser Use / Atlas, or a future richer host
 - avoid implying direct ChatGPT image-generation or Codex microphone access when the local page does not have that bridge
 - include reusable design rules in task/image prompt packs without manually pasting them into every sketch
+- expose a local `Design kit` rule stack and preset selection so the board can export active design-system intent even when no root `DESIGN.md` exists
 - write a starter `DESIGN.md` from board state through `/api/write-design-context` without overwriting an existing design contract
 
 ```text
@@ -236,6 +237,9 @@ project DESIGN.md
       |
       v
 local service status/preview-state
+      |
+      v
+board Design kit
       |
       v
 board exports -> task pack + image prompt pack + Codex prompt
@@ -265,6 +269,7 @@ The service also emits:
 
 - `hostCapabilities`: current browser/workspace/image/mic capability truth table
 - `designContext`: root `DESIGN.md` metadata and truncated content when present
+- `designKit`: board-local active rule stack in export payloads, including optional kit preset, generation recipe, action mode, board mood/surface, frame notes, and style knobs
 
 The service can write:
 
@@ -617,7 +622,7 @@ Image/asset handoff files:
 - `exports/canvax-image-generation-brief-latest.json`
 - `artifacts/canvax/asset-candidates/...`
 
-Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from board mood, surface, generation recipe, `DESIGN.md` when present, current palette, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
+Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from the active Design kit, board mood, surface, generation recipe, `DESIGN.md` when present, current palette, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
 
 Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. The Workbench candidate tray lets users copy a one-candidate host task, place those records as editable frame slots, or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
 

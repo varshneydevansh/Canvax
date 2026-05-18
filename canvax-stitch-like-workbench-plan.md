@@ -81,6 +81,10 @@ Current completed baseline:
   `DESIGN.md` or board-local rules, plus the active generation recipe, action
   mode, mood, surface, frame notes, and variant style knobs; task packs, image
   prompt packs, and Build-with-Codex requests export the same `designKit` object.
+- The Design kit card now includes local presets for product apps, poster
+  systems, book spreads, dashboards, and storyboards, so designers can apply a
+  reusable surface/mood/action/recipe bundle without manually editing every
+  field.
 - A host capability registry tells the UI/export whether the current path is local no-API handoff, Codex browser, host image generation, or native microphone bridge.
 - `canvax-task-pack-latest.*` is exported for Codex/spec/build work.
 - `canvax-rewrite-request-latest.*` is exported for live output refinement from queued frames, voice notes, correction marks, and connected output manifests.
