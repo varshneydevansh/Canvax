@@ -165,6 +165,8 @@ const checks = [
       {
         path: "scripts/execute-build-request.mjs",
         includes: [
+          "implementationContext",
+          "designerImplementationContext",
           "CanvaxScreen.jsx",
           "NextAppPage.jsx",
           "canvax-component-map.json",
@@ -176,6 +178,7 @@ const checks = [
       {
         path: "scripts/e2e-workflow-check.mjs",
         includes: [
+          "build executor preserves designer implementation context",
           "build executor creates framework adapter handoffs",
           "build preview can bind to Codex output manifest",
         ],

@@ -16877,7 +16877,10 @@ function buildRewriteRequestMarkdown(request) {
 }
 
 function buildBuildRealRequest(frame, exportPackage, exportResult) {
-  const taskPack = exportPackage?.taskPack || buildTaskPack(exportPackage.frames);
+  const exportFrames = Array.isArray(exportPackage?.frames)
+    ? exportPackage.frames
+    : state.frames;
+  const taskPack = exportPackage?.taskPack || buildTaskPack(exportFrames);
   const activeTaskFrame =
     taskPack.frames.find((candidate) => candidate.id === frame.id) ||
     taskPack.frames[0] ||
@@ -16891,6 +16894,20 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
   const frameId = frame.id;
   const outputEditBinding =
     activeTaskFrame?.outputEditBinding || frameOutputEditBinding(frame);
+  const spatialContext =
+    taskPack.spatialContext || buildSpatialHandoffContext(exportFrames);
+  const spatialWorkspace =
+    exportPackage?.spatialWorkspace || buildSpatialWorkspaceExport(exportFrames);
+  const implementationContext = buildImplementationContext({
+    frame,
+    activeTaskFrame,
+    imagePromptFrame,
+    imageStyleLock: exportPackage?.imagePromptPack?.styleLock || null,
+    spatialContext,
+    spatialWorkspace,
+    generation,
+    outputEditBinding,
+  });
 
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -16912,9 +16929,8 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
     frame: activeTaskFrame,
     imagePromptFrame,
     outputEditBinding,
-    spatialContext:
-      taskPack.spatialContext ||
-      buildSpatialHandoffContext(exportPackage.frames),
+    implementationContext,
+    spatialContext,
     voice: taskPack.voice || buildVoiceExport(state.frames),
     designContext: taskPack.designContext || currentDesignContextForExport(),
     generation,
@@ -16969,6 +16985,225 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
   };
 }
 
+function buildImplementationContext({
+  frame,
+  activeTaskFrame,
+  imagePromptFrame,
+  imageStyleLock,
+  spatialContext,
+  spatialWorkspace,
+  generation,
+  outputEditBinding,
+}) {
+  const workspaceMode =
+    workspaceModes.find((entry) => entry.id === state.workspaceMode) ||
+    workspaceModes[0];
+  const workbenchFocus =
+    workbenchFocusModes.find((entry) => entry.id === state.workbenchFocus) ||
+    workbenchFocusModes[0];
+  const viewMode = viewModes.find((entry) => entry.id === state.viewMode);
+  const actionMode = currentActionMode();
+  const selectedObjects = Array.isArray(spatialContext?.selectedObjects)
+    ? spatialContext.selectedObjects
+    : [];
+  const selectedPrompts = Array.isArray(spatialContext?.prompts)
+    ? spatialContext.prompts
+    : [];
+  const timelineSummary = spatialWorkspace?.timeline?.summary || {};
+  const branchContext = buildImplementationVariantContext(
+    frame,
+    activeTaskFrame,
+    spatialWorkspace,
+  );
+  const styleLock = imageStyleLock || imagePromptFrame?.styleLock || null;
+
+  return {
+    kind: "canvax-implementation-context",
+    purpose:
+      "Designer-facing context for Codex real-code generation. Treat this as the bridge between rough sketch, Workbench mode, Map objects, variants, voice, image direction, and output binding.",
+    workbench: {
+      workspaceMode: state.workspaceMode,
+      workspaceModeLabel: workspaceMode.label,
+      workspaceModeDescription: workspaceMode.description,
+      viewMode: state.viewMode,
+      viewModeLabel: viewMode?.label || state.viewMode,
+      focus: state.workbenchFocus,
+      focusLabel: workbenchFocus.label,
+      focusDescription: workbenchFocus.description,
+      startPath: "1 Sketch -> 2 Talk -> 3 Make -> 4 Map",
+      actionMode: actionMode.id,
+      actionModeLabel: actionMode.label,
+      actionModeDescription: actionMode.description,
+      generationRecipe: generationSummaryText(generation),
+      trayCollapsed: Boolean(state.workbenchTrayCollapsed),
+    },
+    frameRole: {
+      id: frame?.id || activeTaskFrame?.id || "",
+      title: frame?.title || activeTaskFrame?.title || "",
+      viewport: frame?.viewport || activeTaskFrame?.viewport || "",
+      isVariant: Boolean(branchContext),
+      isOutputEditBranch: Boolean(outputEditBinding),
+      outputEditBinding,
+    },
+    variant: branchContext,
+    selectedMapContext: {
+      note:
+        "Selected Map cards are direct designer guidance. Preserve prompts, constraints, and output references when building.",
+      selectedObjectId: spatialContext?.selectedObjectId || "",
+      selectedObjectIds: spatialContext?.selectedObjectIds || [],
+      viewport: spatialContext?.viewport || null,
+      objects: selectedObjects.slice(0, 8).map((object) => ({
+        id: object.id,
+        type: object.type,
+        title: object.title,
+        sourceKind: object.sourceKind,
+        frameIds: object.frameIds || [],
+        prompt: object.prompt || "",
+        status: object.status || "",
+        customProperties: object.customProperties || [],
+        contextMarkdown: compactDisplayText(object.contextMarkdown || "", 1600),
+      })),
+      prompts: selectedPrompts.slice(0, 8).map((entry) => ({
+        objectId: entry.objectId,
+        title: entry.title,
+        prompt: entry.prompt,
+        contextMarkdown: compactDisplayText(entry.contextMarkdown || "", 900),
+      })),
+    },
+    mapMemory: {
+      frames: Number(timelineSummary.frames) || 0,
+      branches: Number(timelineSummary.branches) || 0,
+      outputs: Number(timelineSummary.outputs) || 0,
+      checkpoints: Number(timelineSummary.checkpoints) || 0,
+      collapsedLanes: timelineSummary.collapsedLanes || [],
+    },
+    imageDirection: styleLock
+      ? {
+          styleLockId: styleLock.id || "",
+          summary: styleLock.summary || "",
+          continuityRules: styleLock.continuityRules || [],
+          adaptationRules: styleLock.adaptationRules || [],
+          negativeRules: styleLock.negativeRules || [],
+        }
+      : null,
+    codexPriority: [
+      "Use the frame sketch and composition as the layout skeleton.",
+      "Use Workbench action mode and generation recipe as the output type and tone.",
+      "Use selected Map context and custom properties as hard designer constraints.",
+      "If this is a variant branch, apply its recipe, design moves, and style knobs.",
+      "If this is an output-edit branch, modify the referenced output target rather than inventing an unrelated screen.",
+      "Publish real files or artifacts through the Codex output manifest so Canvax can keep the loop connected.",
+    ],
+  };
+}
+
+function buildImplementationVariantContext(frame, activeTaskFrame, spatialWorkspace) {
+  const variant =
+    (frame?.variant && typeof frame.variant === "object" && frame.variant) ||
+    (activeTaskFrame?.variant &&
+      typeof activeTaskFrame.variant === "object" &&
+      activeTaskFrame.variant) ||
+    null;
+  if (!variant) {
+    return null;
+  }
+  const branch = (spatialWorkspace?.variantBranches || []).find(
+    (candidate) =>
+      candidate.frameId === frame?.id || candidate.frameId === activeTaskFrame?.id,
+  );
+  const semanticRecipe =
+    branch?.semanticRecipe ||
+    variantRecipeExport(variant, Math.max(0, (Number(variant.index) || 1) - 1));
+  const outputBinding =
+    branch?.outputBinding ||
+    frameOutputEditBinding(frame) ||
+    activeTaskFrame?.outputEditBinding ||
+    null;
+
+  return {
+    sourceFrameId:
+      variant.sourceFrameId || branch?.sourceFrameId || outputBinding?.sourceFrameId || "",
+    sourceFrameTitle:
+      variant.sourceFrameTitle || branch?.sourceFrameTitle || outputBinding?.sourceFrameTitle || "",
+    label: semanticRecipe.label || variant.label || "Variant",
+    recipeId: semanticRecipe.id || variant.recipeId || "",
+    direction: semanticRecipe.direction || variant.direction || "",
+    thesis: semanticRecipe.thesis || variant.thesis || "",
+    designMoves: semanticRecipe.designMoves || [],
+    prompt: semanticRecipe.prompt || variant.prompt || "",
+    styleProperties:
+      semanticRecipe.styleProperties ||
+      normalizeVariantStyleProperties(variant.styleProperties),
+    customProperties:
+      semanticRecipe.customProperties ||
+      normalizeMapCustomProperties(variant.customProperties),
+    index: Number(variant.index) || Number(branch?.index) || 0,
+    primary: Boolean(variant.primary || branch?.primary),
+    outputBinding,
+  };
+}
+
+function appendImplementationContextMarkdown(lines, context) {
+  if (!context) {
+    return;
+  }
+  lines.push("", "## Designer Implementation Context", "");
+  lines.push(`- Workbench path: ${context.workbench?.startPath || "Sketch -> Make"}`);
+  lines.push(
+    `- Current mode: ${context.workbench?.workspaceModeLabel || context.workbench?.workspaceMode || "Workbench"} / ${context.workbench?.focusLabel || context.workbench?.focus || "Sketch"}`,
+  );
+  lines.push(
+    `- Action: ${context.workbench?.actionModeLabel || context.workbench?.actionMode || "Build UI"}`,
+  );
+  lines.push(
+    `- Generation recipe: ${context.workbench?.generationRecipe || "Product UI - Studio - Balanced"}`,
+  );
+  if (context.frameRole?.isOutputEditBranch && context.frameRole.outputEditBinding) {
+    lines.push(
+      `- Output edit target: ${context.frameRole.outputEditBinding.target || context.frameRole.outputEditBinding.href || context.frameRole.outputEditBinding.objectId}`,
+    );
+  }
+  if (context.variant) {
+    lines.push("", "### Variant / Branch Direction", "");
+    lines.push(`- Label: ${context.variant.label || "Variant"}`);
+    lines.push(`- Recipe: ${context.variant.recipeId || "custom"}`);
+    if (context.variant.thesis) {
+      lines.push(`- Thesis: ${context.variant.thesis}`);
+    }
+    if (context.variant.prompt) {
+      lines.push(`- Prompt: ${context.variant.prompt}`);
+    }
+    if (context.variant.designMoves?.length) {
+      context.variant.designMoves
+        .slice(0, 8)
+        .forEach((move) => lines.push(`- Design move: ${move}`));
+    }
+    const styleProperties = context.variant.styleProperties || {};
+    const styleEntries = Object.entries(styleProperties).filter(([, value]) =>
+      cleanString(value),
+    );
+    if (styleEntries.length) {
+      lines.push("- Style knobs:");
+      styleEntries.forEach(([key, value]) => {
+        lines.push(`  - ${key}: ${value}`);
+      });
+    }
+  }
+  const selectedObjects = context.selectedMapContext?.objects || [];
+  if (selectedObjects.length) {
+    lines.push("", "### Selected Map Guidance", "");
+    selectedObjects.slice(0, 6).forEach((object, index) => {
+      lines.push(
+        `- ${index + 1}. ${object.title || object.id} (${object.sourceKind || object.type || "object"}): ${object.prompt || compactDisplayText(object.contextMarkdown || "", 220)}`,
+      );
+    });
+  }
+  if (context.imageDirection?.summary) {
+    lines.push("", "### Image / Style Lock", "");
+    lines.push(`- ${context.imageDirection.summary}`);
+  }
+}
+
 function buildBuildRealRequestMarkdown(request) {
   if (!request) {
     return "";
@@ -17001,6 +17236,7 @@ function buildBuildRealRequestMarkdown(request) {
     `- Checkpoint: \`${request.handoff.checkpointPath}\``,
     `- Image prompt pack: \`${request.handoff.imagePromptPackPath}\``,
   ];
+  appendImplementationContextMarkdown(lines, request.implementationContext);
   appendSpatialContextMarkdown(lines, request.spatialContext);
   lines.push(
     "",
@@ -19708,8 +19944,13 @@ async function runSelfTest() {
         buildRealResult?.request?.kind === "canvax-build-real-request" &&
           buildRealResult.request.requiresOpenAiApiKey === false &&
           buildRealResult.request.outputContract?.manifestPath ===
-            "artifacts/canvax/codex-output.json",
-        "build real request creates no-API frame-to-code contract",
+            "artifacts/canvax/codex-output.json" &&
+          buildRealResult.request.implementationContext?.kind ===
+            "canvax-implementation-context" &&
+          buildRealResult.request.implementationContext.workbench?.startPath?.includes(
+            "Sketch",
+          ),
+        "build real request creates no-API frame-to-code contract with designer context",
         buildRealResult?.latestMarkdownPath ||
           "Build real request did not return a latest markdown path.",
       ),
@@ -19740,8 +19981,22 @@ async function runSelfTest() {
         assert(
           buildRequestMarkdown.includes("Canvax Build Real Request") &&
             buildRequestMarkdown.includes("Requires OpenAI API key: no") &&
+            buildRequestMarkdown.includes("Designer Implementation Context") &&
             buildRequestMarkdown.includes("write-codex-output"),
           "build real request writes readable Codex handoff markdown",
+        ),
+      );
+    }
+    if (buildRealResult?.executeResult?.contextPath) {
+      const buildExecutionContext = await fetch(
+        `/workspace/${buildRealResult.executeResult.contextPath}`,
+        { cache: "no-store" },
+      ).then((response) => (response.ok ? response.json() : null));
+      results.push(
+        assert(
+          buildExecutionContext?.implementationContext?.kind ===
+            "canvax-implementation-context",
+          "build executor preserves designer implementation context",
         ),
       );
     }

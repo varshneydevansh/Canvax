@@ -187,6 +187,7 @@ Status: In progress
 - [x] `Generate screen` now also handles stroke-first sketches, arrows, ovals, image slots, and free labels instead of falling back to a raw geometry dump when there are few or no rectangles
 - [x] `Build with Codex` writes a no-API real implementation request plus frame-to-code output contract for Codex to execute
 - [x] Build executor now writes `implementation/canvax-build-contract.json` and `implementation/INTEGRATION.md` so the starter bundle has both machine-readable and human-readable real-app porting instructions
+- [x] Build requests now include a first-class `implementationContext` designer brief with Workbench path/focus, selected Map guidance, variant recipe/style knobs, image style lock, and output-edit binding
 - [x] `canvax-rewrite-request-latest.*` writes the live output-refinement request alongside the task pack and image prompt pack
 - [x] `Build with Codex` now calls the deterministic local `execute-build-request` path from the board, creating a frame-bound preview artifact and Codex output manifest without a terminal step
 - [x] `execute-build-request` remains available as a CLI deterministic local path from latest build request to frame-bound preview artifact, implementation starter bundle, React-ready component/CSS handoff, Vite/Next adapter stubs, frame-to-code ownership map, and Codex output manifest

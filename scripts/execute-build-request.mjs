@@ -175,6 +175,7 @@ function buildContextPayload(request, previewPath, implementationFiles = []) {
     source: "scripts/execute-build-request.mjs",
     requiresOpenAiApiKey: false,
     previewPath,
+    implementationContext: request.implementationContext || null,
     outputEditBinding:
       request.outputEditBinding || request.frame?.outputEditBinding || null,
     frameCodeMap: frameCodeMap
@@ -1154,6 +1155,7 @@ Those bindings let future Canvax correction marks map back to generated code.
 function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
   const model = buildScreenModel(request);
   const slug = safeSlug(frameTitle || frameId);
+  const implementationContext = request.implementationContext || null;
   return {
     schemaVersion: 1,
     kind: "canvax-build-integration-contract",
@@ -1173,6 +1175,36 @@ function buildBuildIntegrationContract(request, { frameId, frameTitle }) {
       latestMarkdown: "exports/canvax-build-real-latest.md",
       context: "../context.json",
     },
+    designerImplementationContext: implementationContext
+      ? {
+          workbenchPath:
+            implementationContext.workbench?.startPath ||
+            "1 Sketch -> 2 Talk -> 3 Make -> 4 Map",
+          workspaceMode:
+            implementationContext.workbench?.workspaceModeLabel ||
+            implementationContext.workbench?.workspaceMode ||
+            "",
+          focus:
+            implementationContext.workbench?.focusLabel ||
+            implementationContext.workbench?.focus ||
+            "",
+          action:
+            implementationContext.workbench?.actionModeLabel ||
+            implementationContext.workbench?.actionMode ||
+            "",
+          generationRecipe:
+            implementationContext.workbench?.generationRecipe || "",
+          variant: implementationContext.variant || null,
+          selectedMapObjectCount:
+            implementationContext.selectedMapContext?.objects?.length || 0,
+          outputEditBinding:
+            implementationContext.frameRole?.outputEditBinding ||
+            request.outputEditBinding ||
+            null,
+          imageStyleLockSummary:
+            implementationContext.imageDirection?.summary || "",
+        }
+      : null,
     localPreview: {
       html: "../index.html",
       standaloneHtml: "index.html",

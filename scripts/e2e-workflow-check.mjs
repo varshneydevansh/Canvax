@@ -129,6 +129,21 @@ record(
 );
 await assertReadableProjectFile(buildResult.previewPath);
 await assertReadableProjectFile(buildResult.contextPath);
+const rawBuildContext = await readFile(
+  resolve(projectRoot, buildResult.contextPath),
+  "utf8",
+);
+const parsedBuildContext = JSON.parse(rawBuildContext);
+record(
+  "build executor preserves designer implementation context",
+  parsedBuildContext.implementationContext?.kind ===
+    "canvax-implementation-context" &&
+    parsedBuildContext.implementationContext.workbench?.startPath?.includes(
+      "Sketch",
+    ) &&
+    parsedBuildContext.implementationContext.selectedMapContext?.objects
+      ?.length === 1,
+);
 if (buildFrameCodeMap?.path) {
   await assertReadableProjectFile(buildFrameCodeMap.path);
   const rawMap = await readFile(
@@ -219,6 +234,11 @@ if (buildContractFile?.path && integrationGuideFile?.path) {
         "CanvaxScreen.jsx" &&
       parsedBuildContract.frameworkAdapters?.nextAppRouter?.adapter ===
         "NextAppPage.jsx" &&
+      parsedBuildContract.designerImplementationContext?.workbenchPath?.includes(
+        "Sketch",
+      ) &&
+      parsedBuildContract.designerImplementationContext?.selectedMapObjectCount ===
+        1 &&
       parsedBuildContract.ownership?.componentMap ===
         "canvax-component-map.json" &&
       parsedBuildContract.codexNextActions?.some((action) =>
@@ -680,6 +700,68 @@ function buildRealRequest(board, frame) {
     actionMode: "build-ui",
     actionModeLabel: "Build UI",
     frame,
+    implementationContext: {
+      kind: "canvax-implementation-context",
+      purpose: "E2E designer context for rough-sketch-to-real-code workflow.",
+      workbench: {
+        workspaceMode: "simple",
+        workspaceModeLabel: "Workbench",
+        focus: "split",
+        focusLabel: "Make",
+        startPath: "1 Sketch -> 2 Talk -> 3 Make -> 4 Map",
+        actionMode: "build-ui",
+        actionModeLabel: "Build UI",
+        generationRecipe: "Product UI - Studio - Balanced",
+      },
+      frameRole: {
+        id: frame.id,
+        title: frame.title,
+        viewport: frame.viewport,
+        isVariant: false,
+        isOutputEditBranch: false,
+        outputEditBinding: null,
+      },
+      variant: null,
+      selectedMapContext: {
+        selectedObjectId: "object-e2e-brief",
+        selectedObjectIds: ["object-e2e-brief"],
+        objects: [
+          {
+            id: "object-e2e-brief",
+            type: "note",
+            title: "Hero build guidance",
+            sourceKind: "manual",
+            frameIds: [frame.id],
+            prompt:
+              "Build the sketched hero as a polished product screen, preserving CTA and image-slot placement.",
+            customProperties: [
+              { key: "priority", value: "preserve rough hierarchy" },
+            ],
+            contextMarkdown:
+              "# Hero build guidance\n\nPreserve the CTA and image-slot placement.",
+          },
+        ],
+        prompts: [
+          {
+            objectId: "object-e2e-brief",
+            title: "Hero build guidance",
+            prompt:
+              "Build the sketched hero as a polished product screen, preserving CTA and image-slot placement.",
+          },
+        ],
+      },
+      mapMemory: {
+        frames: 1,
+        branches: 0,
+        outputs: 0,
+        checkpoints: 1,
+        collapsedLanes: [],
+      },
+      imageDirection: {
+        styleLockId: "style-e2e",
+        summary: "Warm editorial product UI with paper texture.",
+      },
+    },
     voice: voiceExport(frame),
     codexInstructions: [
       "Use the rough frame geometry and labels before inventing layout.",

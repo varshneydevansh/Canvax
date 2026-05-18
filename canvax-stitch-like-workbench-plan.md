@@ -454,7 +454,7 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - Variants have labels, notes, and lineage. **Done for deterministic local branches and `spatialWorkspace.variantBranches`.**
   - Variants have explicit design intent. **Done through local semantic recipes, branch prompts, design-move lists, exported custom properties, and editable style knobs.**
   - User can choose one as primary. **Done with `Use variant` on the variant card and in the Workbench tray, which marks the selected variant as primary, makes it the entry frame, and renders it with primary branch styling.**
-  - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the promoted variant; automatic route/component binding still depends on the Codex build pass.**
+  - Chosen variant binds back to implementation/output manifest. **Possible through `Build with Codex` from the promoted variant; the request now carries `implementationContext` with variant recipe/style knobs and output-edit binding, while automatic route/component binding still depends on the Codex build pass.**
 - **Validation**:
   - Generate three deterministic local variants. **Covered by board self-test, including visible branch cards, in-place Map `Use variant` action, spatial branch export, and primary promotion export.**
 

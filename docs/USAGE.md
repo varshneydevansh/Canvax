@@ -657,6 +657,7 @@ This is different from `Generate screen`:
 - The request does not call a paid API and does not require `OPENAI_API_KEY`.
 - The board now immediately runs the no-API local build executor after the request is saved, so the Workbench and Preview get a frame-bound preview plus an implementation starter bundle without requiring a terminal command.
 - The starter bundle now includes a React-ready component/CSS pair, Vite/Next adapter stubs, framework adapter notes, and a frame-to-code ownership map so Codex can trace sketch elements to generated selectors/files when it ports the artifact into a real app route.
+- The request also includes an `implementationContext` block that carries the designer loop state: Workbench mode/focus, the `1 Sketch -> 2 Talk -> 3 Make -> 4 Map` start path, action mode, generation recipe, selected Map object prompts, variant recipe/style knobs, output-edit target, and image style lock.
 - `node scripts/execute-build-request.mjs` remains available when you want to re-run that executor manually. This is a deterministic starter path, not a replacement for Codex editing real app files.
 
 Canvax writes the latest request to:
@@ -673,6 +674,7 @@ The request contains:
 - active frame id, title, viewport, notes, labels, and composition coordinates
 - voice/manual notes
 - design context from `DESIGN.md` when present
+- designer implementation context for Workbench/Advanced state, selected Map guidance, variant branches, and output-edit binding
 - links to the live export, task pack, checkpoint, and image prompt pack
 - the expected Codex output manifest path
 - suggested `scripts/write-codex-output.mjs` commands for binding the generated route or artifact back to the frame
@@ -681,6 +683,7 @@ The request contains:
 sketch + voice + labels
   -> Build with Codex
   -> exports/canvax-build-real-latest.md
+  -> designer implementation context
   -> local no-API build executor
   -> frame-bound preview + implementation bundle + React/framework handoff
   -> Codex implements real files

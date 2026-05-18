@@ -204,7 +204,7 @@ Canvax today
 
 Current `Generate screen` is local and deterministic. It improves the preview, but it does not by itself create real app/page code.
 
-Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request and frame-to-code output contract, then the board runs the local no-API executor to bind an immediate frame preview plus implementation starter bundle. That bundle now includes standalone HTML/CSS/JS, a React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, framework adapter notes, a component ownership map, a machine-readable `canvax-build-contract.json`, and a human-readable `INTEGRATION.md`. Codex can still execute that same request in the chat/session and replace or port the local artifact into a real route or component through `write-codex-output`.
+Update: `Build with Codex` now creates the first real-code bridge. It writes a Codex-readable build request, designer `implementationContext`, and frame-to-code output contract, then the board runs the local no-API executor to bind an immediate frame preview plus implementation starter bundle. That bundle now includes standalone HTML/CSS/JS, a React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, framework adapter notes, a component ownership map, a machine-readable `canvax-build-contract.json`, and a human-readable `INTEGRATION.md`. Codex can still execute that same request in the chat/session and replace or port the local artifact into a real route or component through `write-codex-output`.
 
 Target behavior:
 
@@ -216,6 +216,7 @@ Needed:
 
 - A board action that creates a Codex-ready generation task from the current frame/checkpoint. **Initial version shipped as `Build with Codex`.**
 - A standard output contract for generated app/page/screen code. **Initial version shipped through `exports/canvax-build-real-latest.*`, `artifacts/canvax/codex-output.json`, and the per-bundle `implementation/canvax-build-contract.json`.**
+- A compact designer implementation brief for Codex. **Shipped as `implementationContext`, carrying Workbench path/focus, selected Map guidance, variant semantic recipe/style knobs, image style lock, and output-edit binding.**
 - Automatic preview binding to the generated route or artifact. **Shipped for the local no-API build executor and its implementation bundle; still open for autonomous Codex-edited app routes/components.**
 - Frame-aware code ownership so one frame maps to the files/components Codex generated. **Initial local version shipped through `implementation/canvax-component-map.json`, `implementation/canvax-build-contract.json`, React-ready component/CSS, Vite/Next adapter handoffs, and `INTEGRATION.md`; still open for richer production route/component ownership once Codex edits real files.**
 

@@ -694,6 +694,8 @@ It writes a task artifact that Codex can execute in the current workspace. The b
 
 That automatic artifact is a local starter target. Codex should replace or port it into real app/page/component files when the user asks for production implementation. The bundle includes a React-ready `CanvaxScreen.jsx`/`CanvaxScreen.css` pair, Vite/Next adapter stubs, `FRAMEWORK_ADAPTERS.md`, `canvax-component-map.json`, `canvax-build-contract.json`, and `INTEGRATION.md` so Codex can map sketch element ids to generated selectors, preserve that relationship during the port, and know the no-API boundaries.
 
+The request and executor context now include `implementationContext`. This is the compact designer brief Codex should read before coding: Workbench path, focus mode, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe/style knobs, image style lock, and output-edit binding.
+
 Outputs:
 
 - `exports/canvax-build-real-latest.json`
@@ -713,6 +715,7 @@ What the request includes:
 - active frame composition and notes
 - voice/manual notes
 - `DESIGN.md` context when present
+- `implementationContext` with Workbench state, selected Map guidance, variant direction, and output target binding
 - live export, task pack, checkpoint, and image prompt pack paths
 - `artifacts/canvax/codex-output.json` as the binding manifest
 - suggested `write-codex-output` commands
