@@ -170,6 +170,7 @@ Behavior:
 - shows a mode guide that explains the default loop as `Sketch`, `Talk`, and `Make / Apply`, while Advanced uses the same component to explain `Project rail`, `Canvas deck`, and `Handoff inspector`
 - shows a surface selector so mobile, tablet, desktop, poster, slide, book spread, storyboard, comic page, square, or free canvas can be chosen without opening Advanced mode
 - shows an action selector for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`
+- shows a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short path before they need to understand every control
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
 - exposes only four drawing tools: pen, rectangle, arrow, erase
 - exposes one voice action and one manual spoken-note field

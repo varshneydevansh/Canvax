@@ -66,6 +66,15 @@ Use an external browser only when you explicitly want it:
 
 ## Everyday Workbench Loop
 
+Use the `Start here` strip when the Workbench feels busy:
+
+- `1 Sketch` hides the tray and puts the pen on the canvas.
+- `2 Talk` focuses the note/dictation path for the current frame.
+- `3 Make` switches to split focus and generates a local preview.
+- `4 Map` opens the spatial project map for frames, variants, outputs, and references.
+
+Then use the full loop when you need more control:
+
 1. Keep `Workbench` selected.
 2. Pick `Surface` such as desktop, mobile, free canvas, book spread, storyboard, comic page, poster, or slide.
 3. Pick `Action` such as Build UI, Refine UI, Write spec, Image prompt, or Variations.

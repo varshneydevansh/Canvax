@@ -20,15 +20,25 @@ const checks = [
     evidence: [
       {
         path: "web/index.html",
-        includes: ["focus-pad", "More actions", "workspace-mode-guide"],
+        includes: [
+          "focus-pad",
+          "designer-start-actions",
+          "data-designer-start=\"sketch\"",
+          "More actions",
+          "workspace-mode-guide",
+        ],
       },
       {
         path: "docs/DESIGNER_WALKTHROUGH.md",
-        includes: ["Designer Walkthrough", "Image And Book/Illustration Loop"],
+        includes: [
+          "Designer Walkthrough",
+          "Start here",
+          "Image And Book/Illustration Loop",
+        ],
       },
     ],
     remainingGap:
-      "Manual first-use design review is still required to prove the default surface is not overwhelming.",
+      "Manual first-use design review is still required, but the default surface now has a four-step guided Start here path.",
   },
   {
     id: "unified-workbench-advanced",

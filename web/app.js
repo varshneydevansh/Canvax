@@ -284,6 +284,7 @@ const dom = {
   workbenchComposerMake: document.querySelector("#workbench-composer-make"),
   workbenchComposerApply: document.querySelector("#workbench-composer-apply"),
   focusPad: document.querySelector("#focus-pad"),
+  designerStartActions: document.querySelector("#designer-start-actions"),
   focusViewportSelect: document.querySelector("#focus-viewport-select"),
   focusActionModeSelect: document.querySelector("#focus-action-mode-select"),
   focusFrameChip: document.querySelector("#focus-frame-chip"),
@@ -631,6 +632,13 @@ function bindEvents() {
     setWorkbenchFocus(button.dataset.workbenchFocus);
   });
   dom.workbenchTrayToggle.addEventListener("click", toggleWorkbenchTray);
+  dom.designerStartActions.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-designer-start]");
+    if (!button) {
+      return;
+    }
+    applyDesignerStartAction(button.dataset.designerStart);
+  });
   dom.workbenchRail.addEventListener("click", (event) => {
     const button = event.target.closest("[data-rail-tool], [data-rail-action]");
     if (!button) {
@@ -2496,6 +2504,51 @@ function toggleWorkbenchTray() {
       ? "Designer focus on: tray hidden, canvas is primary"
       : "Workbench tray shown",
   );
+}
+
+function applyDesignerStartAction(action) {
+  const nextAction = ["sketch", "talk", "make", "map"].includes(action)
+    ? action
+    : "sketch";
+  state.workspaceMode = "simple";
+  state.voice.scope = "frame";
+  state.focusLastAppliedText = "";
+
+  if (nextAction === "map") {
+    state.workbenchFocus = "map";
+    state.viewMode = "flow";
+    state.workbenchTrayCollapsed = true;
+    persistState();
+    renderAll();
+    renderStatus("Map opened: arrange frames, variants, outputs, and references");
+    return;
+  }
+
+  state.workbenchFocus = nextAction === "make" ? "split" : "sketch";
+  state.viewMode = "frame";
+  state.workbenchTrayCollapsed = nextAction === "sketch";
+  if (!["pen", "rect", "arrow", "erase"].includes(state.tool)) {
+    state.tool = "pen";
+  }
+  persistState();
+  renderAll();
+
+  if (nextAction === "talk") {
+    dom.workbenchComposerInput?.focus();
+    if (state.voice.status !== "listening") {
+      startVoiceDictation();
+    }
+    renderStatus("Talk mode: dictate or paste the design note for this frame");
+    return;
+  }
+
+  if (nextAction === "make") {
+    renderStatus("Make mode: generating a local preview from the current frame");
+    void generateCurrentScreen();
+    return;
+  }
+
+  renderStatus("Sketch mode: draw rough placement directly on the frame");
 }
 
 function handleWorkbenchRailAction(action) {
@@ -19129,6 +19182,41 @@ async function runSelfTest() {
           dom.focusPromptChips.querySelectorAll("[data-workbench-prompt]")
             .length,
         "Workbench quick prompt chips render",
+      ),
+    );
+    results.push(
+      assert(
+        dom.designerStartActions?.querySelectorAll("[data-designer-start]")
+          .length === 4,
+        "Designer start actions render",
+      ),
+    );
+    const previousStartState = {
+      workspaceMode: state.workspaceMode,
+      workbenchFocus: state.workbenchFocus,
+      workbenchTrayCollapsed: state.workbenchTrayCollapsed,
+      viewMode: state.viewMode,
+      tool: state.tool,
+    };
+    applyDesignerStartAction("sketch");
+    const sketchStartOk =
+      state.workspaceMode === "simple" &&
+      state.workbenchFocus === "sketch" &&
+      state.viewMode === "frame" &&
+      state.workbenchTrayCollapsed === true &&
+      state.tool === "pen";
+    applyDesignerStartAction("map");
+    const mapStartOk =
+      state.workspaceMode === "simple" &&
+      state.workbenchFocus === "map" &&
+      state.viewMode === "flow" &&
+      state.workbenchTrayCollapsed === true;
+    Object.assign(state, previousStartState);
+    renderAll();
+    results.push(
+      assert(
+        sketchStartOk && mapStartOk,
+        "Designer start actions route to sketch and map focus",
       ),
     );
     results.push(
