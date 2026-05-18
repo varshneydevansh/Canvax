@@ -208,6 +208,7 @@ Status: In progress
 - [x] Asset candidate packs include placement contracts, style-lock references, output slots, and a `canvax-asset-candidate-review` summary with frame-grouped pending/placed/attached/accepted queues, accepted candidate IDs, image element bindings, and no-API host handoff files
 - [x] Asset candidate saves now also write `exports/canvax-image-generation-brief-latest.*` with copy-ready host prompts, style-lock context, placement contracts, output-slot status, and the same frame-grouped review queue
 - [x] Asset candidate saves now also write `exports/canvax-image-host-task-latest.*` with one no-API hosted-image task per candidate, return-slot binding, and acceptance criteria
+- [x] Asset candidate tray now exposes `Copy host task`, so designers can send one exact candidate task to the current image host without opening JSON
 - [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails
 - [x] Workbench `Map` renders asset candidates as draggable spatial objects and exports them through `spatialWorkspace.objects` with placement-ready context markdown
 - [x] Asset candidate tray now shows attached thumbnails, select, and accept review state for generated image choices without calling an image API

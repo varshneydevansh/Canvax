@@ -1993,6 +1993,7 @@ body[data-workspace-mode="simple"] .workbench-output-footer .ghost-link-button {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 0.55rem;
 }
 

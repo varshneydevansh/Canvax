@@ -749,6 +749,15 @@ function bindEvents() {
       void copyAssetCandidatePrompt(copyButton.dataset.assetCandidateCopy);
       return;
     }
+    const hostTaskButton = event.target.closest(
+      "[data-asset-candidate-host-task]",
+    );
+    if (hostTaskButton) {
+      void copyAssetCandidateHostTask(
+        hostTaskButton.dataset.assetCandidateHostTask,
+      );
+      return;
+    }
     const acceptButton = event.target.closest("[data-asset-candidate-accept]");
     if (acceptButton) {
       acceptAssetCandidate(acceptButton.dataset.assetCandidateAccept);
@@ -6018,12 +6027,14 @@ function buildAssetCandidateHostHandoff() {
     requiresOpenAiApiKey: false,
     lane: "host-image-generation",
     copyReadyFiles: [
+      "exports/canvax-image-host-task-latest.md",
+      "exports/canvax-image-host-task-latest.json",
       "exports/canvax-image-generation-brief-latest.md",
       "exports/canvax-image-generation-brief-latest.json",
       "exports/canvax-asset-candidates-latest.json",
     ],
     workflow: [
-      "Copy a candidate block from the image generation brief into the current Codex/ChatGPT image host.",
+      "Copy a host task or candidate block into the current Codex/ChatGPT image host.",
       "Generate or edit the image in that host without Canvax calling an API.",
       "Attach the returned image back to the matching candidate card or workspace path.",
       "Accept the chosen candidate so Codex can read the selected visual and placement contract.",
@@ -6146,6 +6157,9 @@ function renderAssetCandidateTray() {
                 <button class="ghost-button compact" type="button" data-asset-candidate-copy="${escapeHtml(candidate.id)}">
                   Copy prompt
                 </button>
+                <button class="ghost-button compact" type="button" data-asset-candidate-host-task="${escapeHtml(candidate.id)}">
+                  Copy host task
+                </button>
                 <button class="ghost-button compact" type="button" data-asset-candidate-place="${escapeHtml(candidate.id)}">
                   Place slot
                 </button>
@@ -6228,6 +6242,67 @@ function buildAssetCandidateClipboardText(candidate) {
   return lines.join("\n").trim();
 }
 
+function buildAssetCandidateHostTaskClipboardText(candidate) {
+  if (!candidate) {
+    return "";
+  }
+  const frame = currentFrameById(candidate.sourceFrameId) || currentFrame();
+  const placementMap =
+    candidate.placementMap || buildAssetCandidatePlacementMap(candidate, frame);
+  const pixelBounds = placementMap.pixelBounds || {};
+  const cssPlacement = placementMap.cssPlacement || {};
+  const slot = Array.isArray(candidate.outputSlots)
+    ? candidate.outputSlots[0]
+    : null;
+  const hostPrompt = [
+    `Generate image candidate: ${candidate.title || candidate.id}.`,
+    candidate.prompt || "Generate imagery for this Canvax asset slot.",
+    `Placement: ${placementMap.placement || candidate.placement || "whole frame"}.`,
+    `Pixel slot: ${Math.round(pixelBounds.left || pixelBounds.x || 0)}, ${Math.round(pixelBounds.top || pixelBounds.y || 0)}, ${Math.round(pixelBounds.width || 0)}x${Math.round(pixelBounds.height || 0)}.`,
+    `CSS slot: left ${cssPlacement.left || "0%"}, top ${cssPlacement.top || "0%"}, width ${cssPlacement.width || "100%"}, height ${cssPlacement.height || "100%"}.`,
+    `Target selector: ${placementMap.targetSelector || ""}.`,
+    candidate.negativePrompt
+      ? `Avoid: ${candidate.negativePrompt}`
+      : "Avoid unrelated logos, unreadable text, composition drift, and generic AI-purple styling unless requested.",
+  ].filter(Boolean);
+  const lines = [
+    "# Canvax Image Host Task",
+    "",
+    "- Requires OpenAI API key: no",
+    "- Canvax calls image API: no",
+    "- Use: paste this into the current Codex/ChatGPT image-generation host when one is available.",
+    `- Source file: exports/canvax-image-host-task-latest.json`,
+    "",
+    "## Binding",
+    "",
+    `- Candidate ID: ${candidate.id}`,
+    `- Output slot: ${slot?.slotId || placementMap.slotId || `${candidate.id}-slot-1`}`,
+    `- Source frame: ${candidate.sourceFrameTitle || frame?.title || candidate.sourceFrameId || "Unknown frame"}`,
+    `- Target selector: ${placementMap.targetSelector || ""}`,
+    "",
+    "## Host Prompt",
+    "",
+    "```text",
+    hostPrompt.join("\n"),
+    "```",
+    "",
+    "## Return Instructions",
+    "",
+    "- Save, attach, or paste the generated image back into Canvax.",
+    `- Bind it to candidate ${candidate.id}.`,
+    `- Use output slot ${slot?.slotId || placementMap.slotId || `${candidate.id}-slot-1`}.`,
+    "- Preserve the placement contract unless the user sketches a correction.",
+    "",
+    "## Acceptance Criteria",
+    "",
+    "- The image matches the prompt and style lock.",
+    "- The composition fits the target bounds.",
+    "- Text, logos, or symbols are only present when explicitly requested.",
+    "- The accepted result can be reused by Materialize, Build with Codex, or a later image pass.",
+  ];
+  return lines.join("\n").trim();
+}
+
 async function copyAssetCandidatePrompt(candidateId) {
   const candidate = assetCandidateById(candidateId);
   const text = buildAssetCandidateClipboardText(candidate);
@@ -6236,6 +6311,18 @@ async function copyAssetCandidatePrompt(candidateId) {
     copied
       ? "Asset candidate prompt copied with placement contract"
       : "Could not copy asset candidate prompt",
+  );
+  return copied;
+}
+
+async function copyAssetCandidateHostTask(candidateId) {
+  const candidate = assetCandidateById(candidateId);
+  const text = buildAssetCandidateHostTaskClipboardText(candidate);
+  const copied = await writeTextToClipboard(text);
+  renderStatus(
+    copied
+      ? "Image host task copied with return-slot binding"
+      : "Could not copy image host task",
   );
   return copied;
 }
@@ -22704,7 +22791,15 @@ async function assertAssetCandidateTrayPlacement() {
       `[data-asset-candidate-copy="${candidateId}"]`,
     ),
   );
+  const copyHostTaskButtonRendered = Boolean(
+    dom.assetCandidateTray.querySelector(
+      `[data-asset-candidate-host-task="${candidateId}"]`,
+    ),
+  );
   const clipboardPromptText = buildAssetCandidateClipboardText(
+    normalizedCandidate,
+  );
+  const clipboardHostTaskText = buildAssetCandidateHostTaskClipboardText(
     normalizedCandidate,
   );
   const pathImportInputRendered = Boolean(
@@ -22737,8 +22832,12 @@ async function assertAssetCandidateTrayPlacement() {
   const placed =
     !dom.assetCandidateTray.hidden &&
     copyPromptButtonRendered &&
+    copyHostTaskButtonRendered &&
     clipboardPromptText.includes("Generate a visual for the selected Canvax region.") &&
     clipboardPromptText.includes("Target selector:") &&
+    clipboardHostTaskText.includes("# Canvax Image Host Task") &&
+    clipboardHostTaskText.includes("Output slot:") &&
+    clipboardHostTaskText.includes("Requires OpenAI API key: no") &&
     pathImportInputRendered &&
     normalizedCandidate?.placementMap?.kind === "canvax-asset-placement" &&
     normalizedCandidate?.outputSlots?.[0]?.slotId ===
@@ -22770,6 +22869,9 @@ async function assertAssetCandidateTrayPlacement() {
     reviewSummary.accepted === 1 &&
     reviewSummary.kind === "canvax-asset-candidate-review" &&
     reviewSummary.hostHandoff?.requiresOpenAiApiKey === false &&
+    reviewSummary.hostHandoff?.copyReadyFiles?.includes(
+      "exports/canvax-image-host-task-latest.json",
+    ) &&
     reviewSummary.hostHandoff?.copyReadyFiles?.includes(
       "exports/canvax-image-generation-brief-latest.md",
     ) &&
