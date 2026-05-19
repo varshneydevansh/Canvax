@@ -714,6 +714,17 @@ review, and patch-task executor against the generated files. The result is saved
 runs. It is deliberately a fixture: it proves the gate and patch mechanics,
 while a real external/user project port remains separate evidence.
 
+`scripts/link-project-target.mjs` is the local code-folder link for real project
+work. It reads an explicit target root plus route/component/stylesheet files,
+extracts lightweight source structure, writes
+`exports/canvax-project-link-latest.{json,md}`, and can publish those files into
+`artifacts/canvax/codex-output.json` as frame-bound implementation changes. The
+payload includes `canvax-project-edit-contract` with editable files, preserved
+bindings, design signals, and acceptance criteria. This is the Open
+Design-style project-link layer in Canvax: local, file-backed, and no-API. It is
+not an automatic arbitrary app rewriter; Codex still performs the actual edit
+and should republish the manifest after changing files.
+
 `scripts/canvax-inspect.mjs` is the read-only inspection bridge. It reads the
 latest live export, task pack, build request, rewrite request, and Codex output
 manifest, then returns a stable `canvax-readonly-inspection` payload for one of

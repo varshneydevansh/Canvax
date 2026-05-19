@@ -141,11 +141,15 @@ The useful lesson for Canvax:
   for a frame, so production-port token enforcement has a concrete gate.
   `npm run production-port-proof` now proves that gate against a production-like
   local route/component/CSS fixture and applies a production-like patch task
-  through the same `execute-patch` path. `npm run review-jury` now gives the
+  through the same `execute-patch` path. `npm run project-link` now links an
+  explicit local app folder to a Canvax frame by scanning route/component/CSS
+  files, writing `exports/canvax-project-link-latest.*`, and publishing a
+  frame-bound Codex output manifest for real project work. `npm run review-jury`
+  now gives the
   local review loop a named design-jury verdict over artifact semantics,
   screenshot pixels, and Canvax inspection context. The remaining gap is proving
-  the same gate against real external/user project ports and adding live browser
-  visual critique. Basic local screenshot palette extraction now exists through
+  the same gate after Codex edits a real external/user project and adding live
+  browser visual critique. Basic local screenshot palette extraction now exists through
   `npm run extract-tokens -- --image <path>`, static HTML/JSX artifact semantics
   now export through `semanticStructure`, and static artifact readiness checks
   now run through `npm run review-artifact`. `npm run review-snapshot` adds a
@@ -488,8 +492,9 @@ Needed:
 - Enforce those tokens when Codex generates or refines UI.
   **Initial deterministic executor enforcement shipped for generated CSS
   variables and port contracts; manifest-listed production-file enforcement
-  and a production-like proof fixture shipped; real external/user project port
-  evidence remains open.**
+  and a production-like proof fixture shipped; `npm run project-link` can now
+  bind explicit real project files to a frame, while evidence from Codex editing
+  a real external/user project remains open.**
 - Let Codex inspect the live board without copy/paste exports.
   **Local read-only CLI shipped through `npm run inspect`, and local stdio MCP
   tools shipped through `npm run mcp`; native host registration remains open.**

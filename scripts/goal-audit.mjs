@@ -222,9 +222,19 @@ const checks = [
           "requiresOpenAiApiKey: false",
         ],
       },
+      {
+        path: "scripts/link-project-target.mjs",
+        includes: [
+          "canvax-project-link",
+          "canvax-project-edit-contract",
+          "codex-output.json",
+          "data-canvax-node-id",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
     ],
     remainingGap:
-      "High-fidelity arbitrary production app/page edits still require Codex to act on the request and are not proven by the deterministic scaffold, generated-bundle patch proof, or local production-like port/patch proof fixture alone.",
+      "High-fidelity arbitrary production app/page edits still require Codex to act on the request. Canvax can now link explicit real project files to a frame, but the deterministic scaffold, generated-bundle patch proof, production-like fixture, and project-link bridge are not a fully autonomous production generator.",
   },
   {
     id: "design-system-token-extraction",
@@ -345,6 +355,17 @@ const checks = [
         ],
       },
       {
+        path: "scripts/link-project-target.mjs",
+        includes: [
+          "canvax-project-link",
+          "summary",
+          "bindings",
+          "customProperties",
+          "codexEditContract",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
+      {
         path: "scripts/canvax-inspect.mjs",
         includes: [
           "canvax-readonly-inspection",
@@ -379,6 +400,7 @@ const checks = [
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
+          "project link dry-run manifest is valid",
           "Canvax read-only inspection bridge is valid",
           "Canvax MCP server self-test is valid",
           "preview tweak endpoint writes no-API region request",
@@ -402,7 +424,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatically applied arbitrary production patching, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, a local project-link bridge, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatically applied arbitrary production patching, and evidence from Codex completing a real external/user project edit remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -531,6 +553,7 @@ const checks = [
           "browser-regression",
           "execute-patch",
           "production-port-proof",
+          "project-link",
           "inspect",
           "mcp",
           "review-snapshot",

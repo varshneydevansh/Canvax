@@ -85,6 +85,11 @@ const productionPortProofPath = resolve(
   "latest",
   "result.json",
 );
+const projectLinkPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-project-link-latest.json",
+);
 const curlBinary = "/usr/bin/curl";
 const upstreamProposalPath = resolve(
   projectRoot,
@@ -103,6 +108,7 @@ await validateImageDesignTokenExtractorDryRun();
 await validateVisualSnapshotReviewDryRun();
 await validateDesignJuryReviewDryRun();
 await validateDesignKitLibraryPackageDryRun();
+await validateProjectLinkDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
@@ -301,6 +307,18 @@ await validateOptionalJsonSchema(
     value.artifactReview?.kind === "canvax-artifact-design-review" &&
     Array.isArray(value?.implementationFiles),
   "production port proof schema is valid",
+);
+await validateOptionalJsonSchema(
+  projectLinkPath,
+  (value) =>
+    value?.kind === "canvax-project-link" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.linkedFiles) &&
+    value.codexEditContract?.kind === "canvax-project-edit-contract" &&
+    value.manifest?.source === "canvax-project-link",
+  "project link schema is valid",
 );
 
 const failed = results.filter((entry) => !entry.passed);
@@ -737,6 +755,75 @@ async function validateDesignKitLibraryPackageDryRun() {
   } catch (error) {
     results.push({
       name: "design kit library packager dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateProjectLinkDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "project-link-fixture");
+  const routePath = resolve(fixtureRoot, "src", "app", "page.html");
+  const componentPath = resolve(fixtureRoot, "src", "components", "Hero.jsx");
+  const cssPath = resolve(fixtureRoot, "src", "styles.css");
+  try {
+    await mkdir(dirname(routePath), { recursive: true });
+    await mkdir(dirname(componentPath), { recursive: true });
+    await writeFile(
+      routePath,
+      '<main class="hero-shell" data-canvax-node-id="fixture-hero"><h1>Linked production surface</h1><a href="#work">See work</a></main>',
+    );
+    await writeFile(
+      componentPath,
+      'export function Hero(){return <section data-canvax-node-id="fixture-card" className="hero-card"><button>Build</button></section>}',
+    );
+    await writeFile(
+      cssPath,
+      ":root{--brand:#e85d3a;--paper:#fff8ec}.hero-shell{color:#14323f;transition:transform .2s ease}",
+    );
+    const { stdout } = await runCommand("node", [
+      "scripts/link-project-target.mjs",
+      "--target-root",
+      fixtureRoot,
+      "--frame",
+      "frame-project-link",
+      "--name",
+      "Project link fixture",
+      "--route",
+      "src/app/page.html",
+      "--component",
+      "src/components/Hero.jsx",
+      "--css",
+      "src/styles.css",
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-project-link" &&
+        payload.requiresOpenAiApiKey === false &&
+        payload.linkedFiles?.length === 3 &&
+        payload.linkedFiles.some((file) =>
+          file.summary?.bindings?.includes("fixture-hero"),
+        ) &&
+        payload.linkedFiles.some((file) =>
+          file.summary?.customProperties?.includes("--brand"),
+        ) &&
+        payload.codexEditContract?.editableFiles?.length === 3 &&
+        payload.manifest?.changes?.length === 3 &&
+        payload.published === false,
+    );
+    results.push({
+      name: "project link dry-run manifest is valid",
+      passed,
+      detail: passed
+        ? `${payload.linkedFiles.length} linked files`
+        : "invalid project link payload",
+    });
+  } catch (error) {
+    results.push({
+      name: "project link dry-run manifest is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

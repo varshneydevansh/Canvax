@@ -225,6 +225,15 @@ output manifest, then checks that `verify-token-enforcement --manifest`,
 writes the same proof under
 `artifacts/canvax/production-port-proof/latest/`.
 
+Use `npm run project-link -- --dry-run --json ...` when changing the
+code-folder linking path. It should accept a local `--target-root`, frame ids,
+and explicit `--route`, `--component`, `--css`, or `--file role::path::label`
+entries, then return a `canvax-project-link` payload with linked files,
+source summaries, a `canvax-project-edit-contract`, and a frame-bound Codex
+output manifest. Non-dry runs write
+`exports/canvax-project-link-latest.{json,md}` and publish
+`artifacts/canvax/codex-output.json` unless `--no-publish` is used.
+
 Use `npm run inspect -- all --json` when changing handoff schemas. It reads the
 latest live export, task pack, build request, rewrite request, and Codex output
 manifest, then returns the current frame, spatial workspace summary, design kit,

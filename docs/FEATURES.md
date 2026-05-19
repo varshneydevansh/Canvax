@@ -758,6 +758,16 @@ no-API: it proves the manifest/token/review/patch mechanics before a real user
 app port, but it is not a substitute for Codex editing an actual production
 route.
 
+`npm run project-link` is the code-folder bridge for that next step. It scans
+real local route/component/CSS files, extracts headings, actions, token colors,
+CSS custom properties, source bindings, and design signals, then writes
+`exports/canvax-project-link-latest.{json,md}` plus a frame-bound Codex output
+manifest unless `--dry-run` or `--no-publish` is used. The payload includes a
+`canvax-project-edit-contract` so Codex knows which real project files belong to
+the current frame and what `data-canvax-node-id` bindings should be preserved.
+This is local and no-API. It links a project folder to Canvax; it does not
+automatically make arbitrary production edits without Codex.
+
 `npm run inspect` is the read-only local bridge for Codex/agent inspection. It
 can return `summary`, `current-frame`, `spatial-workspace`, `design-kit`,
 `output-binding`, or `all` as JSON/Markdown from local Canvax files. This gives

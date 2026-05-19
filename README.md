@@ -105,6 +105,7 @@ flowchart LR
 - Adds `npm run execute-patch -- --task <codex-patch-task.json>`, a local no-API proof path that applies a deterministic region tweak to Canvax-generated implementation bundles while preserving `data-canvax-node-id` bindings for future corrections.
 - Adds `npm run verify-tokens`, a local no-API gate that checks a Canvax build contract's extracted palette is actually present in generated implementation CSS/HTML or in manifest-listed production files before treating the artifact as design-system aligned.
 - Adds `npm run production-port-proof`, a local no-API proof fixture that creates a production-like route/component/CSS bundle, binds it to a Codex output manifest, verifies required token colors across the manifest-listed files, runs the static artifact review, and applies a production-like `codex-patch-task.json`.
+- Adds `npm run project-link`, a local no-API code-folder link that binds existing app route/component/CSS files to a Canvax frame, writes `exports/canvax-project-link-latest.*`, and can publish a frame-bound Codex output manifest for real project work.
 - Adds `npm run inspect`, a local no-API read-only bridge that returns the current frame, spatial workspace, active design kit, and output bindings as stable JSON/Markdown for Codex or future MCP-style tools.
 - Adds `npm run mcp`, a local no-API stdio MCP server exposing read-only Canvax tools for current frame, spatial workspace, design kit, output binding, summary, and full inspection payloads.
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
@@ -304,6 +305,7 @@ Canvax/
 |  |- install-canvax-skill.mjs    # skill installer
 |  |- write-preview-manifest.mjs  # preview manifest helper
 |  |- write-codex-output.mjs      # Codex output helper
+|  |- link-project-target.mjs     # code-folder to frame linker
 |  |- regression-check.mjs        # schema and runtime checks
 |  `- browser-regression.mjs      # headless browser checks
 |- codex-skill/canvax/            # skill wrapper
@@ -368,6 +370,8 @@ Canvax writes live handoff files under `exports/`:
 - `exports/canvax-checkpoint-latest.json`
 - `exports/canvax-session-events.jsonl`
 - `exports/canvax-preview-manifest.json`
+- `exports/canvax-project-link-latest.json`
+- `exports/canvax-project-link-latest.md`
 - `exports/canvax-preview-tweak-latest.json`
 - `exports/canvax-preview-tweak-latest.md`
 - `artifacts/canvax/codex-output.json`

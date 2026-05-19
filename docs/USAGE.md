@@ -278,6 +278,32 @@ production-like fixture. It does not prove that an arbitrary external/user
 project has been ported correctly; use it as a local fixture before testing a
 real app.
 
+## Link A Real Project Folder
+
+Use `npm run project-link` when Codex has already created or found real app
+files and you want Canvax to treat those files as the frame's implementation
+surface instead of only a generated preview artifact.
+
+```bash
+npm run project-link -- --target-root ../my-app --frame frame-home --route src/app/page.html --component src/components/Hero.jsx --css src/styles.css
+npm run project-link -- --target-root ../my-app --frame frame-home --url http://localhost:3000 --file route::src/app/page.tsx::Home route
+npm run project-link -- --target-root ../my-app --dry-run --json --route src/app/page.html
+```
+
+The command scans only local files and writes:
+
+- `exports/canvax-project-link-latest.json`
+- `exports/canvax-project-link-latest.md`
+- `artifacts/canvax/codex-output.json` unless `--dry-run` or `--no-publish`
+  is used
+
+The link records route/component/stylesheet roles, frame ids, headings,
+actions, token colors, CSS custom properties, `data-canvax-node-id` bindings,
+and a `canvax-project-edit-contract` telling Codex which real files should be
+edited for that frame. This is the current Open Design-style code-folder link
+inside Canvax. It does not call an API and does not automatically rewrite an
+arbitrary app by itself; Codex still performs the actual implementation edit.
+
 The host chip is intentionally explicit. Today it reports local Codex Browser / file-handoff capability and marks host image generation or native mic bridging as unavailable unless a future Codex client exposes those bridges directly. That prevents Canvax from pretending it can call ChatGPT image generation or the Codex microphone from a localhost page.
 
 ## Read-Only Codex Inspection
@@ -527,6 +553,8 @@ Important files:
 - `exports/canvax-artifact-review-latest.json`
 - `exports/canvax-visual-snapshot-review-latest.json`
 - `exports/canvax-design-jury-latest.json`
+- `exports/canvax-project-link-latest.json`
+- `exports/canvax-project-link-latest.md`
 - `artifacts/canvax/codex-output.json`
 - `artifacts/canvax/checkpoints/`
 

@@ -83,8 +83,11 @@ The newest Open Design benchmark sharpens the next product gaps:
   that handoff to local Canvax-generated implementation bundles; live
   DOM-semantic patching for arbitrary production apps and first-party host
   co-edit remain open.
-- code-folder/project linking that proves Canvax can operate against a real app,
-  not only deterministic local fixtures
+- code-folder/project linking. The local `npm run project-link` bridge now
+  scans explicit route/component/CSS files under a target root, writes
+  `exports/canvax-project-link-latest.*`, and can publish a frame-bound Codex
+  output manifest. Evidence from Codex editing a real external/user app through
+  that bridge is still the remaining proof.
 
 ## Implementation Status
 
@@ -147,6 +150,10 @@ Current completed baseline:
   review against the route, and applies a production-like patch task through
   `execute-patch`. This proves the local production-port gate and patch
   mechanics while real external/user project evidence remains open.
+- `npm run project-link` now writes a no-API project-link artifact for explicit
+  route/component/CSS files in a local target root, extracts lightweight source
+  structure and Canvax bindings, creates a `canvax-project-edit-contract`, and
+  can publish a frame-bound Codex output manifest for real app files.
 - `npm run inspect` now reads the latest live export, task pack, build request,
   rewrite request, and Codex output manifest into a stable no-API inspection
   payload for the current frame, spatial workspace, design kit, and output
