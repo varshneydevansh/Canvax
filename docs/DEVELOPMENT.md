@@ -229,6 +229,13 @@ screen, browser snapshot, generated image, or app screenshot should contribute
 palette cues to the active Design kit. This samples raster pixels locally and
 writes the same external token pack as CSS/text extraction.
 
+Use `npm run extract-tokens -- --file <artifact.html>` or `--text "<html...>"`
+when a generated HTML/JSX artifact should contribute semantic UI structure too.
+The extractor emits a no-API `semanticStructure` block with landmarks,
+component signals, actions, forms, headings, class signals, and Canvax node
+bindings. It is static source extraction, not a live DOM inspector or hosted
+model critique.
+
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.

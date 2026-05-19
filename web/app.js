@@ -1650,7 +1650,63 @@ function normalizeDesignTokens(value) {
     shapeLanguage: cleanString(value.shapeLanguage) || "mixed sketch",
     typographyCue: cleanString(value.typographyCue) || "",
     assetCue: cleanString(value.assetCue) || "",
+    semanticStructure: normalizeTokenSemanticStructure(value.semanticStructure),
     summary: compactDisplayText(value.summary || "", 420),
+  };
+}
+
+function normalizeTokenSemanticStructure(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const compactEntries = (items, fields = ["type", "count", "examples"]) =>
+    Array.isArray(items)
+      ? items
+          .map((item) => {
+            if (!item || typeof item !== "object") {
+              return null;
+            }
+            return Object.fromEntries(
+              fields
+                .map((field) => {
+                  if (field === "count" || field === "level") {
+                    return [field, Number(item[field]) || 0];
+                  }
+                  if (field === "examples") {
+                    return [
+                      field,
+                      normalizeStringArray(item[field]).slice(0, 4),
+                    ];
+                  }
+                  return [field, cleanString(item[field])];
+                })
+                .filter(([, fieldValue]) =>
+                  Array.isArray(fieldValue)
+                    ? fieldValue.length
+                    : Boolean(fieldValue),
+                ),
+            );
+          })
+          .filter((item) => Object.keys(item).length)
+          .slice(0, 32)
+      : [];
+  return {
+    kind: "canvax-semantic-structure",
+    detected: Boolean(value.detected),
+    sourceLanguage: cleanString(value.sourceLanguage) || "unknown",
+    landmarks: compactEntries(value.landmarks),
+    components: compactEntries(value.components),
+    headings: compactEntries(value.headings, ["level", "text"]),
+    actions: compactEntries(value.actions, ["type", "label", "target"]),
+    forms: compactEntries(value.forms, ["type", "count"]),
+    canvaxBindings: compactEntries(value.canvaxBindings, [
+      "id",
+      "type",
+      "tag",
+      "label",
+    ]),
+    classSignals: compactEntries(value.classSignals),
+    summary: compactDisplayText(value.summary || "", 360),
   };
 }
 
@@ -14623,6 +14679,7 @@ function normalizeExternalDesignTokenPack(pack) {
       ? `Fonts: ${fontFamilies.slice(0, 3).join(" | ")}`
       : "No font-family rules found",
     assetCue: sourceLabel,
+    semanticStructure: pack.semanticStructure,
     summary:
       compactDisplayText(pack.summary, 360) ||
       `External token pack from ${sourceLabel}`,
@@ -17595,6 +17652,7 @@ function buildImageStyleLock(frames = [], generationRecipe = "") {
           shapeLanguage: designTokens.shapeLanguage,
           typographyCue: designTokens.typographyCue,
           assetCue: designTokens.assetCue,
+          semanticStructure: designTokens.semanticStructure,
           summary: designTokens.summary,
         }
       : null,
@@ -24018,6 +24076,26 @@ async function assertExternalDesignTokenImport() {
       usage: {
         colorCount: 2,
       },
+      semanticStructure: {
+        kind: "canvax-semantic-structure",
+        detected: true,
+        sourceLanguage: "html",
+        landmarks: [{ type: "main", count: 1, examples: ["main"] }],
+        components: [{ type: "hero", count: 1, examples: ["main"] }],
+        headings: [{ level: 1, text: "Self-test screen" }],
+        actions: [{ type: "button", label: "Start", target: "" }],
+        forms: [],
+        canvaxBindings: [
+          {
+            id: "self-test-node",
+            type: "hero",
+            tag: "main",
+            label: "Self-test screen",
+          },
+        ],
+        classSignals: [{ type: "hero", count: 1, examples: ["hero"] }],
+        summary: "1 Canvax-bound node",
+      },
       summary:
         "inline-text source: Self-test CSS token source. Top colors: #e85d3a, #14323f.",
     },
@@ -24026,6 +24104,12 @@ async function assertExternalDesignTokenImport() {
     tokens?.source === "external-design-token-pack" &&
     tokens.sourceFrameTitle === "Self-test CSS token source" &&
     tokens.palette[0]?.hex === "#e85d3a" &&
+    tokens.semanticStructure?.components?.some(
+      (entry) => entry.type === "hero",
+    ) &&
+    tokens.semanticStructure?.canvaxBindings?.some(
+      (binding) => binding.id === "self-test-node",
+    ) &&
     buildDesignKitSummary().designTokens?.source ===
       "external-design-token-pack";
 

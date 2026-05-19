@@ -110,8 +110,9 @@ The useful lesson for Canvax:
   `artifacts/canvax/codex-output.json` to check the real files Codex published
   for a frame, so production-port token enforcement has a concrete gate. The
   remaining gap is proving that gate against real user project ports and adding
-  richer rendered-app semantic extraction. Basic local screenshot palette
-  extraction now exists through `npm run extract-tokens -- --image <path>`.
+  deeper rendered-app critique. Basic local screenshot palette extraction now
+  exists through `npm run extract-tokens -- --image <path>`, and static HTML/JSX
+  artifact semantics now export through `semanticStructure`.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.
@@ -389,7 +390,10 @@ writing `canvax-external-design-tokens` JSON/Markdown for future Design kit
 import. Advanced `Import external` imports the latest token pack into the active
 board Design kit. The Design kit dropdown now has `Find kit` search across
 built-in and repository kits, and the validator exposes the same discovery path
-through `npm run validate-design-kits -- --query <term>`.
+through `npm run validate-design-kits -- --query <term>`. The external token
+pack now also includes static `semanticStructure` extraction for HTML/JSX
+artifacts: landmarks, component signals, headings, actions, forms, class
+signals, and Canvax node bindings.
 
 Needed:
 
@@ -399,8 +403,8 @@ Needed:
 - Extract visual tokens from a URL, screenshot, or existing app. **Current-frame
   sketch token extraction and locally readable placed/reference-image sampling
   shipped; text/CSS token extraction from URLs, files, generated artifacts, and
-  inline snippets shipped; rendered screenshot/app semantic extraction remains
-  open.**
+  inline snippets shipped; static HTML/JSX semantic extraction shipped; live DOM
+  inspection and rendered-app critique remain open.**
 - Enforce those tokens when Codex generates or refines UI.
   **Initial deterministic executor enforcement shipped for generated CSS
   variables and port contracts; stricter production-code enforcement remains

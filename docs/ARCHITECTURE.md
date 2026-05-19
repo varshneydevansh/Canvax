@@ -655,7 +655,7 @@ design-kits/*.json
 `scripts/validate-design-kits.mjs` checks that local kit files have the required
 shape and remain no-API.
 
-`scripts/extract-design-tokens.mjs` is the current external-source bridge. It scans public URLs, local HTML/CSS files, generated artifacts, inline CSS/HTML text, or local raster screenshots for explicit colors, CSS variables, font-family rules, and sampled image palettes, then writes `canvax-external-design-tokens` JSON/Markdown. Advanced `Import external` reads the latest JSON pack from `exports/` and normalizes it into `designKit.designTokens`. Screenshot extraction is local and uses raster pixel sampling; it is not a semantic rendered-app design critique and does not call any AI or paid API.
+`scripts/extract-design-tokens.mjs` is the current external-source bridge. It scans public URLs, local HTML/CSS files, generated artifacts, inline CSS/HTML text, or local raster screenshots for explicit colors, CSS variables, font-family rules, sampled image palettes, and local HTML/JSX structure, then writes `canvax-external-design-tokens` JSON/Markdown. The `semanticStructure` block records detected landmarks, component signals, headings, actions, forms, class-role hints, and Canvax source bindings such as `data-canvax-node-id` / `data-canvax-node-type`. Advanced `Import external` reads the latest JSON pack from `exports/` and normalizes it into `designKit.designTokens`. Screenshot extraction is local and uses raster pixel sampling; semantic extraction reads source text/static artifacts only, not a live browser DOM or AI critique, and it does not call any AI or paid API.
 
 `scripts/verify-token-enforcement.mjs` is the matching enforcement bridge. It
 reads `implementation/canvax-build-contract.json`, extracts the recorded
@@ -672,8 +672,9 @@ the production-port gate: the token contract follows the design into workspace
 files instead of stopping at the local starter bundle.
 
 ```text
-reference CSS / sketch / image samples
+reference CSS / HTML / JSX / sketch / image samples
   -> design token pack
+  -> semanticStructure
   -> Build with Codex contract
   -> implementation CSS/HTML/JSX
   -> verify-token-enforcement

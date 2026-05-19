@@ -175,7 +175,7 @@ npm run extract-tokens -- --image artifacts/canvax/browser-snapshots/latest/boar
 npm run extract-tokens -- --text ":root{--brand:#e85d3a;font-family:Georgia}"
 ```
 
-It writes `exports/canvax-external-design-tokens-latest.json` and `.md` with palette, CSS variable, font-family, and optional screenshot pixel-sample cues. This is still no-API. Screenshot extraction samples local raster files; it does not perform semantic design critique or understand components in a rendered app.
+It writes `exports/canvax-external-design-tokens-latest.json` and `.md` with palette, CSS variable, font-family, optional screenshot pixel-sample cues, and a local `semanticStructure` block when the source includes HTML or JSX. That block records landmarks, component signals, headings, actions, forms, class signals, and `data-canvax-node-id` / `data-canvax-node-type` bindings so Codex can understand a generated artifact as UI structure instead of only colors. This is still no-API. Screenshot extraction samples local raster files; it does not perform AI design critique or inspect a live browser DOM.
 
 After running it, press `Import external` in the Advanced `Design kit` card to bring `exports/canvax-external-design-tokens-latest.json` into the active board as `designKit.designTokens`.
 

@@ -374,7 +374,7 @@ async function validateExternalDesignTokenExtractorDryRun() {
     const { stdout } = await runCommand("node", [
       "scripts/extract-design-tokens.mjs",
       "--text",
-      ":root{--brand:#e85d3a;--ink:rgb(20,32,48);font-family:Georgia,serif}.cta{color:#e85d3a;background:#f2b84b}",
+      '<main class="hero-shell" data-canvax-node-id="hero-1" data-canvax-node-type="hero"><nav><a href="#work">Work</a></nav><section class="hero card"><h1>Ship Better Screens</h1><button class="cta">Start building</button></section></main><style>:root{--brand:#e85d3a;--ink:rgb(20,32,48);font-family:Georgia,serif}.cta{color:#e85d3a;background:#f2b84b}</style>',
       "--dry-run",
       "--json",
     ]);
@@ -387,18 +387,27 @@ async function validateExternalDesignTokenExtractorDryRun() {
         pack.palette?.some((entry) => entry.hex === "#e85d3a") &&
         pack.palette?.some((entry) => entry.hex === "#142030") &&
         pack.cssVariables?.some((entry) => entry.name === "--brand") &&
-        pack.typography?.fontFamilies?.some((font) => /Georgia/.test(font)),
+        pack.typography?.fontFamilies?.some((font) => /Georgia/.test(font)) &&
+        pack.semanticStructure?.components?.some(
+          (entry) => entry.type === "hero",
+        ) &&
+        pack.semanticStructure?.actions?.some(
+          (action) => action.label === "Start building",
+        ) &&
+        pack.semanticStructure?.canvaxBindings?.some(
+          (binding) => binding.id === "hero-1",
+        ),
     );
     results.push({
-      name: "external design token extractor dry-run is valid",
+      name: "external design token and semantic extractor dry-run is valid",
       passed,
       detail: passed
-        ? `${pack.palette.length} colors`
+        ? `${pack.palette.length} colors, ${pack.semanticStructure.components.length} semantic components`
         : "extractor did not return expected token pack",
     });
   } catch (error) {
     results.push({
-      name: "external design token extractor dry-run is valid",
+      name: "external design token and semantic extractor dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

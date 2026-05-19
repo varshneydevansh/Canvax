@@ -98,7 +98,7 @@ async function readSource(argv) {
   }
 
   throw new Error(
-    "Provide --url, --file, --css, or --text. Use --help for examples.",
+    "Provide --url, --file, --css, --image, --screenshot, or --text. Use --help for examples.",
   );
 }
 
@@ -171,6 +171,7 @@ function buildTokenPack(source) {
   ]);
   const cssVariables = extractCssVariables(source.text);
   const fonts = extractFonts(source.text);
+  const semanticStructure = extractSemanticStructure(source.text || "");
   const palette = colors.slice(0, 12).map((entry, index) => ({
     hex: entry.hex,
     count: entry.count,
@@ -196,18 +197,22 @@ function buildTokenPack(source) {
     typography: {
       fontFamilies: fonts.slice(0, 12),
     },
+    semanticStructure,
     usage: {
       scannedCharacters: source.text.length,
       colorCount: colors.length,
       cssVariableCount: cssVariables.length,
       fontFamilyCount: fonts.length,
       imageSampleCount: source.imageSamples?.sampleCount || 0,
+      semanticComponentCount: semanticStructure.components.length,
+      semanticBindingCount: semanticStructure.canvaxBindings.length,
+      semanticActionCount: semanticStructure.actions.length,
     },
-    summary: buildTokenSummary(source, palette, fonts),
+    summary: buildTokenSummary(source, palette, fonts, semanticStructure),
     integration: {
       designKitImport: "Use palette as designKit.designTokens.palette.",
       styleLockImport:
-        "Use palette, typography, and summary as external context for Canvax style locks.",
+        "Use palette, typography, semanticStructure, and summary as external context for Canvax style locks.",
       noApiBoundary:
         "This extractor reads local files, local images, or public URLs only; it does not call an AI or paid image/API service.",
     },
@@ -406,13 +411,330 @@ function extractFonts(text) {
   return [...new Set(fonts.filter(Boolean))].slice(0, 24);
 }
 
+function extractSemanticStructure(text) {
+  const sourceText = String(text || "");
+  if (!sourceText.trim() || !/<[A-Za-z][\w:.-]*\b/.test(sourceText)) {
+    return {
+      kind: "canvax-semantic-structure",
+      detected: false,
+      sourceLanguage: "unknown",
+      landmarks: [],
+      components: [],
+      headings: [],
+      actions: [],
+      forms: [],
+      canvaxBindings: [],
+      classSignals: [],
+      summary: "No HTML/JSX structure detected.",
+    };
+  }
+
+  const tags = [];
+  for (const match of sourceText.matchAll(/<([A-Za-z][\w:.-]*)\b([^<>]*)>/g)) {
+    const tagName = match[1];
+    if (tagName.startsWith("!")) {
+      continue;
+    }
+    tags.push({
+      tag: tagName,
+      normalizedTag: tagName.toLowerCase(),
+      attributes: match[2] || "",
+    });
+  }
+
+  const landmarkMap = new Map();
+  const componentMap = new Map();
+  const classSignals = new Map();
+  const canvaxBindings = [];
+
+  tags.forEach((tag) => {
+    const attributes = tag.attributes;
+    const id = extractAttribute(attributes, "id");
+    const className = [
+      extractAttribute(attributes, "class"),
+      extractAttribute(attributes, "className"),
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const role = extractAttribute(attributes, "role").toLowerCase();
+    const dataType = extractAttribute(attributes, "data-canvax-node-type");
+    const dataId = extractAttribute(attributes, "data-canvax-node-id");
+    const ariaLabel = extractAttribute(attributes, "aria-label");
+    const semanticText = `${tag.normalizedTag} ${role} ${id} ${className} ${dataType}`.toLowerCase();
+
+    if (dataId) {
+      canvaxBindings.push({
+        id: dataId,
+        type: dataType || tag.normalizedTag,
+        tag: tag.tag,
+        label: ariaLabel || className || id || tag.tag,
+      });
+    }
+
+    const landmark = landmarkTypeFor(tag.normalizedTag, role);
+    if (landmark) {
+      addSemanticCount(landmarkMap, landmark, tag.tag, semanticText);
+    }
+
+    componentTypesFor(tag, semanticText).forEach((type) => {
+      addSemanticCount(componentMap, type, tag.tag, semanticText);
+    });
+
+    classesFrom(className).forEach((token) => {
+      const signal = classSignalFor(token);
+      if (signal) {
+        addSemanticCount(classSignals, signal, token, token);
+      }
+    });
+  });
+
+  const headings = extractHeadingSemantics(sourceText);
+  const actions = extractActionSemantics(sourceText);
+  const forms = extractFormSemantics(tags);
+  const components = [...componentMap.values()]
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type))
+    .slice(0, 28);
+  const landmarks = [...landmarkMap.values()]
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type))
+    .slice(0, 16);
+
+  return {
+    kind: "canvax-semantic-structure",
+    detected: Boolean(tags.length),
+    sourceLanguage: /className=|<[A-Z][\w.]*/.test(sourceText)
+      ? "jsx-or-html"
+      : "html",
+    landmarks,
+    components,
+    headings,
+    actions,
+    forms,
+    canvaxBindings: dedupeBy(
+      canvaxBindings,
+      (binding) => `${binding.id}:${binding.type}`,
+    ).slice(0, 80),
+    classSignals: [...classSignals.values()]
+      .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type))
+      .slice(0, 16),
+    summary: buildSemanticSummary({
+      tags,
+      landmarks,
+      components,
+      headings,
+      actions,
+      forms,
+      canvaxBindings,
+    }),
+  };
+}
+
+function landmarkTypeFor(tag, role) {
+  if (["banner", "contentinfo", "main", "navigation", "complementary"].includes(role)) {
+    return role;
+  }
+  const tagMap = {
+    header: "banner",
+    footer: "contentinfo",
+    main: "main",
+    nav: "navigation",
+    aside: "complementary",
+    section: "section",
+    article: "article",
+    form: "form",
+  };
+  return tagMap[tag] || "";
+}
+
+function componentTypesFor(tag, semanticText) {
+  const types = new Set();
+  const normalizedTag = tag.normalizedTag;
+  if (tag.tag[0] === tag.tag[0].toUpperCase() && tag.tag !== normalizedTag) {
+    types.add(`custom:${tag.tag}`);
+  }
+  if (normalizedTag === "button") {
+    types.add("button");
+  }
+  if (normalizedTag === "a") {
+    types.add("link");
+  }
+  if (["input", "textarea", "select", "label"].includes(normalizedTag)) {
+    types.add("form-control");
+  }
+  if (["img", "picture", "svg", "canvas", "video"].includes(normalizedTag)) {
+    types.add("media");
+  }
+  if (/hero|masthead|cover/.test(semanticText)) {
+    types.add("hero");
+  }
+  if (/card|tile|panel|dossier/.test(semanticText)) {
+    types.add("card");
+  }
+  if (/cta|call-to-action|primary-action/.test(semanticText)) {
+    types.add("cta");
+  }
+  if (/toolbar|command|rail/.test(semanticText)) {
+    types.add("toolbar");
+  }
+  if (/modal|dialog|popover|sheet/.test(semanticText)) {
+    types.add("overlay");
+  }
+  if (/sidebar|drawer|nav/.test(semanticText)) {
+    types.add("navigation");
+  }
+  if (/grid|list|gallery|timeline/.test(semanticText)) {
+    types.add("collection");
+  }
+  if (/data-canvax-node-id/.test(tag.attributes)) {
+    types.add("canvax-bound-node");
+  }
+  return [...types];
+}
+
+function extractHeadingSemantics(text) {
+  return [...text.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)]
+    .map((match) => ({
+      level: Number(match[1]),
+      text: cleanTextContent(match[2]).slice(0, 140),
+    }))
+    .filter((heading) => heading.text)
+    .slice(0, 24);
+}
+
+function extractActionSemantics(text) {
+  const actions = [];
+  for (const match of text.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/gi)) {
+    const label =
+      extractAttribute(match[1], "aria-label") || cleanTextContent(match[2]);
+    if (label) {
+      actions.push({ type: "button", label: label.slice(0, 120), target: "" });
+    }
+  }
+  for (const match of text.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const label =
+      extractAttribute(match[1], "aria-label") || cleanTextContent(match[2]);
+    const href = extractAttribute(match[1], "href");
+    if (label || href) {
+      actions.push({
+        type: "link",
+        label: (label || href).slice(0, 120),
+        target: href.slice(0, 180),
+      });
+    }
+  }
+  return dedupeBy(actions, (action) => `${action.type}:${action.label}:${action.target}`).slice(
+    0,
+    32,
+  );
+}
+
+function extractFormSemantics(tags) {
+  const counts = {
+    form: 0,
+    input: 0,
+    textarea: 0,
+    select: 0,
+    label: 0,
+    button: 0,
+  };
+  tags.forEach((tag) => {
+    if (Object.prototype.hasOwnProperty.call(counts, tag.normalizedTag)) {
+      counts[tag.normalizedTag] += 1;
+    }
+  });
+  if (!Object.values(counts).some(Boolean)) {
+    return [];
+  }
+  return Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([type, count]) => ({ type, count }));
+}
+
+function buildSemanticSummary(details) {
+  const parts = [
+    `${details.tags.length} HTML/JSX tags`,
+    `${details.landmarks.length} landmark type${details.landmarks.length === 1 ? "" : "s"}`,
+    `${details.components.length} component signal${details.components.length === 1 ? "" : "s"}`,
+    `${details.headings.length} heading${details.headings.length === 1 ? "" : "s"}`,
+    `${details.actions.length} action${details.actions.length === 1 ? "" : "s"}`,
+    `${details.canvaxBindings.length} Canvax-bound node${details.canvaxBindings.length === 1 ? "" : "s"}`,
+  ];
+  return parts.join(", ");
+}
+
+function addSemanticCount(map, type, example, detail) {
+  const current = map.get(type) || {
+    type,
+    count: 0,
+    examples: [],
+  };
+  current.count += 1;
+  const safeExample = cleanTextContent(example || detail || type).slice(0, 100);
+  if (safeExample && current.examples.length < 6) {
+    current.examples.push(safeExample);
+  }
+  map.set(type, current);
+}
+
+function extractAttribute(attributes, name) {
+  const pattern = new RegExp(
+    `\\b${escapeRegExp(name)}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|\\{([^}]*)\\}|([^\\s>]+))`,
+    "i",
+  );
+  const match = String(attributes || "").match(pattern);
+  return cleanTextContent(match?.[1] || match?.[2] || match?.[3] || match?.[4] || "");
+}
+
+function classesFrom(value) {
+  return String(value || "")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .slice(0, 80);
+}
+
+function classSignalFor(token) {
+  const value = token.toLowerCase();
+  if (/hero|masthead|cover/.test(value)) {
+    return "hero";
+  }
+  if (/card|tile|panel|dossier/.test(value)) {
+    return "card";
+  }
+  if (/cta|button|action/.test(value)) {
+    return "action";
+  }
+  if (/nav|menu|sidebar|drawer/.test(value)) {
+    return "navigation";
+  }
+  if (/grid|list|gallery|timeline/.test(value)) {
+    return "collection";
+  }
+  if (/modal|dialog|popover|sheet/.test(value)) {
+    return "overlay";
+  }
+  return "";
+}
+
+function cleanTextContent(value) {
+  return String(value || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function extractStylesheetHrefs(html) {
   return [...html.matchAll(/<link\b[^>]*rel=["'][^"']*stylesheet[^"']*["'][^>]*>/gi)]
     .map((match) => match[0].match(/\bhref=["']([^"']+)["']/i)?.[1])
     .filter(Boolean);
 }
 
-function buildTokenSummary(source, palette, fonts) {
+function buildTokenSummary(source, palette, fonts, semanticStructure) {
   const colorSummary = palette.length
     ? `Top colors: ${palette.slice(0, 5).map((entry) => entry.hex).join(", ")}`
     : "No explicit colors found";
@@ -422,10 +744,23 @@ function buildTokenSummary(source, palette, fonts) {
   const imageSummary = source.imageSamples
     ? `Image samples: ${source.imageSamples.sampleCount} pixels across ${source.imageSamples.width}x${source.imageSamples.height}.`
     : "";
-  return `${source.type} source: ${source.label}. ${colorSummary}. ${fontSummary}. ${imageSummary}`.trim();
+  const semanticSummary = semanticStructure?.detected
+    ? `Semantic structure: ${semanticStructure.summary}.`
+    : "";
+  return [
+    `${source.type} source: ${source.label}.`,
+    `${colorSummary}.`,
+    `${fontSummary}.`,
+    imageSummary,
+    semanticSummary,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 }
 
 function buildTokenMarkdown(pack) {
+  const semantic = pack.semanticStructure;
   const lines = [
     "# Canvax External Design Tokens",
     "",
@@ -434,6 +769,8 @@ function buildTokenMarkdown(pack) {
     `- Colors: ${pack.palette.length}`,
     `- CSS variables: ${pack.cssVariables.length}`,
     `- Font families: ${pack.typography.fontFamilies.length}`,
+    `- Semantic components: ${semantic.components.length}`,
+    `- Canvax-bound nodes: ${semantic.canvaxBindings.length}`,
     pack.source.imageSamples
       ? `- Image samples: ${pack.source.imageSamples.sampleCount}`
       : "",
@@ -453,6 +790,25 @@ function buildTokenMarkdown(pack) {
     ...(pack.typography.fontFamilies.length
       ? pack.typography.fontFamilies.map((font) => `- ${font}`)
       : ["- Not detected"]),
+    "",
+    "## Semantic Structure",
+    "",
+    semantic.detected
+      ? `- Summary: ${semantic.summary}`
+      : "- Not detected",
+    ...semantic.landmarks.map(
+      (entry) => `- Landmark ${entry.type}: ${entry.count}`,
+    ),
+    ...semantic.components.map(
+      (entry) => `- Component ${entry.type}: ${entry.count}`,
+    ),
+    ...semantic.headings.map(
+      (heading) => `- H${heading.level}: ${heading.text}`,
+    ),
+    ...semantic.actions.map(
+      (action) =>
+        `- ${action.type}: ${action.label}${action.target ? ` -> ${action.target}` : ""}`,
+    ),
     "",
     "## Import Notes",
     "",
@@ -520,6 +876,10 @@ function dedupeBy(items, keyFn) {
   });
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function toProjectRelative(path) {
   return path.replace(`${projectRoot}/`, "");
 }
@@ -567,6 +927,7 @@ Options:
   --dry-run    Do not write exports/canvax-external-design-tokens-latest.*
 
 This is a local no-API extractor. It scans CSS/HTML text, public linked
-stylesheets, and local raster screenshots for colors, CSS variables, and
-font-family rules.`);
+stylesheets, local HTML/JSX structure, Canvax node bindings, and local raster
+screenshots for colors, CSS variables, semantic structure, and font-family
+rules.`);
 }

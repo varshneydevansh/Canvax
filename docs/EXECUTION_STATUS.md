@@ -103,6 +103,7 @@ Status: In progress
 - [x] `npm run verify-tokens` can verify extracted design-token palettes against both local implementation artifacts and production files listed in `artifacts/canvax/codex-output.json`
 - [x] Repository design kits under `design-kits/*.json` load into the searchable Design kit dropdown and validate/discover with `npm run validate-design-kits` plus `npm run validate-design-kits -- --query <term>`
 - [x] `npm run extract-tokens -- --image <local-screenshot>` samples local raster screenshots/images into the same importable external token pack without an API key
+- [x] `npm run extract-tokens` emits a no-API `semanticStructure` block for HTML/JSX artifacts, including landmarks, component signals, actions, forms, headings, class signals, and Canvax node bindings
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service
 - [x] Isolated service lifecycle regression covers start, reuse, port mismatch, restart, status, and stop on throwaway ports without disrupting the default board
 - [x] CLI can recover a matching Canvax service from `/api/status` when runtime files are stale or missing
