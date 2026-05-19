@@ -61,7 +61,8 @@ The intended open behavior is:
 ## Local Projects
 
 The `Project` block is available in Workbench and in the Advanced left rail.
-Both controls use the same browser-local project picker.
+Both controls use the same browser-local project picker, and the `Browse`
+button opens a larger Project Browser overlay when the dropdown is too small.
 
 Use it when you want separate Canvax boards for separate products, book spreads,
 UI explorations, or design directions:
@@ -70,6 +71,8 @@ UI explorations, or design directions:
 - `Duplicate` copies the current project into a new local board.
 - `Delete` removes the current project only when another project exists.
 - `Open project` switches the active browser-local board.
+- `Browse` shows searchable project cards with active status, frame counts, the
+  active frame title, and Open / Duplicate / Delete actions.
 
 ```text
 localStorage project registry

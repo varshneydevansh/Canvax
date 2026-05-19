@@ -375,15 +375,24 @@ const palette = [
 const dom = {
   boardProject: document.querySelector("#board-project"),
   projectPicker: document.querySelector("#project-picker"),
+  openProjectBrowser: document.querySelector("#open-project-browser"),
   newProject: document.querySelector("#new-project"),
   duplicateProject: document.querySelector("#duplicate-project"),
   deleteProject: document.querySelector("#delete-project"),
   projectSwitcherStatus: document.querySelector("#project-switcher-status"),
   focusProjectPicker: document.querySelector("#focus-project-picker"),
+  focusOpenProjectBrowser: document.querySelector("#focus-open-project-browser"),
   focusNewProject: document.querySelector("#focus-new-project"),
   focusDuplicateProject: document.querySelector("#focus-duplicate-project"),
   focusDeleteProject: document.querySelector("#focus-delete-project"),
   focusProjectStatus: document.querySelector("#focus-project-status"),
+  projectBrowserOverlay: document.querySelector("#project-browser-overlay"),
+  projectBrowserGrid: document.querySelector("#project-browser-grid"),
+  projectBrowserClose: document.querySelector("#project-browser-close"),
+  projectBrowserSearch: document.querySelector("#project-browser-search"),
+  projectBrowserNew: document.querySelector("#project-browser-new"),
+  projectBrowserDuplicate: document.querySelector("#project-browser-duplicate"),
+  projectBrowserStatus: document.querySelector("#project-browser-status"),
   boardGoal: document.querySelector("#board-goal"),
   boardAudience: document.querySelector("#board-audience"),
   boardMood: document.querySelector("#board-mood"),
@@ -678,6 +687,9 @@ function init() {
     syncSpatialObjectsFromHandoffs();
   }
   renderAll();
+  if (visualFixtureMode === "project-browser") {
+    openProjectBrowser();
+  }
   const projectSwitchNotice = window.sessionStorage.getItem(
     "canvax-project-switch-notice",
   );
@@ -696,7 +708,12 @@ function init() {
 }
 
 function applyVisualFixture(mode) {
-  if (!["advanced-map", "workbench-map"].includes(mode)) {
+  if (!["advanced-map", "workbench-map", "project-browser"].includes(mode)) {
+    return;
+  }
+
+  if (mode === "project-browser") {
+    applyProjectBrowserFixture();
     return;
   }
 
@@ -746,6 +763,43 @@ function applyVisualFixture(mode) {
   syncSpatialObjectsFromHandoffs();
 }
 
+function applyProjectBrowserFixture() {
+  const fixtureProjects = [
+    {
+      id: "project-fixture-stitch",
+      title: "Stitch parity workspace",
+      frameCount: 7,
+      activeFrameTitle: "Workbench map",
+      updatedAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    },
+    {
+      id: "project-fixture-book",
+      title: "Children book spread studies",
+      frameCount: 12,
+      activeFrameTitle: "Storm rescue spread",
+      updatedAt: new Date(Date.now() - 1000 * 60 * 72).toISOString(),
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
+    },
+    {
+      id: "project-fixture-product",
+      title: "Scythian product dossier",
+      frameCount: 4,
+      activeFrameTitle: "Dispatch archive",
+      updatedAt: new Date(Date.now() - 1000 * 60 * 144).toISOString(),
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(),
+    },
+  ];
+  state.projectRegistry = {
+    version: 1,
+    activeProjectId: fixtureProjects[0].id,
+    projects: fixtureProjects,
+  };
+  state.board.project = fixtureProjects[0].title;
+  state.workspaceMode = "simple";
+  state.workbenchFocus = "sketch";
+}
+
 function bindEvents() {
   dom.boardProject.addEventListener("input", () =>
     updateBoard("project", dom.boardProject.value),
@@ -753,15 +807,35 @@ function bindEvents() {
   dom.projectPicker.addEventListener("change", () => {
     switchProject(dom.projectPicker.value);
   });
+  dom.openProjectBrowser.addEventListener("click", openProjectBrowser);
   dom.newProject.addEventListener("click", createProject);
   dom.duplicateProject.addEventListener("click", duplicateProject);
   dom.deleteProject.addEventListener("click", deleteProject);
   dom.focusProjectPicker.addEventListener("change", () => {
     switchProject(dom.focusProjectPicker.value);
   });
+  dom.focusOpenProjectBrowser.addEventListener("click", openProjectBrowser);
   dom.focusNewProject.addEventListener("click", createProject);
   dom.focusDuplicateProject.addEventListener("click", duplicateProject);
   dom.focusDeleteProject.addEventListener("click", deleteProject);
+  dom.projectBrowserClose.addEventListener("click", closeProjectBrowser);
+  dom.projectBrowserOverlay.addEventListener("click", (event) => {
+    if (event.target === dom.projectBrowserOverlay) {
+      closeProjectBrowser();
+    }
+  });
+  dom.projectBrowserSearch.addEventListener("input", renderProjectBrowser);
+  dom.projectBrowserNew.addEventListener("click", createProject);
+  dom.projectBrowserDuplicate.addEventListener("click", () =>
+    duplicateProject(state.projectRegistry?.activeProjectId),
+  );
+  dom.projectBrowserGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-project-action]");
+    if (!button) {
+      return;
+    }
+    handleProjectBrowserAction(button.dataset.projectAction, button.dataset.projectId);
+  });
   dom.boardGoal.addEventListener("input", () =>
     updateBoard("goal", dom.boardGoal.value),
   );
@@ -3361,6 +3435,143 @@ function renderProjectSwitcher() {
       ? `${active.frameCount || 1} frame${active.frameCount === 1 ? "" : "s"}; saved to active /canvax handoff.`
       : "Active project writes the current /canvax handoff.";
   }
+  if (projectBrowserIsOpen()) {
+    renderProjectBrowser();
+  }
+}
+
+function projectBrowserIsOpen() {
+  return Boolean(dom.projectBrowserOverlay && !dom.projectBrowserOverlay.hidden);
+}
+
+function openProjectBrowser() {
+  if (!dom.projectBrowserOverlay) {
+    return;
+  }
+  renderProjectBrowser();
+  dom.projectBrowserOverlay.hidden = false;
+  window.requestAnimationFrame(() => {
+    dom.projectBrowserSearch?.focus();
+  });
+}
+
+function closeProjectBrowser() {
+  if (!dom.projectBrowserOverlay) {
+    return;
+  }
+  dom.projectBrowserOverlay.hidden = true;
+}
+
+function renderProjectBrowser() {
+  if (!dom.projectBrowserGrid) {
+    return;
+  }
+  const registry = normalizeProjectRegistry(
+    state.projectRegistry || readProjectRegistry(),
+  );
+  const activeId = registry.activeProjectId;
+  const query = cleanString(dom.projectBrowserSearch?.value).toLowerCase();
+  const projects = registry.projects.filter((project) => {
+    if (!query) {
+      return true;
+    }
+    return [project.title, project.activeFrameTitle, project.id]
+      .map((value) => cleanString(value).toLowerCase())
+      .some((value) => value.includes(query));
+  });
+  if (!projects.length) {
+    dom.projectBrowserGrid.innerHTML = `
+      <div class="project-browser-empty">
+        <strong>No local projects match that search.</strong>
+        <span>Clear the search or create a new Canvax project.</span>
+      </div>
+    `;
+  } else {
+    dom.projectBrowserGrid.innerHTML = projects
+      .map((project, index) => {
+        const active = project.id === activeId;
+        const frameCount = Number(project.frameCount) || 0;
+        const frameLabel = `${frameCount || 1} frame${frameCount === 1 ? "" : "s"}`;
+        const initial = escapeHtml(
+          cleanString(project.title).slice(0, 2).toUpperCase() || "CX",
+        );
+        return `
+          <article class="project-browser-card${active ? " active" : ""}">
+            <button
+              class="project-browser-open-card"
+              type="button"
+              data-project-action="open"
+              data-project-id="${escapeHtml(project.id)}"
+              ${active ? "disabled" : ""}
+            >
+              <span class="project-browser-thumb" aria-hidden="true">${initial}</span>
+              <span class="project-browser-card-copy">
+                <strong>${escapeHtml(project.title)}</strong>
+                <small>${escapeHtml(frameLabel)} · ${escapeHtml(project.activeFrameTitle || "Frame 1")}</small>
+                <em>${active ? "Active /canvax handoff" : `Updated ${escapeHtml(formatDateTime(project.updatedAt))}`}</em>
+              </span>
+              <span class="project-browser-index">${String(index + 1).padStart(2, "0")}</span>
+            </button>
+            <div class="project-browser-card-actions">
+              <button
+                class="ghost-button compact"
+                type="button"
+                data-project-action="open"
+                data-project-id="${escapeHtml(project.id)}"
+                ${active ? "disabled" : ""}
+              >
+                ${active ? "Open" : "Open"}
+              </button>
+              <button
+                class="ghost-button compact"
+                type="button"
+                data-project-action="duplicate"
+                data-project-id="${escapeHtml(project.id)}"
+              >
+                Duplicate
+              </button>
+              <button
+                class="ghost-button compact danger"
+                type="button"
+                data-project-action="delete"
+                data-project-id="${escapeHtml(project.id)}"
+                ${registry.projects.length <= 1 ? "disabled" : ""}
+              >
+                Delete
+              </button>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+  if (dom.projectBrowserStatus) {
+    const visibleCount = projects.length;
+    dom.projectBrowserStatus.textContent = `${visibleCount} of ${registry.projects.length} local project${registry.projects.length === 1 ? "" : "s"} shown. Project files mirror under exports/projects/<project-id>/.`;
+  }
+}
+
+function handleProjectBrowserAction(action, projectId) {
+  const targetId = cleanString(projectId);
+  if (!targetId) {
+    return;
+  }
+  if (action === "open") {
+    if (targetId === state.projectRegistry?.activeProjectId) {
+      closeProjectBrowser();
+      return;
+    }
+    closeProjectBrowser();
+    switchProject(targetId);
+    return;
+  }
+  if (action === "duplicate") {
+    duplicateProject(targetId);
+    return;
+  }
+  if (action === "delete") {
+    deleteProjectById(targetId);
+  }
 }
 
 function uniqueProjectTitle(
@@ -3437,46 +3648,77 @@ function createProject() {
   activateProject(projectId, snapshot, `Created ${record.title}`);
 }
 
-function duplicateProject() {
+function duplicateProject(projectId = state.projectRegistry?.activeProjectId) {
   persistState();
   const registry = normalizeProjectRegistry(state.projectRegistry);
-  const projectId = createProjectId();
-  const snapshot = structuredClone(buildPersistedSnapshot(state));
+  const sourceId = cleanString(projectId) || registry.activeProjectId;
+  const sourceProject = registry.projects.find(
+    (project) => project.id === sourceId,
+  );
+  const sourceSnapshot =
+    sourceId === registry.activeProjectId
+      ? buildPersistedSnapshot(state)
+      : readProjectSnapshot(sourceId);
+  if (!sourceSnapshot) {
+    renderStatus("Project snapshot is missing in this browser");
+    renderProjectBrowser();
+    return;
+  }
+  const nextProjectId = createProjectId();
+  const snapshot = structuredClone(sourceSnapshot);
   snapshot.board = {
     ...snapshot.board,
-    project: uniqueProjectTitle(`${projectTitleFromSnapshot(snapshot)} copy`, [
-      ...registry.projects,
-    ]),
+    project: uniqueProjectTitle(
+      `${sourceProject?.title || projectTitleFromSnapshot(snapshot)} copy`,
+      [...registry.projects],
+    ),
   };
-  const record = projectRecordFromSnapshot(projectId, snapshot);
+  const record = projectRecordFromSnapshot(nextProjectId, snapshot);
   state.projectRegistry = writeProjectRegistry({
     version: 1,
-    activeProjectId: projectId,
+    activeProjectId: nextProjectId,
     projects: [record, ...registry.projects],
   });
-  activateProject(projectId, snapshot, `Duplicated ${record.title}`);
+  activateProject(nextProjectId, snapshot, `Duplicated ${record.title}`);
 }
 
 function deleteProject() {
+  deleteProjectById(state.projectRegistry?.activeProjectId);
+}
+
+function deleteProjectById(projectId = state.projectRegistry?.activeProjectId) {
   const registry = normalizeProjectRegistry(state.projectRegistry);
-  const activeId = registry.activeProjectId;
-  if (registry.projects.length <= 1 || !activeId) {
+  const targetId = cleanString(projectId);
+  if (registry.projects.length <= 1 || !targetId) {
     renderStatus("Create or duplicate another project before deleting this one");
     renderProjectSwitcher();
+    renderProjectBrowser();
     return;
   }
-  const active = registry.projects.find((project) => project.id === activeId);
+  const target = registry.projects.find((project) => project.id === targetId);
   const confirmed = window.confirm(
-    `Delete "${active?.title || "this Canvax project"}" from this browser? This cannot be undone.`,
+    `Delete "${target?.title || "this Canvax project"}" from this browser? This cannot be undone.`,
   );
   if (!confirmed) {
     renderProjectSwitcher();
+    renderProjectBrowser();
     return;
   }
   const remainingProjects = registry.projects.filter(
-    (project) => project.id !== activeId,
+    (project) => project.id !== targetId,
   );
-  window.localStorage.removeItem(projectSnapshotKey(activeId));
+  window.localStorage.removeItem(projectSnapshotKey(targetId));
+  if (targetId !== registry.activeProjectId) {
+    state.projectRegistry = writeProjectRegistry({
+      version: 1,
+      activeProjectId: registry.activeProjectId,
+      projects: remainingProjects,
+    });
+    renderProjectSwitcher();
+    renderProjectBrowser();
+    renderStatus(`Deleted ${target?.title || "project"}`);
+    return;
+  }
   const nextProject = remainingProjects[0];
   const nextSnapshot =
     readProjectSnapshot(nextProject.id) ||
@@ -3489,7 +3731,7 @@ function deleteProject() {
   activateProject(
     nextProject.id,
     nextSnapshot,
-    `Deleted ${active?.title || "project"}; opened ${nextProject.title}`,
+    `Deleted ${target?.title || "project"}; opened ${nextProject.title}`,
   );
 }
 
@@ -21145,6 +21387,16 @@ async function runSelfTest() {
         "project switchers render active project in Advanced and Workbench",
       ),
     );
+    openProjectBrowser();
+    results.push(
+      assert(
+        projectBrowserIsOpen() &&
+          dom.projectBrowserGrid.querySelectorAll(".project-browser-card")
+            .length >= 1,
+        "project browser renders local project cards",
+      ),
+    );
+    closeProjectBrowser();
     results.push(assertWorkspaceModeGuide());
     results.push(
       assert(

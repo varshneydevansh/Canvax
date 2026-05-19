@@ -50,6 +50,14 @@
                         </label>
                         <div class="project-actions" role="group" aria-label="Project actions">
                             <button
+                                id="open-project-browser"
+                                class="ghost-button"
+                                type="button"
+                                title="Open a card browser for local Canvax projects"
+                            >
+                                Browse
+                            </button>
+                            <button
                                 id="new-project"
                                 class="ghost-button"
                                 type="button"
@@ -402,6 +410,14 @@
                                     role="group"
                                     aria-label="Workbench project actions"
                                 >
+                                    <button
+                                        id="focus-open-project-browser"
+                                        class="ghost-button compact"
+                                        type="button"
+                                        title="Open the local project browser"
+                                    >
+                                        Browse
+                                    </button>
                                     <button
                                         id="focus-new-project"
                                         class="ghost-button compact"
@@ -2135,6 +2151,66 @@
                     <div id="flow-list" class="flow-list"></div>
                 </div>
             </aside>
+        </div>
+
+        <div id="project-browser-overlay" class="project-browser-overlay" hidden>
+            <div
+                class="project-browser-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="project-browser-title"
+            >
+                <header class="project-browser-header">
+                    <div>
+                        <p class="eyebrow">Local workspaces</p>
+                        <h2 id="project-browser-title">Canvax Projects</h2>
+                        <p class="helper-text">
+                            Switch boards like a design workbench. The selected
+                            project remains the one Codex reads from
+                            <code>exports/canvax-live-latest.json</code>.
+                        </p>
+                    </div>
+                    <button
+                        id="project-browser-close"
+                        class="ghost-button"
+                        type="button"
+                    >
+                        Close
+                    </button>
+                </header>
+                <div class="project-browser-toolbar">
+                    <label>
+                        Find project
+                        <input
+                            id="project-browser-search"
+                            type="search"
+                            placeholder="Search by title or active frame"
+                        />
+                    </label>
+                    <div class="project-browser-actions">
+                        <button
+                            id="project-browser-new"
+                            class="accent-button"
+                            type="button"
+                        >
+                            New project
+                        </button>
+                        <button
+                            id="project-browser-duplicate"
+                            class="ghost-button"
+                            type="button"
+                        >
+                            Duplicate active
+                        </button>
+                    </div>
+                </div>
+                <div
+                    id="project-browser-grid"
+                    class="project-browser-grid"
+                    aria-label="Local Canvax project cards"
+                ></div>
+                <p id="project-browser-status" class="helper-text"></p>
+            </div>
         </div>
 
         <div id="help-overlay" class="help-overlay" hidden>

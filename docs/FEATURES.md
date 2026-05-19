@@ -85,6 +85,9 @@ small project registry in browser storage plus one snapshot per project.
 Creating, duplicating, switching, or deleting a project changes which snapshot is
 active; the active snapshot is still mirrored into the legacy board storage key
 and into the shared live export path so existing Codex workflows keep working.
+The `Browse` action opens a searchable card browser for the same local registry,
+with active-project state, frame counts, active-frame labels, and card-level
+Open / Duplicate / Delete actions.
 
 ```mermaid
 flowchart LR
@@ -121,6 +124,10 @@ The project folder mirrors the current project's latest state while the shared
 `exports/canvax-*.json` files remain the active chat handoff. This lets Codex
 default to the current board and still recover a previous local project when a
 designer switches context.
+
+Browser regression includes a dedicated `visualfixture=project-browser` desktop
+and narrow smoke pass, so the project browser cannot silently regress into a
+clipped or hidden state.
 
 ### Preview
 

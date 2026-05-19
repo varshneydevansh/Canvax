@@ -53,6 +53,7 @@ Status: In progress
 - [x] Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short path before exposing all controls
 - [x] Workbench secondary actions are tucked behind a `More actions` disclosure so default use focuses on frame/free-canvas/build/preview instead of exposing every power tool at once
 - [x] Left-rail project switching now supports browser-local `New`, `Duplicate`, `Delete`, and `Open project` actions while preserving the active project as the single live Codex handoff
+- [x] Workbench and Advanced now expose a searchable Project Browser overlay with project cards, active status, frame counts, active-frame labels, and Open / Duplicate / Delete actions
 - [x] Saves now also write `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/` for live JSON, Markdown, voice, task pack, rewrite request, image prompt pack, asset candidates, image-generation briefs, image-host tasks, build requests, checkpoints, and assets
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
@@ -98,6 +99,7 @@ Status: In progress
 - [x] Browser regression includes headless board/Preview responsive smoke at 1440, 1024, 768, and 430 pixel widths
 - [x] Browser regression writes visual review snapshots for board and Preview at those responsive widths
 - [x] Browser self-test includes a dense long-session Map fixture with captured frames, voice notes, generated outputs, artifacts, changed files, checkpoints, and asset candidates
+- [x] Browser regression captures a dedicated Project Browser visual fixture on desktop and narrow screens
 - [x] No-API end-to-end workflow regression proves rough frame + voice + image prompt assets + build request + rewrite request + manifest binding as one chain
 - [x] Build with Codex local executor consumes designer implementation context to theme the generated preview/starter bundle, add theme-specific atmosphere layers, and expose a visible `Designer context` panel in the generated surface
 - [x] Build with Codex local executor writes `implementation/codex-port-task.json`, a machine-readable task that tells Codex how to port the starter into real React/Vite/Next app files while preserving Canvax bindings

@@ -90,6 +90,11 @@ if (!liveUrl) {
       liveUrl,
       timeoutMs: responsiveSmokeTimeoutMs,
     });
+    await validateProjectBrowserSmoke({
+      chromePath,
+      liveUrl,
+      timeoutMs: responsiveSmokeTimeoutMs,
+    });
     await writeSnapshotIndex();
   }
   await validateDomLayoutReview({
@@ -203,6 +208,67 @@ async function validateAdvancedMapSmoke({ chromePath, liveUrl, timeoutMs }) {
       expression: buildAdvancedMapSmokeExpression(),
     });
   }
+}
+
+async function validateProjectBrowserSmoke({ chromePath, liveUrl, timeoutMs }) {
+  const viewports = responsiveSmokeViewports.filter((viewport) =>
+    ["desktop", "narrow"].includes(viewport.label),
+  );
+  for (const viewport of viewports) {
+    await validateResponsiveSmoke({
+      name: `project browser visual smoke passes at ${viewport.label}`,
+      surface: "board-project-browser",
+      chromePath,
+      url: `${liveUrl}/?responsivecheck=1&visualfixture=project-browser`,
+      viewport,
+      timeoutMs,
+      expression: buildProjectBrowserSmokeExpression(),
+    });
+  }
+}
+
+function buildProjectBrowserSmokeExpression() {
+  return `(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return {
+        width: box.width,
+        height: box.height,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        visible: box.width > 0 && box.height > 0
+      };
+    };
+    const failures = [];
+    const overlay = document.querySelector("#project-browser-overlay");
+    const dialog = rect(".project-browser-dialog");
+    const grid = rect("#project-browser-grid");
+    const cards = [...document.querySelectorAll(".project-browser-card")];
+    const activeCards = [...document.querySelectorAll(".project-browser-card.active")];
+    const search = rect("#project-browser-search");
+    if (document.readyState !== "complete") failures.push("document not complete");
+    if (!overlay || overlay.hidden) failures.push("project browser overlay hidden");
+    if (!dialog?.visible) failures.push("project browser dialog missing");
+    if (!grid?.visible) failures.push("project browser grid missing");
+    if (!search?.visible) failures.push("project browser search missing");
+    if (cards.length < 3) failures.push("project browser fixture cards missing");
+    if (activeCards.length !== 1) failures.push("active project card not marked");
+    if (dialog && dialog.width > window.innerWidth + 16) failures.push("project browser wider than viewport");
+    if (dialog && dialog.height > window.innerHeight + 16) failures.push("project browser taller than viewport");
+    return {
+      passed: failures.length === 0,
+      failures,
+      cardCount: cards.length,
+      activeCount: activeCards.length,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  })()`;
 }
 
 async function validateDomLayoutReview({ chromePath, liveUrl, timeoutMs }) {

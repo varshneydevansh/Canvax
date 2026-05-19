@@ -244,6 +244,10 @@ available directly in Workbench and in the Advanced left rail, so designers can
 change projects without leaving the sketch/talk/make loop. It gives designers
 separate local boards without changing the Codex contract: the active project
 writes the single `exports/canvax-live-latest.*` compatibility handoff.
+The `Browse` action now opens those same local projects as searchable cards with
+active status, frame counts, active-frame labels, and Open / Duplicate / Delete
+actions, which is closer to Stitch's project-browser affordance while remaining
+local-first.
 The service also writes `exports/canvax-project-registry-latest.*` and
 project-scoped latest handoffs under `exports/projects/<project-id>/`, so Codex
 can recover or compare a specific local project without relying only on browser
