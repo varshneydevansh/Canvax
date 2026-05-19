@@ -507,6 +507,57 @@ record(
       file.path?.includes("/implementation/CanvaxScreen.jsx"),
     ),
 );
+const patchApplyResult = await executeJson("node", [
+  "scripts/execute-patch-task.mjs",
+  "--task",
+  rewriteResult.patchTaskPath,
+  "--no-publish",
+  "--json",
+]);
+record(
+  "patch task executor applies local generated implementation edits",
+  patchApplyResult.ok === true &&
+    patchApplyResult.changedFileCount >= 3 &&
+    patchApplyResult.changedFiles?.some((file) =>
+      file.path?.endsWith("/implementation/CanvaxScreen.jsx"),
+    ) &&
+    patchApplyResult.changedFiles?.some((file) =>
+      file.path?.endsWith("/implementation/index.html"),
+    ) &&
+    patchApplyResult.changedFiles?.some((file) =>
+      file.path?.endsWith("/implementation/CanvaxScreen.css"),
+    ),
+);
+await assertReadableProjectFile(patchApplyResult.resultPath);
+const rawPatchedComponent = await readFile(
+  resolve(
+    projectRoot,
+    buildResult.implementationFiles.find((file) =>
+      file.path.endsWith("/implementation/CanvaxScreen.jsx"),
+    ).path,
+  ),
+  "utf8",
+);
+const rawPatchedHtml = await readFile(
+  resolve(
+    projectRoot,
+    buildResult.implementationFiles.find((file) =>
+      file.path.endsWith("/implementation/index.html"),
+    ).path,
+  ),
+  "utf8",
+);
+record(
+  "applied patch preserves selector binding and records patch metadata",
+  rawPatchedComponent.includes('data-canvax-node-id={node.id}') &&
+    rawPatchedComponent.includes('data-canvax-patch-state={node.patchState || undefined}') &&
+    rawPatchedComponent.includes('"id": "primary-cta"') &&
+    rawPatchedComponent.includes('"patchState": "applied"') &&
+    rawPatchedComponent.includes('"patchReason": "move-up"') &&
+    rawPatchedHtml.includes('data-canvax-node-id="primary-cta"') &&
+    rawPatchedHtml.includes('data-canvax-patch-state="applied"') &&
+    rawPatchedHtml.includes('style="left:10%;top:53%;'),
+);
 record(
   "rewrite executor preserves build visual direction",
   parsedRewriteContext.visualDirection?.themeId === "poster-archive" &&
@@ -565,6 +616,7 @@ const proof = {
     rewritePreview: rewriteResult.previewPath,
     rewriteContext: rewriteResult.contextPath,
     rewritePatchTask: rewriteResult.patchTaskPath,
+    appliedPatchResult: patchApplyResult.resultPath,
   },
   checks: results,
 };

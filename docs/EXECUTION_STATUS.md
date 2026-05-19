@@ -242,6 +242,7 @@ Status: In progress
 - [x] Preview `Mark tweak` lets a designer drag over generated output and save a no-API region correction request for Codex under `exports/canvax-preview-tweak-latest.*`
 - [x] The rewrite executor consumes the latest matching Preview tweak and maps it into affected-region/component-target context, covered by the rough-sketch-to-real-output e2e proof
 - [x] The rewrite executor now writes `codex-patch-task.json` with suggested selectors, files, acceptance criteria, and publish commands for the real Codex implementation pass
+- [x] `npm run execute-patch` can apply a `codex-patch-task.json` to Canvax-generated implementation files, preserve selector bindings, and write an applied-patch result artifact; e2e covers this generated-bundle proof path
 - [x] Workbench/Advanced Map now reconciles generated output/artifact spatial cards, including legacy stale-card cleanup, frame-path binding inference, deleted-frame filtering, and latest per-frame/per-kind output grouping so old materialized targets do not flood the canvas
 - [x] Workbench/Advanced Map now infers frame binding from legacy materialized paths like `artifacts/preview/materialized/<frame-id>/...`, so deleted-frame output cards are filtered instead of reappearing as global/unknown outputs
 - [x] Workbench/Advanced Map now wraps generated output/artifact/change cards in a designer-readable collapsible `Output shelf` lane and uses friendlier generated screen titles

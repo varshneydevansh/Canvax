@@ -173,9 +173,11 @@ The useful lesson for Canvax:
   viewport, and note to `exports/canvax-preview-tweak-latest.*` plus an
   archived tweak record. The rewrite executor now consumes the matching latest
   tweak, maps it into affected-region/component-target context, and writes a
-  `codex-patch-task.json` handoff with suggested selectors/files. Remaining
-  work is live DOM-element selection, automatic production patching, and
-  first-party Codex/ChatGPT co-editing.
+  `codex-patch-task.json` handoff with suggested selectors/files. `npm run
+  execute-patch` can now apply that task to Canvax-generated implementation
+  bundles and record an applied-patch result. Remaining work is live DOM-element
+  selection, arbitrary production app patching, and first-party
+  Codex/ChatGPT co-editing.
 - Make output cards understandable to designers. Generated implementation
   references should read as `Generated screen`, `Generated file`, and
   `Code change`, never as raw manifest labels like `generated-target`.

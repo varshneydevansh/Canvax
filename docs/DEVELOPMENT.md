@@ -286,6 +286,14 @@ default, or a specific file through `--preview-tweak`, and emits it into
 refreshed preview, carrying suggested selectors, files, acceptance criteria, and
 publish commands for the real Codex implementation pass.
 
+`scripts/execute-patch-task.mjs` can consume that patch task for the local
+Canvax-generated implementation bundle. It deterministically updates targeted
+generated files, records `data-canvax-patch-state` metadata, writes
+`artifacts/canvax/applied-patches/latest/result.{json,md}`, and can publish the
+changed artifact list back through `scripts/write-codex-output.mjs`. Keep this
+boundary explicit: it proves generated-bundle patchability, not arbitrary
+production app patching.
+
 Use `npm run mcp` to launch the read-only local stdio MCP server. It exposes the
 inspection commands as tools for hosts that can register a local MCP command:
 `get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
@@ -352,6 +360,7 @@ Rewrite local executor
   artifacts/preview/codex-rewrite/frames/<frame-id>/index.html
   artifacts/preview/codex-rewrite/frames/<frame-id>/context.json
   artifacts/preview/codex-rewrite/frames/<frame-id>/codex-patch-task.json
+  artifacts/canvax/applied-patches/latest/result.json
   artifacts/canvax/codex-output.json
 ```
 

@@ -125,6 +125,7 @@ canvax-preview-tweak-latest.json
   -> affectedRegions[source=preview-tweak]
   -> componentTargetIds when a component map exists
   -> codex-patch-task.json with selectors/files/acceptance gates
+  -> optional execute-patch local generated-bundle edit proof
   -> refreshed local preview + Codex output manifest
 ```
 

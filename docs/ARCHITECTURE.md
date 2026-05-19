@@ -351,6 +351,10 @@ rewrite request executor
       +-> artifacts/preview/codex-rewrite/frames/<frame-id>/index.html
       +-> artifacts/preview/codex-rewrite/frames/<frame-id>/context.json
       `-> artifacts/preview/codex-rewrite/frames/<frame-id>/codex-patch-task.json
+             |
+             `-> scripts/execute-patch-task.mjs
+                   +-> Canvax-generated implementation file edits
+                   `-> artifacts/canvax/applied-patches/latest/result.json
 ```
 
 ```mermaid
