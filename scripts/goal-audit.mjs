@@ -402,7 +402,7 @@ const checks = [
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
-          "project link dry-run manifest is valid",
+          "project link dry-run and saved manifest are valid",
           "Canvax read-only inspection bridge is valid",
           "Canvax MCP server self-test is valid",
           "preview tweak endpoint writes no-API region request",

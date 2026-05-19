@@ -781,7 +781,7 @@ async function validateProjectLinkDryRun() {
       cssPath,
       ":root{--brand:#e85d3a;--paper:#fff8ec}.hero-shell{color:#14323f;transition:transform .2s ease}",
     );
-    const { stdout } = await runCommand("node", [
+    const projectLinkArgs = [
       "scripts/link-project-target.mjs",
       "--target-root",
       fixtureRoot,
@@ -795,10 +795,22 @@ async function validateProjectLinkDryRun() {
       "src/components/Hero.jsx",
       "--css",
       "src/styles.css",
+    ];
+    const { stdout } = await runCommand("node", [
+      ...projectLinkArgs,
       "--dry-run",
       "--json",
     ]);
     const payload = JSON.parse(stdout);
+    const savedResult = JSON.parse(
+      (
+        await runCommand("node", [
+          ...projectLinkArgs,
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
     const passed = Boolean(
       payload?.ok &&
         payload?.kind === "canvax-project-link" &&
@@ -812,10 +824,14 @@ async function validateProjectLinkDryRun() {
         ) &&
         payload.codexEditContract?.editableFiles?.length === 3 &&
         payload.manifest?.changes?.length === 3 &&
-        payload.published === false,
+        payload.published === false &&
+        savedResult?.saved === true &&
+        savedResult?.published === false &&
+        savedResult?.outputs?.projectLinkJson ===
+          "exports/canvax-project-link-latest.json",
     );
     results.push({
-      name: "project link dry-run manifest is valid",
+      name: "project link dry-run and saved manifest are valid",
       passed,
       detail: passed
         ? `${payload.linkedFiles.length} linked files`
@@ -823,7 +839,7 @@ async function validateProjectLinkDryRun() {
     });
   } catch (error) {
     results.push({
-      name: "project link dry-run manifest is valid",
+      name: "project link dry-run and saved manifest are valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });
