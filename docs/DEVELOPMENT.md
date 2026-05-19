@@ -273,6 +273,12 @@ review, screenshot pixel review, and Canvax inspection bridge into
 accessibility, responsiveness, brand/system fit, preview tweak targeting,
 motion/readability, visual integrity, and production readiness.
 
+Use `npm run mcp` to launch the read-only local stdio MCP server. It exposes the
+inspection commands as tools for hosts that can register a local MCP command:
+`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
+`get_design_kit`, `get_output_binding`, and `get_canvax_all`. Use
+`npm run mcp -- --self-test` in regression or host setup checks.
+
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.

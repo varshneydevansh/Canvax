@@ -107,6 +107,7 @@ await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
 await validateCanvaxInspectDryRun();
+await validateCanvaxMcpSelfTest();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
@@ -990,6 +991,36 @@ async function validateCanvaxInspectDryRun() {
   } catch (error) {
     results.push({
       name: "Canvax read-only inspection bridge is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateCanvaxMcpSelfTest() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/canvax-mcp-server.mjs",
+      "--self-test",
+    ]);
+    const payload = JSON.parse(stdout);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-mcp-self-test" &&
+        payload.requiresOpenAiApiKey === false &&
+        payload.toolCount >= 5 &&
+        payload.summaryKind === "canvax-readonly-inspection",
+    );
+    results.push({
+      name: "Canvax MCP server self-test is valid",
+      passed,
+      detail: passed
+        ? `${payload.toolCount} tools`
+        : "MCP server did not expose expected read-only tools",
+    });
+  } catch (error) {
+    results.push({
+      name: "Canvax MCP server self-test is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

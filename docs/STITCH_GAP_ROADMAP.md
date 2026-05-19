@@ -130,8 +130,9 @@ The useful lesson for Canvax:
   well to a Canvax local tool surface where Codex/ChatGPT can call
   `get_current_frame`, `get_spatial_workspace`, `get_design_kit`, and
   `get_output_binding` without asking the user to attach or paste export files.
-  `npm run inspect` now ships the local CLI precursor to that bridge; a true
-  MCP/native host bridge remains open.
+  `npm run inspect` now ships the local CLI bridge and `npm run mcp` exposes
+  the same payloads as read-only stdio MCP tools. Native Codex/ChatGPT host
+  registration remains open.
 - Make design rules enforceable, not decorative. The current local loop now has
   extraction (`Extract tokens`, `npm run extract-tokens`), import (`Import
   external`), contract recording (`Build with Codex`), and implementation
@@ -454,6 +455,9 @@ fixture, binds it through a Codex output manifest, and runs token enforcement
 plus artifact review across those files. `npm run inspect` reads the latest
 Canvax exports and manifests into a stable no-API inspection payload for current
 frame, spatial workspace, design kit, and output bindings.
+`npm run mcp` exposes that inspection bridge as local read-only MCP tools:
+`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
+`get_design_kit`, `get_output_binding`, and `get_canvax_all`.
 `npm run review-snapshot` samples the latest browser snapshots as a local
 visual smoke gate, so screenshot artifacts are not only archived but also
 checked for blank/flat/clipped risks.
@@ -477,8 +481,8 @@ Needed:
   and a production-like proof fixture shipped; real external/user project port
   evidence remains open.**
 - Let Codex inspect the live board without copy/paste exports.
-  **Local read-only CLI shipped through `npm run inspect`; true MCP/native host
-  tool registration remains open.**
+  **Local read-only CLI shipped through `npm run inspect`, and local stdio MCP
+  tools shipped through `npm run mcp`; native host registration remains open.**
 - Add live visual critique for generated/browser output.
   **Local pixel-level screenshot review shipped through `npm run
   review-snapshot`, and local design-jury aggregation shipped through

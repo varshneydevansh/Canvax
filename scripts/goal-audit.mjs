@@ -343,6 +343,18 @@ const checks = [
         ],
       },
       {
+        path: "scripts/canvax-mcp-server.mjs",
+        includes: [
+          "tools/list",
+          "tools/call",
+          "get_current_frame",
+          "get_spatial_workspace",
+          "get_design_kit",
+          "get_output_binding",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
+      {
         path: "scripts/regression-check.mjs",
         includes: [
           "external design token and semantic extractor dry-run is valid",
@@ -355,11 +367,12 @@ const checks = [
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
           "Canvax read-only inspection bridge is valid",
+          "Canvax MCP server self-test is valid",
         ],
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, and a local read-only inspection CLI are proven, but hosted/team kit-library sharing, a first-class MCP/native host bridge, live DOM/AI browser visual critique, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -450,6 +463,7 @@ const checks = [
           "browser-regression",
           "production-port-proof",
           "inspect",
+          "mcp",
           "review-snapshot",
           "review-jury",
           "regression",

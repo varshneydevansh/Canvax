@@ -709,6 +709,14 @@ these command shapes: `summary`, `current-frame`, `spatial-workspace`,
 contract today and defines the payload future MCP/native host tools should
 mirror.
 
+`scripts/canvax-mcp-server.mjs` wraps that inspection bridge in a read-only
+stdio MCP server. It handles `initialize`, `tools/list`, `tools/call`, and
+`ping` over newline-delimited JSON-RPC and exposes `get_canvax_summary`,
+`get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
+`get_output_binding`, and `get_canvax_all`. The tool results include both text
+content and structured content, and every payload keeps
+`requiresOpenAiApiKey: false`.
+
 `scripts/review-visual-snapshot.mjs` is the local screenshot-review bridge. It
 uses the image-token extractor path to sample PNG/BMP browser screenshots, then
 checks dimensions, sample count, palette variety, dominant-color balance, and
@@ -735,6 +743,7 @@ reference CSS / HTML / JSX / sketch / image samples
   -> verify-token-enforcement --manifest
   -> production-port-proof fixture
   -> canvax-inspect read-only bridge
+  -> canvax-mcp-server host tool bridge
   -> review-visual-snapshot screenshot gate
   -> review-design-jury designer verdict
 ```
