@@ -86,13 +86,21 @@ public positioning focuses on prompt-to-design artifacts, code export,
 design-system/skill libraries, BYOK or local model support, and adapters for
 agent tools such as Claude Code and Cursor CLI.
 
-The GitHub README also shows a concrete product pattern worth tracking:
+The current public materials show a concrete product pattern worth tracking:
 file-based `SKILL.md` bundles, a large `DESIGN.md` design-system catalog,
-agent/CLI adapters, sandboxed preview artifacts, export formats, and media
-prompt galleries live together instead of being separate products. Canvax should
-not copy that exact architecture, but it should match the user-facing benefit:
-the designer picks a reusable system, sketches or speaks intent, sees a preview
-artifact, and keeps every prompt/spec/output as a local file Codex can edit.
+agent/CLI adapters, first-turn discovery forms, deterministic direction
+pickers, streaming plan/progress cards, sandboxed preview artifacts, MCP-style
+live file access, export formats, and media prompt galleries live together
+instead of being separate products. Their live site and repository snippets are
+moving quickly and do not always show the same catalog counts, so Canvax should
+benchmark the workflow shape instead of copying a specific number of skills or
+systems.
+
+Canvax should not copy Open Design's exact architecture. It should match the
+user-facing benefit in a Codex-native way: the designer chooses a reusable
+system, sketches or speaks intent, sees a preview artifact, marks corrections,
+and keeps every prompt/spec/output as local files that Codex can read, edit,
+test, and commit.
 
 The useful lesson for Canvax:
 
@@ -103,23 +111,41 @@ The useful lesson for Canvax:
   skills, design systems, previews, and exports should be inspectable artifacts,
   not hidden state; Canvax should keep writing readable JSON/Markdown/HTML
   handoffs that Codex can edit and users can review.
+- Add a first-turn discovery layer that does not feel like a form-heavy prompt
+  console. Open Design's discovery/direction pattern is useful, but Canvax
+  should express it as lightweight chips and defaults inside Workbench: surface,
+  audience, tone, platform, output kind, and style system before Codex generates
+  anything expensive or hard to undo.
+- Show live plan/progress as designer-facing state. Canvax should continue
+  turning build/rewrite/image tasks into visible output cards, rewrite queues,
+  checkpoint history, and task status instead of burying them in terminal logs.
+- Provide a read-only tool bridge for host agents. Open Design's MCP idea maps
+  well to a future Canvax local tool surface where Codex/ChatGPT can call
+  `get_current_frame`, `get_spatial_workspace`, `get_design_kit`, and
+  `get_output_binding` without asking the user to attach or paste export files.
 - Make design rules enforceable, not decorative. The current local loop now has
   extraction (`Extract tokens`, `npm run extract-tokens`), import (`Import
   external`), contract recording (`Build with Codex`), and implementation
   verification (`npm run verify-tokens`). The verifier can now also read
   `artifacts/canvax/codex-output.json` to check the real files Codex published
-  for a frame, so production-port token enforcement has a concrete gate. The
-  remaining gap is proving that gate against real user project ports and adding
-  live browser visual critique. Basic local screenshot palette extraction now
-  exists through `npm run extract-tokens -- --image <path>`, static HTML/JSX
-  artifact semantics now export through `semanticStructure`, and static artifact
-  readiness checks now run through `npm run review-artifact`.
+  for a frame, so production-port token enforcement has a concrete gate.
+  `npm run production-port-proof` now proves that gate against a production-like
+  local route/component/CSS fixture. The remaining gap is proving the same gate
+  against real external/user project ports and adding live browser visual
+  critique. Basic local screenshot palette extraction now exists through
+  `npm run extract-tokens -- --image <path>`, static HTML/JSX artifact semantics
+  now export through `semanticStructure`, and static artifact readiness checks
+  now run through `npm run review-artifact`.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.
 - Do not collapse into a prompt-only artifact generator. Canvax's stronger lane
   is the live visual workbench: sketch, voice, generated output, correction
   marks, frames, assets, code, and checkpoints all remain editable in one board.
+- Keep preview sandboxing explicit. Canvax should distinguish local deterministic
+  generated previews, Codex-built app previews, and host-generated media so the
+  user always knows whether they are looking at a sketch, a scaffold, a real app
+  route, or an image candidate.
 - Make output cards understandable to designers. Generated implementation
   references should read as `Generated screen`, `Generated file`, and
   `Code change`, never as raw manifest labels like `generated-target`.
@@ -400,7 +426,10 @@ shareable no-API kit-library artifact with full kit JSON, local versions, source
 paths, SHA-256 checksums, and install notes. `npm run review-artifact` adds a
 static no-API generated-artifact review for landmarks, headings, labels, links,
 image alternatives, form labels, responsive cues, focus styles, and Canvax node
-bindings before Codex ports output into production files.
+bindings before Codex ports output into production files. `npm run
+production-port-proof` creates a production-like local route/component/CSS
+fixture, binds it through a Codex output manifest, and runs token enforcement
+plus artifact review across those files.
 
 Needed:
 
@@ -414,8 +443,9 @@ Needed:
   inspection and browser-rendered visual critique remain open.**
 - Enforce those tokens when Codex generates or refines UI.
   **Initial deterministic executor enforcement shipped for generated CSS
-  variables and port contracts; stricter production-code enforcement remains
-  open.**
+  variables and port contracts; manifest-listed production-file enforcement
+  and a production-like proof fixture shipped; real external/user project port
+  evidence remains open.**
 
 ### 6. Image Model And Asset Workflow
 

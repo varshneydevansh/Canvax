@@ -101,6 +101,7 @@ Status: In progress
 - [x] Build with Codex local executor writes `implementation/codex-port-task.json`, a machine-readable task that tells Codex how to port the starter into real React/Vite/Next app files while preserving Canvax bindings
 - [x] Build with Codex local executor writes `implementation/ACCEPTANCE.md`, a human-readable production-readiness checklist with selector binding, responsive/accessibility, no-API, and publish-back gates
 - [x] `npm run verify-tokens` can verify extracted design-token palettes against both local implementation artifacts and production files listed in `artifacts/canvax/codex-output.json`
+- [x] `npm run production-port-proof` creates a no-API production-like route/component/CSS fixture, binds it to a Codex output manifest, verifies token colors in the manifest-listed files, and runs the static artifact review
 - [x] Repository design kits under `design-kits/*.json` load into the searchable Design kit dropdown and validate/discover with `npm run validate-design-kits` plus `npm run validate-design-kits -- --query <term>`
 - [x] `npm run package-design-kits` writes a shareable no-API kit-library artifact with full kit JSON, local versions, source paths, SHA-256 checksums, and install notes
 - [x] `npm run extract-tokens -- --image <local-screenshot>` samples local raster screenshots/images into the same importable external token pack without an API key

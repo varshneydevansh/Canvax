@@ -100,6 +100,7 @@ flowchart LR
 - Adds `npm run package-design-kits`, which writes a shareable versioned no-API kit library at `exports/canvax-design-kit-library-latest.{json,md}` with source paths, full kit JSON, SHA-256 checksums, and install notes.
 - Adds `npm run review-artifact`, a local no-API static HTML/CSS review for generated artifacts that checks semantic landmarks, heading structure, labels, links, image alts, form labels, responsive cues, focus styles, and Canvax source bindings before a production port.
 - Adds `npm run verify-tokens`, a local no-API gate that checks a Canvax build contract's extracted palette is actually present in generated implementation CSS/HTML or in manifest-listed production files before treating the artifact as design-system aligned.
+- Adds `npm run production-port-proof`, a local no-API proof fixture that creates a production-like route/component/CSS bundle, binds it to a Codex output manifest, verifies required token colors across the manifest-listed files, and runs the static artifact review.
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
 - Keeps Advanced in the same product language with a solid command deck and bounded frame/map workspace that stay readable over long sessions.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.

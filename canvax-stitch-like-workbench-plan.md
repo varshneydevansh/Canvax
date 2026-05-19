@@ -42,16 +42,28 @@ Sources:
 - Open Design reference: https://open-design.ai/
 - Open Design repository: https://github.com/nexu-io/open-design
 
-Open Design adds one practical product pressure: Canvax needs a better
-discoverable design-system and skill layer. The shipped `DESIGN.md`,
-style-lock, semantic variant, image prompt, and build/rewrite contract work is
-the start, and Canvax now has repository kit files, UI kit search, and CLI kit
-query. Canvax also has a no-API kit-library packager with local versions and
-checksums. The next pressure is hosted/team sharing without making the
-Workbench feel like a prompt-only artifact generator.
-The specific lesson is not "be another prompt generator"; it is "make reusable
+Open Design adds practical product pressure in three areas:
+
+- Canvax needs a better discoverable design-system and skill layer. The shipped
+  `DESIGN.md`, style-lock, semantic variant, image prompt, and build/rewrite
+  contract work is the start, and Canvax now has repository kit files, UI kit
+  search, CLI kit query, and a no-API kit-library packager with local versions
+  and checksums.
+- Canvax needs a lighter first-turn discovery pattern. Open Design's discovery
+  form and deterministic direction picker are useful, but Canvax should express
+  them as designer chips and sensible defaults so Workbench still feels like a
+  canvas, not an intake form.
+- Canvax needs a future read-only host bridge. Open Design's MCP-style access to
+  live design files maps to future Canvax tools such as `get_current_frame`,
+  `get_spatial_workspace`, `get_design_kit`, and `get_output_binding`, so Codex
+  can read the live board without export-and-attach friction.
+
+The next pressure is hosted/team sharing and agent-readable live project access
+without making the Workbench feel like a prompt-only artifact generator. The
+specific lesson is not "be another prompt generator"; it is "make reusable
 design intelligence a local, inspectable project asset" through skills, design
-systems, prompt packs, previews, and exports that Codex can modify.
+systems, prompt packs, previews, exports, and tool bridges that Codex can
+modify.
 
 ## Implementation Status
 
@@ -107,6 +119,11 @@ Current completed baseline:
 - `npm run review-artifact` now writes a no-API static design-readiness review
   for generated HTML/CSS artifacts before Codex ports them into production app
   files.
+- `npm run production-port-proof` now writes a no-API production-like
+  route/component/CSS fixture, binds it to a Codex output manifest, verifies
+  required token colors across the manifest-listed files, and runs static
+  artifact review against the route. This proves the local production-port gate
+  mechanics while real external/user project evidence remains open.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every
@@ -131,7 +148,7 @@ Still open:
 
 - automatic host image generation remains open. Multi-candidate review now has per-candidate prompt/placement copy, local attached-image thumbnails, workspace-path import, style-lock continuity metadata, select, and accept state in the candidate tray.
 - true infinite spatial canvas beyond the Workbench Map frame/variant/context/generated-output/checkpoint object layer, especially fuller nested object modeling and richer schema-specific property panels beyond the current custom `key: value` layer. Generated output objects are now reconciled, grouped in the collapsible `Output shelf`, start compressed with checkpoint history for new/migrated sessions, can be cleared from Map, infer frame binding from current and legacy generated-output paths, canonicalize raw labels into designer-facing `Generated screen` / `Generated file` / `Code change` labels with an `Output ref` badge, and legacy stale/deleted-frame cards are cleaned up to reduce materialized-output clutter; the history lane can also be collapsed/expanded, Map objects can be focused by output/assets/notes/history, important objects can be pinned across those focus states, selected Map objects can be locked against accidental transform/reorder/delete, grouped/ungrouped, selected from group contents, fit into group bounds, recursively move/resize geometry-contained nested group contents, exported with parent/child group paths through `spatialWorkspace.groupHierarchy`, sent backward/brought forward, moved earlier/later inside output/history lanes, moved earlier/later inside branch sequences, drag-reordered by Map position with visible drop targets, edited with object-level Prompt / Context guidance and custom properties, navigated through frame/branch/output/checkpoint `Map timeline` tracks, and reflowed with `Tidy map`, and all of that exports for Codex.
-- direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API path immediately for manifest binding plus a context-themed implementation starter bundle, React-ready component/CSS handoff, Vite/Next adapter stubs, and frame-to-code ownership map; Codex still has to execute the real implementation pass for production route/component files.
+- direct `Build with Codex` route/code generation and binding. Initial build-request and output-contract writer is shipped, and the board now executes the local no-API path immediately for manifest binding plus a context-themed implementation starter bundle, React-ready component/CSS handoff, Vite/Next adapter stubs, frame-to-code ownership map, production-like manifest/token/review proof fixture, and production-readiness checks; Codex still has to execute the real implementation pass for external/user production route/component files.
 - deterministic `execute-build-request` path is shipped and reachable from the board for turning the latest build request into a frame-bound local HTML preview plus implementation files. It now consumes `implementationContext` to choose a starter theme, render theme-specific atmosphere layers, show a visible `Designer context` panel, and write `codex-port-task.json` with source artifacts, required bindings, suggested React/Vite/Next destinations, acceptance criteria, and publish commands; full Codex route/component implementation remains the real target.
 - deterministic `execute-rewrite-request` smoke path, board-side Apply execution, optional autosnap/freeze `Live rewrite`, in-flight Live rewrite queueing, attached build-contract visual direction preservation, attached Codex port task preservation, and Preview `Rewrite handoff` lane are shipped for turning the latest rewrite request into a refreshed frame-bound local HTML artifact; a continuous autonomous Codex rewrite loop with real app edits remains the real target.
 - native Codex microphone/image-generation host bridge

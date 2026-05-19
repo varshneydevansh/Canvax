@@ -722,6 +722,14 @@ npm run verify-tokens -- --contract <canvax-build-contract.json> --manifest arti
 That checks the real files published through `write-codex-output`, not only the
 local starter bundle.
 
+`npm run production-port-proof` packages that gate into a repeatable local
+fixture. It creates a production-like HTML route, CSS file, React component,
+build contract, and frame-bound Codex output manifest, then runs token
+verification and the static artifact review against those files. The output
+under `artifacts/canvax/production-port-proof/latest/` is intentionally local
+and no-API: it proves the manifest/token/review mechanics before a real user app
+port, but it is not a substitute for Codex editing an actual production route.
+
 The bundle also includes `implementation/codex-port-task.json`, a machine-readable task for Codex. It lists source artifacts, suggested React/Vite/Next destinations, required `data-canvax-*` bindings, port steps, acceptance criteria, and publish commands so the generated screen can become real workspace code without inventing the handoff each time.
 
 Outputs:

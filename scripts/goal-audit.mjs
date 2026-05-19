@@ -198,9 +198,20 @@ const checks = [
           "build preview can bind to Codex output manifest",
         ],
       },
+      {
+        path: "scripts/production-port-proof.mjs",
+        includes: [
+          "canvax-production-port-proof",
+          "canvax-proof.html",
+          "CanvaxProof.jsx",
+          "scripts/verify-token-enforcement.mjs",
+          "scripts/review-artifact.mjs",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
     ],
     remainingGap:
-      "High-fidelity production app/page edits still require Codex to act on the request and are not proven by the deterministic scaffold alone.",
+      "High-fidelity production app/page edits still require Codex to act on the request and are not proven by the deterministic scaffold or local production-port proof fixture alone.",
   },
   {
     id: "design-system-token-extraction",
@@ -291,6 +302,16 @@ const checks = [
         ],
       },
       {
+        path: "scripts/production-port-proof.mjs",
+        includes: [
+          "canvax-production-port-proof",
+          "buildCodexOutputManifest",
+          "verify-token-enforcement",
+          "review-artifact",
+          "remainingGap",
+        ],
+      },
+      {
         path: "scripts/regression-check.mjs",
         includes: [
           "external design token and semantic extractor dry-run is valid",
@@ -299,11 +320,12 @@ const checks = [
           "artifact design review dry-run is valid",
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
+          "production port proof dry-run is valid",
         ],
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but hosted/team kit-library sharing, live browser visual critique, and evidence from a real user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, and a production-like local port proof are proven, but hosted/team kit-library sharing, live browser visual critique, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -389,7 +411,12 @@ const checks = [
     evidence: [
       {
         path: "package.json",
-        includes: ["e2e-workflow", "browser-regression", "regression"],
+        includes: [
+          "e2e-workflow",
+          "browser-regression",
+          "production-port-proof",
+          "regression",
+        ],
       },
       {
         path: "scripts/e2e-workflow-check.mjs",

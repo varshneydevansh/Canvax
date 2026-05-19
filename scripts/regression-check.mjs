@@ -67,6 +67,14 @@ const artifactReviewPath = resolve(
   "exports",
   "canvax-artifact-review-latest.json",
 );
+const productionPortProofPath = resolve(
+  projectRoot,
+  "artifacts",
+  "canvax",
+  "production-port-proof",
+  "latest",
+  "result.json",
+);
 const curlBinary = "/usr/bin/curl";
 const upstreamProposalPath = resolve(
   projectRoot,
@@ -85,6 +93,7 @@ await validateImageDesignTokenExtractorDryRun();
 await validateDesignKitLibraryPackageDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
+await validateProductionPortProofDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
@@ -243,6 +252,19 @@ await validateOptionalJsonSchema(
     value.schemaVersion >= 1 &&
     Array.isArray(value?.checks),
   "artifact design review schema is valid",
+);
+await validateOptionalJsonSchema(
+  productionPortProofPath,
+  (value) =>
+    value?.kind === "canvax-production-port-proof" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    value.tokenVerification?.kind ===
+      "canvax-token-enforcement-verification" &&
+    value.artifactReview?.kind === "canvax-artifact-design-review" &&
+    Array.isArray(value?.implementationFiles),
+  "production port proof schema is valid",
 );
 
 const failed = results.filter((entry) => !entry.passed);
@@ -714,6 +736,48 @@ async function validateDesignTokenEnforcementDryRun() {
     });
     results.push({
       name: "design token production manifest verifier dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateProductionPortProofDryRun() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/production-port-proof.mjs",
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-production-port-proof" &&
+        payload.requiresOpenAiApiKey === false &&
+        payload.dryRun === true &&
+        payload.tokenVerification?.ok &&
+        payload.tokenVerification?.checkedFiles?.some((path) =>
+          path.endsWith("canvax-proof.html"),
+        ) &&
+        payload.tokenVerification?.checkedFiles?.some((path) =>
+          path.endsWith("canvax-proof.css"),
+        ) &&
+        payload.tokenVerification?.checkedFiles?.some((path) =>
+          path.endsWith("CanvaxProof.jsx"),
+        ) &&
+        ["pass", "review"].includes(payload.artifactReview?.status) &&
+        payload.manifest?.changes?.length >= 3,
+    );
+    results.push({
+      name: "production port proof dry-run is valid",
+      passed,
+      detail: passed
+        ? `${payload.implementationFiles.length} implementation files checked`
+        : "production proof did not validate expected manifest-bound files",
+    });
+  } catch (error) {
+    results.push({
+      name: "production port proof dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });
