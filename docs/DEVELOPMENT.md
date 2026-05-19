@@ -279,6 +279,10 @@ output region needs an exact local correction request. The endpoint writes
 under `artifacts/preview/tweaks/...`. The payload should include the source
 frame, target path or URL, normalized bounds, pixel bounds, viewport, and note.
 It must stay no-API and should not directly mutate the generated DOM.
+`scripts/execute-rewrite-request.mjs` reads the latest matching tweak by
+default, or a specific file through `--preview-tweak`, and emits it into
+`context.json` as `previewTweak` plus an `affectedRegions` entry with
+`source: "preview-tweak"`.
 
 Use `npm run mcp` to launch the read-only local stdio MCP server. It exposes the
 inspection commands as tools for hosts that can register a local MCP command:
@@ -341,6 +345,7 @@ Optional local executor
 
 Rewrite local executor
   node scripts/execute-rewrite-request.mjs
+  node scripts/execute-rewrite-request.mjs --preview-tweak exports/canvax-preview-tweak-latest.json
   POST /api/execute-rewrite-request
   artifacts/preview/codex-rewrite/frames/<frame-id>/index.html
   artifacts/preview/codex-rewrite/frames/<frame-id>/context.json

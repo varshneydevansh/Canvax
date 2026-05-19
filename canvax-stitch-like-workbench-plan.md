@@ -77,8 +77,9 @@ The newest Open Design benchmark sharpens the next product gaps:
 - a named design-critique or design-jury stage over generated surfaces
 - live preview tweak targeting where a selected output region becomes a Codex
   correction request. The local no-API Preview `Mark tweak` path now saves exact
-  frame, target, bounds, viewport, and note records; live DOM-semantic patching
-  and first-party host co-edit remain open.
+  frame, target, bounds, viewport, and note records, and the rewrite executor
+  consumes the matching latest tweak as affected-region/component-target
+  context; live DOM-semantic patching and first-party host co-edit remain open.
 - code-folder/project linking that proves Canvax can operate against a real app,
   not only deterministic local fixtures
 
@@ -97,7 +98,7 @@ Current completed baseline:
 - Browser regression now has a `visualfixture=advanced-map` state that seeds a dense Map, switches to Advanced Flow view, scrolls under the sticky command deck, captures desktop/tablet screenshots, and asserts the Advanced deck remains opaque while generated-output cards use designer-readable labels.
 - Workbench `Map` single-object selection includes a lightweight Title/Note/Status/Prompt property editor, custom `key: value` properties, safe type-detail override fields, and structured per-type inspector sections for generated outputs, asset placements, checkpoints, variants, groups, references, and changes, with manual overrides preserved when generated/asset/checkpoint objects resync from handoff files.
 - Preview now has `Play flow` playback for connected frames, starting from the entry frame and stepping through outgoing transition labels, with generated clickable hotspots over the sketch/output viewport. Selected frame elements can also be linked to target frames, turning their actual drawn bounds into persistent Play-mode hotspots.
-- Preview now has `Mark tweak` for generated-output region corrections. Dragging over an output surface and entering a note writes `exports/canvax-preview-tweak-latest.*` plus an archived tweak record with frame, target, normalized bounds, pixel bounds, viewport, and note. This is local and no-API; it is a Codex correction request, not a live DOM patch.
+- Preview now has `Mark tweak` for generated-output region corrections. Dragging over an output surface and entering a note writes `exports/canvax-preview-tweak-latest.*` plus an archived tweak record with frame, target, normalized bounds, pixel bounds, viewport, and note. `execute-rewrite-request` reads the matching latest tweak and adds it to affected-region/component-target context. This is local and no-API; it is a Codex correction request, not a live DOM patch.
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock in `Focus canvas`, with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - Workbench now has a bottom command composer in `Focus canvas` for typed/pasted dictation, Talk, Note, Make, and Apply so the user can keep sketching without returning to the top tray.

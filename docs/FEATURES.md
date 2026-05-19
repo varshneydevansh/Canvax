@@ -117,6 +117,16 @@ drag output region in Preview
 It does not mutate the generated DOM by itself. It gives Codex a precise region
 and instruction for the next rewrite/build pass.
 
+The local rewrite executor reads the latest matching Preview tweak by default:
+
+```text
+canvax-preview-tweak-latest.json
+  -> execute-rewrite-request
+  -> affectedRegions[source=preview-tweak]
+  -> componentTargetIds when a component map exists
+  -> refreshed local preview + Codex output manifest
+```
+
 ### Local service
 
 Files:

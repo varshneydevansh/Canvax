@@ -15,6 +15,11 @@ const defaultTaskPackPath = resolve(
   "exports",
   "canvax-task-pack-latest.json",
 );
+const defaultPreviewTweakPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-preview-tweak-latest.json",
+);
 const defaultOutputRoot = resolve(
   projectRoot,
   "artifacts",
@@ -40,6 +45,10 @@ const taskPackPath = resolve(
   projectRoot,
   readOption(args, "--task-pack") || defaultTaskPackPath,
 );
+const previewTweakPath = resolve(
+  projectRoot,
+  readOption(args, "--preview-tweak") || defaultPreviewTweakPath,
+);
 const request = await readJson(requestPath);
 
 if (request?.kind !== "canvax-rewrite-request") {
@@ -61,8 +70,14 @@ const relativeContextPath = toProjectRelative(contextPath);
 const frameCodeMap = await loadFrameCodeMap(request, frameId);
 const buildContract = await loadBuildContract(request, frameId);
 const portTask = await loadPortTask(request, frameId);
+const previewTweak = await loadPreviewTweak(previewTweakPath, frameId);
 const visualDirection = buildRewriteVisualDirection(buildContract);
-const affectedRegions = buildAffectedRegions(selected, request, frameCodeMap);
+const affectedRegions = buildAffectedRegions(
+  selected,
+  request,
+  frameCodeMap,
+  previewTweak,
+);
 const affectedComponents = affectedComponentsFromRegions(affectedRegions);
 
 await mkdir(outputRoot, { recursive: true });
@@ -75,6 +90,7 @@ await writeFile(
     frameTitle,
     affectedRegions,
     visualDirection,
+    previewTweak,
   }),
   "utf8",
 );
@@ -92,6 +108,7 @@ await writeFile(
       buildContract,
       portTask,
       visualDirection,
+      previewTweak,
       previewPath: relativeHtmlPath,
     }),
     null,
@@ -112,6 +129,7 @@ if (!noPublish) {
     frameCodeMap,
     buildContract,
     portTask,
+    previewTweak,
     queueItem: selected.queueItem,
   });
 }
@@ -126,6 +144,7 @@ const result = {
   frameTitle,
   affectedRegionCount: affectedRegions.length,
   componentTargetCount: affectedComponents.length,
+  previewTweakIncluded: Boolean(previewTweak),
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
 };
@@ -153,6 +172,7 @@ async function publishCodexOutput({
   frameCodeMap,
   buildContract,
   portTask,
+  previewTweak,
   queueItem,
 }) {
   const frameCodeMapArtifactArgs = frameCodeMap?.path
@@ -188,7 +208,12 @@ async function publishCodexOutput({
       "--description",
       "Local preview artifact refreshed from the latest Canvax rewrite request.",
       "--notes",
-      buildPublishNotes(queueItem, affectedRegions, affectedComponents),
+      buildPublishNotes(
+        queueItem,
+        affectedRegions,
+        affectedComponents,
+        previewTweak,
+      ),
       "--frame",
       frameId,
       "--artifact",
@@ -248,6 +273,7 @@ function buildContextPayload({
   buildContract,
   portTask,
   visualDirection,
+  previewTweak,
   previewPath,
 }) {
   return {
@@ -265,6 +291,18 @@ function buildContextPayload({
       null,
     affectedRegions,
     affectedComponents,
+    previewTweak: previewTweak
+      ? {
+          kind: previewTweak.kind || "canvax-preview-tweak-request",
+          id: previewTweak.id || "",
+          path: previewTweak.path || "",
+          frameId: previewTweak.frameId || "",
+          frameTitle: previewTweak.frameTitle || "",
+          note: previewTweak.note || "",
+          target: previewTweak.target || null,
+          region: previewTweak.region || null,
+        }
+      : null,
     visualDirection,
     frameCodeMap: frameCodeMap
       ? {
@@ -300,9 +338,34 @@ function buildContextPayload({
   };
 }
 
-function buildAffectedRegions(selected, request, frameCodeMap = null) {
+function buildAffectedRegions(
+  selected,
+  request,
+  frameCodeMap = null,
+  previewTweak = null,
+) {
   const regions = [];
   const viewport = frameViewport(selected);
+  if (previewTweak?.region?.normalized) {
+    const bounds = previewTweak.region.normalized;
+    regions.push(
+      withComponentTargets(
+        {
+          source: "preview-tweak",
+          label: "Preview tweak",
+          note: cleanString(previewTweak.note),
+          target: previewTweak.target || null,
+          left: denormalize(bounds.x, viewport.width, 96),
+          top: denormalize(bounds.y, viewport.height, 96),
+          width: Math.max(28, denormalize(bounds.width, viewport.width, 180)),
+          height: Math.max(28, denormalize(bounds.height, viewport.height, 100)),
+        },
+        frameCodeMap,
+        viewport,
+      ),
+    );
+  }
+
   const targetRegions =
     request.outputManifest?.targets
       ?.flatMap((target) => target?.refinement?.changedRegions || [])
@@ -524,6 +587,21 @@ async function loadPortTask(request, frameId) {
   return { path, task };
 }
 
+async function loadPreviewTweak(filePath, frameId) {
+  const tweak = await readOptionalJson(filePath);
+  if (tweak?.kind !== "canvax-preview-tweak-request") {
+    return null;
+  }
+  const tweakFrameId = cleanString(tweak.frameId);
+  if (tweakFrameId && frameId && tweakFrameId !== frameId) {
+    return null;
+  }
+  return {
+    ...tweak,
+    path: toProjectRelative(filePath),
+  };
+}
+
 function buildRewriteVisualDirection(buildContract) {
   const contractDirection = buildContract?.contract?.visualDirection || {};
   const themeId = cleanString(contractDirection.themeId) || "studio-paper";
@@ -706,6 +784,7 @@ function buildPreviewHtml({
   frameTitle,
   affectedRegions,
   visualDirection,
+  previewTweak,
 }) {
   const frame = selected.frame || selected.requestFrame || {};
   const composition = frame.composition || {};
@@ -723,6 +802,7 @@ function buildPreviewHtml({
     cleanString(board.project) ||
     frameTitle;
   const subhead =
+    cleanString(previewTweak?.note) ||
     cleanString(frame.notes || frame.layout) ||
     cleanString(queueItem.detail) ||
     "Refined from the latest Canvax rewrite request.";
@@ -943,7 +1023,7 @@ function buildPreviewHtml({
   <main class="surface ${escapeHtml(visualDirection.themeClass)}" data-frame-id="${escapeHtml(frameId)}" data-canvax-theme="${escapeHtml(visualDirection.themeId)}" data-canvax-atmosphere="${escapeHtml(visualDirection.atmosphereId)}">
     ${buildRewriteAtmosphereMarkup(visualDirection)}
     <div class="tagline">${escapeHtml(frameTitle)} · Canvax rewrite surface</div>
-    <div class="revision">${escapeHtml(cleanString(queueItem.label) || "Rewrite")}</div>
+    <div class="revision">${escapeHtml(previewTweak ? "Preview tweak" : cleanString(queueItem.label) || "Rewrite")}</div>
     ${buildElementMarkup(elements, visualDirection)}
     ${buildAffectedRegionMarkup(affectedRegions, width, height)}
     <section class="hero">
@@ -1008,7 +1088,12 @@ function buildAffectedRegionMarkup(regions, viewportWidth, viewportHeight) {
     .join("\n");
 }
 
-function buildPublishNotes(queueItem, affectedRegions, affectedComponents = []) {
+function buildPublishNotes(
+  queueItem,
+  affectedRegions,
+  affectedComponents = [],
+  previewTweak = null,
+) {
   const detail = cleanString(queueItem?.detail);
   const regionText = `${affectedRegions.length} affected ${
     affectedRegions.length === 1 ? "region" : "regions"
@@ -1016,9 +1101,13 @@ function buildPublishNotes(queueItem, affectedRegions, affectedComponents = []) 
   const componentText = affectedComponents.length
     ? `${affectedComponents.length} component targets`
     : "";
+  const tweakText = previewTweak?.note
+    ? `Preview tweak: ${compactText(previewTweak.note, 180)}`
+    : "";
   return [
     "Generated locally from Canvax rewrite request data. No paid API key was required.",
     detail,
+    tweakText,
     regionText,
     componentText,
   ]
@@ -1167,6 +1256,7 @@ Usage:
   node scripts/execute-rewrite-request.mjs
   node scripts/execute-rewrite-request.mjs --request exports/canvax-rewrite-request-latest.json
   node scripts/execute-rewrite-request.mjs --frame frame-home --no-publish --json
+  node scripts/execute-rewrite-request.mjs --preview-tweak exports/canvax-preview-tweak-latest.json
 
 Reads a Canvax rewrite request, writes a local refreshed HTML preview artifact
 under artifacts/preview/codex-rewrite/frames/<frame-id>/, and publishes a Codex

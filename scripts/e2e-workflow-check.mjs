@@ -35,6 +35,7 @@ const assetCandidates = buildAssetCandidatePack(board, frame);
 const imageHostTask = buildImageHostTask(assetCandidates);
 const buildRequest = buildRealRequest(board, frame);
 const rewriteRequest = buildRewriteRequest(board, frame);
+const previewTweak = buildPreviewTweak(frame);
 
 const paths = {
   taskPack: resolve(latestRoot, "task-pack.json"),
@@ -43,6 +44,7 @@ const paths = {
   imageHostTask: resolve(latestRoot, "image-host-task.json"),
   buildRequest: resolve(latestRoot, "build-request.json"),
   rewriteRequest: resolve(latestRoot, "rewrite-request.json"),
+  previewTweak: resolve(latestRoot, "preview-tweak.json"),
   result: resolve(latestRoot, "result.json"),
 };
 
@@ -52,6 +54,7 @@ await writeJson(paths.assetCandidates, assetCandidates);
 await writeJson(paths.imageHostTask, imageHostTask);
 await writeJson(paths.buildRequest, buildRequest);
 await writeJson(paths.rewriteRequest, rewriteRequest);
+await writeJson(paths.previewTweak, previewTweak);
 
 record(
   "synthetic rough frame includes sketch, labels, voice, and corrections",
@@ -91,6 +94,13 @@ record(
       candidate.outputSlots?.[0]?.cssPlacement &&
       candidate.outputSlots?.[0]?.targetSelector,
   ),
+);
+record(
+  "preview tweak request stays no-API and targets the frame",
+  previewTweak.kind === "canvax-preview-tweak-request" &&
+    previewTweak.requiresOpenAiApiKey === false &&
+    previewTweak.frameId === frameId &&
+    previewTweak.region.normalized.width > 0,
 );
 
 const buildResult = await executeJson("node", [
@@ -428,6 +438,8 @@ const rewriteResult = await executeJson("node", [
   toProjectRelative(paths.rewriteRequest),
   "--task-pack",
   toProjectRelative(paths.taskPack),
+  "--preview-tweak",
+  toProjectRelative(paths.previewTweak),
   "--no-publish",
   "--json",
 ]);
@@ -435,6 +447,7 @@ record(
   "rewrite executor creates refreshed preview from correction context",
   rewriteResult.ok === true &&
     rewriteResult.frameId === frameId &&
+    rewriteResult.previewTweakIncluded === true &&
     rewriteResult.affectedRegionCount >= 1 &&
     rewriteResult.componentTargetCount >= 1 &&
     rewriteResult.previewPath.includes(`/frames/${frameId}/`),
@@ -461,6 +474,19 @@ record(
     ) &&
     parsedRewriteContext.affectedRegions?.some(
       (region) => region.componentTargetIds?.length > 0,
+    ),
+);
+record(
+  "rewrite context includes Preview region tweak request",
+  parsedRewriteContext.previewTweak?.kind ===
+    "canvax-preview-tweak-request" &&
+    parsedRewriteContext.previewTweak?.id === previewTweak.id &&
+    parsedRewriteContext.previewTweak?.note === previewTweak.note &&
+    parsedRewriteContext.affectedRegions?.some(
+      (region) =>
+        region.source === "preview-tweak" &&
+        region.note === previewTweak.note &&
+        region.componentTargetIds?.length > 0,
     ),
 );
 record(
@@ -515,6 +541,7 @@ const proof = {
     imageHostTask: toProjectRelative(paths.imageHostTask),
     buildRequest: toProjectRelative(paths.buildRequest),
     rewriteRequest: toProjectRelative(paths.rewriteRequest),
+    previewTweak: toProjectRelative(paths.previewTweak),
     buildPreview: buildResult.previewPath,
     buildContext: buildResult.contextPath,
     rewritePreview: rewriteResult.previewPath,
@@ -1118,6 +1145,53 @@ function buildRewriteRequest(board, frame) {
       targets: [],
       artifacts: [],
       changes: [],
+    },
+  };
+}
+
+function buildPreviewTweak(frame) {
+  return {
+    schemaVersion: 1,
+    kind: "canvax-preview-tweak-request",
+    requiresOpenAiApiKey: false,
+    id: "preview-tweak-e2e-cta",
+    createdAt: now(),
+    frameId: frame.id,
+    frameTitle: frame.title,
+    compareMode: "output",
+    viewport: {
+      label: frame.composition.viewport.label,
+      width: frame.composition.viewport.width,
+      height: frame.composition.viewport.height,
+    },
+    target: {
+      id: "e2e-generated-output",
+      label: "E2E generated preview",
+      type: "refined-preview",
+      previewPath: "artifacts/preview/e2e/generated/index.html",
+      source: "canvax-e2e-workflow-check",
+    },
+    region: {
+      normalized: {
+        x: 0.16,
+        y: 0.64,
+        width: 0.28,
+        height: 0.16,
+      },
+      pixel: {
+        x: 230,
+        y: 655,
+        width: 403,
+        height: 164,
+      },
+    },
+    note:
+      "Move the generated CTA cluster upward and make it visibly match the sketched correction arrow.",
+    source: {
+      surface: "preview",
+      interaction: "drag-region",
+      noApiBoundary:
+        "E2E Preview tweak fixture. This does not call image, browser, or paid APIs.",
     },
   };
 }

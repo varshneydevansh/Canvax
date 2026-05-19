@@ -1020,8 +1020,12 @@ function renderRewriteHandoff() {
   const liveExport = currentLiveExport();
   const request = liveExport?.rewriteRequest || null;
   const manifest = payload?.previewManifest || null;
+  const previewTweak = payload?.previewTweak || null;
   const frame = currentFrame();
   const frameId = frame?.id || state.selectedFrameId || liveExport?.activeFrameId || "";
+  const relevantTweak = previewTweakMatchesFrame(previewTweak, frameId)
+    ? previewTweak
+    : null;
   const targets = collectManifestTargets(manifest);
   const executorTarget = targets.find(
     (target) =>
@@ -1069,7 +1073,14 @@ function renderRewriteHandoff() {
         detail:
           "A refreshed frame-bound output target has been published from the latest rewrite request.",
       }
-    : relevantQueue.length
+    : relevantTweak
+      ? {
+          label: "Tweak ready",
+          tone: "warning",
+          detail:
+            "A Preview region tweak is saved for this frame. Run npm run execute-rewrite or ask Codex to apply the marked region.",
+        }
+      : relevantQueue.length
       ? {
           label: "Ready",
           tone: "warning",
@@ -1094,6 +1105,7 @@ function renderRewriteHandoff() {
       <p class="manifest-copy">${escapeHtml(status.detail)}</p>
       <div class="rewrite-steps" aria-label="Rewrite handoff progress">
         ${renderRewriteStep("Request exported", true, compactPath(payload?.paths?.rewriteRequestJsonPath || "exports/canvax-rewrite-request-latest.json"))}
+        ${renderRewriteStep("Preview tweak", Boolean(relevantTweak), relevantTweak?.note || "Mark tweak in Preview")}
         ${renderRewriteStep("Executor artifact", Boolean(executorTarget), executorTarget?.label || "npm run execute-rewrite")}
         ${renderRewriteStep("Manifest binding", Boolean(executorTarget), executorTarget?.previewPath || executorTarget?.url || "artifacts/canvax/codex-output.json")}
       </div>
@@ -1102,7 +1114,13 @@ function renderRewriteHandoff() {
         ${requestHref ? `<a class="ghost-link" href="${escapeHtml(requestHref)}" target="_blank" rel="noopener noreferrer">Open request</a>` : ""}
         ${outputHref ? `<a class="ghost-link" href="${escapeHtml(outputHref)}" target="_blank" rel="noopener noreferrer">Open output</a>` : ""}
         ${contextHref ? `<a class="ghost-link" href="${escapeHtml(contextHref)}" target="_blank" rel="noopener noreferrer">Open context</a>` : ""}
+        ${relevantTweak?.markdownHref || relevantTweak?.href ? `<a class="ghost-link" href="${escapeHtml(relevantTweak.markdownHref || relevantTweak.href)}" target="_blank" rel="noopener noreferrer">Open tweak</a>` : ""}
       </div>
+      ${
+        relevantTweak
+          ? `<p class="manifest-copy subtle">${escapeHtml(`Preview tweak: ${relevantTweak.note || "selected output region"}`)}</p>`
+          : ""
+      }
       ${
         relevantQueue.length
           ? `<p class="manifest-copy subtle">${escapeHtml(relevantQueue[0]?.detail || relevantQueue[0]?.label || "Rewrite queued.")}</p>`
@@ -1110,6 +1128,14 @@ function renderRewriteHandoff() {
       }
     </article>
   `;
+}
+
+function previewTweakMatchesFrame(tweak, frameId) {
+  if (!tweak || tweak.kind !== "canvax-preview-tweak-request") {
+    return false;
+  }
+  const tweakFrameId = cleanString(tweak.frameId);
+  return !tweakFrameId || !frameId || tweakFrameId === frameId;
 }
 
 function renderRewriteStep(label, done, detail) {

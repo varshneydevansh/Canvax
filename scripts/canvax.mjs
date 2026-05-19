@@ -2712,6 +2712,9 @@ async function handlePreviewState(response) {
   );
   const sessionEvents = await readRecentSessionEvents(sessionEventsPath, 48);
   const previewManifest = await readOptionalJson(previewManifestPath);
+  const previewTweak = enhancePreviewTweak(
+    await readOptionalJson(previewTweakJsonPath),
+  );
   const codexOutputManifest = await readOptionalJson(codexOutputManifestPath);
   const workspaceFollow = await buildLiveWorkspaceFollowState({
     liveExport,
@@ -2745,6 +2748,7 @@ async function handlePreviewState(response) {
     workspaceFollow: workspaceFollow.meta,
     outputDigest,
     previewSnapshots,
+    previewTweak,
     paths: {
       liveJsonPath,
       liveMarkdownPath,
@@ -2771,6 +2775,19 @@ async function handlePreviewState(response) {
       previewSnapshotsIndexPath,
     },
   });
+}
+
+function enhancePreviewTweak(tweak) {
+  if (tweak?.kind !== "canvax-preview-tweak-request") {
+    return null;
+  }
+  return {
+    ...tweak,
+    href: workspaceUrlForPath(relative(projectRoot, previewTweakJsonPath)),
+    markdownHref: workspaceUrlForPath(
+      relative(projectRoot, previewTweakMarkdownPath),
+    ),
+  };
 }
 
 async function handleSavePreviewManifest(request, response) {

@@ -412,6 +412,9 @@ const checks = [
           "canvax-component-map.json",
           "loadBuildContract",
           "loadPortTask",
+          "loadPreviewTweak",
+          "previewTweakIncluded",
+          "source: \"preview-tweak\"",
           "visualDirection",
           "data-canvax-atmosphere",
         ],
@@ -424,9 +427,17 @@ const checks = [
           "normalizePreviewTweakRegion",
         ],
       },
+      {
+        path: "scripts/e2e-workflow-check.mjs",
+        includes: [
+          "preview tweak request stays no-API and targets the frame",
+          "rewrite context includes Preview region tweak request",
+          "--preview-tweak",
+        ],
+      },
     ],
     remainingGap:
-      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests are proven but are not automatic production DOM patches.",
+      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests now feed the rewrite executor but are not automatic production DOM patches.",
   },
   {
     id: "image-asset-handoff",

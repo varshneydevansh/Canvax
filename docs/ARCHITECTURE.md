@@ -346,6 +346,7 @@ separate endpoint
 
 rewrite request executor
   exports/canvax-rewrite-request-latest.json
+  exports/canvax-preview-tweak-latest.json
       |
       `-> artifacts/preview/codex-rewrite/frames/<frame-id>/
 ```
