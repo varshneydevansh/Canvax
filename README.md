@@ -101,6 +101,7 @@ flowchart LR
 - Adds `npm run review-artifact`, a local no-API static HTML/CSS review for generated artifacts that checks semantic landmarks, heading structure, labels, links, image alts, form labels, responsive cues, focus styles, and Canvax source bindings before a production port.
 - Adds `npm run review-snapshot`, a local no-API screenshot review that samples real browser snapshot pixels for dimensions, blankness risk, palette variety, dominant-color balance, and contrast spread.
 - Adds `npm run review-jury`, a local no-API design jury that combines artifact review, screenshot review, and Canvax inspection context into a designer-facing verdict for hierarchy, accessibility, responsiveness, brand/system fit, tweak targeting, motion/readability, visual integrity, and production readiness.
+- Adds Preview `Mark tweak`, a local no-API region-targeting path: drag over generated output, enter the requested change, and Canvax writes a structured correction request for Codex under `exports/canvax-preview-tweak-latest.{json,md}` plus an archived tweak record.
 - Adds `npm run verify-tokens`, a local no-API gate that checks a Canvax build contract's extracted palette is actually present in generated implementation CSS/HTML or in manifest-listed production files before treating the artifact as design-system aligned.
 - Adds `npm run production-port-proof`, a local no-API proof fixture that creates a production-like route/component/CSS bundle, binds it to a Codex output manifest, verifies required token colors across the manifest-listed files, and runs the static artifact review.
 - Adds `npm run inspect`, a local no-API read-only bridge that returns the current frame, spatial workspace, active design kit, and output bindings as stable JSON/Markdown for Codex or future MCP-style tools.
@@ -149,6 +150,7 @@ flowchart LR
 - Shows a Preview `Rewrite handoff` lane for request/export state, local executor artifacts, and manifest binding state.
 - Reloads same-URL Preview targets with a digest-based revision key when connected implementation context changes, which keeps local app previews closer to live Codex edits.
 - Adds preview compare modes and frame-aware highlighting when Codex output is tagged to specific frames.
+- Adds Preview region tweak requests, so an output area can become a Codex-readable correction target without describing the coordinates by hand.
 - Lets you save preview compare snapshots into the workspace for later review.
 - Adds a `Generate screen` mode with direction, style, and focus controls for richer local website/app screen generation from both box wireframes and rough stroke-first sketches.
 - Adds `Build code` / `Build with Codex`, which writes a no-API frame-to-code request and immediately runs the local build executor so Workbench and Preview get a frame-bound preview, implementation starter bundle, React-ready `CanvaxScreen.jsx`/CSS pair, Vite/Next adapter stubs, `canvax-component-map.json` ownership map, `canvax-build-contract.json` integration contract, `codex-port-task.json`, and `ACCEPTANCE.md` before Codex replaces or ports it into real app/page files.
@@ -365,9 +367,12 @@ Canvax writes live handoff files under `exports/`:
 - `exports/canvax-checkpoint-latest.json`
 - `exports/canvax-session-events.jsonl`
 - `exports/canvax-preview-manifest.json`
+- `exports/canvax-preview-tweak-latest.json`
+- `exports/canvax-preview-tweak-latest.md`
 - `artifacts/canvax/codex-output.json`
 - `artifacts/canvax/checkpoints/`
 - `artifacts/preview/materialized/`
+- `artifacts/preview/tweaks/`
 
 Legacy compatibility files may also exist:
 

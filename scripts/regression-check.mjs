@@ -1128,6 +1128,49 @@ async function validateRunningPreviewState() {
         ? `${liveUrl} (${changeIds.length} unique changes)`
         : "invalid preview-state payload",
     });
+
+    const tweakResponse = await fetch(`${liveUrl}/api/save-preview-tweak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tweak: {
+          frameId: "frame-regression",
+          frameTitle: "Regression frame",
+          compareMode: "output",
+          viewportLabel: "Desktop",
+          viewportWidth: 1440,
+          viewportHeight: 1024,
+          target: {
+            id: "target-regression",
+            label: "Regression preview target",
+            type: "implementation-preview",
+            previewPath: "artifacts/preview/regression/index.html",
+          },
+          region: {
+            normalized: { x: 0.1, y: 0.2, width: 0.3, height: 0.25 },
+            pixel: { x: 144, y: 205, width: 432, height: 256 },
+          },
+          note: "Regression tweak request.",
+        },
+      }),
+    });
+    const tweakPayload = await tweakResponse.json();
+    const tweakPassed = Boolean(
+      tweakResponse.ok &&
+        tweakPayload?.tweak?.kind === "canvax-preview-tweak-request" &&
+        tweakPayload.tweak.requiresOpenAiApiKey === false &&
+        tweakPayload.tweak.region?.normalized?.width === 0.3 &&
+        tweakPayload.tweak.target?.previewPath ===
+          "artifacts/preview/regression/index.html" &&
+        typeof tweakPayload.tweakPath === "string",
+    );
+    results.push({
+      name: "preview tweak endpoint writes no-API region request",
+      passed: tweakPassed,
+      detail: tweakPassed
+        ? tweakPayload.tweakPath
+        : "invalid preview tweak payload",
+    });
   } catch (error) {
     results.push({
       name: "preview-state payload is valid when the Canvax service is running",

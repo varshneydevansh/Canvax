@@ -71,6 +71,7 @@ const dom = {
   frameNotesPreview: document.querySelector("#frame-notes-preview"),
   promptPreview: document.querySelector("#prompt-preview"),
   openTargetLink: document.querySelector("#open-target-link"),
+  markTweak: document.querySelector("#mark-tweak"),
 };
 
 const state = {
@@ -86,6 +87,8 @@ const state = {
   outputActivity: [],
   outputDigest: null,
   pollingTimer: null,
+  tweakMode: false,
+  tweakDraft: null,
 };
 const livePreviewChannel =
   typeof BroadcastChannel !== "undefined"
@@ -119,6 +122,11 @@ function init() {
   dom.prototypePlayPanel.addEventListener("click", onPrototypePlayClick);
   dom.compareStage.addEventListener("click", onPrototypeHotspotClick);
   dom.compareModeButtons.addEventListener("click", onCompareModeClick);
+  dom.markTweak.addEventListener("click", toggleTweakMode);
+  dom.implementationViewer.addEventListener("pointerdown", onTweakPointerDown);
+  dom.implementationViewer.addEventListener("pointermove", onTweakPointerMove);
+  dom.implementationViewer.addEventListener("pointerup", onTweakPointerUp);
+  dom.implementationViewer.addEventListener("pointercancel", cancelTweakDraft);
   dom.savePreviewUrl.addEventListener("click", () => {
     void saveManualPreviewUrl();
   });
@@ -389,6 +397,7 @@ function renderAll() {
   renderSelectedFrame();
   renderImplementationPreview();
   renderPrototypePlay();
+  renderTweakControls();
   renderPrompt();
   maybeRunPreviewSelfTest();
 }
@@ -707,12 +716,16 @@ function renderImplementationPreview() {
 
   if (!frame) {
     dom.implementationViewer.className = "surface-viewer empty-state";
+    state.tweakMode = false;
+    renderTweakControls();
     dom.implementationViewer.textContent = "No selected frame yet.";
     return;
   }
 
   if (!target) {
     dom.implementationViewer.className = "surface-viewer empty-state";
+    state.tweakMode = false;
+    renderTweakControls();
     dom.implementationViewer.textContent =
       "No connected implementation preview yet. Attach a local preview URL, let Codex write a preview manifest target, or use Generate screen in the main board.";
     return;
@@ -735,8 +748,10 @@ function renderImplementationPreview() {
       : `<iframe class="viewport-iframe viewport-content" src="${escapeHtml(renderUrl)}" title="Connected implementation preview"></iframe>`,
     changeRegions: refinement?.changedRegions || [],
     hotspots: state.playMode ? buildPrototypeHotspotsForFrame(frame) : [],
+    tweakLayer: true,
   });
   dom.implementationViewer.className = "surface-viewer";
+  dom.implementationViewer.classList.toggle("tweak-mode", state.tweakMode);
   dom.implementationViewer.innerHTML = stage;
 }
 
@@ -1354,18 +1369,230 @@ function onCompareModeClick(event) {
   renderCompareMode();
 }
 
+function renderTweakControls() {
+  const frame = currentFrame();
+  const target = resolvePreviewTargetEntry(
+    currentPayload()?.previewManifest || null,
+    state.manualPreviewUrl,
+    state.selectedFrameId,
+  );
+  const enabled = Boolean(frame && target);
+  dom.markTweak.disabled = !enabled;
+  dom.markTweak.classList.toggle("active", state.tweakMode && enabled);
+  dom.markTweak.setAttribute("aria-pressed", String(state.tweakMode && enabled));
+  dom.markTweak.textContent = state.tweakMode ? "Drag region" : "Mark tweak";
+  if (!enabled && state.tweakMode) {
+    state.tweakMode = false;
+    state.tweakDraft = null;
+  }
+}
+
+function toggleTweakMode() {
+  if (dom.markTweak.disabled) {
+    return;
+  }
+  state.tweakMode = !state.tweakMode;
+  state.tweakDraft = null;
+  renderTweakControls();
+  renderImplementationPreview();
+  dom.previewStatus.textContent = state.tweakMode
+    ? "Drag over the generated output region to create a Codex tweak request."
+    : "Preview tweak mode off.";
+}
+
+function onTweakPointerDown(event) {
+  if (!state.tweakMode) {
+    return;
+  }
+  const layer = event.target.closest("[data-preview-tweak-layer]");
+  if (!layer) {
+    return;
+  }
+  event.preventDefault();
+  const point = pointInTweakLayer(event, layer);
+  state.tweakDraft = {
+    pointerId: event.pointerId,
+    layer,
+    start: point,
+    current: point,
+  };
+  try {
+    layer.setPointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture is best-effort for browser/self-test compatibility.
+  }
+  renderTweakDraft();
+}
+
+function onTweakPointerMove(event) {
+  if (!state.tweakDraft || event.pointerId !== state.tweakDraft.pointerId) {
+    return;
+  }
+  event.preventDefault();
+  state.tweakDraft.current = pointInTweakLayer(event, state.tweakDraft.layer);
+  renderTweakDraft();
+}
+
+function onTweakPointerUp(event) {
+  if (!state.tweakDraft || event.pointerId !== state.tweakDraft.pointerId) {
+    return;
+  }
+  event.preventDefault();
+  const draft = state.tweakDraft;
+  state.tweakDraft = null;
+  try {
+    draft.layer.releasePointerCapture(event.pointerId);
+  } catch {
+    // Ignore capture release failures.
+  }
+  const region = buildTweakRegion(draft);
+  draft.layer.innerHTML = "";
+  if (!region || region.normalized.width < 0.01 || region.normalized.height < 0.01) {
+    dom.previewStatus.textContent = "Tweak region was too small.";
+    return;
+  }
+  const note =
+    window.prompt(
+      "What should Codex change in this output region?",
+      "Refine this selected region to match the sketch and notes.",
+    ) || "";
+  void savePreviewTweak(region, note);
+}
+
+function cancelTweakDraft() {
+  if (state.tweakDraft?.layer) {
+    state.tweakDraft.layer.innerHTML = "";
+  }
+  state.tweakDraft = null;
+}
+
+function pointInTweakLayer(event, layer) {
+  const rect = layer.getBoundingClientRect();
+  return {
+    x: clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1),
+    y: clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1),
+    pixelX: clamp(event.clientX - rect.left, 0, rect.width),
+    pixelY: clamp(event.clientY - rect.top, 0, rect.height),
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function renderTweakDraft() {
+  const draft = state.tweakDraft;
+  if (!draft?.layer) {
+    return;
+  }
+  const region = buildTweakRegion(draft);
+  if (!region) {
+    draft.layer.innerHTML = "";
+    return;
+  }
+  draft.layer.innerHTML = `
+    <div
+      class="preview-tweak-box"
+      style="left:${region.normalized.x * 100}%; top:${region.normalized.y * 100}%; width:${region.normalized.width * 100}%; height:${region.normalized.height * 100}%;"
+    ></div>
+  `;
+}
+
+function buildTweakRegion(draft) {
+  if (!draft?.start || !draft?.current) {
+    return null;
+  }
+  const left = Math.min(draft.start.x, draft.current.x);
+  const top = Math.min(draft.start.y, draft.current.y);
+  const right = Math.max(draft.start.x, draft.current.x);
+  const bottom = Math.max(draft.start.y, draft.current.y);
+  const pixelLeft = Math.min(draft.start.pixelX, draft.current.pixelX);
+  const pixelTop = Math.min(draft.start.pixelY, draft.current.pixelY);
+  const pixelRight = Math.max(draft.start.pixelX, draft.current.pixelX);
+  const pixelBottom = Math.max(draft.start.pixelY, draft.current.pixelY);
+  return {
+    normalized: {
+      x: roundMetric(left),
+      y: roundMetric(top),
+      width: roundMetric(right - left),
+      height: roundMetric(bottom - top),
+    },
+    pixel: {
+      x: Math.round(pixelLeft),
+      y: Math.round(pixelTop),
+      width: Math.max(1, Math.round(pixelRight - pixelLeft)),
+      height: Math.max(1, Math.round(pixelBottom - pixelTop)),
+    },
+  };
+}
+
+async function savePreviewTweak(region, note) {
+  const frame = currentFrame();
+  const target = resolvePreviewTargetEntry(
+    currentPayload()?.previewManifest || null,
+    state.manualPreviewUrl,
+    state.selectedFrameId,
+  );
+  if (!frame || !target) {
+    dom.previewStatus.textContent = "No frame or output target for tweak request.";
+    return;
+  }
+  const viewport = getViewport(frame);
+  dom.previewStatus.textContent = "Saving preview tweak request...";
+  try {
+    const response = await fetch("/api/save-preview-tweak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tweak: {
+          frameId: frame.id,
+          frameTitle: frame.title || "",
+          compareMode: state.compareMode,
+          viewportLabel: viewport.label,
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+          target: {
+            id: target.id || "",
+            label: target.label || "",
+            type: target.type || "",
+            url: target.url || target.resolvedUrl || "",
+            previewPath: target.previewPath || "",
+            source: target.source || "",
+            description: target.description || "",
+          },
+          region,
+          note,
+        },
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Preview tweak save failed.");
+    }
+    state.tweakMode = false;
+    renderTweakControls();
+    dom.previewStatus.textContent = `Preview tweak saved: ${data.tweak?.id || "latest request"}`;
+    await refreshPreviewState({ manual: false });
+  } catch (error) {
+    dom.previewStatus.textContent =
+      error instanceof Error ? error.message : "Preview tweak save failed.";
+  }
+}
+
 function buildViewportStage({
   viewport,
   inner,
   changeRegions = [],
   hotspots = [],
   capacity = null,
+  tweakLayer = false,
 }) {
   const scale = computeViewportScale(viewport, capacity);
   const stageWidth = Math.max(160, Math.round(viewport.width * scale));
   const stageHeight = Math.max(160, Math.round(viewport.height * scale));
   const overlayMarkup = buildChangeOverlayMarkup(changeRegions, scale);
   const hotspotMarkup = buildPrototypeHotspotMarkup(hotspots, viewport, scale);
+  const tweakMarkup = tweakLayer
+    ? '<div class="preview-tweak-layer" data-preview-tweak-layer="true" aria-hidden="true"></div>'
+    : "";
 
   return `
     <div
@@ -1378,6 +1605,7 @@ function buildViewportStage({
         </div>
         ${overlayMarkup}
         ${hotspotMarkup}
+        ${tweakMarkup}
       </div>
     </div>
   `;
@@ -1865,6 +2093,16 @@ async function runPreviewSelfTest() {
           elementHotspots[0]?.sourceElementId === "cta-selftest" &&
           elementHotspots[0]?.label === "Tap CTA",
         "preview prototype hotspots use selected element regions",
+      ),
+    );
+    results.push(
+      assert(
+        Boolean(dom.markTweak) &&
+          typeof buildTweakRegion({
+            start: { x: 0.1, y: 0.2, pixelX: 10, pixelY: 20 },
+            current: { x: 0.4, y: 0.45, pixelX: 40, pixelY: 45 },
+          })?.normalized?.width === "number",
+        "preview tweak region targeting is available",
       ),
     );
   } catch (error) {
@@ -3241,6 +3479,17 @@ function escapeHtml(value) {
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, value));
+}
+
+function roundMetric(value) {
+  return Math.round((Number(value) || 0) * 10000) / 10000;
 }
 
 function compactDisplayText(value, maxLength = 360) {

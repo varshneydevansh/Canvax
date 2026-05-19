@@ -368,11 +368,28 @@ const checks = [
           "production port proof dry-run is valid",
           "Canvax read-only inspection bridge is valid",
           "Canvax MCP server self-test is valid",
+          "preview tweak endpoint writes no-API region request",
+        ],
+      },
+      {
+        path: "scripts/canvax.mjs",
+        includes: [
+          "handleSavePreviewTweak",
+          "canvax-preview-tweak-latest.json",
+          "canvax-preview-tweak-request",
+        ],
+      },
+      {
+        path: "web/preview.js",
+        includes: [
+          "savePreviewTweak",
+          "buildTweakRegion",
+          "preview tweak region targeting is available",
         ],
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatic DOM-semantic tweak patching, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -399,9 +416,17 @@ const checks = [
           "data-canvax-atmosphere",
         ],
       },
+      {
+        path: "scripts/canvax.mjs",
+        includes: [
+          "canvax-preview-tweak-request",
+          "preview-tweak",
+          "normalizePreviewTweakRegion",
+        ],
+      },
     ],
     remainingGap:
-      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration.",
+      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests are proven but are not automatic production DOM patches.",
   },
   {
     id: "image-asset-handoff",

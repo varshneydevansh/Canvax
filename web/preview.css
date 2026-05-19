@@ -984,6 +984,35 @@ a {
     font-size: 0.68rem;
 }
 
+.preview-tweak-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.surface-viewer.tweak-mode .preview-tweak-layer {
+    cursor: crosshair;
+    pointer-events: auto;
+    background:
+        radial-gradient(
+            circle at center,
+            rgba(242, 90, 50, 0.08),
+            transparent 58%
+        );
+}
+
+.preview-tweak-box {
+    position: absolute;
+    border: 2px solid rgba(242, 90, 50, 0.94);
+    border-radius: 14px;
+    background: rgba(242, 90, 50, 0.13);
+    box-shadow:
+        0 0 0 9999px rgba(16, 24, 40, 0.16),
+        0 14px 32px rgba(242, 90, 50, 0.22);
+    pointer-events: none;
+}
+
 .compare-context-head {
     display: flex;
     justify-content: space-between;

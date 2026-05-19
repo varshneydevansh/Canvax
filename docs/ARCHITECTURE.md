@@ -95,6 +95,7 @@ scripts/canvax.mjs
     |
     +--> serve board and Preview
     +--> save exports
+    +--> save Preview region tweak requests
     +--> merge preview-state
     +--> write checkpoints
     +--> materialize frames
@@ -183,6 +184,8 @@ Current mechanism:
 - `exports/canvax-image-prompt-pack-latest.json`
 - `exports/canvax-image-prompt-pack-latest.md`
 - `exports/canvax-checkpoint-latest.json`
+- `exports/canvax-preview-tweak-latest.json`
+- `exports/canvax-preview-tweak-latest.md`
 
 Purpose:
 
@@ -192,6 +195,7 @@ Purpose:
 - include `spatialWorkspace` so Codex can read frame/variant map positions, active/entry frames, and links as project memory
 - include `spatialWorkspace.variantBranches` so Codex can separate editable generated variant branches from normal navigation/prototype links
 - include `spatialWorkspace.lanes`, `spatialWorkspace.timeline`, and `spatialWorkspace.groupHierarchy` so checkpoint history, generated outputs, frame sequence, and nested exploration boards can be read as named spatial tracks/paths instead of only flat session lists
+- include Preview region tweak requests so Codex can target a generated-output area by frame, output path, normalized bounds, and note without requiring a manual screenshot description
 
 ### 3. Output binding transport
 
@@ -204,6 +208,7 @@ Current mechanism:
 Purpose:
 
 - attach implementation previews, generated artifacts, changed files, and rewrite state back to the sketch workflow
+- preserve generated-output region correction requests from Preview through `POST /api/save-preview-tweak` and `exports/canvax-preview-tweak-latest.*`
 
 ### 4. Future richer-client transport
 
@@ -337,6 +342,7 @@ separate endpoint
   /api/save-build-request         -> Codex-readable real implementation request
   /api/execute-build-request      -> local no-API build preview, implementation bundle, and output manifest binding
   /api/execute-rewrite-request    -> local no-API rewrite preview and output manifest binding
+  /api/save-preview-tweak         -> no-API Preview region correction request
 
 rewrite request executor
   exports/canvax-rewrite-request-latest.json

@@ -31,6 +31,7 @@ const previewSnapshotsIndexPath = resolve(
   artifactsPreviewRoot,
   "preview-snapshots.json",
 );
+const previewTweaksRoot = resolve(artifactsPreviewRoot, "tweaks");
 const codexOutputRoot = resolve(projectRoot, "artifacts", "canvax");
 const checkpointsRoot = resolve(codexOutputRoot, "checkpoints");
 const checkpointsIndexPath = resolve(checkpointsRoot, "checkpoints.json");
@@ -107,6 +108,14 @@ const sessionEventsPath = resolve(exportsRoot, "canvax-session-events.jsonl");
 const previewManifestPath = resolve(
   exportsRoot,
   "canvax-preview-manifest.json",
+);
+const previewTweakJsonPath = resolve(
+  exportsRoot,
+  "canvax-preview-tweak-latest.json",
+);
+const previewTweakMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-preview-tweak-latest.md",
 );
 const codexOutputManifestPath = resolve(codexOutputRoot, "codex-output.json");
 const legacyJsonPath = resolve(exportsRoot, "canvax-storyboard-latest.json");
@@ -814,6 +823,13 @@ async function runServer(port) {
         url.pathname === "/api/save-preview-snapshot"
       ) {
         return handleSavePreviewSnapshot(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/save-preview-tweak"
+      ) {
+        return handleSavePreviewTweak(request, response);
       }
 
       if (
@@ -2749,6 +2765,8 @@ async function handlePreviewState(response) {
       checkpointsIndexPath,
       sessionEventsPath,
       previewManifestPath,
+      previewTweakJsonPath,
+      previewTweakMarkdownPath,
       codexOutputManifestPath,
       previewSnapshotsIndexPath,
     },
@@ -2904,6 +2922,150 @@ async function handleSavePreviewSnapshot(request, response) {
     previewSnapshots: enhancePreviewSnapshots(indexBody),
     previewSnapshotsIndexPath,
   });
+}
+
+async function handleSavePreviewTweak(request, response) {
+  const payload = await readJson(request);
+  const tweak = payload?.tweak;
+  if (!tweak || typeof tweak !== "object") {
+    return writeJson(response, 400, { error: "Tweak payload is required." });
+  }
+
+  const timestamp = buildTimestamp();
+  const frameTitle = cleanString(tweak.frameTitle) || "preview-tweak";
+  const tweakId = `${timestamp}-${slugify(frameTitle)}`;
+  const tweakRoot = resolve(previewTweaksRoot, tweakId);
+  const region = normalizePreviewTweakRegion(tweak.region);
+  const target = normalizePreviewTweakTarget(tweak.target);
+  const record = {
+    kind: "canvax-preview-tweak-request",
+    schemaVersion: 1,
+    requiresOpenAiApiKey: false,
+    id: tweakId,
+    createdAt: new Date().toISOString(),
+    frameId: cleanString(tweak.frameId),
+    frameTitle,
+    compareMode: cleanString(tweak.compareMode) || "output",
+    viewport: {
+      label: cleanString(tweak.viewportLabel),
+      width: Number(tweak.viewportWidth) || 0,
+      height: Number(tweak.viewportHeight) || 0,
+    },
+    target,
+    region,
+    note:
+      cleanString(tweak.note) ||
+      "Adjust the selected generated-output region according to the latest Canvax sketch and voice context.",
+    source: {
+      surface: "preview",
+      interaction: "drag-region",
+      noApiBoundary:
+        "This tweak request is a local region handoff for Codex. It does not call OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.",
+    },
+  };
+
+  await mkdir(tweakRoot, { recursive: true });
+  await mkdir(exportsRoot, { recursive: true });
+  const archiveJsonPath = resolve(tweakRoot, "tweak.json");
+  const archiveMarkdownPath = resolve(tweakRoot, "tweak.md");
+  const markdown = buildPreviewTweakMarkdown(record);
+  await writeFile(archiveJsonPath, `${JSON.stringify(record, null, 2)}\n`);
+  await writeFile(archiveMarkdownPath, markdown);
+  await writeTextFileAtomic(
+    previewTweakJsonPath,
+    `${JSON.stringify(record, null, 2)}\n`,
+  );
+  await writeTextFileAtomic(previewTweakMarkdownPath, markdown);
+
+  await appendFile(
+    sessionEventsPath,
+    `${JSON.stringify({
+      type: "preview-tweak",
+      id: tweakId,
+      at: record.createdAt,
+      frameId: record.frameId,
+      frameTitle: record.frameTitle,
+      targetLabel: target.label,
+      targetPath: target.previewPath || target.url,
+      note: record.note,
+      region: record.region,
+      export: {
+        jsonPath: relative(projectRoot, previewTweakJsonPath),
+        markdownPath: relative(projectRoot, previewTweakMarkdownPath),
+      },
+    })}\n`,
+  );
+
+  return writeJson(response, 200, {
+    saved: true,
+    tweak: record,
+    tweakPath: previewTweakJsonPath,
+    tweakMarkdownPath: previewTweakMarkdownPath,
+    archiveRoot: tweakRoot,
+  });
+}
+
+function normalizePreviewTweakRegion(region) {
+  const normalized = region?.normalized || {};
+  const pixel = region?.pixel || {};
+  return {
+    normalized: {
+      x: clamp01(Number(normalized.x) || 0),
+      y: clamp01(Number(normalized.y) || 0),
+      width: clamp01(Number(normalized.width) || 0),
+      height: clamp01(Number(normalized.height) || 0),
+    },
+    pixel: {
+      x: Math.max(0, Math.round(Number(pixel.x) || 0)),
+      y: Math.max(0, Math.round(Number(pixel.y) || 0)),
+      width: Math.max(1, Math.round(Number(pixel.width) || 1)),
+      height: Math.max(1, Math.round(Number(pixel.height) || 1)),
+    },
+  };
+}
+
+function normalizePreviewTweakTarget(target) {
+  return {
+    id: cleanString(target?.id),
+    label: cleanString(target?.label),
+    type: cleanString(target?.type),
+    url: cleanString(target?.url || target?.resolvedUrl),
+    previewPath: cleanString(target?.previewPath || target?.path),
+    source: cleanString(target?.source),
+    description: cleanString(target?.description || target?.summary),
+  };
+}
+
+function buildPreviewTweakMarkdown(tweak) {
+  const region = tweak.region?.normalized || {};
+  const lines = [
+    "# Canvax Preview Tweak Request",
+    "",
+    `- Frame: ${tweak.frameTitle || tweak.frameId || "current frame"}`,
+    `- Target: ${tweak.target?.label || tweak.target?.previewPath || tweak.target?.url || "connected output"}`,
+    `- Region: x ${region.x}, y ${region.y}, width ${region.width}, height ${region.height}`,
+    `- Requires OpenAI API key: ${tweak.requiresOpenAiApiKey ? "yes" : "no"}`,
+    "",
+    "## Correction",
+    "",
+    tweak.note,
+    "",
+    "## Codex Use",
+    "",
+    "Use this as a precise generated-output correction region. Preserve unrelated regions unless the current Canvax sketch, voice notes, or frame context explicitly asks for broader changes.",
+    "",
+    "## Boundary",
+    "",
+    tweak.source?.noApiBoundary || "",
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+function clamp01(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
 }
 
 async function handleMaterializeFrame(request, response) {

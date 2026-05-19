@@ -273,6 +273,13 @@ review, screenshot pixel review, and Canvax inspection bridge into
 accessibility, responsiveness, brand/system fit, preview tweak targeting,
 motion/readability, visual integrity, and production readiness.
 
+Use Preview `Mark tweak` or `POST /api/save-preview-tweak` when a generated
+output region needs an exact local correction request. The endpoint writes
+`exports/canvax-preview-tweak-latest.{json,md}` and archives the same record
+under `artifacts/preview/tweaks/...`. The payload should include the source
+frame, target path or URL, normalized bounds, pixel bounds, viewport, and note.
+It must stay no-API and should not directly mutate the generated DOM.
+
 Use `npm run mcp` to launch the read-only local stdio MCP server. It exposes the
 inspection commands as tools for hosts that can register a local MCP command:
 `get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
@@ -297,6 +304,7 @@ web/app.js
 scripts/canvax.mjs
   POST /api/save-build-request
   POST /api/execute-build-request
+  POST /api/save-preview-tweak
   artifacts/canvax/build-requests/<request>/request.json
   artifacts/canvax/build-requests/<request>/request.md
   exports/canvax-build-real-latest.json

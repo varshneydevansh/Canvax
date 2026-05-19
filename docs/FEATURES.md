@@ -93,6 +93,7 @@ Purpose:
 - show the sketch next to the generated or connected output
 - compare what you drew against what Canvax or Codex produced
 - surface output activity, changed files, artifacts, and refinement state
+- let a designer mark a generated-output region as a structured Codex tweak request
 
 Preview is the bridge between:
 
@@ -100,8 +101,21 @@ Preview is the bridge between:
 - a generated or code-backed output surface
 
 ```text
-Preview = comparison, not the primary sketch input
+Preview = comparison + output-region feedback, not the primary sketch input
 ```
+
+Preview `Mark tweak` is the local no-API equivalent of a targeted output
+comment. It is intentionally file-backed:
+
+```text
+drag output region in Preview
+  -> write canvax-preview-tweak-latest.{json,md}
+  -> archive artifacts/preview/tweaks/<timestamp>/
+  -> Codex reads exact frame + target + bounds + note
+```
+
+It does not mutate the generated DOM by itself. It gives Codex a precise region
+and instruction for the next rewrite/build pass.
 
 ### Local service
 

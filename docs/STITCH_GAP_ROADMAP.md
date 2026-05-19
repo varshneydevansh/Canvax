@@ -91,9 +91,9 @@ file-based `SKILL.md` bundles, a large `DESIGN.md` design-system catalog,
 agent/CLI adapters, first-turn discovery forms, deterministic direction
 pickers, streaming plan/progress cards, sandboxed preview artifacts, MCP-style
 live file access, export formats, and media prompt galleries live together
-instead of being separate products. Their live site currently positions the
-product around 131 skills and 150 systems, while the GitHub README/release notes
-show different fast-moving counts and a v0.4.x feature wave around `od mcp`,
+instead of being separate products. Its repo currently presents a 0.8 preview
+direction with many CLI adapters, 31 skills, and a fast-moving design-system
+catalog, while the older 0.4 changelog is especially relevant for `od mcp`,
 live artifacts, tweaks-mode previews, code-folder linking, and a design-jury
 critique loop. Canvax should benchmark the workflow shape instead of copying a
 specific number of skills or systems.
@@ -168,7 +168,11 @@ The useful lesson for Canvax:
   preview reinforces that Canvax Preview should let the user select generated
   output regions, attach a correction mark or note, and hand the exact target
   back to Codex without making the user return to raw JSON, terminal output, or
-  manual screenshot descriptions.
+  manual screenshot descriptions. Canvax now ships the local no-API version:
+  `Mark tweak` saves the frame, output target, normalized bounds, pixel bounds,
+  viewport, and note to `exports/canvax-preview-tweak-latest.*` plus an
+  archived tweak record. Remaining work is live DOM-element selection,
+  automatic semantic target mapping, and first-party Codex/ChatGPT co-editing.
 - Make output cards understandable to designers. Generated implementation
   references should read as `Generated screen`, `Generated file`, and
   `Code change`, never as raw manifest labels like `generated-target`.
@@ -354,7 +358,7 @@ flowchart LR
 
 ### 2. Live Two-Way Rewrite Loop
 
-Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes, and `execute-rewrite-request` can turn that handoff into a refreshed frame-bound local preview artifact. Workbench `Apply to Codex` and optional `Live rewrite` invoke that local executor after saving the latest checkpoint, so a sketch/voice/correction pass can refresh the attached preview without a terminal step. When a `canvax-component-map.json` artifact is attached, the rewrite executor now maps correction regions to generated selectors/components. If the user keeps sketching while a local Live rewrite is running, Canvax queues the newest handoff and runs it after the in-flight refresh completes. It does not yet run a continuous loop where Codex rewrites real app files while the user keeps drawing.
+Today Canvax can detect stale output and changed regions. It also writes a focused `canvax-rewrite-request-latest.*` handoff for Codex rewrite passes, and `execute-rewrite-request` can turn that handoff into a refreshed frame-bound local preview artifact. Workbench `Apply to Codex` and optional `Live rewrite` invoke that local executor after saving the latest checkpoint, so a sketch/voice/correction pass can refresh the attached preview without a terminal step. When a `canvax-component-map.json` artifact is attached, the rewrite executor now maps correction regions to generated selectors/components. Preview `Mark tweak` adds a second region-targeting path from the generated output side: the user can drag an output region, add a note, and save a no-API correction request for Codex. If the user keeps sketching while a local Live rewrite is running, Canvax queues the newest handoff and runs it after the in-flight refresh completes. It does not yet run a continuous loop where Codex rewrites real app files while the user keeps drawing.
 
 Needed:
 
