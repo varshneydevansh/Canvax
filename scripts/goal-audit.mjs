@@ -213,6 +213,7 @@ const checks = [
           "extractDesignTokensFromCurrentFrame",
           "importExternalDesignTokens",
           "repositoryDesignKitPresets",
+          "designKitMatchesSearch",
           "availableDesignKitPresets",
           "normalizeExternalDesignTokenPack",
           "sampleImagePalette",
@@ -225,7 +226,12 @@ const checks = [
       },
       {
         path: "scripts/validate-design-kits.mjs",
-        includes: ["requiresOpenAiApiKey: false", "validateKit"],
+        includes: [
+          "requiresOpenAiApiKey: false",
+          "validateKit",
+          "kitMatchesQuery",
+          "--query",
+        ],
       },
       {
         path: "design-kits/README.md",
@@ -269,7 +275,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, current-frame/reference-image extraction, text/CSS/image token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but richer large-library discovery, semantic rendered-app/component extraction, and evidence from a real user project port remain open.",
+      "Repository kit files, UI/CLI kit search, current-frame/reference-image extraction, text/CSS/image token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but large-library packaging/versioning/sharing, semantic rendered-app/component extraction, and evidence from a real user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

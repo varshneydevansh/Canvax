@@ -7,12 +7,22 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const designKitsRoot = resolve(projectRoot, "design-kits");
+const query = readOption(process.argv.slice(2), "--query");
 
-const result = await validateDesignKits();
+const result = await validateDesignKits({ query });
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify(result, null, 2));
 } else if (result.ok) {
-  console.log(`ok: ${result.count} design kit files are valid`);
+  if (query) {
+    console.log(
+      `ok: ${result.matchedCount}/${result.count} design kit files match "${query}"`,
+    );
+    result.kits.forEach((kit) =>
+      console.log(`- ${kit.label} (${kit.id}) - ${kit.path}`),
+    );
+  } else {
+    console.log(`ok: ${result.count} design kit files are valid`);
+  }
 } else {
   console.log(`fail: ${result.errors.length} design kit issue(s)`);
   result.errors.forEach((error) => console.log(`- ${error}`));
@@ -22,7 +32,8 @@ if (!result.ok) {
   process.exitCode = 1;
 }
 
-async function validateDesignKits() {
+async function validateDesignKits(options = {}) {
+  const searchQuery = cleanString(options.query);
   const errors = [];
   const kits = [];
   let entries = [];
@@ -58,6 +69,13 @@ async function validateDesignKits() {
           id: parsed.id,
           label: parsed.label,
           path: relativePath,
+          summary: parsed.summary,
+          audience: parsed.audience,
+          mood: parsed.mood,
+          actionMode: parsed.actionMode,
+          viewport: parsed.viewport,
+          generation: parsed.generation,
+          frame: parsed.frame,
         });
       }
     } catch (error) {
@@ -69,11 +87,21 @@ async function validateDesignKits() {
 
   const duplicateIds = findDuplicates(kits.map((kit) => kit.id));
   duplicateIds.forEach((id) => errors.push(`duplicate kit id: ${id}`));
+  const visibleKits = searchQuery
+    ? kits.filter((kit) => kitMatchesQuery(kit, searchQuery))
+    : kits;
 
   return {
     ok: errors.length === 0,
     count: kits.length,
-    kits,
+    matchedCount: visibleKits.length,
+    query: searchQuery || null,
+    kits: visibleKits.map((kit) => ({
+      id: kit.id,
+      label: kit.label,
+      path: kit.path,
+      summary: kit.summary,
+    })),
     errors,
     requiresOpenAiApiKey: false,
   };
@@ -128,6 +156,41 @@ function findDuplicates(values) {
     seen.add(value);
   });
   return [...duplicates];
+}
+
+function kitMatchesQuery(kit, searchQuery) {
+  const needle = cleanString(searchQuery).toLowerCase();
+  if (!needle) {
+    return true;
+  }
+  return [
+    kit.id,
+    kit.label,
+    kit.path,
+    kit.summary,
+    kit.audience,
+    kit.mood,
+    kit.actionMode,
+    kit.viewport,
+    kit.generation?.direction,
+    kit.generation?.style,
+    kit.generation?.focus,
+    kit.frame?.objective,
+    kit.frame?.layout,
+    kit.frame?.motion,
+    kit.frame?.assets,
+    kit.frame?.mobile,
+  ]
+    .map((value) => cleanString(value).toLowerCase())
+    .some((value) => value.includes(needle));
+}
+
+function readOption(argv, name) {
+  const index = argv.indexOf(name);
+  if (index === -1) {
+    return "";
+  }
+  return cleanString(argv[index + 1]);
 }
 
 function cleanString(value) {

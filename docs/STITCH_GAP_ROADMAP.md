@@ -86,6 +86,14 @@ public positioning focuses on prompt-to-design artifacts, code export,
 design-system/skill libraries, BYOK or local model support, and adapters for
 agent tools such as Claude Code and Cursor CLI.
 
+The GitHub README also shows a concrete product pattern worth tracking:
+file-based `SKILL.md` bundles, a large `DESIGN.md` design-system catalog,
+agent/CLI adapters, sandboxed preview artifacts, export formats, and media
+prompt galleries live together instead of being separate products. Canvax should
+not copy that exact architecture, but it should match the user-facing benefit:
+the designer picks a reusable system, sketches or speaks intent, sees a preview
+artifact, and keeps every prompt/spec/output as a local file Codex can edit.
+
 The useful lesson for Canvax:
 
 - Treat reusable design knowledge as first-class. Canvax should continue
@@ -115,10 +123,11 @@ The useful lesson for Canvax:
   `Code change`, never as raw manifest labels like `generated-target`.
 - Keep the reusable kit layer file-based and simple. Canvax now reads
   `design-kits/*.json` as repository design kits, exposes them through the same
-  `Design kit` dropdown, validates them with `npm run validate-design-kits`, and
-  exports the selected kit source path through the normal `designKit` handoff.
-  The remaining opportunity is richer discovery/search and teams sharing larger
-  kit libraries without making the default Workbench feel like a prompt console.
+  searchable `Design kit` dropdown, validates and searches them with
+  `npm run validate-design-kits -- --query <term>`, and exports the selected kit
+  source path through the normal `designKit` handoff. The remaining opportunity
+  is packaging, versioning, and team sharing for larger kit libraries without
+  making the default Workbench feel like a prompt console.
 
 ## Current Canvax Shape
 
@@ -378,7 +387,9 @@ integration contract and Codex port task.
 local HTML/CSS files, generated screen artifacts, or pasted CSS/HTML text,
 writing `canvax-external-design-tokens` JSON/Markdown for future Design kit
 import. Advanced `Import external` imports the latest token pack into the active
-board Design kit.
+board Design kit. The Design kit dropdown now has `Find kit` search across
+built-in and repository kits, and the validator exposes the same discovery path
+through `npm run validate-design-kits -- --query <term>`.
 
 Needed:
 

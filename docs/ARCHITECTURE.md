@@ -636,10 +636,19 @@ generation recipe, and default frame notes. When applied, it becomes part of the
 same exported `designKit` object as built-ins, `DESIGN.md`, extracted tokens, and
 style knobs.
 
+The `Find kit` field filters both built-in and repository kits client-side by
+id, label, summary, source path, surface, action mode, generation settings, and
+default frame notes. The active kit remains visible even if it does not match
+the query, so a designer can search without losing current context. The same
+search contract is available in the validator through
+`npm run validate-design-kits -- --query <term>`, which makes larger
+repository-based kit libraries inspectable without adding a hosted account or
+API dependency.
+
 ```text
 design-kits/*.json
   -> /api/status designKitGallery
-  -> Design kit dropdown
+  -> searchable Design kit dropdown
   -> task/image/build/rewrite designKit export
 ```
 

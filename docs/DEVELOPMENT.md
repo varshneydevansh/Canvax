@@ -219,8 +219,10 @@ the real changed files and artifacts published back to Canvax for that frame.
 
 Use `design-kits/*.json` for reusable local design-system presets. The server
 exposes valid kits through `/api/status` as `designKitGallery`, and the browser
-lists them under `Repository kits` in the Design kit dropdown. Run
-`npm run validate-design-kits` before committing kit changes.
+lists them under `Repository kits` in the searchable Design kit dropdown. Run
+`npm run validate-design-kits` before committing kit changes, or
+`npm run validate-design-kits -- --query <term>` when checking which local kits
+match a product, poster, book, or brand direction.
 
 Use `npm run extract-tokens -- --image <local-screenshot>` when a rendered
 screen, browser snapshot, generated image, or app screenshot should contribute

@@ -144,15 +144,18 @@ The same Advanced section also includes `Design kit`. This is the visible rule s
 
 Repository kits live under `design-kits/*.json`. Canvax exposes them through
 `/api/status` as `designKitGallery`, then lists them in the same `Design kit`
-dropdown under `Repository kits`. Use this when a project needs reusable visual
-rules that are more specific than the built-in presets, such as a campaign
-style, children-book spread system, manga workflow, design-system variant, or
-client brand direction.
+dropdown under `Repository kits`. The `Find kit` field filters built-in and
+repository kits by label, summary, source path, surface, action mode, and frame
+notes while keeping the active kit visible. Use this when a project needs
+reusable visual rules that are more specific than the built-in presets, such as
+a campaign style, children-book spread system, manga workflow, design-system
+variant, or client brand direction.
 
 Validate those files with:
 
 ```bash
 npm run validate-design-kits
+npm run validate-design-kits -- --query scythian
 ```
 
 The shipped starter kits are:

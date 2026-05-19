@@ -4584,9 +4584,14 @@ select,
     padding-inline: 0.72rem;
 }
 
-.design-kit-controls select {
+.design-kit-controls select,
+.design-kit-controls input {
     width: 100%;
     margin-top: 0.28rem;
+}
+
+.design-kit-search-label input {
+    min-height: 2.45rem;
 }
 
 .design-kit-controls .ghost-button {

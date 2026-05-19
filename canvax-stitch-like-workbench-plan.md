@@ -45,9 +45,12 @@ Sources:
 Open Design adds one practical product pressure: Canvax needs a better
 discoverable design-system and skill layer. The shipped `DESIGN.md`,
 style-lock, semantic variant, image prompt, and build/rewrite contract work is
-the start, but the UI still needs a designer-readable way to choose and apply
-those rules without making the Workbench feel like a prompt-only artifact
-generator.
+the start, and Canvax now has repository kit files, UI kit search, and CLI kit
+query. The next pressure is larger-library packaging, versioning, and sharing
+without making the Workbench feel like a prompt-only artifact generator.
+The specific lesson is not "be another prompt generator"; it is "make reusable
+design intelligence a local, inspectable project asset" through skills, design
+systems, prompt packs, previews, and exports that Codex can modify.
 
 ## Implementation Status
 
@@ -88,7 +91,9 @@ Current completed baseline:
   after a production port.
 - Repository design kits in `design-kits/*.json` now load into the same Design
   kit dropdown as built-in presets, carry their file path in the exported
-  `designKit.preset.source`, and validate through `npm run validate-design-kits`.
+  `designKit.preset.source`, can be filtered in the UI through `Find kit`, and
+  validate or search through `npm run validate-design-kits` and
+  `npm run validate-design-kits -- --query <term>`.
 - `npm run extract-tokens` now accepts local raster screenshots/images through
   `--image` / `--screenshot`, samples their palette locally, and writes the same
   importable external token pack as text/CSS extraction.

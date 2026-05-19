@@ -405,6 +405,7 @@ const dom = {
   designKitCard: document.querySelector("#design-kit-card"),
   designKitTitle: document.querySelector("#design-kit-title"),
   designKitSummary: document.querySelector("#design-kit-summary"),
+  designKitSearch: document.querySelector("#design-kit-search"),
   designKitPresetSelect: document.querySelector("#design-kit-preset"),
   applyDesignKit: document.querySelector("#apply-design-kit"),
   extractDesignTokens: document.querySelector("#extract-design-tokens"),
@@ -1259,6 +1260,11 @@ function bindEvents() {
   dom.designKitPresetSelect.addEventListener("change", () => {
     dom.applyDesignKit.disabled = dom.designKitPresetSelect.value === "custom";
   });
+  dom.designKitSearch.addEventListener("input", () => {
+    state.designKitSearch = dom.designKitSearch.value;
+    populateViewportSelect();
+    renderDesignKitCard();
+  });
   dom.applyDesignKit.addEventListener("click", () => {
     applyDesignKitPreset(dom.designKitPresetSelect.value);
   });
@@ -1745,6 +1751,7 @@ function hydrateState() {
       )
         ? migrated.workbenchFocus
         : empty.workbenchFocus,
+      designKitSearch: cleanString(migrated.designKitSearch),
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
       outputLaneCollapsed: Boolean(
         migrated.outputLaneCollapsed ?? empty.outputLaneCollapsed,
@@ -2297,6 +2304,7 @@ function createInitialState() {
       outputActivity: [],
       sessionEvents: [],
     },
+    designKitSearch: "",
     captureTimer: null,
     previewStateTimer: null,
     liveRewriteInFlight: false,
@@ -2808,12 +2816,14 @@ function populateViewportSelect() {
     )
     .join("");
   const builtInOptions = designKitPresets
+    .filter((preset) => designKitMatchesSearch(preset))
     .map(
       (preset) =>
         `<option value="${preset.id}">${escapeHtml(preset.label)}</option>`,
     )
     .join("");
   const repositoryOptions = repositoryDesignKitPresets()
+    .filter((preset) => designKitMatchesSearch(preset))
     .map(
       (preset) =>
         `<option value="${preset.id}">${escapeHtml(preset.label)} · file</option>`,
@@ -3266,6 +3276,7 @@ function renderDesignKitCard() {
   dom.designKitSummary.textContent = kit.summary;
   dom.designKitCard.title = kit.instructions.join(" ");
   const activePreset = designKitPresetById(state.board.designKitPreset);
+  dom.designKitSearch.value = state.designKitSearch || "";
   dom.designKitPresetSelect.value = activePreset?.id || "custom";
   dom.applyDesignKit.disabled = dom.designKitPresetSelect.value === "custom";
   if (dom.extractDesignTokens) {
@@ -3280,6 +3291,28 @@ function renderDesignKitCard() {
         `<li title="${escapeHtml(source.detail || source.label)}">${escapeHtml(source.label)}</li>`,
     )
     .join("");
+}
+
+function designKitMatchesSearch(preset) {
+  const query = cleanString(state.designKitSearch).toLowerCase();
+  if (!query || preset.id === state.board.designKitPreset) {
+    return true;
+  }
+  return [
+    preset.id,
+    preset.label,
+    preset.summary,
+    preset.audience,
+    preset.mood,
+    preset.viewport,
+    preset.actionMode,
+    preset.source?.path,
+    preset.frame?.objective,
+    preset.frame?.layout,
+    preset.frame?.assets,
+  ]
+    .map((value) => cleanString(value).toLowerCase())
+    .some((value) => value.includes(query));
 }
 
 function renderFocusPad() {
@@ -20609,6 +20642,22 @@ async function runSelfTest() {
         ),
       );
     }
+    const previousDesignKitSearch = state.designKitSearch;
+    state.designKitSearch = "scythian";
+    populateViewportSelect();
+    const filteredKitLabels = [...dom.designKitPresetSelect.options].map(
+      (option) => option.textContent,
+    );
+    results.push(
+      assert(
+        filteredKitLabels.some((label) =>
+          label.toLowerCase().includes("scythian"),
+        ),
+        "design kit search filters built-in and repository kits",
+      ),
+    );
+    state.designKitSearch = previousDesignKitSearch;
+    populateViewportSelect();
     results.push(
       assert(
         workbenchFocusModes.length ===
