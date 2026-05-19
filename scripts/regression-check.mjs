@@ -62,6 +62,11 @@ const designKitLibraryPath = resolve(
   "exports",
   "canvax-design-kit-library-latest.json",
 );
+const artifactReviewPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-artifact-review-latest.json",
+);
 const curlBinary = "/usr/bin/curl";
 const upstreamProposalPath = resolve(
   projectRoot,
@@ -78,6 +83,7 @@ await validateExecuteRewriteRequestDryRun();
 await validateExternalDesignTokenExtractorDryRun();
 await validateImageDesignTokenExtractorDryRun();
 await validateDesignKitLibraryPackageDryRun();
+await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
@@ -227,6 +233,16 @@ await validateOptionalJsonSchema(
     Array.isArray(value?.kits) &&
     value.integrity?.algorithm === "sha256",
   "design kit library package schema is valid",
+);
+await validateOptionalJsonSchema(
+  artifactReviewPath,
+  (value) =>
+    value?.kind === "canvax-artifact-design-review" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.checks),
+  "artifact design review schema is valid",
 );
 
 const failed = results.filter((entry) => !entry.passed);
@@ -522,6 +538,45 @@ async function validateDesignKitLibraryPackageDryRun() {
   } catch (error) {
     results.push({
       name: "design kit library packager dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateArtifactReviewDryRun() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/review-artifact.mjs",
+      "--text",
+      '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>.hero{display:grid}.cta:focus-visible{outline:2px solid #e85d3a}@media (max-width: 720px){.hero{display:block}}</style></head><body><main data-canvax-node-id="hero-1"><nav><a href="#work">Work</a></nav><section class="hero"><h1>Ship better screens</h1><img src="hero.png" alt="Hero preview"><button class="cta">Start</button><label for="email">Email</label><input id="email"></section></main></body></html>',
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const review = payload.review;
+    const passed = Boolean(
+      payload.dryRun &&
+        review?.kind === "canvax-artifact-design-review" &&
+        review.requiresOpenAiApiKey === false &&
+        review.status === "pass" &&
+        review.checks?.some(
+          (check) => check.id === "canvax-bindings" && check.level === "pass",
+        ) &&
+        review.checks?.some(
+          (check) => check.id === "focus-styles" && check.level === "pass",
+        ),
+    );
+    results.push({
+      name: "artifact design review dry-run is valid",
+      passed,
+      detail: passed
+        ? `${review.status} ${review.score}/100`
+        : "artifact review did not return expected checks",
+    });
+  } catch (error) {
+    results.push({
+      name: "artifact design review dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

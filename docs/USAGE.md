@@ -195,6 +195,21 @@ tokens made it into the generated files:
 npm run verify-tokens -- --contract artifacts/preview/codex-build/frames/<frame-id>/implementation/canvax-build-contract.json
 ```
 
+Review the generated HTML artifact before asking Codex to port it into
+production:
+
+```bash
+npm run review-artifact -- --file artifacts/preview/codex-build/frames/<frame-id>/implementation/index.html
+npm run review-artifact -- --dry-run --json --file artifacts/preview/codex-build/frames/<frame-id>/implementation/index.html
+```
+
+`review-artifact` writes `exports/canvax-artifact-review-latest.json` and `.md`.
+It is a no-API static review for semantic landmarks, heading structure, action
+labels, link targets, image alt text, form labels, responsive cues, focus
+styles, and `data-canvax-node-id` bindings. It does not render screenshots or
+inspect a live DOM; use it as a pre-port gate, not as a replacement for visual
+review.
+
 The verifier reads the contract palette and checks nearby CSS/HTML/JSX files for
 those colors. It is local, does not call an AI model, and does not require
 `OPENAI_API_KEY`. This is useful after importing a design system from another

@@ -677,6 +677,16 @@ design-system loop inspectable: extraction creates token artifacts, Build with
 Codex records them in the contract, and verification proves the local generated
 surface actually used them.
 
+`scripts/review-artifact.mjs` is the matching static design-readiness gate. It
+reads local HTML/CSS artifact text and writes
+`exports/canvax-artifact-review-latest.{json,md}` with no-API checks for main
+landmarks, heading structure, action labels, link targets, image alternatives,
+form labels, responsive viewport/CSS cues, focus styles, and
+`data-canvax-node-id` source bindings. It is intentionally not a live browser
+review: it cannot judge pixels, motion, or real responsive rendering. Its job is
+to catch structural issues before Codex ports a generated artifact into real app
+files.
+
 The same verifier can read `artifacts/canvax/codex-output.json` with
 `--manifest` and `--frame`. In that mode it checks the real changed files,
 artifacts, or preview paths Codex published back to Canvax for the frame. That is

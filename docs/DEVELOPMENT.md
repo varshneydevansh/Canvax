@@ -241,6 +241,11 @@ component signals, actions, forms, headings, class signals, and Canvax node
 bindings. It is static source extraction, not a live DOM inspector or hosted
 model critique.
 
+Use `npm run review-artifact -- --file <artifact.html>` when the artifact needs
+a local pre-port design-readiness gate. It checks static HTML/CSS for landmarks,
+heading structure, labels, image alt text, form labels, responsive cues, focus
+styles, and Canvax node bindings. It does not replace browser visual review.
+
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.

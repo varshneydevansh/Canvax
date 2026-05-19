@@ -265,6 +265,15 @@ const checks = [
         ],
       },
       {
+        path: "scripts/review-artifact.mjs",
+        includes: [
+          "canvax-artifact-design-review",
+          "requiresOpenAiApiKey: false",
+          "focus-styles",
+          "canvax-bindings",
+        ],
+      },
+      {
         path: "scripts/execute-build-request.mjs",
         includes: [
           "applyDesignTokenPalette",
@@ -287,13 +296,14 @@ const checks = [
           "external design token and semantic extractor dry-run is valid",
           "image design token extractor dry-run is valid",
           "design kit library packager dry-run is valid",
+          "artifact design review dry-run is valid",
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
         ],
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but hosted/team kit-library sharing, deeper rendered-app design critique, and evidence from a real user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but hosted/team kit-library sharing, live browser visual critique, and evidence from a real user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

@@ -110,9 +110,10 @@ The useful lesson for Canvax:
   `artifacts/canvax/codex-output.json` to check the real files Codex published
   for a frame, so production-port token enforcement has a concrete gate. The
   remaining gap is proving that gate against real user project ports and adding
-  deeper rendered-app critique. Basic local screenshot palette extraction now
-  exists through `npm run extract-tokens -- --image <path>`, and static HTML/JSX
-  artifact semantics now export through `semanticStructure`.
+  live browser visual critique. Basic local screenshot palette extraction now
+  exists through `npm run extract-tokens -- --image <path>`, static HTML/JSX
+  artifact semantics now export through `semanticStructure`, and static artifact
+  readiness checks now run through `npm run review-artifact`.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.
@@ -396,7 +397,10 @@ pack now also includes static `semanticStructure` extraction for HTML/JSX
 artifacts: landmarks, component signals, headings, actions, forms, class
 signals, and Canvax node bindings. `npm run package-design-kits` writes a
 shareable no-API kit-library artifact with full kit JSON, local versions, source
-paths, SHA-256 checksums, and install notes.
+paths, SHA-256 checksums, and install notes. `npm run review-artifact` adds a
+static no-API generated-artifact review for landmarks, headings, labels, links,
+image alternatives, form labels, responsive cues, focus styles, and Canvax node
+bindings before Codex ports output into production files.
 
 Needed:
 
@@ -407,7 +411,7 @@ Needed:
   sketch token extraction and locally readable placed/reference-image sampling
   shipped; text/CSS token extraction from URLs, files, generated artifacts, and
   inline snippets shipped; static HTML/JSX semantic extraction shipped; live DOM
-  inspection and rendered-app critique remain open.**
+  inspection and browser-rendered visual critique remain open.**
 - Enforce those tokens when Codex generates or refines UI.
   **Initial deterministic executor enforcement shipped for generated CSS
   variables and port contracts; stricter production-code enforcement remains
