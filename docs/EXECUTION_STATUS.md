@@ -52,6 +52,7 @@ Status: In progress
 - [x] Workbench quick-prompt chips add common refinement intent without opening Advanced mode
 - [x] Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short path before exposing all controls
 - [x] Workbench secondary actions are tucked behind a `More actions` disclosure so default use focuses on frame/free-canvas/build/preview instead of exposing every power tool at once
+- [x] Left-rail project switching now supports browser-local `New`, `Duplicate`, `Delete`, and `Open project` actions while preserving the active project as the single live Codex handoff
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
 - [x] Workbench `Map` styles generated variants as branch cards with visible lineage and primary state

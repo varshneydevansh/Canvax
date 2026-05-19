@@ -58,6 +58,32 @@ The intended open behavior is:
 - `./canvax --open-external`: default macOS browser fallback.
 - `./canvax --chrome`: Google Chrome fallback.
 
+## Local Projects
+
+The `Project` block in the left rail now includes a browser-local project
+picker.
+
+Use it when you want separate Canvax boards for separate products, book spreads,
+UI explorations, or design directions:
+
+- `New` creates a blank local Canvax project.
+- `Duplicate` copies the current project into a new local board.
+- `Delete` removes the current project only when another project exists.
+- `Open project` switches the active browser-local board.
+
+```text
+localStorage project registry
+    |
+    +--> Project A snapshot
+    +--> Project B snapshot
+    `--> active project -> exports/canvax-live-latest.*
+```
+
+Only the active project writes the shared live Codex handoff files. This keeps
+Codex behavior simple: `/canvax` still means "read the current active Canvax",
+while the picker gives designers a Stitch-like way to keep multiple local boards
+without opening multiple repo copies.
+
 ## What To Draw
 
 Canvax is intentionally generic. Use it for:

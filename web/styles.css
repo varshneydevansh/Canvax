@@ -934,6 +934,33 @@ button:disabled {
     background: rgba(12, 141, 123, 0.14);
 }
 
+.ghost-button.danger {
+    color: #7f2417;
+}
+
+.project-switcher {
+    display: grid;
+    gap: 0.55rem;
+    padding-top: 0.15rem;
+}
+
+.project-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.project-actions button {
+    min-height: 2.35rem;
+    padding-inline: 0.55rem;
+    font-size: 0.84rem;
+}
+
+.project-actions button:first-child {
+    border-color: rgba(12, 141, 123, 0.28);
+    background: rgba(12, 141, 123, 0.12);
+}
+
 .ghost-link-button {
     display: inline-flex;
     align-items: center;

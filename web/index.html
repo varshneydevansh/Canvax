@@ -40,6 +40,45 @@
                             placeholder="e.g. Animated portfolio homepage"
                         />
                     </label>
+                    <div class="project-switcher" aria-label="Canvax projects">
+                        <label>
+                            Open project
+                            <select
+                                id="project-picker"
+                                aria-label="Switch Canvax project"
+                            ></select>
+                        </label>
+                        <div class="project-actions" role="group" aria-label="Project actions">
+                            <button
+                                id="new-project"
+                                class="ghost-button"
+                                type="button"
+                                title="Create a blank Canvax project in this browser"
+                            >
+                                New
+                            </button>
+                            <button
+                                id="duplicate-project"
+                                class="ghost-button"
+                                type="button"
+                                title="Duplicate the current project as a separate local board"
+                            >
+                                Duplicate
+                            </button>
+                            <button
+                                id="delete-project"
+                                class="ghost-button danger"
+                                type="button"
+                                title="Delete the current local project when another project exists"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                        <p id="project-switcher-status" class="helper-text">
+                            Projects are local to this browser. The active
+                            project writes the live Codex handoff.
+                        </p>
+                    </div>
                     <label>
                         Current ask
                         <textarea

@@ -231,12 +231,19 @@ flowchart LR
 ```text
 Canvax today
 |- Board: rough sketch, frames, flow, notes, tools, voice
+|- Local projects: browser-local project picker with new/duplicate/delete/switch
 |- Preview: compare sketch vs output, artifacts, changed files, rewrite queue
 |- Service: local exports, manifests, checkpoints, materialized/generated HTML
 |- Codex Browser Use / Atlas: preferred way to view/inspect board, Preview, and generated apps
 |- Codex skill: tells Codex to read the live handoff files
 `- Docs: install, usage, architecture, development, proposal, status
 ```
+
+The project picker is the first Stitch-like project-management slice. It gives
+designers separate local boards without changing the Codex contract: the active
+project writes the single `exports/canvax-live-latest.*` handoff. Remaining
+parity gaps are hosted/team project lists, thumbnails synced outside browser
+storage, and a native Codex project surface.
 
 ## What Is Done
 

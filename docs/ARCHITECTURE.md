@@ -404,6 +404,23 @@ flowchart LR
 
 The browser app keeps the working session in local browser storage and in memory.
 
+Canvax now keeps a browser-local project registry alongside the historical
+single-session storage key. Each project gets its own persisted snapshot, while
+the active project is mirrored to the legacy key and to the live export path.
+That keeps old tooling compatible and makes `/canvax` unambiguous: Codex reads
+the active project.
+
+```text
+localStorage
+  canvax-project-registry-v1
+      activeProjectId
+      projects[]
+  canvax-project-v1:<project-id>
+      full board snapshot
+  canvax-studio-v1
+      mirror of active project for compatibility
+```
+
 Workspace mode is part of the state model:
 
 ```text
@@ -433,6 +450,7 @@ Core state areas include:
 - tool selection, color, size, grid, autosnap
 - current host capabilities
 - current design context
+- browser-local project registry metadata
 
 `web/app.js` is currently the main state owner.
 

@@ -1,4 +1,6 @@
 const STORAGE_KEY = "canvax-studio-v1";
+const PROJECT_REGISTRY_KEY = "canvax-project-registry-v1";
+const PROJECT_SNAPSHOT_PREFIX = "canvax-project-v1:";
 const STORAGE_VERSION = 4;
 const HANDOFF_SCHEMA_VERSION = 1;
 const FRAME_RENDERER_VERSION = 5;
@@ -372,6 +374,11 @@ const palette = [
 
 const dom = {
   boardProject: document.querySelector("#board-project"),
+  projectPicker: document.querySelector("#project-picker"),
+  newProject: document.querySelector("#new-project"),
+  duplicateProject: document.querySelector("#duplicate-project"),
+  deleteProject: document.querySelector("#delete-project"),
+  projectSwitcherStatus: document.querySelector("#project-switcher-status"),
   boardGoal: document.querySelector("#board-goal"),
   boardAudience: document.querySelector("#board-audience"),
   boardMood: document.querySelector("#board-mood"),
@@ -666,6 +673,13 @@ function init() {
     syncSpatialObjectsFromHandoffs();
   }
   renderAll();
+  const projectSwitchNotice = window.sessionStorage.getItem(
+    "canvax-project-switch-notice",
+  );
+  if (projectSwitchNotice) {
+    window.sessionStorage.removeItem("canvax-project-switch-notice");
+    renderStatus(projectSwitchNotice);
+  }
   scheduleLivePreviewSync();
   exposeDebugHelpers();
   if (shouldRunSelfTest) {
@@ -731,6 +745,12 @@ function bindEvents() {
   dom.boardProject.addEventListener("input", () =>
     updateBoard("project", dom.boardProject.value),
   );
+  dom.projectPicker.addEventListener("change", () => {
+    switchProject(dom.projectPicker.value);
+  });
+  dom.newProject.addEventListener("click", createProject);
+  dom.duplicateProject.addEventListener("click", duplicateProject);
+  dom.deleteProject.addEventListener("click", deleteProject);
   dom.boardGoal.addEventListener("input", () =>
     updateBoard("goal", dom.boardGoal.value),
   );
@@ -1714,12 +1734,181 @@ function currentDesignTokensForExport() {
   return normalizeDesignTokens(state?.board?.designTokens);
 }
 
+function projectSnapshotKey(projectId) {
+  return `${PROJECT_SNAPSHOT_PREFIX}${projectId}`;
+}
+
+function parseStorageJson(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStorageJson(key, value) {
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function createProjectId() {
+  return uid("project");
+}
+
+function projectTitleFromSnapshot(snapshot) {
+  return cleanString(snapshot?.board?.project) || "Untitled Canvax project";
+}
+
+function projectRecordFromSnapshot(projectId, snapshot, previous = {}) {
+  const frames = Array.isArray(snapshot?.frames) ? snapshot.frames : [];
+  const activeFrame =
+    frames.find((frame) => frame.id === snapshot?.activeFrameId) ||
+    frames[0] ||
+    {};
+  const updatedAt =
+    frames
+      .map((frame) => cleanString(frame.updatedAt))
+      .filter(Boolean)
+      .sort()
+      .at(-1) ||
+    cleanString(previous.updatedAt) ||
+    new Date().toISOString();
+
+  return {
+    id: projectId,
+    title: projectTitleFromSnapshot(snapshot),
+    frameCount: frames.length,
+    activeFrameTitle: cleanString(activeFrame.title) || "Frame 1",
+    updatedAt,
+    createdAt:
+      cleanString(previous.createdAt) ||
+      cleanString(frames[0]?.createdAt) ||
+      new Date().toISOString(),
+  };
+}
+
+function normalizeProjectRegistry(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const projects = Array.isArray(source.projects)
+    ? source.projects
+        .map((project, index) => {
+          const id = cleanString(project?.id);
+          if (!id) {
+            return null;
+          }
+          return {
+            id,
+            title: cleanString(project.title) || `Canvax project ${index + 1}`,
+            frameCount: Number.isFinite(project.frameCount)
+              ? project.frameCount
+              : 0,
+            activeFrameTitle:
+              cleanString(project.activeFrameTitle) || "Frame 1",
+            updatedAt:
+              cleanString(project.updatedAt) || new Date().toISOString(),
+            createdAt:
+              cleanString(project.createdAt) || new Date().toISOString(),
+          };
+        })
+        .filter(Boolean)
+    : [];
+  const uniqueProjects = [
+    ...new Map(projects.map((item) => [item.id, item])).values(),
+  ];
+  const requestedActiveProjectId = cleanString(source.activeProjectId);
+  const activeProjectId = uniqueProjects.some(
+    (project) => project.id === requestedActiveProjectId,
+  )
+    ? requestedActiveProjectId
+    : uniqueProjects[0]?.id || "";
+
+  return {
+    version: 1,
+    activeProjectId,
+    projects: uniqueProjects,
+  };
+}
+
+function readProjectRegistry() {
+  return normalizeProjectRegistry(parseStorageJson(PROJECT_REGISTRY_KEY));
+}
+
+function writeProjectRegistry(registry) {
+  const normalized = normalizeProjectRegistry(registry);
+  writeStorageJson(PROJECT_REGISTRY_KEY, normalized);
+  return normalized;
+}
+
+function readProjectSnapshot(projectId) {
+  if (!projectId) {
+    return null;
+  }
+  return parseStorageJson(projectSnapshotKey(projectId));
+}
+
+function writeProjectSnapshot(projectId, snapshot) {
+  if (!projectId || !snapshot) {
+    return;
+  }
+  writeStorageJson(projectSnapshotKey(projectId), snapshot);
+}
+
+function ensureProjectRegistry(empty) {
+  const existing = readProjectRegistry();
+  if (existing.projects.length) {
+    return existing;
+  }
+
+  const legacySnapshot =
+    migratePersistedSnapshot(parseStorageJson(STORAGE_KEY), empty) ||
+    buildPersistedSnapshot(empty);
+  const projectId = createProjectId();
+  const registry = writeProjectRegistry({
+    version: 1,
+    activeProjectId: projectId,
+    projects: [projectRecordFromSnapshot(projectId, legacySnapshot)],
+  });
+  writeProjectSnapshot(projectId, legacySnapshot);
+  writeStorageJson(STORAGE_KEY, legacySnapshot);
+  return registry;
+}
+
+function syncProjectRegistryFromSnapshot(snapshot) {
+  const registry = normalizeProjectRegistry(
+    state.projectRegistry || readProjectRegistry(),
+  );
+  const projectId =
+    registry.activeProjectId || registry.projects[0]?.id || createProjectId();
+  const previous = registry.projects.find((project) => project.id === projectId);
+  const record = projectRecordFromSnapshot(projectId, snapshot, previous);
+  const nextProjects = [
+    record,
+    ...registry.projects.filter((project) => project.id !== projectId),
+  ];
+  state.projectRegistry = writeProjectRegistry({
+    version: 1,
+    activeProjectId: projectId,
+    projects: nextProjects,
+  });
+  return projectId;
+}
+
 function hydrateState() {
   const empty = createInitialState();
+  const projectRegistry = ensureProjectRegistry(empty);
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const projectRaw = projectRegistry.activeProjectId
+      ? window.localStorage.getItem(
+          projectSnapshotKey(projectRegistry.activeProjectId),
+        )
+      : "";
+    const raw = projectRaw || window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return empty;
+      return {
+        ...empty,
+        projectRegistry,
+      };
     }
     const parsed = JSON.parse(raw);
     const migrated = migratePersistedSnapshot(parsed, empty);
@@ -1763,6 +1952,7 @@ function hydrateState() {
 
     return {
       ...empty,
+      projectRegistry,
       board: {
         ...empty.board,
         ...(migrated.board || {}),
@@ -1882,7 +2072,10 @@ function hydrateState() {
       spacePressed: false,
     };
   } catch {
-    return empty;
+    return {
+      ...empty,
+      projectRegistry,
+    };
   }
 }
 
@@ -2900,6 +3093,7 @@ function renderAll() {
   renderWorkspaceMode();
   syncCanvasSize();
   renderBoardFields();
+  renderProjectSwitcher();
   renderTools();
   renderToolHint();
   renderZoom();
@@ -3034,6 +3228,165 @@ function renderWorkbenchFocusSummary() {
     .filter(Boolean)
     .join(" · ");
   dom.workbenchFocusSummary.hidden = state.workspaceMode !== "simple";
+}
+
+function renderProjectSwitcher() {
+  const registry = normalizeProjectRegistry(
+    state.projectRegistry || readProjectRegistry(),
+  );
+  state.projectRegistry = registry;
+  if (!dom.projectPicker) {
+    return;
+  }
+
+  const activeId = registry.activeProjectId;
+  dom.projectPicker.innerHTML = registry.projects
+    .map((project) => {
+      const frameText =
+        project.frameCount === 1 ? "1 frame" : `${project.frameCount} frames`;
+      return `<option value="${escapeHtml(project.id)}">${escapeHtml(project.title)} · ${escapeHtml(frameText)}</option>`;
+    })
+    .join("");
+  dom.projectPicker.value = activeId;
+  dom.deleteProject.disabled = registry.projects.length <= 1;
+  dom.deleteProject.title =
+    registry.projects.length <= 1
+      ? "Create or duplicate another project before deleting this one"
+      : "Delete this local project and switch to another one";
+  const active = registry.projects.find((project) => project.id === activeId);
+  dom.projectSwitcherStatus.textContent = active
+    ? `Active: ${active.title}. ${active.frameCount || 1} frame${active.frameCount === 1 ? "" : "s"} saved locally; live handoff follows this project.`
+    : "Projects are local to this browser. The active project writes the live Codex handoff.";
+}
+
+function uniqueProjectTitle(
+  baseTitle,
+  projects = state.projectRegistry?.projects || [],
+) {
+  const title = cleanString(baseTitle) || "Untitled Canvax project";
+  const existing = new Set(
+    projects.map((project) => cleanString(project.title)),
+  );
+  if (!existing.has(title)) {
+    return title;
+  }
+  let index = 2;
+  while (existing.has(`${title} ${index}`)) {
+    index += 1;
+  }
+  return `${title} ${index}`;
+}
+
+function activateProject(projectId, snapshot, status = "") {
+  const registry = normalizeProjectRegistry(state.projectRegistry);
+  const nextRegistry = writeProjectRegistry({
+    version: 1,
+    activeProjectId: projectId,
+    projects: registry.projects,
+  });
+  state.projectRegistry = nextRegistry;
+  writeProjectSnapshot(projectId, snapshot);
+  writeStorageJson(STORAGE_KEY, snapshot);
+  if (status) {
+    window.sessionStorage.setItem("canvax-project-switch-notice", status);
+  }
+  window.location.reload();
+}
+
+function switchProject(projectId) {
+  const targetId = cleanString(projectId);
+  if (!targetId || targetId === state.projectRegistry?.activeProjectId) {
+    return;
+  }
+  persistState();
+  const snapshot = readProjectSnapshot(targetId);
+  if (!snapshot) {
+    renderStatus("Project snapshot is missing in this browser");
+    renderProjectSwitcher();
+    return;
+  }
+  const project = state.projectRegistry.projects.find(
+    (item) => item.id === targetId,
+  );
+  activateProject(
+    targetId,
+    snapshot,
+    `Opened ${project?.title || "Canvax project"}`,
+  );
+}
+
+function createProject() {
+  persistState();
+  const registry = normalizeProjectRegistry(state.projectRegistry);
+  const projectId = createProjectId();
+  const nextState = createInitialState();
+  nextState.board.project = uniqueProjectTitle("Untitled Canvax project", [
+    ...registry.projects,
+  ]);
+  const snapshot = buildPersistedSnapshot(nextState);
+  const record = projectRecordFromSnapshot(projectId, snapshot);
+  state.projectRegistry = writeProjectRegistry({
+    version: 1,
+    activeProjectId: projectId,
+    projects: [record, ...registry.projects],
+  });
+  activateProject(projectId, snapshot, `Created ${record.title}`);
+}
+
+function duplicateProject() {
+  persistState();
+  const registry = normalizeProjectRegistry(state.projectRegistry);
+  const projectId = createProjectId();
+  const snapshot = structuredClone(buildPersistedSnapshot(state));
+  snapshot.board = {
+    ...snapshot.board,
+    project: uniqueProjectTitle(`${projectTitleFromSnapshot(snapshot)} copy`, [
+      ...registry.projects,
+    ]),
+  };
+  const record = projectRecordFromSnapshot(projectId, snapshot);
+  state.projectRegistry = writeProjectRegistry({
+    version: 1,
+    activeProjectId: projectId,
+    projects: [record, ...registry.projects],
+  });
+  activateProject(projectId, snapshot, `Duplicated ${record.title}`);
+}
+
+function deleteProject() {
+  const registry = normalizeProjectRegistry(state.projectRegistry);
+  const activeId = registry.activeProjectId;
+  if (registry.projects.length <= 1 || !activeId) {
+    renderStatus("Create or duplicate another project before deleting this one");
+    renderProjectSwitcher();
+    return;
+  }
+  const active = registry.projects.find((project) => project.id === activeId);
+  const confirmed = window.confirm(
+    `Delete "${active?.title || "this Canvax project"}" from this browser? This cannot be undone.`,
+  );
+  if (!confirmed) {
+    renderProjectSwitcher();
+    return;
+  }
+  const remainingProjects = registry.projects.filter(
+    (project) => project.id !== activeId,
+  );
+  window.localStorage.removeItem(projectSnapshotKey(activeId));
+  const nextProject = remainingProjects[0];
+  const nextSnapshot =
+    readProjectSnapshot(nextProject.id) ||
+    buildPersistedSnapshot(createInitialState());
+  state.projectRegistry = writeProjectRegistry({
+    version: 1,
+    activeProjectId: nextProject.id,
+    projects: remainingProjects,
+  });
+  activateProject(
+    nextProject.id,
+    nextSnapshot,
+    `Deleted ${active?.title || "project"}; opened ${nextProject.title}`,
+  );
 }
 
 function toggleWorkbenchTray() {
@@ -14251,6 +14604,9 @@ function isElementMeaningful(element) {
 function updateBoard(field, value) {
   state.board[field] = value;
   persistState();
+  if (field === "project") {
+    renderProjectSwitcher();
+  }
   if (dom.focusDesignChip) {
     const designSummary = describeDesignContext();
     dom.focusDesignChip.textContent = designSummary.label;
@@ -19718,7 +20074,9 @@ async function copyPrompt() {
 function persistState() {
   const snapshot = buildPersistedSnapshot(state);
   pruneFrameRenderCache(snapshot.frames || []);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  const projectId = syncProjectRegistryFromSnapshot(snapshot);
+  writeProjectSnapshot(projectId, snapshot);
+  writeStorageJson(STORAGE_KEY, snapshot);
   scheduleLivePreviewSync();
 }
 
@@ -20593,6 +20951,10 @@ function exposeDebugHelpers() {
     addFrame,
     duplicateFrame,
     deleteFrame,
+    createProject,
+    duplicateProject,
+    deleteProject,
+    switchProject,
     undoFrame,
     redoFrame,
     freezeFrame,
@@ -20645,6 +21007,13 @@ async function runSelfTest() {
         Object.keys(viewportPresets).length ===
           dom.viewportSelect.options.length,
         "viewport presets render",
+      ),
+    );
+    results.push(
+      assert(
+        dom.projectPicker.options.length >= 1 &&
+          dom.projectPicker.value === state.projectRegistry.activeProjectId,
+        "project switcher renders active project",
       ),
     );
     results.push(assertWorkspaceModeGuide());

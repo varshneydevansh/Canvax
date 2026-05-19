@@ -80,6 +80,23 @@ What the board is not:
 Board = scratchpad + structure + handoff
 ```
 
+Project switching is browser-local. The left rail stores a small project
+registry in browser storage plus one snapshot per project. Creating, duplicating,
+switching, or deleting a project changes which snapshot is active; the active
+snapshot is still mirrored into the legacy board storage key and into the shared
+live export path so existing Codex workflows keep working.
+
+```mermaid
+flowchart LR
+    Picker[Project picker] --> Registry[local project registry]
+    Registry --> SnapA[Project snapshot A]
+    Registry --> SnapB[Project snapshot B]
+    SnapA --> Active[Active board]
+    SnapB --> Active
+    Active --> Export[exports/canvax-live-latest]
+    Export --> Codex[Codex]
+```
+
 ### Preview
 
 Files:
@@ -196,6 +213,7 @@ Behavior:
 - shows a mode guide that explains the default loop as `Sketch`, `Talk`, and `Make / Apply`, while Advanced uses the same component to explain `Project rail`, `Canvas deck`, and `Handoff inspector`
 - shows a surface selector so mobile, tablet, desktop, poster, slide, book spread, storyboard, comic page, square, or free canvas can be chosen without opening Advanced mode
 - shows an action selector for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`
+- includes browser-local project controls in the left rail for `New`, `Duplicate`, `Delete`, and `Open project`, so designers can keep separate boards while Codex reads only the active live handoff
 - shows a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short path before they need to understand every control
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
 - exposes only four drawing tools: pen, rectangle, arrow, erase
