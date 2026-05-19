@@ -84,6 +84,21 @@ Codex behavior simple: `/canvax` still means "read the current active Canvax",
 while the picker gives designers a Stitch-like way to keep multiple local boards
 without opening multiple repo copies.
 
+Every save also writes a project-scoped latest handoff:
+
+- `exports/canvax-project-registry-latest.json`
+- `exports/canvax-project-registry-latest.md`
+- `exports/projects/<project-id>/canvax-live-latest.json`
+- `exports/projects/<project-id>/canvax-live-latest.md`
+- `exports/projects/<project-id>/canvax-task-pack-latest.json`
+- `exports/projects/<project-id>/canvax-rewrite-request-latest.json`
+- `exports/projects/<project-id>/canvax-image-prompt-pack-latest.json`
+- `exports/projects/<project-id>/assets/...`
+
+Use the shared `exports/canvax-live-latest.json` for the normal attached chat.
+Use a project-scoped path when you need to compare or recover a specific local
+project's latest handoff.
+
 ## What To Draw
 
 Canvax is intentionally generic. Use it for:

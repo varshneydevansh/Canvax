@@ -105,6 +105,15 @@ const latestCheckpointPath = resolve(
   "canvax-checkpoint-latest.json",
 );
 const sessionEventsPath = resolve(exportsRoot, "canvax-session-events.jsonl");
+const projectExportsRoot = resolve(exportsRoot, "projects");
+const projectRegistryJsonPath = resolve(
+  exportsRoot,
+  "canvax-project-registry-latest.json",
+);
+const projectRegistryMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-project-registry-latest.md",
+);
 const previewManifestPath = resolve(
   exportsRoot,
   "canvax-preview-manifest.json",
@@ -174,6 +183,7 @@ function buildTransportDescriptor(overrides = {}) {
       markdown: "exports/canvax-live-latest.md",
       voice: "exports/canvax-voice-latest.md",
       checkpoint: "exports/canvax-checkpoint-latest.json",
+      projectRegistry: "exports/canvax-project-registry-latest.json",
       taskPack: "exports/canvax-task-pack-latest.json",
       rewriteRequest: "exports/canvax-rewrite-request-latest.json",
       buildRealRequest: "exports/canvax-build-real-latest.json",
@@ -460,6 +470,9 @@ async function runCli() {
           imageGenerationBriefMarkdownPath,
           imageHostTaskJsonPath,
           imageHostTaskMarkdownPath,
+          projectExportsRoot,
+          projectRegistryJsonPath,
+          projectRegistryMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -909,6 +922,143 @@ async function serveStatic(pathname, response) {
   }
 }
 
+function normalizeProjectExportMetadata(source, exportPackage = {}) {
+  const board = exportPackage.board || {};
+  const rawId = cleanString(source?.id);
+  const title =
+    cleanString(source?.title) ||
+    cleanString(board.project) ||
+    "Canvax project";
+  const id = slugify(rawId || `${title}-${hashString(title)}`);
+  const root = join("exports", "projects", id);
+  return {
+    kind: "canvax-project",
+    storage: "browser-local-plus-file-export",
+    id,
+    title,
+    frameCount: Array.isArray(exportPackage.frames)
+      ? exportPackage.frames.length
+      : Number(source?.frameCount) || 0,
+    activeFrameId: cleanString(source?.activeFrameId || exportPackage.activeFrameId),
+    activeFrameTitle: cleanString(source?.activeFrameTitle),
+    registryPath: "exports/canvax-project-registry-latest.json",
+    handoff: {
+      root,
+      liveJsonPath: join(root, "canvax-live-latest.json"),
+      liveMarkdownPath: join(root, "canvax-live-latest.md"),
+      voiceMarkdownPath: join(root, "canvax-voice-latest.md"),
+      taskPackJsonPath: join(root, "canvax-task-pack-latest.json"),
+      taskPackMarkdownPath: join(root, "canvax-task-pack-latest.md"),
+      rewriteRequestJsonPath: join(root, "canvax-rewrite-request-latest.json"),
+      rewriteRequestMarkdownPath: join(root, "canvax-rewrite-request-latest.md"),
+      imagePromptPackJsonPath: join(
+        root,
+        "canvax-image-prompt-pack-latest.json",
+      ),
+      imagePromptPackMarkdownPath: join(
+        root,
+        "canvax-image-prompt-pack-latest.md",
+      ),
+    },
+    compatibilityHandoff: {
+      liveJsonPath: "exports/canvax-live-latest.json",
+      liveMarkdownPath: "exports/canvax-live-latest.md",
+    },
+  };
+}
+
+function attachProjectMetadata(value, project) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+  return {
+    ...value,
+    project,
+  };
+}
+
+function buildProjectRegistryRecord(project, exportJson, archiveRoot) {
+  const frames = Array.isArray(exportJson.frames) ? exportJson.frames : [];
+  const activeFrame =
+    frames.find((frame) => frame.id === exportJson.activeFrameId) ||
+    frames[0] ||
+    {};
+  return {
+    id: project.id,
+    title: project.title,
+    frameCount: frames.length,
+    activeFrameId: exportJson.activeFrameId || "",
+    activeFrameTitle: cleanString(activeFrame.title || project.activeFrameTitle),
+    updatedAt: exportJson.generatedAt || new Date().toISOString(),
+    latestExportAt: exportJson.generatedAt || new Date().toISOString(),
+    archiveRoot: toWorkspaceRelativePath(archiveRoot),
+    handoff: project.handoff,
+    compatibilityHandoff: project.compatibilityHandoff,
+  };
+}
+
+async function updateProjectRegistryExport(project, exportJson, archiveRoot) {
+  const existing = await readOptionalJson(projectRegistryJsonPath);
+  const projects = Array.isArray(existing?.projects) ? existing.projects : [];
+  const record = buildProjectRegistryRecord(project, exportJson, archiveRoot);
+  const registry = {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-project-registry",
+    generatedAt: exportJson.generatedAt || new Date().toISOString(),
+    activeProjectId: project.id,
+    activeProjectTitle: project.title,
+    projectCount: 1 + projects.filter((item) => item?.id !== project.id).length,
+    projects: [
+      record,
+      ...projects.filter((item) => item?.id && item.id !== project.id),
+    ],
+    compatibilityHandoff: {
+      liveJsonPath: "exports/canvax-live-latest.json",
+      liveMarkdownPath: "exports/canvax-live-latest.md",
+      note:
+        "The active project mirrors to these shared latest files for existing /canvax workflows.",
+    },
+  };
+  const jsonBody = `${JSON.stringify(registry, null, 2)}\n`;
+  await writeTextFileAtomic(projectRegistryJsonPath, jsonBody);
+  await writeTextFileAtomic(
+    projectRegistryMarkdownPath,
+    buildProjectRegistryMarkdown(registry),
+  );
+  return registry;
+}
+
+function buildProjectRegistryMarkdown(registry) {
+  const lines = [
+    "# Canvax Project Registry",
+    "",
+    `- Generated: ${registry.generatedAt}`,
+    `- Active project: ${registry.activeProjectTitle} (${registry.activeProjectId})`,
+    `- Project count: ${registry.projectCount}`,
+    "",
+    "## Projects",
+    "",
+  ];
+  registry.projects.forEach((project, index) => {
+    lines.push(
+      `${index + 1}. ${project.title} (${project.id})`,
+      `   - Frames: ${project.frameCount}`,
+      `   - Active frame: ${project.activeFrameTitle || project.activeFrameId}`,
+      `   - Latest handoff: ${project.handoff?.liveJsonPath || ""}`,
+      `   - Archive: ${project.archiveRoot || ""}`,
+      "",
+    );
+  });
+  lines.push(
+    "## Compatibility",
+    "",
+    "- Codex should keep reading `exports/canvax-live-latest.json` unless the user explicitly asks for a specific project path.",
+    "- The project-scoped files preserve each active project's latest handoff under `exports/projects/<project-id>/`.",
+    "",
+  );
+  return `${lines.join("\n")}\n`;
+}
+
 async function handleSaveExport(request, response) {
   const payload = await readJson(request);
   if (!payload.package || !Array.isArray(payload.package.frames)) {
@@ -918,6 +1068,10 @@ async function handleSaveExport(request, response) {
   }
 
   const timestamp = buildTimestamp();
+  const project = normalizeProjectExportMetadata(
+    payload.package.project,
+    payload.package,
+  );
   const archiveSlug = slugify(
     payload.package.board?.project || "canvax-storyboard",
   );
@@ -928,11 +1082,15 @@ async function handleSaveExport(request, response) {
   );
   const assetRoot = resolve(exportsRoot, "assets");
   const archiveAssetRoot = resolve(archiveRoot, "assets");
+  const activeProjectRoot = resolve(projectExportsRoot, project.id);
+  const projectAssetRoot = resolve(activeProjectRoot, "assets");
 
   await mkdir(assetRoot, { recursive: true });
   await mkdir(archiveAssetRoot, { recursive: true });
+  await mkdir(projectAssetRoot, { recursive: true });
 
   const savedFrames = [];
+  const projectSavedFrames = [];
 
   for (const frame of payload.package.frames) {
     const frameSlug = `${String(frame.index).padStart(2, "0")}-${slugify(frame.title || `frame-${frame.index}`)}`;
@@ -943,23 +1101,36 @@ async function handleSaveExport(request, response) {
     const archiveSnapshotPath = resolve(archiveAssetRoot, snapshotName);
     const latestThumbPath = resolve(assetRoot, thumbName);
     const archiveThumbPath = resolve(archiveAssetRoot, thumbName);
+    const projectSnapshotPath = resolve(projectAssetRoot, snapshotName);
+    const projectThumbPath = resolve(projectAssetRoot, thumbName);
 
     if (frame.snapshotDataUrl) {
       const snapshotBuffer = decodeDataUrl(frame.snapshotDataUrl);
       await writeFile(latestSnapshotPath, snapshotBuffer);
       await writeFile(archiveSnapshotPath, snapshotBuffer);
+      await writeFile(projectSnapshotPath, snapshotBuffer);
     }
 
     if (frame.thumbnailDataUrl) {
       const thumbnailBuffer = decodeDataUrl(frame.thumbnailDataUrl);
       await writeFile(latestThumbPath, thumbnailBuffer);
       await writeFile(archiveThumbPath, thumbnailBuffer);
+      await writeFile(projectThumbPath, thumbnailBuffer);
     }
 
     savedFrames.push({
       ...frame,
       snapshotPath: join("exports", "assets", snapshotName),
       thumbnailPath: join("exports", "assets", thumbName),
+      snapshotDataUrl: undefined,
+      thumbnailDataUrl: undefined,
+    });
+    projectSavedFrames.push({
+      ...frame,
+      snapshotPath: join(project.handoff.root, "assets", snapshotName),
+      thumbnailPath: join(project.handoff.root, "assets", thumbName),
+      compatibilitySnapshotPath: join("exports", "assets", snapshotName),
+      compatibilityThumbnailPath: join("exports", "assets", thumbName),
       snapshotDataUrl: undefined,
       thumbnailDataUrl: undefined,
     });
@@ -971,7 +1142,13 @@ async function handleSaveExport(request, response) {
       Number(payload.package.schemaVersion) || HANDOFF_SCHEMA_VERSION,
     storageVersion: Number(payload.package.storageVersion) || 0,
     transport: normalizeTransportDescriptor(payload.package.transport),
+    project,
     frames: savedFrames,
+  };
+  const projectExportJson = {
+    ...exportJson,
+    project,
+    frames: projectSavedFrames,
   };
 
   await mkdir(archiveRoot, { recursive: true });
@@ -998,18 +1175,19 @@ async function handleSaveExport(request, response) {
     "image-prompt-pack.md",
   );
   const jsonBody = JSON.stringify(exportJson, null, 2);
+  const projectJsonBody = JSON.stringify(projectExportJson, null, 2);
   const markdownBody = payload.markdown || payload.package.prompt || "";
   const voiceMarkdownBody = payload.voiceMarkdown || "";
   const taskPackBody = payload.package.taskPack
-    ? `${JSON.stringify(payload.package.taskPack, null, 2)}\n`
+    ? `${JSON.stringify(attachProjectMetadata(payload.package.taskPack, project), null, 2)}\n`
     : "";
   const taskPackMarkdownBody = payload.taskPackMarkdown || "";
   const rewriteRequestBody = payload.package.rewriteRequest
-    ? `${JSON.stringify(payload.package.rewriteRequest, null, 2)}\n`
+    ? `${JSON.stringify(attachProjectMetadata(payload.package.rewriteRequest, project), null, 2)}\n`
     : "";
   const rewriteRequestMarkdownBody = payload.rewriteRequestMarkdown || "";
   const imagePromptPackBody = payload.package.imagePromptPack
-    ? `${JSON.stringify(payload.package.imagePromptPack, null, 2)}\n`
+    ? `${JSON.stringify(attachProjectMetadata(payload.package.imagePromptPack, project), null, 2)}\n`
     : "";
   const imagePromptPackMarkdownBody = payload.imagePromptPackMarkdown || "";
 
@@ -1020,22 +1198,50 @@ async function handleSaveExport(request, response) {
   await writeTextFileAtomic(liveJsonPath, jsonBody);
   await writeTextFileAtomic(liveMarkdownPath, markdownBody);
   await writeTextFileAtomic(liveVoiceMarkdownPath, voiceMarkdownBody);
+  await writeTextFileAtomic(
+    resolve(activeProjectRoot, "canvax-live-latest.json"),
+    projectJsonBody,
+  );
+  await writeTextFileAtomic(
+    resolve(activeProjectRoot, "canvax-live-latest.md"),
+    markdownBody,
+  );
+  await writeTextFileAtomic(
+    resolve(activeProjectRoot, "canvax-voice-latest.md"),
+    voiceMarkdownBody,
+  );
   await writeFile(archiveVoiceMarkdownPath, voiceMarkdownBody);
   if (taskPackBody) {
     await writeTextFileAtomic(taskPackJsonPath, taskPackBody);
+    await writeTextFileAtomic(
+      resolve(activeProjectRoot, "canvax-task-pack-latest.json"),
+      taskPackBody,
+    );
     await writeFile(archiveTaskPackJsonPath, taskPackBody);
   }
   if (taskPackMarkdownBody) {
     await writeTextFileAtomic(taskPackMarkdownPath, taskPackMarkdownBody);
+    await writeTextFileAtomic(
+      resolve(activeProjectRoot, "canvax-task-pack-latest.md"),
+      taskPackMarkdownBody,
+    );
     await writeFile(archiveTaskPackMarkdownPath, taskPackMarkdownBody);
   }
   if (rewriteRequestBody) {
     await writeTextFileAtomic(rewriteRequestJsonPath, rewriteRequestBody);
+    await writeTextFileAtomic(
+      resolve(activeProjectRoot, "canvax-rewrite-request-latest.json"),
+      rewriteRequestBody,
+    );
     await writeFile(archiveRewriteRequestJsonPath, rewriteRequestBody);
   }
   if (rewriteRequestMarkdownBody) {
     await writeTextFileAtomic(
       rewriteRequestMarkdownPath,
+      rewriteRequestMarkdownBody,
+    );
+    await writeTextFileAtomic(
+      resolve(activeProjectRoot, "canvax-rewrite-request-latest.md"),
       rewriteRequestMarkdownBody,
     );
     await writeFile(
@@ -1045,6 +1251,10 @@ async function handleSaveExport(request, response) {
   }
   if (imagePromptPackBody) {
     await writeTextFileAtomic(imagePromptPackJsonPath, imagePromptPackBody);
+    await writeTextFileAtomic(
+      resolve(activeProjectRoot, "canvax-image-prompt-pack-latest.json"),
+      imagePromptPackBody,
+    );
     await writeFile(archiveImagePromptPackJsonPath, imagePromptPackBody);
   }
   if (imagePromptPackMarkdownBody) {
@@ -1052,11 +1262,20 @@ async function handleSaveExport(request, response) {
       imagePromptPackMarkdownPath,
       imagePromptPackMarkdownBody,
     );
+    await writeTextFileAtomic(
+      resolve(activeProjectRoot, "canvax-image-prompt-pack-latest.md"),
+      imagePromptPackMarkdownBody,
+    );
     await writeFile(
       archiveImagePromptPackMarkdownPath,
       imagePromptPackMarkdownBody,
     );
   }
+  const projectRegistry = await updateProjectRegistryExport(
+    project,
+    projectExportJson,
+    archiveRoot,
+  );
 
   return writeJson(response, 200, {
     archiveRoot,
@@ -1069,6 +1288,12 @@ async function handleSaveExport(request, response) {
     rewriteRequestMarkdownPath,
     imagePromptPackJsonPath,
     imagePromptPackMarkdownPath,
+    project,
+    projectJsonPath: resolve(activeProjectRoot, "canvax-live-latest.json"),
+    projectMarkdownPath: resolve(activeProjectRoot, "canvax-live-latest.md"),
+    projectRegistryJsonPath,
+    projectRegistryMarkdownPath,
+    projectRegistry,
     transport: buildTransportDescriptor(),
   });
 }
@@ -2715,6 +2940,7 @@ async function handlePreviewState(response) {
   const previewTweak = enhancePreviewTweak(
     await readOptionalJson(previewTweakJsonPath),
   );
+  const projectRegistry = await readOptionalJson(projectRegistryJsonPath);
   const codexOutputManifest = await readOptionalJson(codexOutputManifestPath);
   const workspaceFollow = await buildLiveWorkspaceFollowState({
     liveExport,
@@ -2749,6 +2975,7 @@ async function handlePreviewState(response) {
     outputDigest,
     previewSnapshots,
     previewTweak,
+    projectRegistry,
     paths: {
       liveJsonPath,
       liveMarkdownPath,
@@ -2763,6 +2990,9 @@ async function handlePreviewState(response) {
       imageGenerationBriefMarkdownPath,
       imageHostTaskJsonPath,
       imageHostTaskMarkdownPath,
+      projectExportsRoot,
+      projectRegistryJsonPath,
+      projectRegistryMarkdownPath,
       transcriptBridgePath,
       transcriptBridgeMarkdownPath,
       checkpointLatestPath: latestCheckpointPath,

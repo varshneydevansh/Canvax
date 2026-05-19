@@ -421,6 +421,25 @@ localStorage
       mirror of active project for compatibility
 ```
 
+The local service mirrors that active project into durable project-scoped files:
+
+```text
+exports/
+  canvax-live-latest.json                 # active compatibility handoff
+  canvax-project-registry-latest.json     # file-backed project index
+  projects/<project-id>/
+      canvax-live-latest.json             # active project latest handoff
+      canvax-task-pack-latest.json
+      canvax-rewrite-request-latest.json
+      canvax-image-prompt-pack-latest.json
+      assets/
+```
+
+The browser export payload carries a `project` object with the active project id,
+title, registry path, project-scoped handoff paths, and compatibility handoff
+paths. The service uses that metadata to write both the shared latest files and
+the project-specific latest files from the same save request.
+
 Workspace mode is part of the state model:
 
 ```text

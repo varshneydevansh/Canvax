@@ -241,9 +241,13 @@ Canvax today
 
 The project picker is the first Stitch-like project-management slice. It gives
 designers separate local boards without changing the Codex contract: the active
-project writes the single `exports/canvax-live-latest.*` handoff. Remaining
-parity gaps are hosted/team project lists, thumbnails synced outside browser
-storage, and a native Codex project surface.
+project writes the single `exports/canvax-live-latest.*` compatibility handoff.
+The service also writes `exports/canvax-project-registry-latest.*` and
+project-scoped latest handoffs under `exports/projects/<project-id>/`, so Codex
+can recover or compare a specific local project without relying only on browser
+storage. Remaining parity gaps are hosted/team project lists, thumbnails synced
+outside browser storage, project-scoped generated artifact/checkpoint folders,
+and a native Codex project surface.
 
 ## What Is Done
 

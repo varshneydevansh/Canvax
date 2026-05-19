@@ -46,6 +46,11 @@ const latestCheckpointPath = resolve(
   "exports",
   "canvax-checkpoint-latest.json",
 );
+const projectRegistryPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-project-registry-latest.json",
+);
 const previewManifestPath = resolve(
   projectRoot,
   "exports",
@@ -132,6 +137,9 @@ await validateOptionalJsonSchema(
     Number.isInteger(value?.schemaVersion) &&
     value.schemaVersion >= 1 &&
     Array.isArray(value?.frames) &&
+    (!value.project ||
+      (value.project.kind === "canvax-project" &&
+        value.project.handoff?.liveJsonPath?.startsWith("exports/projects/"))) &&
     validateSpatialWorkspaceWhenPresent(value?.spatialWorkspace),
   "live export schema is valid",
   { allowLegacyWithoutSchema: true },
@@ -142,6 +150,8 @@ await validateOptionalJsonSchema(
     value?.kind === "canvax-task-pack" &&
     Number.isInteger(value?.schemaVersion) &&
     value.schemaVersion >= 1 &&
+    (!value.project ||
+      value.project.handoff?.taskPackJsonPath?.startsWith("exports/projects/")) &&
     Array.isArray(value?.frames),
   "task pack schema is valid",
 );
@@ -240,6 +250,19 @@ await validateOptionalJsonSchema(
     value.schemaVersion >= 1 &&
     typeof value?.reason === "string",
   "checkpoint schema is valid",
+);
+await validateOptionalJsonSchema(
+  projectRegistryPath,
+  (value) =>
+    value?.kind === "canvax-project-registry" &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    typeof value?.activeProjectId === "string" &&
+    Array.isArray(value?.projects) &&
+    value.projects.every((project) =>
+      project?.handoff?.liveJsonPath?.startsWith("exports/projects/"),
+    ),
+  "project registry schema is valid",
 );
 await validateOptionalJsonSchema(
   previewManifestPath,

@@ -1894,6 +1894,69 @@ function syncProjectRegistryFromSnapshot(snapshot) {
   return projectId;
 }
 
+function projectPathSegment(projectId) {
+  return (
+    cleanString(projectId)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "default"
+  );
+}
+
+function buildProjectHandoffPaths(projectId = state?.projectRegistry?.activeProjectId) {
+  const segment = projectPathSegment(projectId);
+  const root = `exports/projects/${segment}`;
+  return {
+    root,
+    liveJsonPath: `${root}/canvax-live-latest.json`,
+    liveMarkdownPath: `${root}/canvax-live-latest.md`,
+    voiceMarkdownPath: `${root}/canvax-voice-latest.md`,
+    taskPackJsonPath: `${root}/canvax-task-pack-latest.json`,
+    taskPackMarkdownPath: `${root}/canvax-task-pack-latest.md`,
+    rewriteRequestJsonPath: `${root}/canvax-rewrite-request-latest.json`,
+    rewriteRequestMarkdownPath: `${root}/canvax-rewrite-request-latest.md`,
+    imagePromptPackJsonPath: `${root}/canvax-image-prompt-pack-latest.json`,
+    imagePromptPackMarkdownPath: `${root}/canvax-image-prompt-pack-latest.md`,
+  };
+}
+
+function buildProjectExportMetadata() {
+  const registry = normalizeProjectRegistry(
+    state?.projectRegistry || readProjectRegistry(),
+  );
+  const active =
+    registry.projects.find((project) => project.id === registry.activeProjectId) ||
+    projectRecordFromSnapshot(
+      registry.activeProjectId || "default",
+      buildPersistedSnapshot(state),
+    );
+  const handoff = buildProjectHandoffPaths(active.id);
+  return {
+    kind: "canvax-project",
+    storage: "browser-local-plus-file-export",
+    id: active.id,
+    title: cleanString(state?.board?.project) || active.title,
+    frameCount: Array.isArray(state?.frames) ? state.frames.length : active.frameCount,
+    activeFrameId: state?.activeFrameId || "",
+    activeFrameTitle: frameTitleById(state?.activeFrameId) || active.activeFrameTitle,
+    registryPath: "exports/canvax-project-registry-latest.json",
+    handoff,
+    compatibilityHandoff: {
+      liveJsonPath: "exports/canvax-live-latest.json",
+      liveMarkdownPath: "exports/canvax-live-latest.md",
+      note:
+        "The active project also mirrors to the shared compatibility handoff for existing /canvax workflows.",
+    },
+    projects: registry.projects.map((project) => ({
+      id: project.id,
+      title: project.title,
+      frameCount: project.frameCount,
+      activeFrameTitle: project.activeFrameTitle,
+      updatedAt: project.updatedAt,
+    })),
+  };
+}
+
 function hydrateState() {
   const empty = createInitialState();
   const projectRegistry = ensureProjectRegistry(empty);
@@ -2180,6 +2243,7 @@ function buildTransportDescriptor(overrides = {}) {
       markdown: "exports/canvax-live-latest.md",
       voice: "exports/canvax-voice-latest.md",
       checkpoint: "exports/canvax-checkpoint-latest.json",
+      projectRegistry: "exports/canvax-project-registry-latest.json",
     },
     liveMirror: {
       type: "browser-storage",
@@ -16382,6 +16446,7 @@ function buildPromptMarkdown() {
   const actionMode = currentActionMode();
   const designContext = currentDesignContextForExport();
   const designKit = buildDesignKitSummary(state.frames);
+  const projectHandoff = buildProjectExportMetadata();
   const lines = [
     `# ${state.board.project || "Canvax live canvas"}`,
     "",
@@ -16394,6 +16459,8 @@ function buildPromptMarkdown() {
     `- Preferred screen generation: ${generationRecipe}`,
     `- Design rules: ${designContext.exists ? designContext.relativePath : "No DESIGN.md found"}`,
     `- Design kit: ${designKit.statusLabel} (${designKit.sources.map((source) => source.label).slice(0, 4).join("; ")})`,
+    `- Active project id: ${projectHandoff.id}`,
+    `- Project-scoped live handoff: ${projectHandoff.handoff.liveJsonPath}`,
     "",
     "## How Codex should read this",
     "- Treat frame order as sequence, alternate states, or visual variants depending on the notes.",
@@ -16684,12 +16751,14 @@ async function buildExportPackage(frameSelection = state.frames) {
   const assetCandidatePack = buildAssetCandidatePack(imagePromptPack);
   const spatialWorkspace = buildSpatialWorkspaceExport();
   const rewriteRequest = buildRewriteRequest(selectedFrames, rewriteQueue);
+  const project = buildProjectExportMetadata();
 
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     storageVersion: STORAGE_VERSION,
     generatedAt: new Date().toISOString(),
     transport: currentTransportDescriptor(),
+    project,
     workspaceMode: state.workspaceMode,
     board: state.board,
     activeFrameId: state.activeFrameId,
@@ -16731,6 +16800,7 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
     generatedAt: new Date().toISOString(),
     requiresOpenAiApiKey: false,
     source: "canvax-live-workbench",
+    project: buildProjectExportMetadata(),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
     board: {
@@ -17820,6 +17890,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
       note:
         "Canvax prepares the task. Codex/ChatGPT host capabilities may generate images or code when available.",
     },
+    project: buildProjectExportMetadata(),
     designContext: currentDesignContextForExport(),
     designKit: buildDesignKitSummary(frames),
     board: structuredClone(state.board),
@@ -17865,6 +17936,7 @@ function buildImagePromptPack(frames) {
       "Codex/ChatGPT image generation host lane, if available in the current chat.",
     actionMode: actionMode.id,
     actionModeLabel: actionMode.label,
+    project: buildProjectExportMetadata(),
     designContext: currentDesignContextForExport(),
     designKit: buildDesignKitSummary(frames),
     activeFrameId: state.activeFrameId,
@@ -20107,6 +20179,7 @@ function buildLivePreviewPayload() {
     updatedAt: new Date().toISOString(),
     transport: currentTransportDescriptor(),
     workspaceMode: state.workspaceMode,
+    project: buildProjectExportMetadata(),
     liveMarkdown: buildPromptMarkdown(),
     liveVoiceMarkdown: buildVoiceMarkdown(),
     previewManifest: state.serverStatus.previewManifest || null,
@@ -20115,6 +20188,7 @@ function buildLivePreviewPayload() {
       generatedAt: new Date().toISOString(),
       transport: currentTransportDescriptor(),
       workspaceMode: state.workspaceMode,
+      project: buildProjectExportMetadata(),
       board: structuredClone(state.board),
       activeFrameId: state.activeFrameId,
       entryFrameId: state.entryFrameId,

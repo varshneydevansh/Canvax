@@ -79,6 +79,8 @@ Prefer these files when they exist:
 
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
+- `exports/canvax-project-registry-latest.json`
+- `exports/canvax-project-registry-latest.md`
 - `exports/canvax-voice-latest.md`
 - `exports/canvax-task-pack-latest.json`
 - `exports/canvax-task-pack-latest.md`
@@ -101,6 +103,11 @@ Prefer these files when they exist:
 - `exports/canvax-storyboard-latest.md`
 
 The live JSON export is the primary source because it includes frame metadata and the saved image paths.
+
+When multiple local Canvax projects exist, keep using
+`exports/canvax-live-latest.json` for the active chat unless the user asks for a
+specific project. The file-backed project registry points to each project's
+latest handoff under `exports/projects/<project-id>/`.
 
 The task pack and image prompt pack may include `actionMode`, `hostLane`, and `designContext`. Use those fields to decide whether the user is asking for implementation, refinement, specs, image prompting, or variations, and to avoid promising native host features that the current local board does not expose.
 

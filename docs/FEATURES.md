@@ -97,6 +97,20 @@ flowchart LR
     Export --> Codex[Codex]
 ```
 
+The local service also writes a file-backed project registry and a latest
+handoff folder for the active project:
+
+```text
+exports/canvax-project-registry-latest.json
+exports/projects/<project-id>/
+  canvax-live-latest.json
+  canvax-live-latest.md
+  canvax-task-pack-latest.json
+  canvax-rewrite-request-latest.json
+  canvax-image-prompt-pack-latest.json
+  assets/
+```
+
 ### Preview
 
 Files:
