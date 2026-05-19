@@ -709,6 +709,13 @@ these command shapes: `summary`, `current-frame`, `spatial-workspace`,
 contract today and defines the payload future MCP/native host tools should
 mirror.
 
+`scripts/review-visual-snapshot.mjs` is the local screenshot-review bridge. It
+uses the image-token extractor path to sample PNG/BMP browser screenshots, then
+checks dimensions, sample count, palette variety, dominant-color balance, and
+contrast spread. This gives Canvax a no-API visual smoke gate over actual
+browser snapshots. It still does not inspect the live DOM, layout tree, motion,
+or semantic design quality.
+
 ```text
 reference CSS / HTML / JSX / sketch / image samples
   -> design token pack
@@ -721,6 +728,7 @@ reference CSS / HTML / JSX / sketch / image samples
   -> verify-token-enforcement --manifest
   -> production-port-proof fixture
   -> canvax-inspect read-only bridge
+  -> review-visual-snapshot screenshot gate
 ```
 
 Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. The Workbench candidate tray lets users copy a one-candidate host task, place those records as editable frame slots, or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.

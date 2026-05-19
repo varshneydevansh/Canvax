@@ -210,6 +210,23 @@ styles, and `data-canvax-node-id` bindings. It does not render screenshots or
 inspect a live DOM; use it as a pre-port gate, not as a replacement for visual
 review.
 
+Review browser screenshots after `npm run browser-regression` when you want a
+local pixel-level smoke check:
+
+```bash
+npm run review-snapshot
+npm run review-snapshot -- --image artifacts/canvax/browser-snapshots/latest/board-desktop-1440x1024.png --dry-run --json
+```
+
+`review-snapshot` writes
+`exports/canvax-visual-snapshot-review-latest.json` and `.md`. It samples local
+image pixels through the same no-API image pipeline used by `extract-tokens`,
+then checks dimensions, pixel sample count, palette variety, dominant-color
+balance, and contrast spread. This can catch blank screenshots, clipped
+captures, and very flat outputs. It does not understand layout semantics,
+animation, or live DOM behavior, so keep manual/browser visual review for design
+quality decisions.
+
 The verifier reads the contract palette and checks nearby CSS/HTML/JSX files for
 those colors. It is local, does not call an AI model, and does not require
 `OPENAI_API_KEY`. This is useful after importing a design system from another

@@ -67,6 +67,11 @@ const artifactReviewPath = resolve(
   "exports",
   "canvax-artifact-review-latest.json",
 );
+const visualSnapshotReviewPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-visual-snapshot-review-latest.json",
+);
 const productionPortProofPath = resolve(
   projectRoot,
   "artifacts",
@@ -90,6 +95,7 @@ await validateExecuteBuildRequestDryRun();
 await validateExecuteRewriteRequestDryRun();
 await validateExternalDesignTokenExtractorDryRun();
 await validateImageDesignTokenExtractorDryRun();
+await validateVisualSnapshotReviewDryRun();
 await validateDesignKitLibraryPackageDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
@@ -253,6 +259,16 @@ await validateOptionalJsonSchema(
     value.schemaVersion >= 1 &&
     Array.isArray(value?.checks),
   "artifact design review schema is valid",
+);
+await validateOptionalJsonSchema(
+  visualSnapshotReviewPath,
+  (value) =>
+    value?.kind === "canvax-visual-snapshot-review" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.snapshots),
+  "visual snapshot review schema is valid",
 );
 await validateOptionalJsonSchema(
   productionPortProofPath,
@@ -524,6 +540,70 @@ async function validateImageDesignTokenExtractorDryRun() {
   } catch (error) {
     results.push({
       name: "image design token extractor dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateVisualSnapshotReviewDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "regression-token-fixture");
+  const imagePath = resolve(fixtureRoot, "visual-review.bmp");
+  const palette = [
+    "#171412",
+    "#fff8ec",
+    "#e85d3a",
+    "#f2b84b",
+    "#14323f",
+    "#0c8d7b",
+    "#f8e8d8",
+    "#302828",
+  ];
+  const width = 100;
+  const height = 80;
+  try {
+    await mkdir(fixtureRoot, { recursive: true });
+    await writeFile(
+      imagePath,
+      buildBmpFixture(
+        width,
+        height,
+        Array.from({ length: width * height }, (_, index) => {
+          const x = index % width;
+          const y = Math.floor(index / width);
+          return palette[(x + y) % palette.length];
+        }),
+      ),
+    );
+    const { stdout } = await runCommand("node", [
+      "scripts/review-visual-snapshot.mjs",
+      "--image",
+      imagePath,
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const snapshot = payload.snapshots?.[0];
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-visual-snapshot-review" &&
+        payload.requiresOpenAiApiKey === false &&
+        ["pass", "review"].includes(payload.status) &&
+        snapshot?.dimensions?.width === width &&
+        snapshot?.dimensions?.height === height &&
+        snapshot?.checks?.some((check) => check.id === "palette-variety") &&
+        snapshot?.checks?.some((check) => check.id === "contrast-spread"),
+    );
+    results.push({
+      name: "visual snapshot review dry-run is valid",
+      passed,
+      detail: passed
+        ? `${payload.status} ${payload.score}/100`
+        : "visual snapshot review did not inspect expected local image",
+    });
+  } catch (error) {
+    results.push({
+      name: "visual snapshot review dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

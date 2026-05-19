@@ -108,6 +108,7 @@ Status: In progress
 - [x] `npm run extract-tokens -- --image <local-screenshot>` samples local raster screenshots/images into the same importable external token pack without an API key
 - [x] `npm run extract-tokens` emits a no-API `semanticStructure` block for HTML/JSX artifacts, including landmarks, component signals, actions, forms, headings, class signals, and Canvax node bindings
 - [x] `npm run review-artifact` emits a no-API static design-readiness review for generated HTML/CSS artifacts before production porting
+- [x] `npm run review-snapshot` emits a no-API pixel-level visual snapshot review for browser screenshots, covering dimensions, palette variety, dominant color balance, blankness risk, and contrast spread
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service
 - [x] Isolated service lifecycle regression covers start, reuse, port mismatch, restart, status, and stop on throwaway ports without disrupting the default board
 - [x] CLI can recover a matching Canvax service from `/api/status` when runtime files are stale or missing

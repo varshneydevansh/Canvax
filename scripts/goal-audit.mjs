@@ -285,6 +285,16 @@ const checks = [
         ],
       },
       {
+        path: "scripts/review-visual-snapshot.mjs",
+        includes: [
+          "canvax-visual-snapshot-review",
+          "requiresOpenAiApiKey: false",
+          "palette-variety",
+          "dominant-color",
+          "contrast-spread",
+        ],
+      },
+      {
         path: "scripts/execute-build-request.mjs",
         includes: [
           "applyDesignTokenPalette",
@@ -329,6 +339,7 @@ const checks = [
           "image design token extractor dry-run is valid",
           "design kit library packager dry-run is valid",
           "artifact design review dry-run is valid",
+          "visual snapshot review dry-run is valid",
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
@@ -337,7 +348,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, and a local read-only inspection CLI are proven, but hosted/team kit-library sharing, a first-class MCP/native host bridge, live browser visual critique, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, and a local read-only inspection CLI are proven, but hosted/team kit-library sharing, a first-class MCP/native host bridge, live DOM/AI browser visual critique, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -428,6 +439,7 @@ const checks = [
           "browser-regression",
           "production-port-proof",
           "inspect",
+          "review-snapshot",
           "regression",
         ],
       },

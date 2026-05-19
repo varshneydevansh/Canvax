@@ -68,6 +68,15 @@ lesson is not "be another prompt generator"; it is "make reusable design
 intelligence a local, inspectable project asset" through skills, design systems,
 prompt packs, previews, exports, and tool bridges that Codex can modify.
 
+The newest Open Design benchmark sharpens four next product gaps:
+
+- first-class MCP/native host tools instead of only a CLI inspection bridge
+- a named design-critique or design-jury stage over generated surfaces
+- live preview tweak targeting where a selected output region becomes a Codex
+  correction request
+- code-folder/project linking that proves Canvax can operate against a real app,
+  not only deterministic local fixtures
+
 ## Implementation Status
 
 Current completed baseline:
@@ -131,6 +140,10 @@ Current completed baseline:
   rewrite request, and Codex output manifest into a stable no-API inspection
   payload for the current frame, spatial workspace, design kit, and output
   binding. This is the local precursor to a future MCP/native host bridge.
+- `npm run review-snapshot` now samples browser screenshots locally and writes a
+  no-API visual snapshot review for dimensions, blankness risk, palette variety,
+  dominant-color balance, and contrast spread. This strengthens browser
+  regression artifacts without claiming live DOM or hosted AI visual critique.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every

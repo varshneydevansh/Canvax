@@ -91,10 +91,12 @@ file-based `SKILL.md` bundles, a large `DESIGN.md` design-system catalog,
 agent/CLI adapters, first-turn discovery forms, deterministic direction
 pickers, streaming plan/progress cards, sandboxed preview artifacts, MCP-style
 live file access, export formats, and media prompt galleries live together
-instead of being separate products. Their live site and repository snippets are
-moving quickly and do not always show the same catalog counts, so Canvax should
-benchmark the workflow shape instead of copying a specific number of skills or
-systems.
+instead of being separate products. Their live site currently positions the
+product around 131 skills and 150 systems, while the GitHub README/release notes
+show different fast-moving counts and a v0.4.x feature wave around `od mcp`,
+live artifacts, tweaks-mode previews, code-folder linking, and a design-jury
+critique loop. Canvax should benchmark the workflow shape instead of copying a
+specific number of skills or systems.
 
 Canvax should not copy Open Design's exact architecture. It should match the
 user-facing benefit in a Codex-native way: the designer chooses a reusable
@@ -119,6 +121,11 @@ The useful lesson for Canvax:
 - Show live plan/progress as designer-facing state. Canvax should continue
   turning build/rewrite/image tasks into visible output cards, rewrite queues,
   checkpoint history, and task status instead of burying them in terminal logs.
+- Add an explicit design-review pass. Open Design's design-jury / critique
+  pattern is the right benchmark: Canvax now has static artifact review and
+  pixel-level screenshot review, but the next level is a named review state that
+  grades hierarchy, brand fit, accessibility, motion/readability, and production
+  readiness before a generated surface is treated as shippable.
 - Provide a read-only tool bridge for host agents. Open Design's MCP idea maps
   well to a Canvax local tool surface where Codex/ChatGPT can call
   `get_current_frame`, `get_spatial_workspace`, `get_design_kit`, and
@@ -137,7 +144,10 @@ The useful lesson for Canvax:
   critique. Basic local screenshot palette extraction now exists through
   `npm run extract-tokens -- --image <path>`, static HTML/JSX artifact semantics
   now export through `semanticStructure`, and static artifact readiness checks
-  now run through `npm run review-artifact`.
+  now run through `npm run review-artifact`. `npm run review-snapshot` adds a
+  no-API pixel-level browser screenshot review for blankness, dimensions,
+  palette variety, dominant-color balance, and contrast spread; true live DOM
+  or AI visual critique remains open.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.
@@ -148,6 +158,11 @@ The useful lesson for Canvax:
   generated previews, Codex-built app previews, and host-generated media so the
   user always knows whether they are looking at a sketch, a scaffold, a real app
   route, or an image candidate.
+- Make tweak-mode feel native. Open Design's live-reload and click-to-tweak HTML
+  preview reinforces that Canvax Preview should let the user select generated
+  output regions, attach a correction mark or note, and hand the exact target
+  back to Codex without making the user return to raw JSON, terminal output, or
+  manual screenshot descriptions.
 - Make output cards understandable to designers. Generated implementation
   references should read as `Generated screen`, `Generated file`, and
   `Code change`, never as raw manifest labels like `generated-target`.
@@ -434,6 +449,9 @@ fixture, binds it through a Codex output manifest, and runs token enforcement
 plus artifact review across those files. `npm run inspect` reads the latest
 Canvax exports and manifests into a stable no-API inspection payload for current
 frame, spatial workspace, design kit, and output bindings.
+`npm run review-snapshot` samples the latest browser snapshots as a local
+visual smoke gate, so screenshot artifacts are not only archived but also
+checked for blank/flat/clipped risks.
 
 Needed:
 
@@ -453,6 +471,9 @@ Needed:
 - Let Codex inspect the live board without copy/paste exports.
   **Local read-only CLI shipped through `npm run inspect`; true MCP/native host
   tool registration remains open.**
+- Add live visual critique for generated/browser output.
+  **Local pixel-level screenshot review shipped through `npm run
+  review-snapshot`; live DOM/motion/AI critique remains open.**
 
 ### 6. Image Model And Asset Workflow
 
