@@ -87,7 +87,7 @@ flowchart LR
 - Opens a browser-based canvas optimized for Mac trackpad, mouse, or stylus use.
 - Starts in `Workbench`, a simplified talk-and-draw mode that keeps sketch, surface choice, generated output, correction marks, voice, apply, and preview actions available without the full advanced UI.
 - Adds local project switching in both Workbench and the Advanced left rail: create a blank project, duplicate the current board, switch between browser-local projects, and delete a project when another one exists. The active project remains the one that writes `exports/canvax-live-latest.*` for Codex.
-- Writes `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/`, so each local project has recoverable live JSON/Markdown, task, rewrite, image-prompt, voice, and asset files while `/canvax` still reads the active compatibility handoff.
+- Writes `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/`, so each local project has recoverable live JSON/Markdown, task, rewrite, image-prompt, voice, asset, image-host, build-request, and checkpoint files while `/canvax` still reads the active compatibility handoff.
 - Adds a floating designer rail in `Focus canvas`, so tools, undo/redo, dictation, Make, and Apply stay available when the tray is intentionally hidden for canvas-first work.
 - Keeps a compact frame/surface/action/focus summary visible when the Workbench tray is hidden, so canvas-first mode does not lose context.
 - Adds a bottom Workbench command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching.
@@ -378,7 +378,15 @@ Canvax writes live handoff files under `exports/`:
 - `exports/canvax-live-latest.json`
 - `exports/canvax-live-latest.md`
 - `exports/canvax-voice-latest.md`
+- `exports/canvax-task-pack-latest.json`
+- `exports/canvax-rewrite-request-latest.json`
+- `exports/canvax-image-prompt-pack-latest.json`
+- `exports/canvax-asset-candidates-latest.json`
+- `exports/canvax-image-generation-brief-latest.json`
+- `exports/canvax-image-host-task-latest.json`
+- `exports/canvax-build-real-latest.json`
 - `exports/canvax-checkpoint-latest.json`
+- `exports/canvax-project-registry-latest.json`
 - `exports/canvax-session-events.jsonl`
 - `exports/canvax-preview-manifest.json`
 - `exports/canvax-project-link-latest.json`
@@ -434,6 +442,7 @@ Checkpoint mode now adds:
 - `exports/canvax-checkpoint-latest.json` as the latest merged sketch + voice + output handoff
 - `exports/canvax-session-events.jsonl` as the append-only checkpoint event log
 - `artifacts/canvax/checkpoints/` as durable saved checkpoint records
+- `exports/projects/<project-id>/canvax-checkpoint-latest.json` and `exports/projects/<project-id>/canvax-checkpoints.json` as the active project's recoverable checkpoint latest/index
 
 ## Current Workflow
 

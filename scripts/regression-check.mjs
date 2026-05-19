@@ -126,6 +126,7 @@ await validateCanvaxInspectDryRun();
 await validateCanvaxMcpSelfTest();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
+await validateProjectScopedBuildAndCheckpointEndpoints();
 await validateRequiredFile(
   upstreamProposalPath,
   "upstream proposal doc is present",
@@ -1417,6 +1418,11 @@ async function validateAssetCandidatesEndpoint() {
       kind: "canvax-asset-candidates",
       createdAt: new Date().toISOString(),
       requiresOpenAiApiKey: false,
+      project: {
+        kind: "canvax-project",
+        id: "project-regression-assets",
+        title: "Regression assets project",
+      },
       board: {
         project: "Canvax regression",
       },
@@ -1457,6 +1463,8 @@ async function validateAssetCandidatesEndpoint() {
       response.ok &&
         payload?.assetCandidatePack?.kind === "canvax-asset-candidates" &&
         payload.assetCandidatePack.requiresOpenAiApiKey === false &&
+        payload.assetCandidatePack.project?.id ===
+          "project-regression-assets" &&
         payload.candidateCount === 1 &&
         payload.assetCandidatePack.candidates?.[0]?.placementMap?.kind ===
           "canvax-asset-placement" &&
@@ -1470,17 +1478,26 @@ async function validateAssetCandidatesEndpoint() {
         payload.imageGenerationBrief?.kind ===
           "canvax-image-generation-brief" &&
         payload.imageGenerationBrief.requiresOpenAiApiKey === false &&
+        payload.imageGenerationBrief.project?.id ===
+          "project-regression-assets" &&
         payload.imageGenerationBrief.copyBlocks?.[0]?.hostPrompt &&
         payload.imageGenerationBrief.reviewSummary?.kind ===
           "canvax-asset-candidate-review" &&
         payload.imageHostTask?.kind === "canvax-image-host-task" &&
         payload.imageHostTask.requiresOpenAiApiKey === false &&
+        payload.imageHostTask.project?.id === "project-regression-assets" &&
         payload.imageHostTask.tasks?.[0]?.hostPrompt &&
         payload.imageHostTask.tasks?.[0]?.outputSlot?.slotId &&
         payload.imageHostTask.noApiBoundary?.canCanvaxCallImageApi === false &&
         typeof payload.latestImageHostTaskJsonPath === "string" &&
         typeof payload.latestImageGenerationBriefJsonPath === "string" &&
-        typeof payload.latestJsonPath === "string",
+        typeof payload.latestJsonPath === "string" &&
+        payload.projectJsonPath ===
+          "exports/projects/project-regression-assets/canvax-asset-candidates-latest.json" &&
+        payload.projectImageGenerationBriefJsonPath ===
+          "exports/projects/project-regression-assets/canvax-image-generation-brief-latest.json" &&
+        payload.projectImageHostTaskJsonPath ===
+          "exports/projects/project-regression-assets/canvax-image-host-task-latest.json",
     );
     results.push({
       name: "asset candidates endpoint writes no-API artifact",
@@ -1490,6 +1507,145 @@ async function validateAssetCandidatesEndpoint() {
   } catch (error) {
     results.push({
       name: "asset candidates endpoint writes no-API artifact",
+      passed: false,
+      detail: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+async function validateProjectScopedBuildAndCheckpointEndpoints() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/canvax.mjs",
+      "--status",
+      "--json",
+    ]);
+    const status = JSON.parse(stdout);
+    const serviceState = await detectCanvaxServiceState();
+    const liveUrl =
+      status?.running && typeof status.url === "string" && status.url
+        ? status.url
+        : serviceState.url;
+    if (!liveUrl) {
+      results.push({
+        name: "project-scoped build/checkpoint endpoints write latest files",
+        passed: true,
+        skipped: true,
+        detail: serviceState.detail,
+      });
+      return;
+    }
+
+    const buildResponse = await fetch(`${liveUrl}/api/save-build-request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request: {
+          schemaVersion: 1,
+          kind: "canvax-build-real-request",
+          source: "regression-check",
+          requiresOpenAiApiKey: false,
+          project: {
+            kind: "canvax-project",
+            id: "project-regression-build",
+            title: "Regression build project",
+          },
+          board: {
+            project: "Canvax regression build",
+          },
+          activeFrameId: "frame-regression-build",
+          frame: {
+            id: "frame-regression-build",
+            title: "Regression build frame",
+            elements: [],
+          },
+        },
+        markdown: "# Regression build request\n",
+      }),
+    });
+    const buildPayload = await buildResponse.json();
+
+    const checkpointResponse = await fetch(`${liveUrl}/api/save-checkpoint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        checkpoint: {
+          schemaVersion: 1,
+          reason: "regression-check",
+          label: "Regression checkpoint",
+          project: {
+            kind: "canvax-project",
+            id: "project-regression-checkpoint",
+            title: "Regression checkpoint project",
+          },
+          board: {
+            project: "Canvax regression checkpoint",
+          },
+          activeFrameId: "frame-regression-checkpoint",
+          frameId: "frame-regression-checkpoint",
+          frameTitle: "Regression checkpoint frame",
+          frames: [
+            {
+              id: "frame-regression-checkpoint",
+              title: "Regression checkpoint frame",
+            },
+          ],
+          summary: {
+            voiceSegmentCount: 0,
+            captureCount: 0,
+            artifactCount: 0,
+            changeCount: 0,
+          },
+        },
+      }),
+    });
+    const checkpointPayload = await checkpointResponse.json();
+
+    const expectedBuildPath =
+      "exports/projects/project-regression-build/canvax-build-real-latest.json";
+    const expectedCheckpointPath =
+      "exports/projects/project-regression-checkpoint/canvax-checkpoint-latest.json";
+    const expectedCheckpointIndexPath =
+      "exports/projects/project-regression-checkpoint/canvax-checkpoints.json";
+    const buildFile = JSON.parse(
+      await readFile(resolve(projectRoot, expectedBuildPath), "utf8"),
+    );
+    const checkpointFile = JSON.parse(
+      await readFile(resolve(projectRoot, expectedCheckpointPath), "utf8"),
+    );
+    const checkpointIndexFile = JSON.parse(
+      await readFile(resolve(projectRoot, expectedCheckpointIndexPath), "utf8"),
+    );
+
+    const passed = Boolean(
+      buildResponse.ok &&
+        buildPayload?.request?.project?.id === "project-regression-build" &&
+        buildPayload.projectJsonPath === expectedBuildPath &&
+        buildPayload.projectMarkdownPath ===
+          "exports/projects/project-regression-build/canvax-build-real-latest.md" &&
+        buildFile?.kind === "canvax-build-real-request" &&
+        buildFile?.project?.id === "project-regression-build" &&
+        checkpointResponse.ok &&
+        checkpointPayload.projectCheckpointPath === expectedCheckpointPath &&
+        checkpointPayload.projectCheckpointsIndexPath ===
+          expectedCheckpointIndexPath &&
+        checkpointFile?.project?.id === "project-regression-checkpoint" &&
+        checkpointIndexFile?.kind === "canvax-project-checkpoints" &&
+        checkpointIndexFile?.project?.id === "project-regression-checkpoint" &&
+        Array.isArray(checkpointIndexFile?.items) &&
+        checkpointIndexFile.items.length > 0,
+    );
+
+    results.push({
+      name: "project-scoped build/checkpoint endpoints write latest files",
+      passed,
+      detail: passed
+        ? `${expectedBuildPath}, ${expectedCheckpointPath}`
+        : "invalid project-scoped build/checkpoint response",
+    });
+  } catch (error) {
+    results.push({
+      name: "project-scoped build/checkpoint endpoints write latest files",
       passed: false,
       detail: error instanceof Error ? error.message : "Unknown error",
     });

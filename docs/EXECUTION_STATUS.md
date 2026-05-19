@@ -53,7 +53,7 @@ Status: In progress
 - [x] Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short path before exposing all controls
 - [x] Workbench secondary actions are tucked behind a `More actions` disclosure so default use focuses on frame/free-canvas/build/preview instead of exposing every power tool at once
 - [x] Left-rail project switching now supports browser-local `New`, `Duplicate`, `Delete`, and `Open project` actions while preserving the active project as the single live Codex handoff
-- [x] Saves now also write `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/` for live JSON, Markdown, voice, task pack, rewrite request, image prompt pack, and assets
+- [x] Saves now also write `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/` for live JSON, Markdown, voice, task pack, rewrite request, image prompt pack, asset candidates, image-generation briefs, image-host tasks, build requests, checkpoints, and assets
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
 - [x] Workbench `Map` styles generated variants as branch cards with visible lineage and primary state
@@ -226,6 +226,7 @@ Status: In progress
 - [x] Asset candidate packs include placement contracts, style-lock references, output slots, and a `canvax-asset-candidate-review` summary with frame-grouped pending/placed/attached/accepted queues, accepted candidate IDs, image element bindings, and no-API host handoff files
 - [x] Asset candidate saves now also write `exports/canvax-image-generation-brief-latest.*` with copy-ready host prompts, style-lock context, placement contracts, output-slot status, and the same frame-grouped review queue
 - [x] Asset candidate saves now also write `exports/canvax-image-host-task-latest.*` with one no-API hosted-image task per candidate, return-slot binding, and acceptance criteria
+- [x] Asset candidate packs, image-generation briefs, image-host tasks, build requests, and checkpoints now carry the active Canvax project metadata and write project-scoped latest mirrors under `exports/projects/<project-id>/`
 - [x] Asset candidate tray now exposes `Copy host task`, so designers can send one exact candidate task to the current image host without opening JSON
 - [x] Workbench exposes image import from both the primary controls and the focused floating rail, placing references/generated candidates as editable canvas objects
 - [x] Workbench `Map` can add manual note cards and reference file/image cards, including removable cards and lightweight image thumbnails

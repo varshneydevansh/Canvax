@@ -95,11 +95,23 @@ Every save also writes a project-scoped latest handoff:
 - `exports/projects/<project-id>/canvax-task-pack-latest.json`
 - `exports/projects/<project-id>/canvax-rewrite-request-latest.json`
 - `exports/projects/<project-id>/canvax-image-prompt-pack-latest.json`
+- `exports/projects/<project-id>/canvax-asset-candidates-latest.json`
+- `exports/projects/<project-id>/canvax-image-generation-brief-latest.json`
+- `exports/projects/<project-id>/canvax-image-host-task-latest.json`
+- `exports/projects/<project-id>/canvax-build-real-latest.json`
+- `exports/projects/<project-id>/canvax-checkpoint-latest.json`
+- `exports/projects/<project-id>/canvax-checkpoints.json`
 - `exports/projects/<project-id>/assets/...`
 
 Use the shared `exports/canvax-live-latest.json` for the normal attached chat.
 Use a project-scoped path when you need to compare or recover a specific local
 project's latest handoff.
+
+Project-scoped files are latest mirrors, not separate cloud workspaces. The
+active project still writes the shared compatibility files so Codex can keep one
+simple default, while the project folder prevents build requests, image
+candidates, image-host tasks, and checkpoints from becoming ambiguous after a
+designer switches projects.
 
 ## What To Draw
 

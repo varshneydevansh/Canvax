@@ -468,6 +468,10 @@ buildImagePromptPack()
   -> exports/canvax-asset-candidates-latest.md
   -> exports/canvax-image-generation-brief-latest.json
   -> exports/canvax-image-generation-brief-latest.md
+  -> exports/canvax-image-host-task-latest.json
+  -> exports/projects/<project-id>/canvax-asset-candidates-latest.json
+  -> exports/projects/<project-id>/canvax-image-generation-brief-latest.json
+  -> exports/projects/<project-id>/canvax-image-host-task-latest.json
   -> artifacts/canvax/asset-candidates/<request>/
 ```
 
@@ -499,6 +503,7 @@ Regression coverage:
 - browser self-test places a candidate tray slot as an editable image element
 - `scripts/regression-check.mjs` validates `exports/canvax-asset-candidates-latest.json` when present
 - `scripts/regression-check.mjs` validates `exports/canvax-image-generation-brief-latest.json` when present and verifies the save endpoint returns a no-API brief
+- `scripts/regression-check.mjs` validates project-scoped asset, image-host, build-request, and checkpoint latest mirrors when the local service is reachable
 
 ## Where To Change What
 

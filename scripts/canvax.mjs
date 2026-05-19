@@ -959,6 +959,22 @@ function normalizeProjectExportMetadata(source, exportPackage = {}) {
         root,
         "canvax-image-prompt-pack-latest.md",
       ),
+      assetCandidatesJsonPath: join(root, "canvax-asset-candidates-latest.json"),
+      assetCandidatesMarkdownPath: join(root, "canvax-asset-candidates-latest.md"),
+      imageGenerationBriefJsonPath: join(
+        root,
+        "canvax-image-generation-brief-latest.json",
+      ),
+      imageGenerationBriefMarkdownPath: join(
+        root,
+        "canvax-image-generation-brief-latest.md",
+      ),
+      imageHostTaskJsonPath: join(root, "canvax-image-host-task-latest.json"),
+      imageHostTaskMarkdownPath: join(root, "canvax-image-host-task-latest.md"),
+      buildRequestJsonPath: join(root, "canvax-build-real-latest.json"),
+      buildRequestMarkdownPath: join(root, "canvax-build-real-latest.md"),
+      checkpointJsonPath: join(root, "canvax-checkpoint-latest.json"),
+      checkpointsIndexPath: join(root, "canvax-checkpoints.json"),
     },
     compatibilityHandoff: {
       liveJsonPath: "exports/canvax-live-latest.json",
@@ -1057,6 +1073,45 @@ function buildProjectRegistryMarkdown(registry) {
     "",
   );
   return `${lines.join("\n")}\n`;
+}
+
+async function writeProjectLatestFile(project, fileName, body) {
+  if (!project?.id || !fileName) {
+    return "";
+  }
+  const root = resolve(projectExportsRoot, project.id);
+  await mkdir(root, { recursive: true });
+  await writeTextFileAtomic(resolve(root, fileName), body);
+  return join(
+    project.handoff?.root || join("exports", "projects", project.id),
+    fileName,
+  );
+}
+
+async function updateProjectCheckpointIndex(project, record) {
+  if (!project?.id || !record) {
+    return "";
+  }
+  const root = resolve(projectExportsRoot, project.id);
+  const indexPath = resolve(root, "canvax-checkpoints.json");
+  const existing = await readOptionalJson(indexPath);
+  const existingItems = Array.isArray(existing?.items) ? existing.items : [];
+  const next = {
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-project-checkpoints",
+    updatedAt: new Date().toISOString(),
+    project: {
+      id: project.id,
+      title: project.title,
+    },
+    items: [record, ...existingItems].slice(0, 32),
+  };
+  await mkdir(root, { recursive: true });
+  await writeTextFileAtomic(indexPath, `${JSON.stringify(next, null, 2)}\n`);
+  return join(
+    project.handoff?.root || join("exports", "projects", project.id),
+    "canvax-checkpoints.json",
+  );
 }
 
 async function handleSaveExport(request, response) {
@@ -1323,6 +1378,11 @@ async function handleSaveBuildRequest(request, response) {
     cleanString(source.frame?.title) ||
     cleanString(source.outputContract?.frameBinding?.frameTitle) ||
     activeFrameId;
+  const project = normalizeProjectExportMetadata(source.project, {
+    board: source.board || {},
+    frames: source.frame ? [source.frame] : [],
+    activeFrameId,
+  });
   const requestId = `${buildTimestamp()}-${slugify(frameTitle)}`;
   const requestRoot = resolve(buildRequestsRoot, requestId);
   const requestJsonPath = resolve(requestRoot, "request.json");
@@ -1334,6 +1394,7 @@ async function handleSaveBuildRequest(request, response) {
     createdAt,
     source: cleanString(source.source) || "canvax-workbench",
     requiresOpenAiApiKey: false,
+    project,
     activeFrameId,
     outputContract: {
       ...(source.outputContract &&
@@ -1363,6 +1424,16 @@ async function handleSaveBuildRequest(request, response) {
   await writeFile(requestMarkdownPath, markdownBody);
   await writeTextFileAtomic(buildRealRequestJsonPath, jsonBody);
   await writeTextFileAtomic(buildRealRequestMarkdownPath, markdownBody);
+  const projectBuildRequestJsonPath = await writeProjectLatestFile(
+    project,
+    "canvax-build-real-latest.json",
+    jsonBody,
+  );
+  const projectBuildRequestMarkdownPath = await writeProjectLatestFile(
+    project,
+    "canvax-build-real-latest.md",
+    markdownBody,
+  );
 
   await appendFile(
     sessionEventsPath,
@@ -1378,6 +1449,8 @@ async function handleSaveBuildRequest(request, response) {
       latestMarkdownPath: toWorkspaceRelativePath(
         buildRealRequestMarkdownPath,
       ),
+      projectJsonPath: projectBuildRequestJsonPath,
+      projectMarkdownPath: projectBuildRequestMarkdownPath,
     })}\n`,
   );
 
@@ -1389,6 +1462,8 @@ async function handleSaveBuildRequest(request, response) {
     markdownPath: toWorkspaceRelativePath(requestMarkdownPath),
     latestJsonPath: toWorkspaceRelativePath(buildRealRequestJsonPath),
     latestMarkdownPath: toWorkspaceRelativePath(buildRealRequestMarkdownPath),
+    projectJsonPath: projectBuildRequestJsonPath,
+    projectMarkdownPath: projectBuildRequestMarkdownPath,
     buildRequestsRoot,
     suggestedPublishCommand:
       nextRequest.outputContract?.publishCommand ||
@@ -1556,6 +1631,10 @@ async function handleSaveAssetCandidates(request, response) {
   }
 
   const createdAt = cleanString(source.createdAt) || new Date().toISOString();
+  const project = normalizeProjectExportMetadata(source.project, {
+    board: source.board || {},
+    frames: [],
+  });
   const requestId = `${buildTimestamp()}-${slugify(source.board?.project || "asset-candidates")}`;
   const requestRoot = resolve(assetCandidatesRoot, requestId);
   const requestJsonPath = resolve(requestRoot, "asset-candidates.json");
@@ -1582,6 +1661,7 @@ async function handleSaveAssetCandidates(request, response) {
     kind: "canvax-asset-candidates",
     createdAt,
     requiresOpenAiApiKey: false,
+    project,
     candidates,
     reviewSummary: buildServerAssetCandidateReviewSummary(candidates),
     archive: {
@@ -1682,6 +1762,36 @@ async function handleSaveAssetCandidates(request, response) {
     imageHostTaskMarkdownPath,
     imageHostTaskMarkdownBody,
   );
+  const projectAssetCandidatesJsonPath = await writeProjectLatestFile(
+    project,
+    "canvax-asset-candidates-latest.json",
+    jsonBody,
+  );
+  const projectAssetCandidatesMarkdownPath = await writeProjectLatestFile(
+    project,
+    "canvax-asset-candidates-latest.md",
+    markdownBody,
+  );
+  const projectImageGenerationBriefJsonPath = await writeProjectLatestFile(
+    project,
+    "canvax-image-generation-brief-latest.json",
+    imageBriefJsonBody,
+  );
+  const projectImageGenerationBriefMarkdownPath = await writeProjectLatestFile(
+    project,
+    "canvax-image-generation-brief-latest.md",
+    imageBriefMarkdownBody,
+  );
+  const projectImageHostTaskJsonPath = await writeProjectLatestFile(
+    project,
+    "canvax-image-host-task-latest.json",
+    imageHostTaskJsonBody,
+  );
+  const projectImageHostTaskMarkdownPath = await writeProjectLatestFile(
+    project,
+    "canvax-image-host-task-latest.md",
+    imageHostTaskMarkdownBody,
+  );
 
   await appendFile(
     sessionEventsPath,
@@ -1718,6 +1828,12 @@ async function handleSaveAssetCandidates(request, response) {
       latestImageHostTaskMarkdownPath: toWorkspaceRelativePath(
         imageHostTaskMarkdownPath,
       ),
+      projectJsonPath: projectAssetCandidatesJsonPath,
+      projectMarkdownPath: projectAssetCandidatesMarkdownPath,
+      projectImageGenerationBriefJsonPath,
+      projectImageGenerationBriefMarkdownPath,
+      projectImageHostTaskJsonPath,
+      projectImageHostTaskMarkdownPath,
     })}\n`,
   );
 
@@ -1756,6 +1872,12 @@ async function handleSaveAssetCandidates(request, response) {
     latestImageHostTaskMarkdownPath: toWorkspaceRelativePath(
       imageHostTaskMarkdownPath,
     ),
+    projectJsonPath: projectAssetCandidatesJsonPath,
+    projectMarkdownPath: projectAssetCandidatesMarkdownPath,
+    projectImageGenerationBriefJsonPath,
+    projectImageGenerationBriefMarkdownPath,
+    projectImageHostTaskJsonPath,
+    projectImageHostTaskMarkdownPath,
     assetCandidatesRoot,
   });
 }
@@ -2179,6 +2301,7 @@ function buildServerImageGenerationBrief(pack, paths = {}) {
     kind: "canvax-image-generation-brief",
     createdAt: new Date().toISOString(),
     requiresOpenAiApiKey: false,
+    project: pack?.project || null,
     intendedHost:
       "ChatGPT/Codex image generation host lane, if available in the current chat.",
     sourcePromptPackPath:
@@ -2239,6 +2362,7 @@ function buildServerImageHostTask(pack, imageGenerationBrief, paths = {}) {
     kind: "canvax-image-host-task",
     createdAt: new Date().toISOString(),
     requiresOpenAiApiKey: false,
+    project: pack?.project || imageGenerationBrief?.project || null,
     intendedHost:
       "Use the image generation host already available in the current Codex or ChatGPT session.",
     purpose:
@@ -2745,6 +2869,11 @@ async function handleSaveCheckpoint(request, response) {
   }
 
   const timestamp = buildTimestamp();
+  const project = normalizeProjectExportMetadata(checkpoint.project, {
+    board: checkpoint.board || {},
+    frames: checkpoint.frames || [],
+    activeFrameId: checkpoint.activeFrameId,
+  });
   const checkpointId = `${timestamp}-${slugify(checkpoint.frameTitle || checkpoint.label || checkpoint.reason || "checkpoint")}`;
   const checkpointRoot = resolve(checkpointsRoot, checkpointId);
   const checkpointPath = join(
@@ -2776,6 +2905,7 @@ async function handleSaveCheckpoint(request, response) {
   const checkpointBody = {
     ...checkpoint,
     ...record,
+    project,
   };
 
   await mkdir(checkpointRoot, { recursive: true });
@@ -2788,6 +2918,16 @@ async function handleSaveCheckpoint(request, response) {
     latestCheckpointPath,
     `${JSON.stringify(checkpointBody, null, 2)}\n`,
   );
+  const checkpointJsonBody = `${JSON.stringify(checkpointBody, null, 2)}\n`;
+  const projectCheckpointPath = await writeProjectLatestFile(
+    project,
+    "canvax-checkpoint-latest.json",
+    checkpointJsonBody,
+  );
+  const projectCheckpointRecord = {
+    ...record,
+    projectCheckpointPath,
+  };
 
   const existingIndex = await readOptionalJson(checkpointsIndexPath);
   const existingItems =
@@ -2804,6 +2944,10 @@ async function handleSaveCheckpoint(request, response) {
     checkpointsIndexPath,
     `${JSON.stringify(indexBody, null, 2)}\n`,
   );
+  const projectCheckpointsIndexPath = await updateProjectCheckpointIndex(
+    project,
+    projectCheckpointRecord,
+  );
 
   const eventBody = {
     type: "checkpoint",
@@ -2816,6 +2960,8 @@ async function handleSaveCheckpoint(request, response) {
     frameTitle: record.frameTitle,
     summary: checkpoint.summary || null,
     export: checkpoint.export || null,
+    projectCheckpointPath,
+    projectCheckpointsIndexPath,
     previewTarget: checkpoint.previewTarget || null,
     outputDigest: checkpoint.outputDigest || null,
   };
@@ -2826,7 +2972,9 @@ async function handleSaveCheckpoint(request, response) {
     checkpoint: enhanceCheckpointRecord(record),
     checkpointHistory: enhanceCheckpointHistory(indexBody),
     latestCheckpointPath,
+    projectCheckpointPath,
     checkpointsIndexPath,
+    projectCheckpointsIndexPath,
     sessionEventsPath,
   });
 }
@@ -6612,6 +6760,12 @@ function normalizeCheckpointPayload(value) {
       !Array.isArray(source.board)
         ? source.board
         : {},
+    project:
+      source.project &&
+      typeof source.project === "object" &&
+      !Array.isArray(source.project)
+        ? source.project
+        : null,
     activeFrameId: cleanString(source.activeFrameId),
     activeFrameTitle: cleanString(source.activeFrameTitle),
     entryFrameId: cleanString(source.entryFrameId),

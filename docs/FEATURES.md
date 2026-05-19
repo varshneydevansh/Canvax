@@ -108,8 +108,19 @@ exports/projects/<project-id>/
   canvax-task-pack-latest.json
   canvax-rewrite-request-latest.json
   canvax-image-prompt-pack-latest.json
+  canvax-asset-candidates-latest.json
+  canvax-image-generation-brief-latest.json
+  canvax-image-host-task-latest.json
+  canvax-build-real-latest.json
+  canvax-checkpoint-latest.json
+  canvax-checkpoints.json
   assets/
 ```
+
+The project folder mirrors the current project's latest state while the shared
+`exports/canvax-*.json` files remain the active chat handoff. This lets Codex
+default to the current board and still recover a previous local project when a
+designer switches context.
 
 ### Preview
 
@@ -1058,6 +1069,7 @@ The image generation brief is the copy-ready host handoff. It combines:
 - output-slot status for reattaching generated images
 - a `canvax-asset-candidate-review` summary grouped by frame
 - a `hostPrompt` block per candidate for ChatGPT/Codex image-generation hosts
+- the active Canvax project id/title and project-scoped latest paths
 
 The image host task is the machine-readable execution handoff. It combines:
 
@@ -1067,6 +1079,7 @@ The image host task is the machine-readable execution handoff. It combines:
 - return instructions for workspace files, pasted images, or frame references
 - acceptance criteria for review before the candidate is accepted
 - an explicit `requiresOpenAiApiKey: false` and `noApiBoundary` declaration
+- the same active project metadata as the candidate pack and image brief
 
 Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
 

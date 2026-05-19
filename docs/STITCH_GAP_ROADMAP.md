@@ -247,9 +247,12 @@ writes the single `exports/canvax-live-latest.*` compatibility handoff.
 The service also writes `exports/canvax-project-registry-latest.*` and
 project-scoped latest handoffs under `exports/projects/<project-id>/`, so Codex
 can recover or compare a specific local project without relying only on browser
-storage. Remaining parity gaps are hosted/team project lists, thumbnails synced
-outside browser storage, project-scoped generated artifact/checkpoint folders,
-and a native Codex project surface.
+storage. Those project folders now include live handoffs, voice, task packs,
+rewrite requests, image prompt packs, asset candidates, image-generation
+briefs, image-host tasks, build requests, and checkpoint latest/index files.
+Remaining parity gaps are hosted/team project lists, thumbnails synced outside
+browser storage, project-scoped generated-output archive folders beyond latest
+mirrors, and a native Codex project surface.
 
 ## What Is Done
 

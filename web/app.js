@@ -1928,6 +1928,16 @@ function buildProjectHandoffPaths(projectId = state?.projectRegistry?.activeProj
     rewriteRequestMarkdownPath: `${root}/canvax-rewrite-request-latest.md`,
     imagePromptPackJsonPath: `${root}/canvax-image-prompt-pack-latest.json`,
     imagePromptPackMarkdownPath: `${root}/canvax-image-prompt-pack-latest.md`,
+    assetCandidatesJsonPath: `${root}/canvax-asset-candidates-latest.json`,
+    assetCandidatesMarkdownPath: `${root}/canvax-asset-candidates-latest.md`,
+    imageGenerationBriefJsonPath: `${root}/canvax-image-generation-brief-latest.json`,
+    imageGenerationBriefMarkdownPath: `${root}/canvax-image-generation-brief-latest.md`,
+    imageHostTaskJsonPath: `${root}/canvax-image-host-task-latest.json`,
+    imageHostTaskMarkdownPath: `${root}/canvax-image-host-task-latest.md`,
+    buildRequestJsonPath: `${root}/canvax-build-real-latest.json`,
+    buildRequestMarkdownPath: `${root}/canvax-build-real-latest.md`,
+    checkpointJsonPath: `${root}/canvax-checkpoint-latest.json`,
+    checkpointsIndexPath: `${root}/canvax-checkpoints.json`,
   };
 }
 
@@ -18158,6 +18168,7 @@ function buildAssetCandidatePack(imagePromptPack) {
     sourcePromptPackPath: "exports/canvax-image-prompt-pack-latest.json",
     intendedHost:
       "Codex/ChatGPT image generation host lane, if available in the current chat.",
+    project: buildProjectExportMetadata(),
     board: structuredClone(imagePromptPack?.board || state.board),
     designContext:
       imagePromptPack?.designContext || currentDesignContextForExport(),
@@ -18600,6 +18611,7 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
     generation,
     outputEditBinding,
   });
+  const project = buildProjectExportMetadata();
 
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -18610,6 +18622,7 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
     actionMode: actionMode.id,
     actionModeLabel: actionMode.label,
     actionModeDescription: actionMode.description,
+    project,
     board: {
       project: state.board.project,
       goal: state.board.goal,
@@ -18636,9 +18649,14 @@ function buildBuildRealRequest(frame, exportPackage, exportResult) {
       imagePromptPackPath: "exports/canvax-image-prompt-pack-latest.json",
       buildRequestJsonPath: "exports/canvax-build-real-latest.json",
       buildRequestMarkdownPath: "exports/canvax-build-real-latest.md",
+      projectBuildRequestJsonPath: project.handoff.buildRequestJsonPath,
+      projectBuildRequestMarkdownPath: project.handoff.buildRequestMarkdownPath,
+      projectCheckpointPath: project.handoff.checkpointJsonPath,
       lastSavedExport: {
         jsonPath: exportResult?.jsonPath || "",
         markdownPath: exportResult?.markdownPath || "",
+        projectJsonPath: exportResult?.projectJsonPath || "",
+        projectMarkdownPath: exportResult?.projectMarkdownPath || "",
         taskPackJsonPath: exportResult?.taskPackJsonPath || "",
         imagePromptPackJsonPath: exportResult?.imagePromptPackJsonPath || "",
       },
@@ -19481,6 +19499,7 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
         ? options.note.trim()
         : "",
     workspaceMode: state.workspaceMode,
+    project: buildProjectExportMetadata(),
     board: structuredClone(state.board),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: frame?.title || "",
@@ -19510,6 +19529,9 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
             jsonPath: exportResult.jsonPath || "",
             markdownPath: exportResult.markdownPath || "",
             voiceMarkdownPath: exportResult.voiceMarkdownPath || "",
+            projectJsonPath: exportResult.projectJsonPath || "",
+            projectMarkdownPath: exportResult.projectMarkdownPath || "",
+            projectRegistryJsonPath: exportResult.projectRegistryJsonPath || "",
           }
         : null,
     previewTarget: target

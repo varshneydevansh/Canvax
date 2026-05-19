@@ -644,6 +644,11 @@ Real-code handoff files:
 - `exports/canvax-build-real-latest.md`
 - `artifacts/canvax/build-requests/...`
 
+The shared latest build request is also mirrored into the active project folder:
+
+- `exports/projects/<project-id>/canvax-build-real-latest.json`
+- `exports/projects/<project-id>/canvax-build-real-latest.md`
+
 Variant branches are stored as normal frames with `frame.variant` lineage metadata. They remain editable and are connected to their source frame in the same Flow graph as ordinary screen transitions.
 
 The spatial export also derives `spatialWorkspace.variantBranches` from those frames and connections:
@@ -671,8 +676,16 @@ Image/asset handoff files:
 - `exports/canvax-image-prompt-pack-latest.json`
 - `exports/canvax-asset-candidates-latest.json`
 - `exports/canvax-image-generation-brief-latest.json`
+- `exports/canvax-image-host-task-latest.json`
 - `exports/canvax-external-design-tokens-latest.json`
 - `artifacts/canvax/asset-candidates/...`
+
+The active project receives matching latest mirrors for asset candidates,
+image-generation briefs, and image-host tasks:
+
+- `exports/projects/<project-id>/canvax-asset-candidates-latest.json`
+- `exports/projects/<project-id>/canvax-image-generation-brief-latest.json`
+- `exports/projects/<project-id>/canvax-image-host-task-latest.json`
 
 Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from the active Design kit, board mood, surface, generation recipe, `DESIGN.md` when present, current palette, extracted current-frame sketch/reference tokens when present, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, palette/density/shape cues, visual reference sample metadata, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
 
