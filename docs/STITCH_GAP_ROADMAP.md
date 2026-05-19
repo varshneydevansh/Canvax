@@ -130,9 +130,10 @@ The useful lesson for Canvax:
   well to a Canvax local tool surface where Codex/ChatGPT can call
   `get_current_frame`, `get_spatial_workspace`, `get_design_kit`, and
   `get_output_binding` without asking the user to attach or paste export files.
-  `npm run inspect` now ships the local CLI bridge and `npm run mcp` exposes
-  the same payloads as read-only stdio MCP tools. Native Codex/ChatGPT host
-  registration remains open.
+  `npm run inspect` now ships the local CLI bridge, including project-link
+  payloads for real app files, and `npm run mcp` exposes the same payloads as
+  read-only stdio MCP tools. Native Codex/ChatGPT host registration remains
+  open.
 - Make design rules enforceable, not decorative. The current local loop now has
   extraction (`Extract tokens`, `npm run extract-tokens`), import (`Import
   external`), contract recording (`Build with Codex`), and implementation
@@ -496,8 +497,9 @@ Needed:
   bind explicit real project files to a frame, while evidence from Codex editing
   a real external/user project remains open.**
 - Let Codex inspect the live board without copy/paste exports.
-  **Local read-only CLI shipped through `npm run inspect`, and local stdio MCP
-  tools shipped through `npm run mcp`; native host registration remains open.**
+  **Local read-only CLI shipped through `npm run inspect`, including
+  `project-link`; local stdio MCP tools shipped through `npm run mcp`, including
+  `get_project_link`; native host registration remains open.**
 - Add live visual critique for generated/browser output.
   **Local pixel-level screenshot review shipped through `npm run
   review-snapshot`, and local design-jury aggregation shipped through

@@ -235,10 +235,11 @@ output manifest. Non-dry runs write
 `artifacts/canvax/codex-output.json` unless `--no-publish` is used.
 
 Use `npm run inspect -- all --json` when changing handoff schemas. It reads the
-latest live export, task pack, build request, rewrite request, and Codex output
-manifest, then returns the current frame, spatial workspace summary, design kit,
-and output binding in one stable read-only payload. Keep it backward compatible:
-it is the local CLI shape future MCP tools should mirror.
+latest live export, task pack, build request, rewrite request, project-link
+artifact, and Codex output manifest, then returns the current frame, spatial
+workspace summary, design kit, output binding, and project-link binding in one
+stable read-only payload. Keep it backward compatible: it is the local CLI shape
+future MCP tools should mirror.
 
 Use `design-kits/*.json` for reusable local design-system presets. The server
 exposes valid kits through `/api/status` as `designKitGallery`, and the browser

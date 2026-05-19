@@ -46,6 +46,13 @@ const toolDefinitions = [
     inputSchema: buildInputSchema(true),
   },
   {
+    name: "get_project_link",
+    command: "project-link",
+    description:
+      "Read the current frame's linked real project files, including target root, route/component/CSS paths, source summaries, and Codex edit contract metadata.",
+    inputSchema: buildInputSchema(true),
+  },
+  {
     name: "get_canvax_all",
     command: "all",
     description:
@@ -126,7 +133,7 @@ async function handleMessage(request) {
           version: "0.1.0",
         },
         instructions:
-          "Use Canvax tools to read the local visual handoff, frame, spatial map, design kit, and output bindings. These tools are read-only and do not require API keys.",
+          "Use Canvax tools to read the local visual handoff, frame, spatial map, design kit, output bindings, and linked real-project files. These tools are read-only and do not require API keys.",
       });
       return;
     }
@@ -214,6 +221,7 @@ async function runSelfTest() {
   const passed = Boolean(
     Array.isArray(listResponse.result?.tools) &&
       listResponse.result.tools.some((tool) => tool.name === "get_current_frame") &&
+      listResponse.result.tools.some((tool) => tool.name === "get_project_link") &&
       callResponse.result?.structuredContent?.kind === "canvax-mcp-tool-result" &&
       callResponse.result?.structuredContent?.requiresOpenAiApiKey === false,
   );

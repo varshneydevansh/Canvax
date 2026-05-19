@@ -1065,8 +1065,10 @@ async function validateCanvaxInspectDryRun() {
         payload.toolSurface?.futureMcpTools?.includes("get_spatial_workspace") &&
         payload.toolSurface?.futureMcpTools?.includes("get_design_kit") &&
         payload.toolSurface?.futureMcpTools?.includes("get_output_binding") &&
+        payload.toolSurface?.futureMcpTools?.includes("get_project_link") &&
         payload.payload?.spatialWorkspace?.summary &&
-        Object.hasOwn(payload.payload, "outputBinding"),
+        Object.hasOwn(payload.payload, "outputBinding") &&
+        Object.hasOwn(payload.payload, "projectLink"),
     );
     results.push({
       name: "Canvax read-only inspection bridge is valid",
@@ -1095,7 +1097,7 @@ async function validateCanvaxMcpSelfTest() {
       payload?.ok &&
         payload?.kind === "canvax-mcp-self-test" &&
         payload.requiresOpenAiApiKey === false &&
-        payload.toolCount >= 5 &&
+        payload.toolCount >= 7 &&
         payload.summaryKind === "canvax-readonly-inspection",
     );
     results.push({

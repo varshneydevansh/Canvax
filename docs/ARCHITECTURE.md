@@ -726,19 +726,19 @@ not an automatic arbitrary app rewriter; Codex still performs the actual edit
 and should republish the manifest after changing files.
 
 `scripts/canvax-inspect.mjs` is the read-only inspection bridge. It reads the
-latest live export, task pack, build request, rewrite request, and Codex output
-manifest, then returns a stable `canvax-readonly-inspection` payload for one of
-these command shapes: `summary`, `current-frame`, `spatial-workspace`,
-`design-kit`, `output-binding`, or `all`. This gives Codex a local tool-shaped
-contract today and defines the payload future MCP/native host tools should
-mirror.
+latest live export, task pack, build request, rewrite request, project-link
+artifact, and Codex output manifest, then returns a stable
+`canvax-readonly-inspection` payload for one of these command shapes: `summary`,
+`current-frame`, `spatial-workspace`, `design-kit`, `output-binding`,
+`project-link`, or `all`. This gives Codex a local tool-shaped contract today
+and defines the payload future MCP/native host tools should mirror.
 
 `scripts/canvax-mcp-server.mjs` wraps that inspection bridge in a read-only
 stdio MCP server. It handles `initialize`, `tools/list`, `tools/call`, and
 `ping` over newline-delimited JSON-RPC and exposes `get_canvax_summary`,
 `get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
-`get_output_binding`, and `get_canvax_all`. The tool results include both text
-content and structured content, and every payload keeps
+`get_output_binding`, `get_project_link`, and `get_canvax_all`. The tool results
+include both text content and structured content, and every payload keeps
 `requiresOpenAiApiKey: false`.
 
 `scripts/review-visual-snapshot.mjs` is the local screenshot-review bridge. It

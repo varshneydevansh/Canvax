@@ -12,6 +12,7 @@ const defaultPaths = {
   taskPack: "exports/canvax-task-pack-latest.json",
   buildRequest: "exports/canvax-build-real-latest.json",
   rewriteRequest: "exports/canvax-rewrite-request-latest.json",
+  projectLink: "exports/canvax-project-link-latest.json",
   outputManifest: "artifacts/canvax/codex-output.json",
 };
 
@@ -45,6 +46,9 @@ async function buildInspection(options) {
     rewriteRequest: await readJsonSource(
       options.rewriteRequest || defaultPaths.rewriteRequest,
     ),
+    projectLink: await readJsonSource(
+      options.projectLink || defaultPaths.projectLink,
+    ),
     outputManifest: await readJsonSource(
       options.outputManifest || defaultPaths.outputManifest,
     ),
@@ -53,6 +57,7 @@ async function buildInspection(options) {
   const taskPack = sourceFiles.taskPack.value || {};
   const buildRequest = sourceFiles.buildRequest.value || {};
   const rewriteRequest = sourceFiles.rewriteRequest.value || {};
+  const projectLink = sourceFiles.projectLink.value || {};
   const outputManifest = sourceFiles.outputManifest.value || {};
   const activeFrameId =
     options.frame ||
@@ -89,16 +94,23 @@ async function buildInspection(options) {
     live.spatialWorkspace,
     options.full,
   );
+  const projectLinkBinding = resolveProjectLink({
+    projectLink,
+    frameId,
+    full: options.full,
+  });
   const selectedPayload = selectPayload(options.command, {
     activeFrame,
     designKit,
     spatialWorkspace,
     outputBinding,
+    projectLinkBinding,
     sourceFiles,
     live,
     taskPack,
     buildRequest,
     rewriteRequest,
+    projectLink,
     outputManifest,
   });
 
@@ -129,6 +141,7 @@ async function buildInspection(options) {
         "get_spatial_workspace",
         "get_design_kit",
         "get_output_binding",
+        "get_project_link",
       ],
       noApiBoundary:
         "This command reads local Canvax JSON/manifest files only. It does not call OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.",
@@ -141,6 +154,8 @@ async function buildInspection(options) {
       manifestArtifactCount: outputManifest.artifacts?.length || 0,
       designKitLabel: designKit?.label || designKit?.statusLabel || "",
       outputBindingCount: outputBinding.records.length,
+      projectLinkedFileCount: projectLinkBinding.linkedFiles.length,
+      projectLinkName: projectLinkBinding.name,
     },
     payload: selectedPayload,
   };
@@ -168,6 +183,11 @@ function selectPayload(command, payloads) {
       outputBinding: payloads.outputBinding,
     };
   }
+  if (command === "project-link") {
+    return {
+      projectLink: payloads.projectLinkBinding,
+    };
+  }
   if (command === "all") {
     return {
       currentFrame: payloads.activeFrame,
@@ -175,6 +195,7 @@ function selectPayload(command, payloads) {
       designKit: payloads.designKit,
       spatialWorkspace: payloads.spatialWorkspace,
       outputBinding: payloads.outputBinding,
+      projectLink: payloads.projectLinkBinding,
     };
   }
   return {
@@ -182,6 +203,7 @@ function selectPayload(command, payloads) {
     designKit: summarizeDesignKit(payloads.designKit),
     spatialWorkspace: payloads.spatialWorkspace.summary,
     outputBinding: summarizeOutputBinding(payloads.outputBinding),
+    projectLink: summarizeProjectLink(payloads.projectLinkBinding),
   };
 }
 
@@ -243,6 +265,34 @@ function resolveOutputBinding({
     manifestSource: outputManifest.source || "",
     manifestUpdatedAt: outputManifest.updatedAt || "",
     records: manifestRecords,
+  };
+}
+
+function resolveProjectLink({ projectLink, frameId, full }) {
+  const linkedFiles = Array.isArray(projectLink?.linkedFiles)
+    ? projectLink.linkedFiles
+    : [];
+  const matchingFiles = frameId
+    ? linkedFiles.filter(
+        (file) =>
+          !Array.isArray(file?.frameIds) ||
+          !file.frameIds.length ||
+          file.frameIds.includes(frameId),
+      )
+    : linkedFiles;
+  return {
+    kind: "canvax-project-link-inspection",
+    exists: projectLink?.kind === "canvax-project-link",
+    name: projectLink?.name || "",
+    targetRoot: projectLink?.targetRoot || "",
+    frameIds: Array.isArray(projectLink?.frameIds) ? projectLink.frameIds : [],
+    previewUrl: projectLink?.previewUrl || "",
+    previewPath: projectLink?.previewPath || "",
+    linkedFiles: full ? matchingFiles : matchingFiles.slice(0, 20),
+    linkedFileCount: matchingFiles.length,
+    codexEditContract: full ? projectLink?.codexEditContract || null : null,
+    manifest: full ? projectLink?.manifest || null : null,
+    noApiBoundary: projectLink?.noApiBoundary || "",
   };
 }
 
@@ -386,6 +436,25 @@ function summarizeOutputBinding(binding) {
   };
 }
 
+function summarizeProjectLink(link) {
+  if (!link?.exists) {
+    return {
+      exists: false,
+      linkedFileCount: 0,
+    };
+  }
+  return {
+    exists: true,
+    name: link.name || "",
+    targetRoot: link.targetRoot || "",
+    frameIds: link.frameIds || [],
+    previewUrl: link.previewUrl || "",
+    previewPath: link.previewPath || "",
+    linkedFileCount: link.linkedFileCount || link.linkedFiles?.length || 0,
+    linkedFiles: link.linkedFiles?.slice(0, 12) || [],
+  };
+}
+
 function countBy(values, getter) {
   return values.reduce((accumulator, value) => {
     const key = getter(value);
@@ -416,6 +485,7 @@ function buildInspectionMarkdown(inspection) {
     `- Frames: ${inspection.summary?.frameCount || 0}`,
     `- Spatial objects: ${inspection.summary?.spatialObjectCount || 0}`,
     `- Output bindings: ${inspection.summary?.outputBindingCount || 0}`,
+    `- Project linked files: ${inspection.summary?.projectLinkedFileCount || 0}`,
     "",
     "## Tool Surface",
     "",
@@ -471,6 +541,7 @@ function parseArgs(argv) {
     buildRequest: "",
     rewriteRequest: "",
     outputManifest: "",
+    projectLink: "",
   };
   const commands = new Set([
     "summary",
@@ -478,6 +549,7 @@ function parseArgs(argv) {
     "spatial-workspace",
     "design-kit",
     "output-binding",
+    "project-link",
     "all",
   ]);
   for (let index = 0; index < argv.length; index += 1) {
@@ -504,6 +576,8 @@ function parseArgs(argv) {
       options.rewriteRequest = argv[++index] || "";
     } else if (arg === "--manifest") {
       options.outputManifest = argv[++index] || "";
+    } else if (arg === "--project-link") {
+      options.projectLink = argv[++index] || "";
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -527,10 +601,11 @@ function relativeProjectPath(value) {
 
 function printHelp() {
   console.log(`Usage:
-  node scripts/canvax-inspect.mjs [summary|current-frame|spatial-workspace|design-kit|output-binding|all] [--json] [--markdown] [--save] [--frame id] [--full]
+  node scripts/canvax-inspect.mjs [summary|current-frame|spatial-workspace|design-kit|output-binding|project-link|all] [--json] [--markdown] [--save] [--frame id] [--full]
 
 Reads local Canvax handoff files and returns a stable read-only inspection
 payload for Codex/agent use. This is the local CLI precursor to future MCP tools:
-get_current_frame, get_spatial_workspace, get_design_kit, and get_output_binding.
+get_current_frame, get_spatial_workspace, get_design_kit, get_output_binding,
+and get_project_link.
 It does not require OPENAI_API_KEY and does not call hosted models or image APIs.`);
 }

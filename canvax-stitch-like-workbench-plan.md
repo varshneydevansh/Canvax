@@ -57,9 +57,10 @@ Open Design adds practical product pressure in three areas:
   design files maps to Canvax tools such as `get_current_frame`,
   `get_spatial_workspace`, `get_design_kit`, and `get_output_binding`, so Codex
   can read the live board without export-and-attach friction. The local
-  `npm run inspect` bridge is now available, and `npm run mcp` exposes the same
-  payloads as read-only stdio MCP tools. Native Codex/ChatGPT host registration
-  remains future work.
+  `npm run inspect` bridge is now available, including `project-link`, and
+  `npm run mcp` exposes the same payloads as read-only stdio MCP tools,
+  including `get_project_link`. Native Codex/ChatGPT host registration remains
+  future work.
 
 The next pressure is hosted/team sharing and first-party agent-readable live
 project access without making the Workbench feel like a prompt-only artifact
@@ -155,9 +156,10 @@ Current completed baseline:
   structure and Canvax bindings, creates a `canvax-project-edit-contract`, and
   can publish a frame-bound Codex output manifest for real app files.
 - `npm run inspect` now reads the latest live export, task pack, build request,
-  rewrite request, and Codex output manifest into a stable no-API inspection
-  payload for the current frame, spatial workspace, design kit, and output
-  binding. This is the local precursor to a future MCP/native host bridge.
+  rewrite request, project-link artifact, and Codex output manifest into a
+  stable no-API inspection payload for the current frame, spatial workspace,
+  design kit, output binding, and linked project files. This is the local
+  precursor to a future MCP/native host bridge.
 - `npm run mcp` now exposes that same inspection data as read-only stdio MCP
   tools for hosts that can register local commands.
 - `npm run review-snapshot` now samples browser screenshots locally and writes a
