@@ -1536,7 +1536,57 @@ function generationSummaryText(config = state?.board?.generation) {
 }
 
 function designKitPresetById(id) {
-  return designKitPresets.find((preset) => preset.id === id) || null;
+  return availableDesignKitPresets().find((preset) => preset.id === id) || null;
+}
+
+function availableDesignKitPresets() {
+  const presets = [];
+  const seen = new Set();
+  [...designKitPresets, ...repositoryDesignKitPresets()].forEach((preset) => {
+    if (!preset?.id || seen.has(preset.id)) {
+      return;
+    }
+    seen.add(preset.id);
+    presets.push(preset);
+  });
+  return presets;
+}
+
+function repositoryDesignKitPresets() {
+  const kits = state?.serverStatus?.designKitGallery?.kits;
+  if (!Array.isArray(kits)) {
+    return [];
+  }
+  return kits
+    .map((kit) => normalizeRepositoryDesignKitPreset(kit))
+    .filter(Boolean);
+}
+
+function normalizeRepositoryDesignKitPreset(kit) {
+  if (!kit || typeof kit !== "object" || Array.isArray(kit)) {
+    return null;
+  }
+  const id = cleanString(kit.id);
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    label: cleanString(kit.label) || id,
+    summary:
+      cleanString(kit.summary) ||
+      "Repository design kit loaded from design-kits.",
+    audience: cleanString(kit.audience),
+    mood: cleanString(kit.mood),
+    actionMode: normalizeActionMode(kit.actionMode).id,
+    viewport: viewportPresets[kit.viewport] ? kit.viewport : "desktop",
+    generation: normalizeGenerationConfig(kit.generation),
+    frame: kit.frame && typeof kit.frame === "object" ? kit.frame : {},
+    source: kit.source || {
+      kind: "repository-design-kit",
+      path: "design-kits",
+    },
+  };
 }
 
 function normalizeDesignTokens(value) {
@@ -1655,9 +1705,9 @@ function hydrateState() {
         ...empty.board,
         ...(migrated.board || {}),
         actionMode: normalizeActionMode(migrated.board?.actionMode).id,
-        designKitPreset: designKitPresetById(migrated.board?.designKitPreset)
-          ? migrated.board.designKitPreset
-          : empty.board.designKitPreset,
+        designKitPreset:
+          cleanString(migrated.board?.designKitPreset) ||
+          empty.board.designKitPreset,
         designTokens: normalizeDesignTokens(migrated.board?.designTokens),
         generation: normalizeGenerationConfig(
           migrated.board?.generation,
@@ -1733,6 +1783,7 @@ function hydrateState() {
         transport: buildTransportDescriptor(),
         hostCapabilities: null,
         designContext: null,
+        designKitGallery: null,
         outputDigest: null,
         outputActivity: [],
         sessionEvents: [],
@@ -2014,7 +2065,9 @@ function buildDesignKitSummary(frames = state?.frames || []) {
       ? [
           {
             label: `Kit: ${activePreset.label}`,
-            detail: activePreset.summary,
+            detail: activePreset.source?.path
+              ? `${activePreset.summary} Source: ${activePreset.source.path}.`
+              : activePreset.summary,
             active: true,
           },
         ]
@@ -2132,6 +2185,7 @@ function buildDesignKitSummary(frames = state?.frames || []) {
           id: activePreset.id,
           label: activePreset.label,
           summary: activePreset.summary,
+          source: activePreset.source || { kind: "builtin" },
         }
       : null,
     designContext,
@@ -2157,6 +2211,7 @@ function buildDesignKitSummary(frames = state?.frames || []) {
     instructions: [
       "Treat this design kit as the active local substitute for a hosted design-system/skill gallery.",
       "If DESIGN.md exists, treat it as the highest-priority project rule source.",
+      "If a repository design kit is active, preserve its file path as the reusable project rule source.",
       "Use the active recipe, board mood, frame notes, and style knobs to constrain generated screens, image prompts, and Codex build requests.",
     ],
   };
@@ -2237,6 +2292,7 @@ function createInitialState() {
       transport: buildTransportDescriptor(),
       hostCapabilities: null,
       designContext: null,
+      designKitGallery: null,
       outputDigest: null,
       outputActivity: [],
       sessionEvents: [],
@@ -2751,12 +2807,26 @@ function populateViewportSelect() {
         `<option value="${mode.id}">${mode.label}</option>`,
     )
     .join("");
-  dom.designKitPresetSelect.innerHTML = [
-    `<option value="custom">Manual board rules</option>`,
-    ...designKitPresets.map(
+  const builtInOptions = designKitPresets
+    .map(
       (preset) =>
         `<option value="${preset.id}">${escapeHtml(preset.label)}</option>`,
-    ),
+    )
+    .join("");
+  const repositoryOptions = repositoryDesignKitPresets()
+    .map(
+      (preset) =>
+        `<option value="${preset.id}">${escapeHtml(preset.label)} · file</option>`,
+    )
+    .join("");
+  dom.designKitPresetSelect.innerHTML = [
+    `<option value="custom">Manual board rules</option>`,
+    builtInOptions
+      ? `<optgroup label="Built-in kits">${builtInOptions}</optgroup>`
+      : "",
+    repositoryOptions
+      ? `<optgroup label="Repository kits">${repositoryOptions}</optgroup>`
+      : "",
   ].join("");
 }
 
@@ -15690,7 +15760,10 @@ async function fetchServerStatus() {
       transport: buildTransportDescriptor(data.transport),
       hostCapabilities: data.hostCapabilities || null,
       designContext: data.designContext || null,
+      designKitGallery: data.designKitGallery || null,
     };
+    populateViewportSelect();
+    renderDesignKitCard();
     renderServerStatus();
     if (data.exportRoot) {
       dom.workspaceStatus.textContent = `Live canvas updates will be written to ${data.exportRoot}. Use Preview for a separate live viewer tab.`;
@@ -15730,6 +15803,8 @@ async function refreshPreviewStateFromServer() {
       hostCapabilities:
         data.hostCapabilities || state.serverStatus.hostCapabilities || null,
       designContext: data.designContext || state.serverStatus.designContext || null,
+      designKitGallery:
+        data.designKitGallery || state.serverStatus.designKitGallery || null,
       outputDigest: nextOutputDigest,
       outputActivity: nextOutputActivity,
       transcriptBridge: data.transcriptBridge || null,
@@ -15788,6 +15863,7 @@ async function refreshPreviewStateFromServer() {
       transport: state.serverStatus.transport || buildTransportDescriptor(),
       hostCapabilities: state.serverStatus.hostCapabilities || null,
       designContext: state.serverStatus.designContext || null,
+      designKitGallery: state.serverStatus.designKitGallery || null,
       outputDigest: state.serverStatus.outputDigest || null,
       outputActivity: state.serverStatus.outputActivity || [],
       sessionEvents: state.serverStatus.sessionEvents || [],
@@ -20498,7 +20574,7 @@ async function runSelfTest() {
     results.push(
       assert(
         dom.designKitPresetSelect.options.length ===
-          designKitPresets.length + 1,
+          availableDesignKitPresets().length + 1,
         "design kit presets render",
       ),
     );
@@ -20518,6 +20594,21 @@ async function runSelfTest() {
         "design kit preset applies and exports active kit context",
       ),
     );
+    const repositoryPreset = repositoryDesignKitPresets()[0] || null;
+    if (repositoryPreset) {
+      const repositoryApplied = applyDesignKitPreset(repositoryPreset.id, {
+        capture: false,
+        silent: true,
+      });
+      const repositoryKit = buildDesignKitSummary();
+      results.push(
+        assert(
+          repositoryApplied &&
+            repositoryKit.preset?.source?.path?.startsWith("design-kits/"),
+          "repository design kit presets render and export source path",
+        ),
+      );
+    }
     results.push(
       assert(
         workbenchFocusModes.length ===

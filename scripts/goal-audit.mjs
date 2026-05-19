@@ -212,10 +212,24 @@ const checks = [
         includes: [
           "extractDesignTokensFromCurrentFrame",
           "importExternalDesignTokens",
+          "repositoryDesignKitPresets",
+          "availableDesignKitPresets",
           "normalizeExternalDesignTokenPack",
           "sampleImagePalette",
           "visualSamples",
         ],
+      },
+      {
+        path: "scripts/canvax.mjs",
+        includes: ["readDesignKitGallery", "designKitGallery"],
+      },
+      {
+        path: "scripts/validate-design-kits.mjs",
+        includes: ["requiresOpenAiApiKey: false", "validateKit"],
+      },
+      {
+        path: "design-kits/README.md",
+        includes: ["design-kits/*.json", "Design kit dropdown"],
       },
       {
         path: "scripts/extract-design-tokens.mjs",
@@ -252,7 +266,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Current-frame, reference-image, text/CSS token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but rendered screenshot/app semantic extraction and evidence from a real user project port remain open.",
+      "Repository kit files, current-frame/reference-image extraction, text/CSS token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but richer large-library discovery, rendered screenshot/app semantic extraction, and evidence from a real user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

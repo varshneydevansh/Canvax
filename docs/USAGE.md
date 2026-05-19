@@ -142,6 +142,25 @@ Advanced mode includes `Create DESIGN.md` in the Generate screen section. That w
 
 The same Advanced section also includes `Design kit`. This is the visible rule stack Canvax will hand to Codex: active `DESIGN.md` when present, local board rules when not, the current generation recipe, action mode, board mood, surface, frame notes, and variant style knobs. The kit preset dropdown can apply common designer directions such as product app, poster system, book spread, dashboard, or storyboard. Applying a kit changes the board-level direction and fills empty frame notes; it does not delete or rewrite the sketch.
 
+Repository kits live under `design-kits/*.json`. Canvax exposes them through
+`/api/status` as `designKitGallery`, then lists them in the same `Design kit`
+dropdown under `Repository kits`. Use this when a project needs reusable visual
+rules that are more specific than the built-in presets, such as a campaign
+style, children-book spread system, manga workflow, design-system variant, or
+client brand direction.
+
+Validate those files with:
+
+```bash
+npm run validate-design-kits
+```
+
+The shipped starter kits are:
+
+- `design-kits/scythian-constructivist.json`
+- `design-kits/storybook-cinematic-spread.json`
+- `design-kits/quiet-product-system.json`
+
 Use `Extract tokens` when the current frame itself should become part of the design contract. Canvax samples drawn non-eraser elements and any pasted/dropped image elements or reference underlay that the browser can read locally. It records a local token summary: dominant colors, element mix, density, shape language, text cues, asset-slot cues, and visual reference sample counts. Those tokens export through `designKit` and feed the no-API style lock used by image prompt packs, asset candidates, and Build-with-Codex context. This covers current-frame sketches, pasted screenshots, dropped reference images, and generated candidates brought back into Canvax. It does not yet scrape tokens directly from arbitrary URLs or external running apps.
 
 For external design references, use the local extractor:

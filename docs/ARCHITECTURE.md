@@ -628,6 +628,24 @@ Image prompt packs and asset candidate packs include a `canvax-style-lock` block
 
 The local Build-with-Codex executor also reads the same extracted tokens. It maps the token palette into generated CSS variables, records the token block in `canvax-build-contract.json`, and mirrors it into `codex-port-task.json` so a later Codex production port can preserve or intentionally translate the sampled visual system.
 
+Repository design kits live in `design-kits/*.json`. The local service reads
+them on `/api/status` as `designKitGallery`, and the browser merges those kits
+with built-in presets in the `Design kit` dropdown. A repository kit uses the
+same fields as a built-in preset: audience, mood, action mode, viewport,
+generation recipe, and default frame notes. When applied, it becomes part of the
+same exported `designKit` object as built-ins, `DESIGN.md`, extracted tokens, and
+style knobs.
+
+```text
+design-kits/*.json
+  -> /api/status designKitGallery
+  -> Design kit dropdown
+  -> task/image/build/rewrite designKit export
+```
+
+`scripts/validate-design-kits.mjs` checks that local kit files have the required
+shape and remain no-API.
+
 `scripts/extract-design-tokens.mjs` is the current external-source bridge. It scans public URLs, local HTML/CSS files, generated artifacts, or inline CSS/HTML text for explicit colors, CSS variables, and font-family rules, then writes `canvax-external-design-tokens` JSON/Markdown. Advanced `Import external` reads the latest JSON pack from `exports/` and normalizes it into `designKit.designTokens`. It is not a browser screenshot renderer and does not call any AI or paid API.
 
 `scripts/verify-token-enforcement.mjs` is the matching enforcement bridge. It

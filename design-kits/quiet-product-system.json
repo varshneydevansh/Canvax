@@ -1,0 +1,21 @@
+{
+  "id": "quiet-product-system",
+  "label": "Quiet product system",
+  "summary": "Calm implementation-first product UI kit for SaaS, dashboards, docs, and admin surfaces where clarity matters more than spectacle.",
+  "audience": "SaaS app, dashboard, internal tool, docs product, implementation-ready UI",
+  "mood": "Quiet, exact, spacious, accessible, restrained, high-trust.",
+  "actionMode": "build-ui",
+  "viewport": "desktop",
+  "generation": {
+    "direction": "product",
+    "style": "studio",
+    "focus": "utility"
+  },
+  "frame": {
+    "objective": "Turn the sketch into a polished product screen with clear states, strong hierarchy, and implementation-ready components.",
+    "layout": "Map rough boxes into real nav, cards, forms, tables, empty states, and action regions without adding decorative clutter.",
+    "motion": "Use only meaningful state transitions for loading, filtering, navigation, hover, and focus.",
+    "assets": "Prefer iconography, data examples, avatars, and product screenshots only when they clarify the workflow.",
+    "mobile": "Convert dense layouts into prioritized cards, sticky actions, and progressive disclosure."
+  }
+}

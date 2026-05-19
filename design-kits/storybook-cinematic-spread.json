@@ -1,0 +1,21 @@
+{
+  "id": "storybook-cinematic-spread",
+  "label": "Storybook cinematic spread",
+  "summary": "Landscape two-page illustration planning for children books, storyboards, comics, and image-generation prompt packs with consistent characters.",
+  "audience": "children book spread, comic page, storyboard, illustration prompt, sequential art",
+  "mood": "Warm, cinematic, expressive, clear action, consistent characters, print-safe.",
+  "actionMode": "image-prompt",
+  "viewport": "bookSpread",
+  "generation": {
+    "direction": "cinematic",
+    "style": "showcase",
+    "focus": "storytelling"
+  },
+  "frame": {
+    "objective": "Turn the sketch into a two-page image direction with camera angle, action beat, and safe text zones.",
+    "layout": "Respect spread gutter, focal character placement, foreground/background separation, and page-turn rhythm.",
+    "motion": "Interpret arrows as character action, camera movement, wind, magic, water, or emotional direction.",
+    "assets": "Preserve character identity, costume, prop continuity, lighting, palette, line style, and negative prompts across generated candidates.",
+    "mobile": "Also describe single-page crops and thumbnail-safe crops for review."
+  }
+}

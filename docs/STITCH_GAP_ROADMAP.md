@@ -112,8 +112,12 @@ The useful lesson for Canvax:
 - Make output cards understandable to designers. Generated implementation
   references should read as `Generated screen`, `Generated file`, and
   `Code change`, never as raw manifest labels like `generated-target`.
-- Add a richer skill/design-system gallery later, but only after the everyday
-  Workbench remains simple enough for sketch-first users.
+- Keep the reusable kit layer file-based and simple. Canvax now reads
+  `design-kits/*.json` as repository design kits, exposes them through the same
+  `Design kit` dropdown, validates them with `npm run validate-design-kits`, and
+  exports the selected kit source path through the normal `designKit` handoff.
+  The remaining opportunity is richer discovery/search and teams sharing larger
+  kit libraries without making the default Workbench feel like a prompt console.
 
 ## Current Canvax Shape
 

@@ -86,6 +86,9 @@ Current completed baseline:
   implementation artifact actually uses the token palette recorded in its build
   contract, and can also verify real files listed in the Codex output manifest
   after a production port.
+- Repository design kits in `design-kits/*.json` now load into the same Design
+  kit dropdown as built-in presets, carry their file path in the exported
+  `designKit.preset.source`, and validate through `npm run validate-design-kits`.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every

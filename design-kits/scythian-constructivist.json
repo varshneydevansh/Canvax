@@ -1,0 +1,21 @@
+{
+  "id": "scythian-constructivist",
+  "label": "Scythian constructivist",
+  "summary": "Poster-led product direction using Soviet Constructivism, WPA public graphics, Art Deco geometry, aged paper, red, black, gold, and faded blue.",
+  "audience": "campaign site, visual archive, product dossier, poster-like web interface",
+  "mood": "Bold, archival, public-communication graphics, diagonal, dramatic, material.",
+  "actionMode": "build-ui",
+  "viewport": "desktop",
+  "generation": {
+    "direction": "editorial",
+    "style": "showcase",
+    "focus": "storytelling"
+  },
+  "frame": {
+    "objective": "Turn the sketch into a poster-like interface with huge type, dossier cards, and a cinematic archive structure.",
+    "layout": "Use diagonal geometry, strong modular blocks, red/black/gold hierarchy, and visible paper texture. Preserve the sketched placement before adding style.",
+    "motion": "Use parallax poster layers, hard-cut section reveals, and subtle print registration shifts.",
+    "assets": "Reserve large poster-image slots for AI-generated archival imagery, symbols, portrait cutouts, maps, and public-notice graphics.",
+    "mobile": "Stack as poster panels with preserved headline dominance, short dispatch cards, and cropped image layers."
+  }
+}

@@ -4,6 +4,7 @@ import { closeSync, openSync } from "node:fs";
 import {
   appendFile,
   mkdir,
+  readdir,
   readFile,
   realpath,
   rename,
@@ -21,6 +22,7 @@ const scriptPath = fileURLToPath(import.meta.url);
 const projectRoot = resolve(__dirname, "..");
 const webRoot = resolve(projectRoot, "web");
 const designMdPath = resolve(projectRoot, "DESIGN.md");
+const designKitsRoot = resolve(projectRoot, "design-kits");
 const exportsRoot = resolve(projectRoot, "exports");
 const artifactsPreviewRoot = resolve(projectRoot, "artifacts", "preview");
 const materializedPreviewRoot = resolve(artifactsPreviewRoot, "materialized");
@@ -287,6 +289,102 @@ async function readDesignContext() {
       content: "",
     };
   }
+}
+
+async function readDesignKitGallery() {
+  const kits = [];
+  try {
+    const entries = await readdir(designKitsRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        continue;
+      }
+      try {
+        const raw = await readFile(resolve(designKitsRoot, entry.name), "utf8");
+        const parsed = JSON.parse(raw);
+        const kit = normalizeDesignKitGalleryPreset(parsed, entry.name);
+        if (kit) {
+          kits.push(kit);
+        }
+      } catch {
+        // Ignore malformed local kit files so one bad file does not break Canvax.
+      }
+    }
+  } catch {
+    return {
+      exists: false,
+      path: designKitsRoot,
+      relativeDirectory: "design-kits",
+      count: 0,
+      kits: [],
+      summary:
+        "No design-kits directory found. Built-in Canvax presets remain available.",
+    };
+  }
+
+  kits.sort((a, b) => a.label.localeCompare(b.label));
+  return {
+    exists: true,
+    path: designKitsRoot,
+    relativeDirectory: "design-kits",
+    count: kits.length,
+    kits,
+    summary: kits.length
+      ? `${kits.length} repository design kits available.`
+      : "design-kits exists but has no valid JSON kit files.",
+  };
+}
+
+function normalizeDesignKitGalleryPreset(source, fileName) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return null;
+  }
+  const baseId = cleanString(source.id) || fileName.replace(/\.json$/i, "");
+  const id = safeDesignKitId(baseId);
+  if (!id) {
+    return null;
+  }
+  const generation =
+    source.generation && typeof source.generation === "object"
+      ? source.generation
+      : {};
+  const frame =
+    source.frame && typeof source.frame === "object" ? source.frame : {};
+  return {
+    id,
+    label: cleanString(source.label) || id,
+    summary:
+      cleanString(source.summary) ||
+      "Repository design kit loaded from design-kits.",
+    audience: cleanString(source.audience),
+    mood: cleanString(source.mood),
+    actionMode: cleanString(source.actionMode) || "build-ui",
+    viewport: cleanString(source.viewport) || "desktop",
+    generation: {
+      direction: cleanString(generation.direction) || "product",
+      style: cleanString(generation.style) || "studio",
+      focus: cleanString(generation.focus) || "balanced",
+    },
+    frame: {
+      objective: cleanString(frame.objective),
+      layout: cleanString(frame.layout),
+      motion: cleanString(frame.motion),
+      assets: cleanString(frame.assets),
+      mobile: cleanString(frame.mobile),
+    },
+    source: {
+      kind: "repository-design-kit",
+      path: `design-kits/${fileName}`,
+    },
+  };
+}
+
+function safeDesignKitId(value) {
+  return cleanString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9._:-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
 }
 
 function summarizeDesignContext(content) {
@@ -631,6 +729,7 @@ async function runServer(port) {
           transport: buildTransportDescriptor(),
           hostCapabilities: buildHostCapabilities(),
           designContext: await readDesignContext(),
+          designKitGallery: await readDesignKitGallery(),
           url: `http://localhost:${port}`,
         });
       }
