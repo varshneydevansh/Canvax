@@ -750,11 +750,13 @@ local starter bundle.
 
 `npm run production-port-proof` packages that gate into a repeatable local
 fixture. It creates a production-like HTML route, CSS file, React component,
-build contract, and frame-bound Codex output manifest, then runs token
-verification and the static artifact review against those files. The output
-under `artifacts/canvax/production-port-proof/latest/` is intentionally local
-and no-API: it proves the manifest/token/review mechanics before a real user app
-port, but it is not a substitute for Codex editing an actual production route.
+build contract, production-like patch task, and frame-bound Codex output
+manifest, then runs token verification, the static artifact review, and the
+patch-task executor against those files. The output under
+`artifacts/canvax/production-port-proof/latest/` is intentionally local and
+no-API: it proves the manifest/token/review/patch mechanics before a real user
+app port, but it is not a substitute for Codex editing an actual production
+route.
 
 `npm run inspect` is the read-only local bridge for Codex/agent inspection. It
 can return `summary`, `current-frame`, `spatial-workspace`, `design-kit`,

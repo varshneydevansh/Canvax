@@ -203,7 +203,7 @@ const checks = [
         path: "scripts/execute-patch-task.mjs",
         includes: [
           "canvax-applied-patch-result",
-          "Canvax-generated implementation artifacts",
+          "Canvax-generated or production-like proof implementation artifacts",
           "data-canvax-patch-state",
           "scripts/write-codex-output.mjs",
         ],
@@ -214,6 +214,9 @@ const checks = [
           "canvax-production-port-proof",
           "canvax-proof.html",
           "CanvaxProof.jsx",
+          "buildProductionPatchTask",
+          "patchApplication",
+          "scripts/execute-patch-task.mjs",
           "scripts/verify-token-enforcement.mjs",
           "scripts/review-artifact.mjs",
           "requiresOpenAiApiKey: false",
@@ -221,7 +224,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "High-fidelity arbitrary production app/page edits still require Codex to act on the request and are not proven by the deterministic scaffold, generated-bundle patch proof, or local production-port proof fixture alone.",
+      "High-fidelity arbitrary production app/page edits still require Codex to act on the request and are not proven by the deterministic scaffold, generated-bundle patch proof, or local production-like port/patch proof fixture alone.",
   },
   {
     id: "design-system-token-extraction",
@@ -399,7 +402,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatically applied arbitrary production patching, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatically applied arbitrary production patching, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

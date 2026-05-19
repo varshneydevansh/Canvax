@@ -219,9 +219,10 @@ the real changed files and artifacts published back to Canvax for that frame.
 
 Use `npm run production-port-proof -- --dry-run --json` when changing the
 manifest/token/artifact-review pipeline. It creates a production-like route,
-CSS file, React component, build contract, and Codex output manifest, then
-checks that `verify-token-enforcement --manifest` and `review-artifact` both
-cover those files. A non-dry run writes the same proof under
+CSS file, React component, build contract, production-like patch task, and Codex
+output manifest, then checks that `verify-token-enforcement --manifest`,
+`review-artifact`, and `execute-patch-task` cover those files. A non-dry run
+writes the same proof under
 `artifacts/canvax/production-port-proof/latest/`.
 
 Use `npm run inspect -- all --json` when changing handoff schemas. It reads the

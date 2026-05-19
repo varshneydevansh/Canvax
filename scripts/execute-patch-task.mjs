@@ -5,20 +5,18 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
-const latestRoot = resolve(
-  projectRoot,
-  "artifacts",
-  "canvax",
-  "applied-patches",
-  "latest",
-);
-const latestJsonPath = resolve(latestRoot, "result.json");
-const latestMarkdownPath = resolve(latestRoot, "result.md");
 
 const args = process.argv.slice(2);
 const wantsJson = args.includes("--json");
 const wantsDryRun = args.includes("--dry-run");
 const noPublish = args.includes("--no-publish");
+const resultRoot = resolve(
+  projectRoot,
+  readOption(args, "--result-root") ||
+    "artifacts/canvax/applied-patches/latest",
+);
+const latestJsonPath = resolve(resultRoot, "result.json");
+const latestMarkdownPath = resolve(resultRoot, "result.md");
 
 if (args.includes("--help") || args.includes("-h")) {
   printHelp();
@@ -43,8 +41,10 @@ const changes = [];
 for (const file of plan.files) {
   if (file.kind === "react-screen") {
     changes.push(await patchReactScreen(file, plan));
-  } else if (file.kind === "standalone-html") {
+  } else if (file.kind === "standalone-html" || file.kind === "html-route") {
     changes.push(await patchStandaloneHtml(file, plan));
+  } else if (file.kind === "jsx-component") {
+    changes.push(await patchStaticJsx(file, plan));
   } else if (file.kind === "css") {
     changes.push(await patchCss(file, plan));
   }
@@ -79,10 +79,10 @@ const result = {
       reason: change.reason || "No matching target found.",
     })),
   noApiBoundary:
-    "This executor applies a local deterministic patch to Canvax-generated implementation artifacts. It does not call paid APIs, ChatGPT, image generation, or browser automation.",
+    "This executor applies a local deterministic patch to Canvax-generated or production-like proof implementation artifacts. It does not call paid APIs, ChatGPT, image generation, or browser automation.",
 };
 
-await mkdir(latestRoot, { recursive: true });
+await mkdir(resultRoot, { recursive: true });
 await writeFile(latestJsonPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
 await writeFile(latestMarkdownPath, buildMarkdown(result), "utf8");
 
@@ -147,10 +147,11 @@ function selectPatchTargetIds(task, note) {
     ? task.componentTargets.filter((component) => {
         const type = cleanString(component.type).toLowerCase();
         const label = `${component.id || ""} ${component.label || ""}`.toLowerCase();
+        const humanLabel = cleanString(component.label).toLowerCase();
         return (
           component.id &&
           !["arrow", "line", "path"].includes(type) &&
-          !/\b(frame|section|background|container)\b/.test(label)
+          !/\b(frame|background|container)\b/.test(humanLabel)
         );
       })
     : [];
@@ -207,17 +208,31 @@ function classifyPatchFiles(files) {
   return files
     .map((file) => cleanString(file.path || file))
     .filter(Boolean)
-    .filter((file) => file.startsWith("artifacts/preview/codex-build/"))
     .map((path) => {
-      if (path.endsWith("/implementation/CanvaxScreen.jsx")) {
+      const isGeneratedBundle = path.startsWith("artifacts/preview/codex-build/");
+      const isProductionProof = path.startsWith(
+        "artifacts/canvax/production-port-proof/",
+      ) || path.startsWith(".canvax/production-port-proof/");
+      if (!isGeneratedBundle && !isProductionProof) {
+        return null;
+      }
+      if (isGeneratedBundle && path.endsWith("/implementation/CanvaxScreen.jsx")) {
         return { path, kind: "react-screen" };
       }
-      if (path.endsWith("/implementation/index.html")) {
+      if (isGeneratedBundle && path.endsWith("/implementation/index.html")) {
         return { path, kind: "standalone-html" };
       }
+      if (isProductionProof && path.endsWith(".html")) {
+        return { path, kind: "html-route" };
+      }
+      if (isProductionProof && path.endsWith(".jsx")) {
+        return { path, kind: "jsx-component" };
+      }
       if (
-        path.endsWith("/implementation/styles.css") ||
-        path.endsWith("/implementation/CanvaxScreen.css")
+        (isGeneratedBundle &&
+          (path.endsWith("/implementation/styles.css") ||
+            path.endsWith("/implementation/CanvaxScreen.css"))) ||
+        (isProductionProof && path.endsWith(".css"))
       ) {
         return { path, kind: "css" };
       }
@@ -293,6 +308,26 @@ async function patchStandaloneHtml(file, plan) {
   return changed(file, `Updated ${changedIds.length} standalone HTML node positions.`, changedIds);
 }
 
+async function patchStaticJsx(file, plan) {
+  const absolutePath = resolve(projectRoot, file.path);
+  let raw = await readFile(absolutePath, "utf8");
+  const changedIds = [];
+  plan.targetIds.forEach((targetId) => {
+    const nextRaw = patchStaticJsxNode(raw, targetId, plan);
+    if (nextRaw !== raw) {
+      raw = nextRaw;
+      changedIds.push(targetId);
+    }
+  });
+  if (!changedIds.length) {
+    return skipped(file, "No matching JSX data-canvax-node-id target found.");
+  }
+  if (!wantsDryRun) {
+    await writeFile(absolutePath, raw, "utf8");
+  }
+  return changed(file, `Updated ${changedIds.length} JSX component targets.`, changedIds);
+}
+
 async function patchCss(file, plan) {
   const absolutePath = resolve(projectRoot, file.path);
   const raw = await readFile(absolutePath, "utf8");
@@ -303,13 +338,15 @@ async function patchCss(file, plan) {
 
 /* canvax-applied-patch-highlight */
 .generated-node[data-canvax-patch-state="applied"],
-.canvaxReactNode[data-canvax-patch-state="applied"] {
+.canvaxReactNode[data-canvax-patch-state="applied"],
+[data-canvax-patch-state="applied"] {
   outline: 3px solid color-mix(in srgb, var(--red, #ff5d3a), white 20%);
   outline-offset: 7px;
 }
 
 .generated-node[data-canvax-patch-state="applied"]::before,
-.canvaxReactNode[data-canvax-patch-state="applied"]::before {
+.canvaxReactNode[data-canvax-patch-state="applied"]::before,
+[data-canvax-patch-state="applied"]::before {
   content: "Canvax tweak";
   position: absolute;
   left: 0;
@@ -354,7 +391,32 @@ function patchHtmlNode(raw, targetId, plan) {
       ? prefix
       : `${prefix}data-canvax-patch-state="applied" data-canvax-patch-note="${note}" `;
     return `${withState}${styleAttribute}${patchInlineStyle(style, plan.motion)}${suffix}`;
-  });
+  }).replace(
+    new RegExp(`(<[a-z][^>]*data-canvax-node-id="${escapedId}"[^>]*)(>)`, "gi"),
+    (match, prefix, suffix) => {
+      if (prefix.includes("data-canvax-patch-state") || prefix.includes("style=")) {
+        return match;
+      }
+      return `${prefix} data-canvax-patch-state="applied" data-canvax-patch-note="${note}" style="${buildTransformStyle(plan.motion)}"${suffix}`;
+    },
+  );
+}
+
+function patchStaticJsxNode(raw, targetId, plan) {
+  const escapedId = escapeRegExp(targetId);
+  const note = escapeJsxAttribute(plan.patchNote);
+  return raw.replace(
+    new RegExp(`(<[A-Za-z][^>]*data-canvax-node-id="${escapedId}"[^>]*)(>)`, "g"),
+    (match, prefix, suffix) => {
+      if (prefix.includes("data-canvax-patch-state")) {
+        return match;
+      }
+      return `${prefix}
+      data-canvax-patch-state="applied"
+      data-canvax-patch-note="${note}"
+      style={{ transform: "${buildTransformValue(plan.motion)}" }}${suffix}`;
+    },
+  );
 }
 
 function patchInlineStyle(style, motion) {
@@ -373,6 +435,16 @@ function patchInlineStyle(style, motion) {
       return `${key}:${value}`;
     })
     .join(";");
+}
+
+function buildTransformStyle(motion) {
+  return `transform:${buildTransformValue(motion)}`;
+}
+
+function buildTransformValue(motion) {
+  const x = trimNumber(motion.x * 100);
+  const y = trimNumber(motion.y * 100);
+  return `translate(${x}%, ${y}%)`;
 }
 
 function movePercent(value, delta) {
@@ -534,6 +606,14 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+function escapeJsxAttribute(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function collectChild(child) {
   return new Promise((resolveChild) => {
     let stdout = "";
@@ -567,8 +647,10 @@ function printHelp() {
 Usage:
   node scripts/execute-patch-task.mjs --task artifacts/preview/codex-rewrite/frames/frame-id/codex-patch-task.json
   node scripts/execute-patch-task.mjs --task artifacts/preview/.../codex-patch-task.json --no-publish --json
+  node scripts/execute-patch-task.mjs --task artifacts/.../codex-patch-task.json --result-root artifacts/canvax/applied-patches/custom
 
 Applies a deterministic no-API patch to Canvax-generated implementation files
-referenced by a codex-patch-task.json. This is a local proof path, not a
-replacement for Codex editing arbitrary production app code.`);
+or production-like proof files referenced by a codex-patch-task.json. This is a
+local proof path, not a replacement for Codex editing arbitrary production app
+code.`);
 }

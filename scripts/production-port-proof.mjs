@@ -50,8 +50,28 @@ async function buildProductionPortProof(options) {
     await writeFile(file.path, file.content, "utf8");
   }
 
+  const patchTask = buildProductionPatchTask(paths, options.frameId);
+  await writeFile(
+    paths.patchTaskPath,
+    `${JSON.stringify(patchTask, null, 2)}\n`,
+    "utf8",
+  );
   const manifest = buildCodexOutputManifest(paths, options.frameId);
-  await writeFile(paths.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  await writeFile(
+    paths.manifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
+  );
+  const patchApplication = await runJsonCommand("node", [
+    "scripts/execute-patch-task.mjs",
+    "--task",
+    relativeProjectPath(paths.patchTaskPath),
+    "--result-root",
+    relativeProjectPath(resolve(options.outputRoot, "applied-patch")),
+    "--no-publish",
+    ...(options.dryRun ? ["--dry-run"] : []),
+    "--json",
+  ]);
 
   const tokenVerification = await runJsonCommand("node", [
     "scripts/verify-token-enforcement.mjs",
@@ -71,13 +91,20 @@ async function buildProductionPortProof(options) {
     "--json",
   ]);
   const artifactReview = artifactReviewPayload.review || artifactReviewPayload;
-  const implementationFiles = files
-    .filter((file) => file.role !== "result")
-    .map((file) => ({
-      path: relativeProjectPath(file.path),
-      role: file.role,
-      bytes: Buffer.byteLength(file.content, "utf8"),
-    }));
+  const implementationFiles = [
+    ...files
+      .filter((file) => file.role !== "result")
+      .map((file) => ({
+        path: relativeProjectPath(file.path),
+        role: file.role,
+        bytes: Buffer.byteLength(file.content, "utf8"),
+      })),
+    {
+      path: relativeProjectPath(paths.patchTaskPath),
+      role: "codex-patch-task",
+      bytes: Buffer.byteLength(JSON.stringify(patchTask, null, 2), "utf8"),
+    },
+  ];
 
   const ok = Boolean(
     tokenVerification?.ok &&
@@ -92,7 +119,17 @@ async function buildProductionPortProof(options) {
         entry.endsWith("CanvaxProof.jsx"),
       ) &&
       artifactReview?.requiresOpenAiApiKey === false &&
-      ["pass", "review"].includes(artifactReview?.status),
+      ["pass", "review"].includes(artifactReview?.status) &&
+      patchApplication?.ok === true &&
+      patchApplication.changedFiles?.some((entry) =>
+        entry.path.endsWith("canvax-proof.html"),
+      ) &&
+      patchApplication.changedFiles?.some((entry) =>
+        entry.path.endsWith("CanvaxProof.jsx"),
+      ) &&
+      patchApplication.changedFiles?.some((entry) =>
+        entry.path.endsWith("canvax-proof.css"),
+      ),
   );
 
   return {
@@ -103,18 +140,20 @@ async function buildProductionPortProof(options) {
     requiresOpenAiApiKey: false,
     dryRun: options.dryRun,
     purpose:
-      "Proves Canvax can bind a production-like route/component/CSS bundle to a Codex output manifest, verify required design-token colors in those files, and run a no-API static artifact review.",
+      "Proves Canvax can bind a production-like route/component/CSS bundle to a Codex output manifest, verify required design-token colors in those files, run a no-API static artifact review, and apply a no-API patch task to production-like files.",
     frameId: options.frameId,
     rootPath: relativeProjectPath(options.outputRoot),
     manifestPath: relativeProjectPath(paths.manifestPath),
     contractPath: relativeProjectPath(paths.contractPath),
+    patchTaskPath: relativeProjectPath(paths.patchTaskPath),
     previewPath: relativeProjectPath(paths.htmlPath),
     implementationFiles,
     manifest,
     tokenVerification,
     artifactReview,
+    patchApplication,
     remainingGap:
-      "This is a local production-like fixture. It proves the gate mechanics, but not a real external/user project port.",
+      "This is a local production-like fixture. It proves port, token, review, manifest, and patch-task mechanics, but not a real external/user project port.",
   };
 }
 
@@ -134,6 +173,7 @@ function buildProofPaths(root) {
     jsxPath: resolve(componentsDir, "CanvaxProof.jsx"),
     designPath: resolve(root, "DESIGN.md"),
     contractPath: resolve(implementationDir, "canvax-build-contract.json"),
+    patchTaskPath: resolve(implementationDir, "codex-patch-task.json"),
     manifestPath: resolve(root, "codex-output.json"),
     resultJsonPath: resolve(root, "result.json"),
     resultMarkdownPath: resolve(root, "result.md"),
@@ -391,6 +431,7 @@ function buildCodexOutputManifest(paths, frameId) {
   const cssPath = relativeProjectPath(paths.cssPath);
   const jsxPath = relativeProjectPath(paths.jsxPath);
   const designPath = relativeProjectPath(paths.designPath);
+  const patchTaskPath = relativeProjectPath(paths.patchTaskPath);
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -436,6 +477,14 @@ function buildCodexOutputManifest(paths, frameId) {
         summary: "React component preserving Canvax bindings and tokens.",
         frameIds: [frameId],
       },
+      {
+        id: "change-patch-task",
+        path: patchTaskPath,
+        label: "codex-patch-task.json",
+        kind: "updated",
+        summary: "Production-like patch task for the proof route.",
+        frameIds: [frameId],
+      },
     ],
     artifacts: [
       {
@@ -446,6 +495,86 @@ function buildCodexOutputManifest(paths, frameId) {
         description: "Human-readable proof contract and design token summary.",
         frameIds: [frameId],
       },
+    ],
+  };
+}
+
+function buildProductionPatchTask(paths, frameId) {
+  const htmlPath = relativeProjectPath(paths.htmlPath);
+  const cssPath = relativeProjectPath(paths.cssPath);
+  const jsxPath = relativeProjectPath(paths.jsxPath);
+  const patchTaskPath = relativeProjectPath(paths.patchTaskPath);
+  return {
+    kind: "canvax-codex-patch-task",
+    schemaVersion: 1,
+    requiresOpenAiApiKey: false,
+    createdAt: new Date().toISOString(),
+    source: "scripts/production-port-proof.mjs",
+    frameId,
+    frameTitle: "Production port proof",
+    trigger: {
+      kind: "production-port-proof-tweak",
+      id: `${frameId}-hero-proof-tweak`,
+      path: patchTaskPath,
+      note:
+        "Move the production proof hero upward while preserving Canvax node bindings.",
+      target: {
+        id: "production-proof-route",
+        label: "Production proof route",
+        type: "implementation-preview",
+        previewPath: htmlPath,
+        source: "canvax-production-port-proof",
+      },
+      region: {
+        normalized: { x: 0.08, y: 0.18, width: 0.72, height: 0.46 },
+      },
+    },
+    previewPath: htmlPath,
+    contextPath: "",
+    suggestedFiles: [
+      {
+        path: htmlPath,
+        role: "production-like route html",
+        source: "production-port-proof",
+      },
+      {
+        path: cssPath,
+        role: "production-like route stylesheet",
+        source: "production-port-proof",
+      },
+      {
+        path: jsxPath,
+        role: "production-like React component",
+        source: "production-port-proof",
+      },
+    ],
+    componentTargets: [
+      {
+        id: `${frameId}-hero`,
+        label: "Production proof hero",
+        type: "section",
+        selector: `[data-canvax-node-id="${frameId}-hero"]`,
+        suggestedComponentName: "ProductionProofHero",
+        bounds: { x: 0.08, y: 0.18, w: 0.72, h: 0.46 },
+      },
+    ],
+    affectedRegions: [
+      {
+        source: "production-port-proof",
+        label: "Proof hero tweak",
+        note:
+          "Move the production proof hero upward while preserving Canvax node bindings.",
+        normalizedBounds: { x: 0.08, y: 0.18, w: 0.72, h: 0.46 },
+        componentTargetIds: [`${frameId}-hero`],
+      },
+    ],
+    instructions: [
+      "Apply this only to the local production-port proof fixture.",
+      "Preserve data-canvax-node-id bindings so future Canvax corrections remain traceable.",
+    ],
+    acceptanceCriteria: [
+      "The proof route, component, and CSS record applied patch metadata.",
+      "No OpenAI API key or paid API call is required.",
     ],
   };
 }
@@ -467,9 +596,11 @@ function buildProofMarkdown(proof) {
 - Dry run: ${proof.dryRun ? "yes" : "no"}
 - Frame: ${proof.frameId}
 - Manifest: ${proof.manifestPath}
+- Patch task: ${proof.patchTaskPath}
 - Preview route: ${proof.previewPath}
 - Token enforcement: ${tokenStatus}
 - Artifact review: ${reviewStatus}
+- Patch application: ${proof.patchApplication?.ok ? "pass" : "fail"}
 
 ## Checked Files
 

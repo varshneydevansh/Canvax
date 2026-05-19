@@ -268,12 +268,15 @@ npm run production-port-proof -- --dry-run --json
 ```
 
 That command writes a local production-like HTML route, CSS file, React
-component, build contract, and Codex output manifest under
+component, build contract, production-like `codex-patch-task.json`, and Codex
+output manifest under
 `artifacts/canvax/production-port-proof/latest/` unless `--dry-run` is used. It
 then runs `verify-tokens --manifest` against the manifest-listed files and runs
-`review-artifact` against the route. This proves the no-API gate mechanics. It
-does not prove that an arbitrary external/user project has been ported
-correctly; use it as a local fixture before testing a real app.
+`review-artifact` against the route, then applies the patch task through
+`execute-patch`. This proves the no-API gate and patch mechanics for a
+production-like fixture. It does not prove that an arbitrary external/user
+project has been ported correctly; use it as a local fixture before testing a
+real app.
 
 The host chip is intentionally explicit. Today it reports local Codex Browser / file-handoff capability and marks host image generation or native mic bridging as unavailable unless a future Codex client exposes those bridges directly. That prevents Canvax from pretending it can call ChatGPT image generation or the Codex microphone from a localhost page.
 

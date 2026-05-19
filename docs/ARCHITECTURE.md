@@ -708,11 +708,11 @@ files instead of stopping at the local starter bundle.
 
 `scripts/production-port-proof.mjs` is the local proof for that gate. It writes
 a production-like route/component/CSS bundle, a matching build contract, and a
-frame-bound Codex output manifest, then runs the token verifier and static
-artifact review against the generated files. The result is saved at
+frame-bound Codex output manifest, then runs the token verifier, static artifact
+review, and patch-task executor against the generated files. The result is saved at
 `artifacts/canvax/production-port-proof/latest/result.{json,md}` for non-dry
-runs. It is deliberately a fixture: it proves the gate mechanics, while a real
-external/user project port remains separate evidence.
+runs. It is deliberately a fixture: it proves the gate and patch mechanics,
+while a real external/user project port remains separate evidence.
 
 `scripts/canvax-inspect.mjs` is the read-only inspection bridge. It reads the
 latest live export, task pack, build request, rewrite request, and Codex output

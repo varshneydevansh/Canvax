@@ -143,8 +143,9 @@ Current completed baseline:
   files.
 - `npm run production-port-proof` now writes a no-API production-like
   route/component/CSS fixture, binds it to a Codex output manifest, verifies
-  required token colors across the manifest-listed files, and runs static
-  artifact review against the route. This proves the local production-port gate
+  required token colors across the manifest-listed files, runs static artifact
+  review against the route, and applies a production-like patch task through
+  `execute-patch`. This proves the local production-port gate and patch
   mechanics while real external/user project evidence remains open.
 - `npm run inspect` now reads the latest live export, task pack, build request,
   rewrite request, and Codex output manifest into a stable no-API inspection

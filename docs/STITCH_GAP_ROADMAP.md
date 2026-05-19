@@ -140,11 +140,12 @@ The useful lesson for Canvax:
   `artifacts/canvax/codex-output.json` to check the real files Codex published
   for a frame, so production-port token enforcement has a concrete gate.
   `npm run production-port-proof` now proves that gate against a production-like
-  local route/component/CSS fixture. `npm run review-jury` now gives the local
-  review loop a named design-jury verdict over artifact semantics, screenshot
-  pixels, and Canvax inspection context. The remaining gap is proving the same
-  gate against real external/user project ports and adding live browser visual
-  critique. Basic local screenshot palette extraction now exists through
+  local route/component/CSS fixture and applies a production-like patch task
+  through the same `execute-patch` path. `npm run review-jury` now gives the
+  local review loop a named design-jury verdict over artifact semantics,
+  screenshot pixels, and Canvax inspection context. The remaining gap is proving
+  the same gate against real external/user project ports and adding live browser
+  visual critique. Basic local screenshot palette extraction now exists through
   `npm run extract-tokens -- --image <path>`, static HTML/JSX artifact semantics
   now export through `semanticStructure`, and static artifact readiness checks
   now run through `npm run review-artifact`. `npm run review-snapshot` adds a
@@ -460,8 +461,8 @@ static no-API generated-artifact review for landmarks, headings, labels, links,
 image alternatives, form labels, responsive cues, focus styles, and Canvax node
 bindings before Codex ports output into production files. `npm run
 production-port-proof` creates a production-like local route/component/CSS
-fixture, binds it through a Codex output manifest, and runs token enforcement
-plus artifact review across those files. `npm run inspect` reads the latest
+fixture, binds it through a Codex output manifest, and runs token enforcement,
+artifact review, and patch-task execution across those files. `npm run inspect` reads the latest
 Canvax exports and manifests into a stable no-API inspection payload for current
 frame, spatial workspace, design kit, and output bindings.
 `npm run mcp` exposes that inspection bridge as local read-only MCP tools:
