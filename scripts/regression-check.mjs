@@ -72,6 +72,11 @@ const visualSnapshotReviewPath = resolve(
   "exports",
   "canvax-visual-snapshot-review-latest.json",
 );
+const designJuryReviewPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-design-jury-latest.json",
+);
 const productionPortProofPath = resolve(
   projectRoot,
   "artifacts",
@@ -96,6 +101,7 @@ await validateExecuteRewriteRequestDryRun();
 await validateExternalDesignTokenExtractorDryRun();
 await validateImageDesignTokenExtractorDryRun();
 await validateVisualSnapshotReviewDryRun();
+await validateDesignJuryReviewDryRun();
 await validateDesignKitLibraryPackageDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
@@ -269,6 +275,18 @@ await validateOptionalJsonSchema(
     value.schemaVersion >= 1 &&
     Array.isArray(value?.snapshots),
   "visual snapshot review schema is valid",
+);
+await validateOptionalJsonSchema(
+  designJuryReviewPath,
+  (value) =>
+    value?.kind === "canvax-design-jury-review" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.categories) &&
+    value.subreviews?.artifactReviews &&
+    value.subreviews?.visualReview,
+  "design jury review schema is valid",
 );
 await validateOptionalJsonSchema(
   productionPortProofPath,
@@ -604,6 +622,83 @@ async function validateVisualSnapshotReviewDryRun() {
   } catch (error) {
     results.push({
       name: "visual snapshot review dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateDesignJuryReviewDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "regression-token-fixture");
+  const imagePath = resolve(fixtureRoot, "design-jury.bmp");
+  const palette = [
+    "#171412",
+    "#fff8ec",
+    "#e85d3a",
+    "#f2b84b",
+    "#14323f",
+    "#0c8d7b",
+    "#f8e8d8",
+    "#302828",
+  ];
+  const width = 100;
+  const height = 80;
+  const html =
+    '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>:root{--brand:#e85d3a}.hero{display:grid;transition:opacity .2s ease}.cta:focus-visible{outline:2px solid var(--brand)}@media (prefers-reduced-motion: reduce){.hero{transition:none}}@media (max-width: 720px){.hero{display:block}}</style></head><body><main data-canvax-node-id="hero-1"><section class="hero"><h1>Ship better screens</h1><img src="hero.png" alt="Hero preview"><button class="cta">Start</button><label for="email">Email</label><input id="email"></section></main></body></html>';
+  try {
+    await mkdir(fixtureRoot, { recursive: true });
+    await writeFile(
+      imagePath,
+      buildBmpFixture(
+        width,
+        height,
+        Array.from({ length: width * height }, (_, index) => {
+          const x = index % width;
+          const y = Math.floor(index / width);
+          return palette[(x + y) % palette.length];
+        }),
+      ),
+    );
+    const { stdout } = await runCommand("node", [
+      "scripts/review-design-jury.mjs",
+      "--text",
+      html,
+      "--image",
+      imagePath,
+      "--skip-inspect",
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const categoryIds = new Set(
+      Array.isArray(payload?.categories)
+        ? payload.categories.map((category) => category.id)
+        : [],
+    );
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-design-jury-review" &&
+        payload.requiresOpenAiApiKey === false &&
+        ["pass", "review"].includes(payload.status) &&
+        payload.subreviews?.visualReview?.kind ===
+          "canvax-visual-snapshot-review" &&
+        payload.subreviews?.artifactReviews?.[0]?.kind ===
+          "canvax-artifact-design-review" &&
+        categoryIds.has("visual-hierarchy") &&
+        categoryIds.has("accessibility-basics") &&
+        categoryIds.has("tweak-targeting") &&
+        categoryIds.has("production-readiness"),
+    );
+    results.push({
+      name: "design jury review dry-run is valid",
+      passed,
+      detail: passed
+        ? `${payload.status} ${payload.score}/100`
+        : "design jury did not combine artifact and snapshot reviews",
+    });
+  } catch (error) {
+    results.push({
+      name: "design jury review dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

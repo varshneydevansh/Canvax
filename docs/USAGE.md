@@ -227,6 +227,21 @@ captures, and very flat outputs. It does not understand layout semantics,
 animation, or live DOM behavior, so keep manual/browser visual review for design
 quality decisions.
 
+Run the local design jury when you want one designer-facing verdict instead of
+reading separate artifact and screenshot reports:
+
+```bash
+npm run review-jury
+npm run review-jury -- --artifact artifacts/preview/codex-build/frames/<frame-id>/index.html --image artifacts/canvax/browser-snapshots/latest/preview-desktop-1440x1024.png
+```
+
+`review-jury` writes `exports/canvax-design-jury-latest.json` and `.md`. It
+combines static artifact review, local screenshot pixel review, and Canvax
+inspection context into categories for visual hierarchy, accessibility,
+responsive readiness, brand/system fit, preview tweak targeting,
+motion/readability, visual integrity, and production readiness. It is still a
+local heuristic review, not a hosted AI design critic or live DOM inspector.
+
 The verifier reads the contract palette and checks nearby CSS/HTML/JSX files for
 those colors. It is local, does not call an AI model, and does not require
 `OPENAI_API_KEY`. This is useful after importing a design system from another
@@ -463,6 +478,9 @@ Important files:
 - `exports/canvax-checkpoint-latest.json`
 - `exports/canvax-session-events.jsonl`
 - `exports/canvax-preview-manifest.json`
+- `exports/canvax-artifact-review-latest.json`
+- `exports/canvax-visual-snapshot-review-latest.json`
+- `exports/canvax-design-jury-latest.json`
 - `artifacts/canvax/codex-output.json`
 - `artifacts/canvax/checkpoints/`
 

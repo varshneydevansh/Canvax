@@ -144,6 +144,10 @@ Current completed baseline:
   no-API visual snapshot review for dimensions, blankness risk, palette variety,
   dominant-color balance, and contrast spread. This strengthens browser
   regression artifacts without claiming live DOM or hosted AI visual critique.
+- `npm run review-jury` now combines local artifact review, screenshot review,
+  and Canvax inspection context into a named no-API design-jury verdict for
+  hierarchy, accessibility, responsiveness, brand/system fit, tweak targeting,
+  motion/readability, visual integrity, and production readiness.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every

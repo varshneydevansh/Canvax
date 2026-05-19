@@ -295,6 +295,16 @@ const checks = [
         ],
       },
       {
+        path: "scripts/review-design-jury.mjs",
+        includes: [
+          "canvax-design-jury-review",
+          "visual-hierarchy",
+          "accessibility-basics",
+          "tweak-targeting",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
+      {
         path: "scripts/execute-build-request.mjs",
         includes: [
           "applyDesignTokenPalette",
@@ -340,6 +350,7 @@ const checks = [
           "design kit library packager dry-run is valid",
           "artifact design review dry-run is valid",
           "visual snapshot review dry-run is valid",
+          "design jury review dry-run is valid",
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
@@ -348,7 +359,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, and a local read-only inspection CLI are proven, but hosted/team kit-library sharing, a first-class MCP/native host bridge, live DOM/AI browser visual critique, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, and a local read-only inspection CLI are proven, but hosted/team kit-library sharing, a first-class MCP/native host bridge, live DOM/AI browser visual critique, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -440,6 +451,7 @@ const checks = [
           "production-port-proof",
           "inspect",
           "review-snapshot",
+          "review-jury",
           "regression",
         ],
       },

@@ -744,6 +744,14 @@ palette variety, dominant-color imbalance, and low contrast spread. It is useful
 after browser regression, but it is still a pixel smoke test rather than a
 hosted AI critique or a replacement for manual design review.
 
+`npm run review-jury` is the local design-jury gate. It combines
+`review-artifact`, `review-snapshot`, and `npm run inspect` context into one
+designer-facing decision: `ready-for-codex-port`, `needs-designer-review`, or
+`blocked`. The categories cover hierarchy, accessibility, responsive readiness,
+brand/system fit, preview tweak targeting, motion/readability, visual integrity,
+and production readiness. This closes the no-API review loop without pretending
+Canvax has a hosted AI critic or live DOM/motion inspector.
+
 The bundle also includes `implementation/codex-port-task.json`, a machine-readable task for Codex. It lists source artifacts, suggested React/Vite/Next destinations, required `data-canvax-*` bindings, port steps, acceptance criteria, and publish commands so the generated screen can become real workspace code without inventing the handoff each time.
 
 Outputs:

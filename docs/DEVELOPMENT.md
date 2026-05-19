@@ -266,6 +266,13 @@ the latest browser snapshot index by default, writes
 low palette variety, dominant-color imbalance, dimension mismatches, and weak
 contrast spread. It does not replace live DOM inspection or designer review.
 
+Use `npm run review-jury` when a generated surface needs one local
+designer-facing gate before port or rewrite. It composes the static artifact
+review, screenshot pixel review, and Canvax inspection bridge into
+`exports/canvax-design-jury-latest.{json,md}` with categories for hierarchy,
+accessibility, responsiveness, brand/system fit, preview tweak targeting,
+motion/readability, visual integrity, and production readiness.
+
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.

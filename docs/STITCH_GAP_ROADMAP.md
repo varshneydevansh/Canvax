@@ -139,15 +139,20 @@ The useful lesson for Canvax:
   `artifacts/canvax/codex-output.json` to check the real files Codex published
   for a frame, so production-port token enforcement has a concrete gate.
   `npm run production-port-proof` now proves that gate against a production-like
-  local route/component/CSS fixture. The remaining gap is proving the same gate
-  against real external/user project ports and adding live browser visual
+  local route/component/CSS fixture. `npm run review-jury` now gives the local
+  review loop a named design-jury verdict over artifact semantics, screenshot
+  pixels, and Canvax inspection context. The remaining gap is proving the same
+  gate against real external/user project ports and adding live browser visual
   critique. Basic local screenshot palette extraction now exists through
   `npm run extract-tokens -- --image <path>`, static HTML/JSX artifact semantics
   now export through `semanticStructure`, and static artifact readiness checks
   now run through `npm run review-artifact`. `npm run review-snapshot` adds a
   no-API pixel-level browser screenshot review for blankness, dimensions,
-  palette variety, dominant-color balance, and contrast spread; true live DOM
-  or AI visual critique remains open.
+  palette variety, dominant-color balance, and contrast spread; `npm run
+  review-jury` combines those lower-level signals into designer-facing
+  hierarchy, accessibility, responsiveness, brand/system, tweak-targeting,
+  motion/readability, visual-integrity, and production-readiness categories.
+  True live DOM or AI visual critique remains open.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.
@@ -452,6 +457,9 @@ frame, spatial workspace, design kit, and output bindings.
 `npm run review-snapshot` samples the latest browser snapshots as a local
 visual smoke gate, so screenshot artifacts are not only archived but also
 checked for blank/flat/clipped risks.
+`npm run review-jury` combines static artifact review, screenshot review, and
+Canvax inspection context into a named local design-jury verdict before port or
+rewrite.
 
 Needed:
 
@@ -473,7 +481,8 @@ Needed:
   tool registration remains open.**
 - Add live visual critique for generated/browser output.
   **Local pixel-level screenshot review shipped through `npm run
-  review-snapshot`; live DOM/motion/AI critique remains open.**
+  review-snapshot`, and local design-jury aggregation shipped through
+  `npm run review-jury`; live DOM/motion/AI critique remains open.**
 
 ### 6. Image Model And Asset Workflow
 

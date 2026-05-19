@@ -15,6 +15,7 @@
     "production-port-proof": "node scripts/production-port-proof.mjs",
     "inspect": "node scripts/canvax-inspect.mjs",
     "review-snapshot": "node scripts/review-visual-snapshot.mjs",
+    "review-jury": "node scripts/review-design-jury.mjs",
     "validate-design-kits": "node scripts/validate-design-kits.mjs",
     "package-design-kits": "node scripts/package-design-kits.mjs",
     "goal-audit": "node scripts/goal-audit.mjs",
@@ -24,6 +25,6 @@
     "browser-regression": "node scripts/browser-regression.mjs",
     "service-lifecycle": "node scripts/service-lifecycle-check.mjs",
     "regression": "node scripts/regression-check.mjs && node scripts/goal-audit.mjs && node scripts/service-lifecycle-check.mjs && node scripts/e2e-workflow-check.mjs && node scripts/browser-regression.mjs",
-    "check": "node --check scripts/canvax.mjs && node --check scripts/write-preview-manifest.mjs && node --check scripts/write-codex-output.mjs && node --check scripts/execute-build-request.mjs && node --check scripts/execute-rewrite-request.mjs && node --check scripts/extract-design-tokens.mjs && node --check scripts/verify-token-enforcement.mjs && node --check scripts/review-artifact.mjs && node --check scripts/production-port-proof.mjs && node --check scripts/canvax-inspect.mjs && node --check scripts/review-visual-snapshot.mjs && node --check scripts/validate-design-kits.mjs && node --check scripts/package-design-kits.mjs && node --check scripts/regression-check.mjs && node --check scripts/goal-audit.mjs && node --check scripts/service-lifecycle-check.mjs && node --check scripts/e2e-workflow-check.mjs && node --check web/app.js && node --check web/preview.js && node scripts/validate-design-kits.mjs && node scripts/regression-check.mjs && node scripts/goal-audit.mjs"
+    "check": "node --check scripts/canvax.mjs && node --check scripts/write-preview-manifest.mjs && node --check scripts/write-codex-output.mjs && node --check scripts/execute-build-request.mjs && node --check scripts/execute-rewrite-request.mjs && node --check scripts/extract-design-tokens.mjs && node --check scripts/verify-token-enforcement.mjs && node --check scripts/review-artifact.mjs && node --check scripts/production-port-proof.mjs && node --check scripts/canvax-inspect.mjs && node --check scripts/review-visual-snapshot.mjs && node --check scripts/review-design-jury.mjs && node --check scripts/validate-design-kits.mjs && node --check scripts/package-design-kits.mjs && node --check scripts/regression-check.mjs && node --check scripts/goal-audit.mjs && node --check scripts/service-lifecycle-check.mjs && node --check scripts/e2e-workflow-check.mjs && node --check web/app.js && node --check web/preview.js && node scripts/validate-design-kits.mjs && node scripts/regression-check.mjs && node scripts/goal-audit.mjs"
   }
 }
