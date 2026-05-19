@@ -172,7 +172,8 @@ The useful lesson for Canvax:
   `Mark tweak` saves the frame, output target, normalized bounds, pixel bounds,
   viewport, and note to `exports/canvax-preview-tweak-latest.*` plus an
   archived tweak record. The rewrite executor now consumes the matching latest
-  tweak and maps it into affected-region/component-target context. Remaining
+  tweak, maps it into affected-region/component-target context, and writes a
+  `codex-patch-task.json` handoff with suggested selectors/files. Remaining
   work is live DOM-element selection, automatic production patching, and
   first-party Codex/ChatGPT co-editing.
 - Make output cards understandable to designers. Generated implementation

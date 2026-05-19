@@ -124,6 +124,7 @@ canvax-preview-tweak-latest.json
   -> execute-rewrite-request
   -> affectedRegions[source=preview-tweak]
   -> componentTargetIds when a component map exists
+  -> codex-patch-task.json with selectors/files/acceptance gates
   -> refreshed local preview + Codex output manifest
 ```
 

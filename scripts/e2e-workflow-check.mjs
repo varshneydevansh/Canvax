@@ -455,6 +455,7 @@ record(
 );
 await assertReadableProjectFile(rewriteResult.previewPath);
 await assertReadableProjectFile(rewriteResult.contextPath);
+await assertReadableProjectFile(rewriteResult.patchTaskPath);
 const rawRewritePreview = await readFile(
   resolve(projectRoot, rewriteResult.previewPath),
   "utf8",
@@ -463,7 +464,12 @@ const rawRewriteContext = await readFile(
   resolve(projectRoot, rewriteResult.contextPath),
   "utf8",
 );
+const rawPatchTask = await readFile(
+  resolve(projectRoot, rewriteResult.patchTaskPath),
+  "utf8",
+);
 const parsedRewriteContext = JSON.parse(rawRewriteContext);
+const parsedPatchTask = JSON.parse(rawPatchTask);
 record(
   "rewrite context maps correction marks to generated component targets",
   parsedRewriteContext.frameCodeMap?.path?.endsWith(
@@ -487,6 +493,18 @@ record(
         region.source === "preview-tweak" &&
         region.note === previewTweak.note &&
         region.componentTargetIds?.length > 0,
+    ),
+);
+record(
+  "rewrite emits Codex patch task for Preview tweak targets",
+  parsedPatchTask.kind === "canvax-codex-patch-task" &&
+    parsedPatchTask.requiresOpenAiApiKey === false &&
+    parsedPatchTask.trigger?.id === previewTweak.id &&
+    parsedPatchTask.componentTargets?.some((target) =>
+      target.selector?.includes("data-canvax-node-id"),
+    ) &&
+    parsedPatchTask.suggestedFiles?.some((file) =>
+      file.path?.includes("/implementation/CanvaxScreen.jsx"),
     ),
 );
 record(
@@ -546,6 +564,7 @@ const proof = {
     buildContext: buildResult.contextPath,
     rewritePreview: rewriteResult.previewPath,
     rewriteContext: rewriteResult.contextPath,
+    rewritePatchTask: rewriteResult.patchTaskPath,
   },
   checks: results,
 };

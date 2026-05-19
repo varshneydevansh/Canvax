@@ -348,7 +348,9 @@ rewrite request executor
   exports/canvax-rewrite-request-latest.json
   exports/canvax-preview-tweak-latest.json
       |
-      `-> artifacts/preview/codex-rewrite/frames/<frame-id>/
+      +-> artifacts/preview/codex-rewrite/frames/<frame-id>/index.html
+      +-> artifacts/preview/codex-rewrite/frames/<frame-id>/context.json
+      `-> artifacts/preview/codex-rewrite/frames/<frame-id>/codex-patch-task.json
 ```
 
 ```mermaid

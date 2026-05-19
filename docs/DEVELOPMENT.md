@@ -282,7 +282,9 @@ It must stay no-API and should not directly mutate the generated DOM.
 `scripts/execute-rewrite-request.mjs` reads the latest matching tweak by
 default, or a specific file through `--preview-tweak`, and emits it into
 `context.json` as `previewTweak` plus an `affectedRegions` entry with
-`source: "preview-tweak"`.
+`source: "preview-tweak"`. It also writes `codex-patch-task.json` beside the
+refreshed preview, carrying suggested selectors, files, acceptance criteria, and
+publish commands for the real Codex implementation pass.
 
 Use `npm run mcp` to launch the read-only local stdio MCP server. It exposes the
 inspection commands as tools for hosts that can register a local MCP command:
@@ -349,6 +351,7 @@ Rewrite local executor
   POST /api/execute-rewrite-request
   artifacts/preview/codex-rewrite/frames/<frame-id>/index.html
   artifacts/preview/codex-rewrite/frames/<frame-id>/context.json
+  artifacts/preview/codex-rewrite/frames/<frame-id>/codex-patch-task.json
   artifacts/canvax/codex-output.json
 ```
 

@@ -65,8 +65,10 @@ const frameTitle =
 const outputRoot = resolve(defaultOutputRoot, safeSlug(frameId));
 const htmlPath = resolve(outputRoot, "index.html");
 const contextPath = resolve(outputRoot, "context.json");
+const patchTaskPath = resolve(outputRoot, "codex-patch-task.json");
 const relativeHtmlPath = toProjectRelative(htmlPath);
 const relativeContextPath = toProjectRelative(contextPath);
+const relativePatchTaskPath = toProjectRelative(patchTaskPath);
 const frameCodeMap = await loadFrameCodeMap(request, frameId);
 const buildContract = await loadBuildContract(request, frameId);
 const portTask = await loadPortTask(request, frameId);
@@ -79,6 +81,18 @@ const affectedRegions = buildAffectedRegions(
   previewTweak,
 );
 const affectedComponents = affectedComponentsFromRegions(affectedRegions);
+const codexPatchTask = buildCodexPatchTask({
+  frameId,
+  frameTitle,
+  previewTweak,
+  affectedRegions,
+  affectedComponents,
+  frameCodeMap,
+  buildContract,
+  portTask,
+  previewPath: relativeHtmlPath,
+  contextPath: relativeContextPath,
+});
 
 await mkdir(outputRoot, { recursive: true });
 await writeFile(
@@ -92,6 +106,11 @@ await writeFile(
     visualDirection,
     previewTweak,
   }),
+  "utf8",
+);
+await writeFile(
+  patchTaskPath,
+  `${JSON.stringify(codexPatchTask, null, 2)}\n`,
   "utf8",
 );
 await writeFile(
@@ -109,7 +128,9 @@ await writeFile(
       portTask,
       visualDirection,
       previewTweak,
+      codexPatchTask,
       previewPath: relativeHtmlPath,
+      patchTaskPath: relativePatchTaskPath,
     }),
     null,
     2,
@@ -130,6 +151,7 @@ if (!noPublish) {
     buildContract,
     portTask,
     previewTweak,
+    relativePatchTaskPath,
     queueItem: selected.queueItem,
   });
 }
@@ -145,6 +167,7 @@ const result = {
   affectedRegionCount: affectedRegions.length,
   componentTargetCount: affectedComponents.length,
   previewTweakIncluded: Boolean(previewTweak),
+  patchTaskPath: relativePatchTaskPath,
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
 };
@@ -173,6 +196,7 @@ async function publishCodexOutput({
   buildContract,
   portTask,
   previewTweak,
+  relativePatchTaskPath,
   queueItem,
 }) {
   const frameCodeMapArtifactArgs = frameCodeMap?.path
@@ -191,6 +215,12 @@ async function publishCodexOutput({
     ? [
         "--artifact",
         `${portTask.path}::Codex port task::${frameId}`,
+      ]
+    : [];
+  const patchTaskArtifactArgs = relativePatchTaskPath
+    ? [
+        "--artifact",
+        `${relativePatchTaskPath}::Codex patch task::${frameId}`,
       ]
     : [];
   const child = spawn(
@@ -220,6 +250,7 @@ async function publishCodexOutput({
       `${relativeHtmlPath}::Canvax rewritten preview::${frameId}`,
       "--artifact",
       `${relativeContextPath}::Rewrite request context::${frameId}`,
+      ...patchTaskArtifactArgs,
       ...frameCodeMapArtifactArgs,
       ...buildContractArtifactArgs,
       ...portTaskArtifactArgs,
@@ -274,7 +305,9 @@ function buildContextPayload({
   portTask,
   visualDirection,
   previewTweak,
+  codexPatchTask,
   previewPath,
+  patchTaskPath,
 }) {
   return {
     kind: "canvax-executed-rewrite-preview",
@@ -282,6 +315,7 @@ function buildContextPayload({
     source: "scripts/execute-rewrite-request.mjs",
     requiresOpenAiApiKey: false,
     previewPath,
+    patchTaskPath,
     frameId,
     frameTitle,
     queueItem: selected.queueItem || null,
@@ -301,8 +335,9 @@ function buildContextPayload({
           note: previewTweak.note || "",
           target: previewTweak.target || null,
           region: previewTweak.region || null,
-        }
+      }
       : null,
+    codexPatchTask,
     visualDirection,
     frameCodeMap: frameCodeMap
       ? {
@@ -336,6 +371,175 @@ function buildContextPayload({
     outputArtifacts: request.outputManifest?.artifacts || [],
     request,
   };
+}
+
+function buildCodexPatchTask({
+  frameId,
+  frameTitle,
+  previewTweak,
+  affectedRegions,
+  affectedComponents,
+  frameCodeMap,
+  buildContract,
+  portTask,
+  previewPath,
+  contextPath,
+}) {
+  const suggestedFiles = collectPatchTaskFiles(frameCodeMap, portTask);
+  return {
+    kind: "canvax-codex-patch-task",
+    schemaVersion: 1,
+    requiresOpenAiApiKey: false,
+    createdAt: new Date().toISOString(),
+    source: "scripts/execute-rewrite-request.mjs",
+    frameId,
+    frameTitle,
+    trigger: previewTweak
+      ? {
+          kind: previewTweak.kind || "canvax-preview-tweak-request",
+          id: previewTweak.id || "",
+          path: previewTweak.path || "",
+          note: previewTweak.note || "",
+          target: previewTweak.target || null,
+          region: previewTweak.region || null,
+        }
+      : {
+          kind: "canvax-rewrite-request",
+          note: "No Preview tweak matched this frame; use rewrite request context.",
+        },
+    previewPath,
+    contextPath,
+    suggestedFiles,
+    componentTargets: affectedComponents.map((component) => ({
+      id: component.id || "",
+      label: component.label || "",
+      type: component.type || "",
+      selector: component.selector || "",
+      suggestedComponentName: component.suggestedComponentName || "",
+      bounds: component.bounds || null,
+    })),
+    affectedRegions: affectedRegions.map((region) => ({
+      source: region.source || "",
+      label: region.label || "",
+      note: region.note || "",
+      normalizedBounds: region.normalizedBounds || null,
+      componentTargetIds: region.componentTargetIds || [],
+    })),
+    designContract: buildContract?.path || "",
+    portTask: portTask?.path || "",
+    instructions: [
+      "Use this file as the narrow production-edit target for the current Canvax Preview tweak or rewrite request.",
+      "Prefer the component selectors and suggested files before making broad layout changes.",
+      "Preserve unrelated generated output regions unless the Canvax note, sketch, or voice context explicitly asks for broader changes.",
+      "After editing real app files, publish the result with scripts/write-codex-output.mjs so Canvax Preview can bind the update.",
+    ],
+    acceptanceCriteria: [
+      "The selected Preview/output region changes according to the tweak note.",
+      "Frame-bound data-canvax selectors or equivalent component ownership remain traceable.",
+      "No OpenAI API key or paid API call is required by this local patch task.",
+      ...(Array.isArray(portTask?.task?.acceptanceCriteria)
+        ? portTask.task.acceptanceCriteria.slice(0, 6)
+        : []),
+    ],
+    publishCommands:
+      Array.isArray(portTask?.task?.publishCommands) &&
+      portTask.task.publishCommands.length
+        ? portTask.task.publishCommands
+        : [
+            `node scripts/write-codex-output.mjs --from-git-status --frame ${frameId}`,
+          ],
+    noApiBoundary:
+      "This patch task is local planning data for Codex. It does not call ChatGPT, image generation, browser automation, or paid APIs.",
+  };
+}
+
+function collectPatchTaskFiles(frameCodeMap, portTask) {
+  const files = [];
+  const frameRoot = frameCodeMap?.path ? dirname(dirname(frameCodeMap.path)) : "";
+  const ownershipFiles = Array.isArray(frameCodeMap?.map?.ownership?.files)
+    ? frameCodeMap.map.ownership.files
+    : Array.isArray(frameCodeMap?.map?.fileOwnership?.files)
+      ? frameCodeMap.map.fileOwnership.files
+      : [];
+  ownershipFiles.forEach((file) => {
+    const path = cleanString(file.path);
+    if (!path) {
+      return;
+    }
+    files.push({
+      path: path.startsWith("artifacts/") || !frameRoot
+        ? path
+        : `${frameRoot}/${path}`,
+      role: cleanString(file.role),
+      source: "frame-code-map",
+    });
+  });
+  flattenPatchTaskDestinations(portTask?.task?.suggestedDestinations).forEach(
+    (destination) => {
+      const path = cleanString(destination.path);
+      if (path) {
+        files.push({
+          path,
+          role: cleanString(destination.role),
+          source: "codex-port-task",
+        });
+      }
+    },
+  );
+  const seen = new Set();
+  return files.filter((file) => {
+    if (seen.has(file.path)) {
+      return false;
+    }
+    seen.add(file.path);
+    return true;
+  });
+}
+
+function flattenPatchTaskDestinations(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((destination) => {
+        const path =
+          typeof destination === "string"
+            ? cleanString(destination)
+            : cleanString(destination?.path || destination?.file);
+        return path
+          ? {
+              path,
+              role: cleanString(
+                typeof destination === "string"
+                  ? "suggested production destination"
+                  : destination?.role || "suggested production destination",
+              ),
+            }
+          : null;
+      })
+      .filter(Boolean);
+  }
+  if (!value || typeof value !== "object") {
+    return [];
+  }
+  const destinations = [];
+  Object.entries(value).forEach(([framework, destination]) => {
+    if (!destination || typeof destination !== "object") {
+      return;
+    }
+    const directory = cleanString(destination.directory);
+    const files = Array.isArray(destination.files) ? destination.files : [];
+    files.forEach((file) => {
+      const fileName = cleanString(file);
+      if (!fileName) {
+        return;
+      }
+      const separator = directory && !directory.endsWith("/") ? "/" : "";
+      destinations.push({
+        path: `${directory}${separator}${fileName}`,
+        role: `${framework} suggested production destination`,
+      });
+    });
+  });
+  return destinations;
 }
 
 function buildAffectedRegions(

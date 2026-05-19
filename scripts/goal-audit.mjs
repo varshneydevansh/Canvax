@@ -389,7 +389,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatic DOM-semantic tweak patching, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatically applied DOM/production patching, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -410,6 +410,10 @@ const checks = [
         includes: [
           "affectedComponents",
           "canvax-component-map.json",
+          "codex-patch-task.json",
+          "canvax-codex-patch-task",
+          "buildCodexPatchTask",
+          "patchTaskPath",
           "loadBuildContract",
           "loadPortTask",
           "loadPreviewTweak",
@@ -432,12 +436,14 @@ const checks = [
         includes: [
           "preview tweak request stays no-API and targets the frame",
           "rewrite context includes Preview region tweak request",
+          "rewrite emits Codex patch task for Preview tweak targets",
+          "rewritePatchTask",
           "--preview-tweak",
         ],
       },
     ],
     remainingGap:
-      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests now feed the rewrite executor but are not automatic production DOM patches.",
+      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests now feed the rewrite executor and emit Codex patch tasks, but they are still not automatically applied production DOM patches.",
   },
   {
     id: "image-asset-handoff",
@@ -510,6 +516,7 @@ const checks = [
         includes: [
           "synthetic rough frame includes sketch",
           "image prompt and asset packs stay no-API",
+          "rewrite emits Codex patch task for Preview tweak targets",
           "rewrite preview can bind to Codex output manifest",
         ],
       },
