@@ -725,6 +725,14 @@ Design-style project-link layer in Canvax: local, file-backed, and no-API. It is
 not an automatic arbitrary app rewriter; Codex still performs the actual edit
 and should republish the manifest after changing files.
 
+`scripts/execute-patch-task.mjs` now treats that project-link contract as the
+allowlist for real-file deterministic patches. A `codex-patch-task.json` can
+reference linked route/component/CSS files, but the executor will only patch
+paths that appear in `exports/canvax-project-link-latest.json`. This closes the
+local proof gap between generated-bundle patching and real workspace files
+without pretending the deterministic executor can safely rewrite arbitrary app
+code.
+
 `scripts/canvax-inspect.mjs` is the read-only inspection bridge. It reads the
 latest live export, task pack, build request, rewrite request, project-link
 artifact, and Codex output manifest, then returns a stable

@@ -1081,9 +1081,13 @@ a {
 
 .prompt-preview {
     margin: 0;
+    min-width: 0;
+    max-width: 100%;
     min-height: 240px;
     max-height: 420px;
     overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
     padding: 18px;
     border-radius: 18px;
     border: 1px solid var(--line);

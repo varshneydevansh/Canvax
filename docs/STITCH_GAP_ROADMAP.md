@@ -184,9 +184,10 @@ The useful lesson for Canvax:
   tweak, maps it into affected-region/component-target context, and writes a
   `codex-patch-task.json` handoff with suggested selectors/files. `npm run
   execute-patch` can now apply that task to Canvax-generated implementation
-  bundles and record an applied-patch result. Remaining work is live DOM-element
-  selection, arbitrary production app patching, and first-party
-  Codex/ChatGPT co-editing.
+  bundles, the production-proof fixture, or explicit real project files listed
+  in `exports/canvax-project-link-latest.json`, then record an applied-patch
+  result. Remaining work is live DOM-element selection, arbitrary unlinked
+  production app patching, and first-party Codex/ChatGPT co-editing.
 - Make output cards understandable to designers. Generated implementation
   references should read as `Generated screen`, `Generated file`, and
   `Code change`, never as raw manifest labels like `generated-target`.
@@ -380,7 +381,7 @@ Needed:
 - A focused rewrite request artifact. **Initial `canvax-rewrite-request-latest.*` shipped.**
 - A deterministic local executor for that request. **Initial `execute-rewrite-request` shipped and is now called by Workbench Apply plus optional autosnap/freeze Live rewrite; newer handoffs queue behind an in-flight local rewrite instead of being silently skipped.**
 - A frame revision to output revision dependency graph. **Initial `revisionGraph` in rewrite requests shipped.**
-- A "changed sketch region -> affected generated component" map. **Initial local version shipped through rewrite executor component targeting from `canvax-component-map.json`; still open for continuous production app rewrites.**
+- A "changed sketch region -> affected generated component" map. **Initial local version shipped through rewrite executor component targeting from `canvax-component-map.json`; deterministic patches now work for generated bundles, the production-proof fixture, and explicit project-linked files. Continuous unlinked production app rewrites remain open.**
 - A visible rewrite progress lane in Preview. **Initial `Rewrite handoff` lane shipped for request/executor/manifest state.**
 - Conflict handling when the user sketches while Codex is still rewriting. **Initial local conflict handling shipped for Live rewrite queueing; production Codex-file rewrite conflicts remain open.**
 

@@ -203,7 +203,9 @@ const checks = [
         path: "scripts/execute-patch-task.mjs",
         includes: [
           "canvax-applied-patch-result",
-          "Canvax-generated or production-like proof implementation artifacts",
+          "Canvax-generated, production-like proof",
+          "project-linked implementation files",
+          "exports/canvax-project-link-latest.json",
           "data-canvax-patch-state",
           "scripts/write-codex-output.mjs",
         ],
@@ -234,7 +236,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "High-fidelity arbitrary production app/page edits still require Codex to act on the request. Canvax can now link explicit real project files to a frame, but the deterministic scaffold, generated-bundle patch proof, production-like fixture, and project-link bridge are not a fully autonomous production generator.",
+      "High-fidelity arbitrary unlinked production app/page edits still require Codex to act on the request. Canvax can now link explicit real project files to a frame and apply deterministic no-API patches only to files in that project-link contract, but the scaffold, generated-bundle proof, production-like fixture, and project-link patch bridge are not a fully autonomous production generator.",
   },
   {
     id: "design-system-token-extraction",
@@ -413,6 +415,7 @@ const checks = [
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
           "project link dry-run and saved manifest are valid",
+          "project-link-regression-tweak",
           "Canvax read-only inspection bridge is valid",
           "Canvax MCP server self-test is valid",
           "preview tweak endpoint writes no-API region request",
@@ -436,7 +439,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, a local project-link bridge, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary production patching, and evidence from Codex completing a real external/user project edit remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, an allowlisted project-link patch proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary unlinked production patching, and evidence from Codex completing a real external/user project edit remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -475,6 +478,7 @@ const checks = [
         includes: [
           "canvax-applied-patch-result",
           "canvax-codex-patch-task",
+          "project-linked implementation files",
           "data-canvax-patch-state",
           "codex-build",
           "requiresOpenAiApiKey: false",
@@ -503,7 +507,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests now feed the rewrite executor, emit Codex patch tasks, and can apply deterministic edits to Canvax-generated implementation bundles, but arbitrary production app patches still require Codex judgment.",
+      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests now feed the rewrite executor, emit Codex patch tasks, and can apply deterministic edits to Canvax-generated implementation bundles or explicit project-linked files, but arbitrary unlinked production app patches still require Codex judgment.",
   },
   {
     id: "image-asset-handoff",

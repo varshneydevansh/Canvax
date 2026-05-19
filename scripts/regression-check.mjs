@@ -782,6 +782,9 @@ async function validateProjectLinkDryRun() {
   const routePath = resolve(fixtureRoot, "src", "app", "page.html");
   const componentPath = resolve(fixtureRoot, "src", "components", "Hero.jsx");
   const cssPath = resolve(fixtureRoot, "src", "styles.css");
+  const patchTaskPath = resolve(fixtureRoot, "codex-patch-task.json");
+  const patchTaskRelativePath =
+    ".canvax/project-link-fixture/codex-patch-task.json";
   try {
     await mkdir(dirname(routePath), { recursive: true });
     await mkdir(dirname(componentPath), { recursive: true });
@@ -827,6 +830,60 @@ async function validateProjectLinkDryRun() {
         ])
       ).stdout,
     );
+    await writeFile(
+      patchTaskPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-codex-patch-task",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          frameId: "frame-project-link",
+          frameTitle: "Project link fixture",
+          previewPath: ".canvax/project-link-fixture/src/app/page.html",
+          trigger: {
+            id: "project-link-regression-tweak",
+            note: "Move the linked hero card slightly right and tighten spacing.",
+          },
+          affectedRegions: [
+            {
+              source: "preview-tweak",
+              note:
+                "Move the linked hero card slightly right and tighten spacing.",
+            },
+          ],
+          componentTargets: [
+            {
+              id: "fixture-hero",
+              type: "hero",
+              label: "Linked hero",
+            },
+            {
+              id: "fixture-card",
+              type: "card",
+              label: "Linked hero card",
+            },
+          ],
+          suggestedFiles: [
+            ".canvax/project-link-fixture/src/app/page.html",
+            ".canvax/project-link-fixture/src/components/Hero.jsx",
+            ".canvax/project-link-fixture/src/styles.css",
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const patchResult = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-patch-task.mjs",
+          "--task",
+          patchTaskRelativePath,
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
     const passed = Boolean(
       payload?.ok &&
         payload?.kind === "canvax-project-link" &&
@@ -844,13 +901,21 @@ async function validateProjectLinkDryRun() {
         savedResult?.saved === true &&
         savedResult?.published === false &&
         savedResult?.outputs?.projectLinkJson ===
-          "exports/canvax-project-link-latest.json",
+          "exports/canvax-project-link-latest.json" &&
+        patchResult?.ok === true &&
+        patchResult?.changedFileCount >= 2 &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("src/app/page.html"),
+        ) &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("src/components/Hero.jsx"),
+        ),
     );
     results.push({
       name: "project link dry-run and saved manifest are valid",
       passed,
       detail: passed
-        ? `${payload.linkedFiles.length} linked files`
+        ? `${payload.linkedFiles.length} linked files, ${patchResult.changedFileCount} patched`
         : "invalid project link payload",
     });
   } catch (error) {

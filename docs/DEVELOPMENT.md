@@ -306,12 +306,13 @@ refreshed preview, carrying suggested selectors, files, acceptance criteria, and
 publish commands for the real Codex implementation pass.
 
 `scripts/execute-patch-task.mjs` can consume that patch task for the local
-Canvax-generated implementation bundle. It deterministically updates targeted
-generated files, records `data-canvax-patch-state` metadata, writes
+Canvax-generated implementation bundle, production-proof fixture files, or
+explicit files listed in the latest project-link contract. It deterministically
+updates targeted files, records `data-canvax-patch-state` metadata, writes
 `artifacts/canvax/applied-patches/latest/result.{json,md}`, and can publish the
 changed artifact list back through `scripts/write-codex-output.mjs`. Keep this
-boundary explicit: it proves generated-bundle patchability, not arbitrary
-production app patching.
+boundary explicit: it proves generated-bundle and project-linked patchability,
+not arbitrary unlinked production app patching.
 
 Use `npm run mcp` to launch the read-only local stdio MCP server. It exposes the
 inspection commands as tools for hosts that can register a local MCP command:

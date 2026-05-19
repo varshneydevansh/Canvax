@@ -125,7 +125,7 @@ canvax-preview-tweak-latest.json
   -> affectedRegions[source=preview-tweak]
   -> componentTargetIds when a component map exists
   -> codex-patch-task.json with selectors/files/acceptance gates
-  -> optional execute-patch local generated-bundle edit proof
+  -> optional execute-patch local generated-bundle or project-linked edit proof
   -> refreshed local preview + Codex output manifest
 ```
 
@@ -767,7 +767,15 @@ manifest unless `--dry-run` or `--no-publish` is used. The payload includes a
 `canvax-project-edit-contract` so Codex knows which real project files belong to
 the current frame and what `data-canvax-node-id` bindings should be preserved.
 This is local and no-API. It links a project folder to Canvax; it does not
-automatically make arbitrary production edits without Codex.
+automatically make arbitrary unlinked production edits without Codex.
+
+`npm run execute-patch` can now consume a `codex-patch-task.json` that references
+files from the latest project-link contract. In that mode it only patches files
+listed in `exports/canvax-project-link-latest.json`, adds
+`data-canvax-patch-state` metadata where matching `data-canvax-node-id` bindings
+exist, and records the result under `artifacts/canvax/applied-patches/latest/`.
+This gives Canvax a local no-API real-file patch proof while keeping arbitrary
+production edits outside the deterministic executor.
 
 `npm run inspect` is the read-only local bridge for Codex/agent inspection. It
 can return `summary`, `current-frame`, `spatial-workspace`, `design-kit`,

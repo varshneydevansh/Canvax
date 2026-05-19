@@ -17,6 +17,11 @@ const resultRoot = resolve(
 );
 const latestJsonPath = resolve(resultRoot, "result.json");
 const latestMarkdownPath = resolve(resultRoot, "result.md");
+const projectLinkPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-project-link-latest.json",
+);
 
 if (args.includes("--help") || args.includes("-h")) {
   printHelp();
@@ -30,22 +35,27 @@ if (!taskOption) {
 
 const taskPath = resolve(projectRoot, taskOption);
 const task = await readJson(taskPath);
+const projectLink = await readOptionalJson(projectLinkPath);
 
 if (task?.kind !== "canvax-codex-patch-task") {
   fail(`Expected canvax-codex-patch-task at ${taskPath}`);
 }
 
-const plan = buildPatchPlan(task, taskPath);
+const plan = buildPatchPlan(task, taskPath, projectLink);
 const changes = [];
 
 for (const file of plan.files) {
   if (file.kind === "react-screen") {
     changes.push(await patchReactScreen(file, plan));
-  } else if (file.kind === "standalone-html" || file.kind === "html-route") {
+  } else if (
+    file.kind === "standalone-html" ||
+    file.kind === "html-route" ||
+    file.kind === "project-html-route"
+  ) {
     changes.push(await patchStandaloneHtml(file, plan));
-  } else if (file.kind === "jsx-component") {
+  } else if (file.kind === "jsx-component" || file.kind === "project-component") {
     changes.push(await patchStaticJsx(file, plan));
-  } else if (file.kind === "css") {
+  } else if (file.kind === "css" || file.kind === "project-css") {
     changes.push(await patchCss(file, plan));
   }
 }
@@ -79,7 +89,7 @@ const result = {
       reason: change.reason || "No matching target found.",
     })),
   noApiBoundary:
-    "This executor applies a local deterministic patch to Canvax-generated or production-like proof implementation artifacts. It does not call paid APIs, ChatGPT, image generation, or browser automation.",
+    "This executor applies a local deterministic patch to Canvax-generated, production-like proof, or explicit project-linked implementation files. It does not call paid APIs, ChatGPT, image generation, or browser automation.",
 };
 
 await mkdir(resultRoot, { recursive: true });
@@ -117,14 +127,14 @@ if (wantsJson) {
   }
 }
 
-function buildPatchPlan(task, absoluteTaskPath) {
+function buildPatchPlan(task, absoluteTaskPath, projectLink) {
   const note = cleanString(task.trigger?.note || task.affectedRegions?.[0]?.note);
   const targetIds = selectPatchTargetIds(task, note);
   const motion = inferMotion(note);
-  const files = classifyPatchFiles(task.suggestedFiles || []);
+  const files = classifyPatchFiles(task.suggestedFiles || [], projectLink);
   if (!files.length) {
     fail(
-      `Patch task has no local Canvax-generated implementation files: ${toProjectRelative(absoluteTaskPath)}`,
+      `Patch task has no local Canvax-generated, production-proof, or project-linked implementation files: ${toProjectRelative(absoluteTaskPath)}`,
     );
   }
   if (!targetIds.length) {
@@ -203,8 +213,9 @@ function inferMotion(note) {
   return delta;
 }
 
-function classifyPatchFiles(files) {
+function classifyPatchFiles(files, projectLink) {
   const seen = new Set();
+  const linkedFiles = collectProjectLinkedFiles(projectLink);
   return files
     .map((file) => cleanString(file.path || file))
     .filter(Boolean)
@@ -213,8 +224,9 @@ function classifyPatchFiles(files) {
       const isProductionProof = path.startsWith(
         "artifacts/canvax/production-port-proof/",
       ) || path.startsWith(".canvax/production-port-proof/");
+      const linkedFile = findProjectLinkedFile(path, linkedFiles);
       if (!isGeneratedBundle && !isProductionProof) {
-        return null;
+        return linkedFile ? classifyProjectLinkedFile(linkedFile) : null;
       }
       if (isGeneratedBundle && path.endsWith("/implementation/CanvaxScreen.jsx")) {
         return { path, kind: "react-screen" };
@@ -246,6 +258,64 @@ function classifyPatchFiles(files) {
       seen.add(file.path);
       return true;
     });
+}
+
+function collectProjectLinkedFiles(projectLink) {
+  if (projectLink?.kind !== "canvax-project-link") {
+    return [];
+  }
+  const files = [
+    ...(Array.isArray(projectLink.codexEditContract?.editableFiles)
+      ? projectLink.codexEditContract.editableFiles
+      : []),
+    ...(Array.isArray(projectLink.linkedFiles) ? projectLink.linkedFiles : []),
+  ];
+  const seen = new Set();
+  return files
+    .map((file) => {
+      const path = cleanString(file.path);
+      if (!path) {
+        return null;
+      }
+      const absolutePath = resolveMaybeProjectPath(path);
+      const key = absolutePath;
+      if (seen.has(key)) {
+        return null;
+      }
+      seen.add(key);
+      return {
+        path: toProjectRelative(absolutePath),
+        absolutePath,
+        role: cleanString(file.role),
+      };
+    })
+    .filter(Boolean);
+}
+
+function findProjectLinkedFile(path, linkedFiles) {
+  const absolutePath = resolveMaybeProjectPath(path);
+  return linkedFiles.find((file) => file.absolutePath === absolutePath) || null;
+}
+
+function classifyProjectLinkedFile(file) {
+  const lowerPath = file.path.toLowerCase();
+  const role = file.role.toLowerCase();
+  if (lowerPath.endsWith(".html") || role === "route") {
+    return { path: file.path, kind: "project-html-route" };
+  }
+  if (
+    lowerPath.endsWith(".jsx") ||
+    lowerPath.endsWith(".tsx") ||
+    lowerPath.endsWith(".js") ||
+    lowerPath.endsWith(".ts") ||
+    role === "component"
+  ) {
+    return { path: file.path, kind: "project-component" };
+  }
+  if (lowerPath.endsWith(".css") || role === "stylesheet") {
+    return { path: file.path, kind: "project-css" };
+  }
+  return null;
 }
 
 async function patchReactScreen(file, plan) {
@@ -590,8 +660,23 @@ async function readJson(filePath) {
   return JSON.parse(raw);
 }
 
+async function readOptionalJson(filePath) {
+  try {
+    return await readJson(filePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function resolveMaybeProjectPath(path) {
+  return resolve(path.startsWith("/") ? path : resolve(projectRoot, path));
 }
 
 function escapeRegExp(value) {
@@ -649,8 +734,9 @@ Usage:
   node scripts/execute-patch-task.mjs --task artifacts/preview/.../codex-patch-task.json --no-publish --json
   node scripts/execute-patch-task.mjs --task artifacts/.../codex-patch-task.json --result-root artifacts/canvax/applied-patches/custom
 
-Applies a deterministic no-API patch to Canvax-generated implementation files
-or production-like proof files referenced by a codex-patch-task.json. This is a
-local proof path, not a replacement for Codex editing arbitrary production app
-code.`);
+Applies a deterministic no-API patch to Canvax-generated implementation files,
+production-like proof files, or explicit files listed in
+exports/canvax-project-link-latest.json and referenced by a
+codex-patch-task.json. This is a local proof path, not a replacement for Codex
+judgment on arbitrary production app code.`);
 }
