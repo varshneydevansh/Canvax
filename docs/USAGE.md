@@ -60,8 +60,8 @@ The intended open behavior is:
 
 ## Local Projects
 
-The `Project` block in the left rail now includes a browser-local project
-picker.
+The `Project` block is available in Workbench and in the Advanced left rail.
+Both controls use the same browser-local project picker.
 
 Use it when you want separate Canvax boards for separate products, book spreads,
 UI explorations, or design directions:
@@ -82,7 +82,9 @@ localStorage project registry
 Only the active project writes the shared live Codex handoff files. This keeps
 Codex behavior simple: `/canvax` still means "read the current active Canvax",
 while the picker gives designers a Stitch-like way to keep multiple local boards
-without opening multiple repo copies.
+without opening multiple repo copies. Workbench exposes the same project switcher
+so quick sketch/talk/make sessions do not have to detour into Advanced mode just
+to change projects.
 
 Every save also writes a project-scoped latest handoff:
 

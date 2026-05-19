@@ -386,6 +386,52 @@
                     </div>
                     <div class="focus-pad-actions">
                         <div class="focus-pad-context">
+                            <div
+                                class="focus-project-control"
+                                aria-label="Workbench project switcher"
+                            >
+                                <label>
+                                    Project
+                                    <select
+                                        id="focus-project-picker"
+                                        aria-label="Switch Canvax project from Workbench"
+                                    ></select>
+                                </label>
+                                <div
+                                    class="focus-project-actions"
+                                    role="group"
+                                    aria-label="Workbench project actions"
+                                >
+                                    <button
+                                        id="focus-new-project"
+                                        class="ghost-button compact"
+                                        type="button"
+                                        title="Create a blank Canvax project"
+                                    >
+                                        New
+                                    </button>
+                                    <button
+                                        id="focus-duplicate-project"
+                                        class="ghost-button compact"
+                                        type="button"
+                                        title="Duplicate this Canvax project"
+                                    >
+                                        Duplicate
+                                    </button>
+                                    <button
+                                        id="focus-delete-project"
+                                        class="ghost-button compact danger"
+                                        type="button"
+                                        title="Delete this local project when another project exists"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
+                                <small
+                                    id="focus-project-status"
+                                    class="helper-text"
+                                ></small>
+                            </div>
                             <label>
                                 Surface
                                 <select

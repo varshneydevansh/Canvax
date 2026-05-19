@@ -231,7 +231,7 @@ flowchart LR
 ```text
 Canvax today
 |- Board: rough sketch, frames, flow, notes, tools, voice
-|- Local projects: browser-local project picker with new/duplicate/delete/switch
+|- Local projects: Workbench and Advanced browser-local project picker with new/duplicate/delete/switch
 |- Preview: compare sketch vs output, artifacts, changed files, rewrite queue
 |- Service: local exports, manifests, checkpoints, materialized/generated HTML
 |- Codex Browser Use / Atlas: preferred way to view/inspect board, Preview, and generated apps
@@ -239,9 +239,11 @@ Canvax today
 `- Docs: install, usage, architecture, development, proposal, status
 ```
 
-The project picker is the first Stitch-like project-management slice. It gives
-designers separate local boards without changing the Codex contract: the active
-project writes the single `exports/canvax-live-latest.*` compatibility handoff.
+The project picker is the first Stitch-like project-management slice. It is
+available directly in Workbench and in the Advanced left rail, so designers can
+change projects without leaving the sketch/talk/make loop. It gives designers
+separate local boards without changing the Codex contract: the active project
+writes the single `exports/canvax-live-latest.*` compatibility handoff.
 The service also writes `exports/canvax-project-registry-latest.*` and
 project-scoped latest handoffs under `exports/projects/<project-id>/`, so Codex
 can recover or compare a specific local project without relying only on browser
@@ -266,7 +268,7 @@ and a native Codex project surface.
 - Asset candidates now normalize into a `placementMap` contract with slot id, normalized bounds, source-viewport pixel bounds, CSS placement, a target selector, HTML slot scaffold, and output-slot records. The companion `canvax-asset-candidate-review` summary groups candidates by frame and exposes pending, placed, attached, and accepted queues plus no-API host handoff files. Canvax now also writes `exports/canvax-image-host-task-latest.*`, a machine-readable host execution contract with one task per candidate, return-slot binding, and acceptance criteria. This gives Codex or a host image tool exact placement and review data for UI image regions, poster art, book spreads, and illustration candidates without requiring Canvax to call a paid API.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
-- Workbench now exposes viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the `Focus canvas` designer rail without requiring the user to open Advanced mode.
+- Workbench now exposes project switching, viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the `Focus canvas` designer rail without requiring the user to open Advanced mode.
 - Workbench surface presets now cover UI, poster, slide, book-spread, storyboard, comic-page, square, and free-canvas work so Canvax can support broader design/illustration planning, not only app screens.
 - Workbench now exposes action modes for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`.
 - Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short guided path before they need every control.

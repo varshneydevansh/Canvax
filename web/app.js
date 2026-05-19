@@ -379,6 +379,11 @@ const dom = {
   duplicateProject: document.querySelector("#duplicate-project"),
   deleteProject: document.querySelector("#delete-project"),
   projectSwitcherStatus: document.querySelector("#project-switcher-status"),
+  focusProjectPicker: document.querySelector("#focus-project-picker"),
+  focusNewProject: document.querySelector("#focus-new-project"),
+  focusDuplicateProject: document.querySelector("#focus-duplicate-project"),
+  focusDeleteProject: document.querySelector("#focus-delete-project"),
+  focusProjectStatus: document.querySelector("#focus-project-status"),
   boardGoal: document.querySelector("#board-goal"),
   boardAudience: document.querySelector("#board-audience"),
   boardMood: document.querySelector("#board-mood"),
@@ -751,6 +756,12 @@ function bindEvents() {
   dom.newProject.addEventListener("click", createProject);
   dom.duplicateProject.addEventListener("click", duplicateProject);
   dom.deleteProject.addEventListener("click", deleteProject);
+  dom.focusProjectPicker.addEventListener("change", () => {
+    switchProject(dom.focusProjectPicker.value);
+  });
+  dom.focusNewProject.addEventListener("click", createProject);
+  dom.focusDuplicateProject.addEventListener("click", duplicateProject);
+  dom.focusDeleteProject.addEventListener("click", deleteProject);
   dom.boardGoal.addEventListener("input", () =>
     updateBoard("goal", dom.boardGoal.value),
   );
@@ -3299,28 +3310,47 @@ function renderProjectSwitcher() {
     state.projectRegistry || readProjectRegistry(),
   );
   state.projectRegistry = registry;
-  if (!dom.projectPicker) {
+  if (!dom.projectPicker && !dom.focusProjectPicker) {
     return;
   }
 
   const activeId = registry.activeProjectId;
-  dom.projectPicker.innerHTML = registry.projects
+  const projectOptions = registry.projects
     .map((project) => {
       const frameText =
         project.frameCount === 1 ? "1 frame" : `${project.frameCount} frames`;
       return `<option value="${escapeHtml(project.id)}">${escapeHtml(project.title)} · ${escapeHtml(frameText)}</option>`;
     })
     .join("");
-  dom.projectPicker.value = activeId;
-  dom.deleteProject.disabled = registry.projects.length <= 1;
-  dom.deleteProject.title =
-    registry.projects.length <= 1
-      ? "Create or duplicate another project before deleting this one"
-      : "Delete this local project and switch to another one";
+  const canDeleteProject = registry.projects.length > 1;
+  [dom.projectPicker, dom.focusProjectPicker].forEach((picker) => {
+    if (!picker) {
+      return;
+    }
+    picker.innerHTML = projectOptions;
+    picker.value = activeId;
+  });
+  [dom.deleteProject, dom.focusDeleteProject].forEach((button) => {
+    if (!button) {
+      return;
+    }
+    button.disabled = !canDeleteProject;
+    button.title = canDeleteProject
+      ? "Delete this local project and switch to another one"
+      : "Create or duplicate another project before deleting this one";
+  });
   const active = registry.projects.find((project) => project.id === activeId);
-  dom.projectSwitcherStatus.textContent = active
+  const status = active
     ? `Active: ${active.title}. ${active.frameCount || 1} frame${active.frameCount === 1 ? "" : "s"} saved locally; live handoff follows this project.`
     : "Projects are local to this browser. The active project writes the live Codex handoff.";
+  if (dom.projectSwitcherStatus) {
+    dom.projectSwitcherStatus.textContent = status;
+  }
+  if (dom.focusProjectStatus) {
+    dom.focusProjectStatus.textContent = active
+      ? `${active.frameCount || 1} frame${active.frameCount === 1 ? "" : "s"}; saved to active /canvax handoff.`
+      : "Active project writes the current /canvax handoff.";
+  }
 }
 
 function uniqueProjectTitle(
@@ -21086,8 +21116,11 @@ async function runSelfTest() {
     results.push(
       assert(
         dom.projectPicker.options.length >= 1 &&
-          dom.projectPicker.value === state.projectRegistry.activeProjectId,
-        "project switcher renders active project",
+          dom.projectPicker.value === state.projectRegistry.activeProjectId &&
+          dom.focusProjectPicker.options.length ===
+            dom.projectPicker.options.length &&
+          dom.focusProjectPicker.value === state.projectRegistry.activeProjectId,
+        "project switchers render active project in Advanced and Workbench",
       ),
     );
     results.push(assertWorkspaceModeGuide());

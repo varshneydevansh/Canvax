@@ -1548,6 +1548,51 @@ body[data-workspace-mode="simple"] .focus-pad-voice .helper-text {
     width: 100%;
 }
 
+.focus-project-control {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) auto;
+    gap: 0.55rem;
+    align-items: end;
+    min-width: 0;
+    padding: 0.55rem;
+    border-radius: 1rem;
+    border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+    background: rgba(255, 255, 255, 0.42);
+}
+
+body[data-workspace-mode="simple"] .focus-project-control {
+    border-color: rgba(255, 248, 236, 0.12);
+    background:
+        linear-gradient(135deg, rgba(255, 93, 58, 0.14), transparent 48%),
+        rgba(255, 248, 236, 0.09);
+}
+
+.focus-project-control label {
+    min-width: 0;
+}
+
+.focus-project-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: flex-end;
+}
+
+.focus-project-actions .ghost-button {
+    min-height: 2.25rem;
+    padding: 0.45rem 0.65rem;
+}
+
+.focus-project-control .helper-text {
+    grid-column: 1 / -1;
+    margin: -0.1rem 0 0;
+}
+
+body[data-workspace-mode="simple"] .focus-project-control .helper-text {
+    color: rgba(255, 248, 236, 0.62);
+}
+
 .focus-frame-meta {
     display: flex;
     flex-wrap: wrap;
@@ -5200,6 +5245,26 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
         padding: 0.7rem;
     }
 
+    .mode-strip {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .workspace-mode-control {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .workspace-mode-control .segment {
+        min-width: 0;
+        padding-inline: 0.55rem;
+    }
+
+    .designer-focus-toggle {
+        width: 100%;
+    }
+
     .frame-card {
         grid-template-columns: 3.8rem minmax(0, 1fr);
     }
@@ -5231,6 +5296,21 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
     body[data-workspace-mode="simple"] .focus-pad-voice {
         grid-column: 1;
         grid-row: auto;
+    }
+
+    .focus-project-control {
+        grid-template-columns: 1fr;
+    }
+
+    .focus-project-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        justify-content: stretch;
+    }
+
+    .focus-project-actions .ghost-button {
+        min-width: 0;
+        padding-inline: 0.35rem;
     }
 
     .focus-pad-copy h2 {

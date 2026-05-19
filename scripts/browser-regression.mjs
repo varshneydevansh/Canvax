@@ -1066,7 +1066,14 @@ async function waitForEvaluatedValue(cdp, expression, timeoutMs) {
       });
       const value = response?.result?.result?.value ?? response?.result?.value;
       lastState = value || lastState;
-      if (value?.readyState === "complete" || value?.kind) {
+      const hasReadyState = Object.prototype.hasOwnProperty.call(
+        value || {},
+        "readyState",
+      );
+      if (
+        value?.readyState === "complete" ||
+        (value?.kind && !hasReadyState)
+      ) {
         return value;
       }
     } catch {

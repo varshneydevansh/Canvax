@@ -86,7 +86,7 @@ flowchart LR
 
 - Opens a browser-based canvas optimized for Mac trackpad, mouse, or stylus use.
 - Starts in `Workbench`, a simplified talk-and-draw mode that keeps sketch, surface choice, generated output, correction marks, voice, apply, and preview actions available without the full advanced UI.
-- Adds local project switching in the left rail: create a blank project, duplicate the current board, switch between browser-local projects, and delete a project when another one exists. The active project remains the one that writes `exports/canvax-live-latest.*` for Codex.
+- Adds local project switching in both Workbench and the Advanced left rail: create a blank project, duplicate the current board, switch between browser-local projects, and delete a project when another one exists. The active project remains the one that writes `exports/canvax-live-latest.*` for Codex.
 - Writes `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/`, so each local project has recoverable live JSON/Markdown, task, rewrite, image-prompt, voice, and asset files while `/canvax` still reads the active compatibility handoff.
 - Adds a floating designer rail in `Focus canvas`, so tools, undo/redo, dictation, Make, and Apply stay available when the tray is intentionally hidden for canvas-first work.
 - Keeps a compact frame/surface/action/focus summary visible when the Workbench tray is hidden, so canvas-first mode does not lose context.
