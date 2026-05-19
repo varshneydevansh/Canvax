@@ -312,6 +312,17 @@ const checks = [
         ],
       },
       {
+        path: "scripts/canvax-inspect.mjs",
+        includes: [
+          "canvax-readonly-inspection",
+          "get_current_frame",
+          "get_spatial_workspace",
+          "get_design_kit",
+          "get_output_binding",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
+      {
         path: "scripts/regression-check.mjs",
         includes: [
           "external design token and semantic extractor dry-run is valid",
@@ -321,11 +332,12 @@ const checks = [
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
+          "Canvax read-only inspection bridge is valid",
         ],
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, and a production-like local port proof are proven, but hosted/team kit-library sharing, live browser visual critique, and evidence from a real external/user project port remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port proof, and a local read-only inspection CLI are proven, but hosted/team kit-library sharing, a first-class MCP/native host bridge, live browser visual critique, and evidence from a real external/user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -415,6 +427,7 @@ const checks = [
           "e2e-workflow",
           "browser-regression",
           "production-port-proof",
+          "inspect",
           "regression",
         ],
       },

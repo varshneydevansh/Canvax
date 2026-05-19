@@ -53,17 +53,20 @@ Open Design adds practical product pressure in three areas:
   form and deterministic direction picker are useful, but Canvax should express
   them as designer chips and sensible defaults so Workbench still feels like a
   canvas, not an intake form.
-- Canvax needs a future read-only host bridge. Open Design's MCP-style access to
-  live design files maps to future Canvax tools such as `get_current_frame`,
+- Canvax needs a read-only host bridge. Open Design's MCP-style access to live
+  design files maps to Canvax tools such as `get_current_frame`,
   `get_spatial_workspace`, `get_design_kit`, and `get_output_binding`, so Codex
-  can read the live board without export-and-attach friction.
+  can read the live board without export-and-attach friction. The local
+  `npm run inspect` bridge is now the CLI precursor; true MCP/native host
+  registration remains future work.
 
-The next pressure is hosted/team sharing and agent-readable live project access
-without making the Workbench feel like a prompt-only artifact generator. The
-specific lesson is not "be another prompt generator"; it is "make reusable
-design intelligence a local, inspectable project asset" through skills, design
-systems, prompt packs, previews, exports, and tool bridges that Codex can
-modify.
+The next pressure is hosted/team sharing and first-party agent-readable live
+project access without making the Workbench feel like a prompt-only artifact
+generator. The local `inspect` bridge gives Codex a stable file-backed payload
+today, but true MCP/native host registration remains future work. The specific
+lesson is not "be another prompt generator"; it is "make reusable design
+intelligence a local, inspectable project asset" through skills, design systems,
+prompt packs, previews, exports, and tool bridges that Codex can modify.
 
 ## Implementation Status
 
@@ -124,6 +127,10 @@ Current completed baseline:
   required token colors across the manifest-listed files, and runs static
   artifact review against the route. This proves the local production-port gate
   mechanics while real external/user project evidence remains open.
+- `npm run inspect` now reads the latest live export, task pack, build request,
+  rewrite request, and Codex output manifest into a stable no-API inspection
+  payload for the current frame, spatial workspace, design kit, and output
+  binding. This is the local precursor to a future MCP/native host bridge.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every

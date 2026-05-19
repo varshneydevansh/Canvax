@@ -94,6 +94,7 @@ await validateDesignKitLibraryPackageDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
+await validateCanvaxInspectDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
 await validateRequiredFile(
@@ -778,6 +779,42 @@ async function validateProductionPortProofDryRun() {
   } catch (error) {
     results.push({
       name: "production port proof dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateCanvaxInspectDryRun() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/canvax-inspect.mjs",
+      "all",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-readonly-inspection" &&
+        payload.requiresOpenAiApiKey === false &&
+        payload.toolSurface?.status === "local-readonly-cli" &&
+        payload.toolSurface?.futureMcpTools?.includes("get_current_frame") &&
+        payload.toolSurface?.futureMcpTools?.includes("get_spatial_workspace") &&
+        payload.toolSurface?.futureMcpTools?.includes("get_design_kit") &&
+        payload.toolSurface?.futureMcpTools?.includes("get_output_binding") &&
+        payload.payload?.spatialWorkspace?.summary &&
+        Object.hasOwn(payload.payload, "outputBinding"),
+    );
+    results.push({
+      name: "Canvax read-only inspection bridge is valid",
+      passed,
+      detail: passed
+        ? `${payload.summary.frameCount} frames, ${payload.summary.outputBindingCount} output records`
+        : "inspect command did not return expected read-only bridge payload",
+    });
+  } catch (error) {
+    results.push({
+      name: "Canvax read-only inspection bridge is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

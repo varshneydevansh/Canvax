@@ -730,6 +730,13 @@ under `artifacts/canvax/production-port-proof/latest/` is intentionally local
 and no-API: it proves the manifest/token/review mechanics before a real user app
 port, but it is not a substitute for Codex editing an actual production route.
 
+`npm run inspect` is the read-only local bridge for Codex/agent inspection. It
+can return `summary`, `current-frame`, `spatial-workspace`, `design-kit`,
+`output-binding`, or `all` as JSON/Markdown from local Canvax files. This gives
+Codex a stable way to read the current frame, Map memory, design-system context,
+and output manifest binding without asking the user to paste raw exports. It is
+the CLI precursor to a future MCP/native host bridge, not the final host bridge.
+
 The bundle also includes `implementation/codex-port-task.json`, a machine-readable task for Codex. It lists source artifacts, suggested React/Vite/Next destinations, required `data-canvax-*` bindings, port steps, acceptance criteria, and publish commands so the generated screen can become real workspace code without inventing the handoff each time.
 
 Outputs:

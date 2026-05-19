@@ -120,9 +120,11 @@ The useful lesson for Canvax:
   turning build/rewrite/image tasks into visible output cards, rewrite queues,
   checkpoint history, and task status instead of burying them in terminal logs.
 - Provide a read-only tool bridge for host agents. Open Design's MCP idea maps
-  well to a future Canvax local tool surface where Codex/ChatGPT can call
+  well to a Canvax local tool surface where Codex/ChatGPT can call
   `get_current_frame`, `get_spatial_workspace`, `get_design_kit`, and
   `get_output_binding` without asking the user to attach or paste export files.
+  `npm run inspect` now ships the local CLI precursor to that bridge; a true
+  MCP/native host bridge remains open.
 - Make design rules enforceable, not decorative. The current local loop now has
   extraction (`Extract tokens`, `npm run extract-tokens`), import (`Import
   external`), contract recording (`Build with Codex`), and implementation
@@ -429,7 +431,9 @@ image alternatives, form labels, responsive cues, focus styles, and Canvax node
 bindings before Codex ports output into production files. `npm run
 production-port-proof` creates a production-like local route/component/CSS
 fixture, binds it through a Codex output manifest, and runs token enforcement
-plus artifact review across those files.
+plus artifact review across those files. `npm run inspect` reads the latest
+Canvax exports and manifests into a stable no-API inspection payload for current
+frame, spatial workspace, design kit, and output bindings.
 
 Needed:
 
@@ -446,6 +450,9 @@ Needed:
   variables and port contracts; manifest-listed production-file enforcement
   and a production-like proof fixture shipped; real external/user project port
   evidence remains open.**
+- Let Codex inspect the live board without copy/paste exports.
+  **Local read-only CLI shipped through `npm run inspect`; true MCP/native host
+  tool registration remains open.**
 
 ### 6. Image Model And Asset Workflow
 
