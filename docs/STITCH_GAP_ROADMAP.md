@@ -102,7 +102,8 @@ The useful lesson for Canvax:
   `artifacts/canvax/codex-output.json` to check the real files Codex published
   for a frame, so production-port token enforcement has a concrete gate. The
   remaining gap is proving that gate against real user project ports and adding
-  richer rendered screenshot/app semantic extraction.
+  richer rendered-app semantic extraction. Basic local screenshot palette
+  extraction now exists through `npm run extract-tokens -- --image <path>`.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.

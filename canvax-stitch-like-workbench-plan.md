@@ -89,6 +89,9 @@ Current completed baseline:
 - Repository design kits in `design-kits/*.json` now load into the same Design
   kit dropdown as built-in presets, carry their file path in the exported
   `designKit.preset.source`, and validate through `npm run validate-design-kits`.
+- `npm run extract-tokens` now accepts local raster screenshots/images through
+  `--image` / `--screenshot`, samples their palette locally, and writes the same
+  importable external token pack as text/CSS extraction.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every

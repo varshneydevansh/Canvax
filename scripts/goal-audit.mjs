@@ -237,6 +237,8 @@ const checks = [
           "canvax-external-design-tokens",
           "requiresOpenAiApiKey: false",
           "extractStylesheetHrefs",
+          "sampleImagePalette",
+          "parseBmpPalette",
         ],
       },
       {
@@ -260,13 +262,14 @@ const checks = [
         path: "scripts/regression-check.mjs",
         includes: [
           "external design token extractor dry-run is valid",
+          "image design token extractor dry-run is valid",
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
         ],
       },
     ],
     remainingGap:
-      "Repository kit files, current-frame/reference-image extraction, text/CSS token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but richer large-library discovery, rendered screenshot/app semantic extraction, and evidence from a real user project port remain open.",
+      "Repository kit files, current-frame/reference-image extraction, text/CSS/image token extraction, latest-pack UI import, local artifact token enforcement, and manifest-listed production-file token enforcement are proven, but richer large-library discovery, semantic rendered-app/component extraction, and evidence from a real user project port remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

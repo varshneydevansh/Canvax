@@ -168,10 +168,11 @@ For external design references, use the local extractor:
 ```bash
 npm run extract-tokens -- --file web/styles.css
 npm run extract-tokens -- --url https://example.com
+npm run extract-tokens -- --image artifacts/canvax/browser-snapshots/latest/board-desktop-1440x1024.png
 npm run extract-tokens -- --text ":root{--brand:#e85d3a;font-family:Georgia}"
 ```
 
-It writes `exports/canvax-external-design-tokens-latest.json` and `.md` with palette, CSS variable, and font-family cues. This is still no-API and text/CSS based; it does not render a browser screenshot or perform semantic design critique.
+It writes `exports/canvax-external-design-tokens-latest.json` and `.md` with palette, CSS variable, font-family, and optional screenshot pixel-sample cues. This is still no-API. Screenshot extraction samples local raster files; it does not perform semantic design critique or understand components in a rendered app.
 
 After running it, press `Import external` in the Advanced `Design kit` card to bring `exports/canvax-external-design-tokens-latest.json` into the active board as `designKit.designTokens`.
 

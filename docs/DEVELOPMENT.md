@@ -222,6 +222,11 @@ exposes valid kits through `/api/status` as `designKitGallery`, and the browser
 lists them under `Repository kits` in the Design kit dropdown. Run
 `npm run validate-design-kits` before committing kit changes.
 
+Use `npm run extract-tokens -- --image <local-screenshot>` when a rendered
+screen, browser snapshot, generated image, or app screenshot should contribute
+palette cues to the active Design kit. This samples raster pixels locally and
+writes the same external token pack as CSS/text extraction.
+
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 
 The board calls that executor through `POST /api/execute-build-request` immediately after `POST /api/save-build-request` succeeds. This keeps the designer loop one-click: the request is archived, the latest request is exported, a preview plus implementation starter files are written, and `artifacts/canvax/codex-output.json` is published for Workbench/Preview binding.

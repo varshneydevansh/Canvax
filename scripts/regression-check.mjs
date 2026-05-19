@@ -71,6 +71,7 @@ await validateCodexOutputDryRun();
 await validateExecuteBuildRequestDryRun();
 await validateExecuteRewriteRequestDryRun();
 await validateExternalDesignTokenExtractorDryRun();
+await validateImageDesignTokenExtractorDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
@@ -398,6 +399,66 @@ async function validateExternalDesignTokenExtractorDryRun() {
   } catch (error) {
     results.push({
       name: "external design token extractor dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateImageDesignTokenExtractorDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "regression-token-fixture");
+  const imagePath = resolve(fixtureRoot, "screenshot.bmp");
+  try {
+    await mkdir(fixtureRoot, { recursive: true });
+    await writeFile(
+      imagePath,
+      buildBmpFixture(4, 4, [
+        "#e85d3a",
+        "#e85d3a",
+        "#e85d3a",
+        "#14323f",
+        "#e85d3a",
+        "#e85d3a",
+        "#e85d3a",
+        "#14323f",
+        "#f2b84b",
+        "#f2b84b",
+        "#e85d3a",
+        "#14323f",
+        "#e85d3a",
+        "#e85d3a",
+        "#e85d3a",
+        "#14323f",
+      ]),
+    );
+    const { stdout } = await runCommand("node", [
+      "scripts/extract-design-tokens.mjs",
+      "--image",
+      imagePath,
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const pack = payload.tokenPack;
+    const passed = Boolean(
+      payload.dryRun &&
+        pack?.kind === "canvax-external-design-tokens" &&
+        pack.requiresOpenAiApiKey === false &&
+        pack.source?.type === "image" &&
+        pack.source?.imageSamples?.kind === "canvax-image-token-sample" &&
+        pack.palette?.[0]?.hex === "#e85d3a" &&
+        pack.usage?.imageSampleCount === 16,
+    );
+    results.push({
+      name: "image design token extractor dry-run is valid",
+      passed,
+      detail: passed
+        ? `${pack.palette.length} image colors`
+        : "image extractor did not return expected token pack",
+    });
+  } catch (error) {
+    results.push({
+      name: "image design token extractor dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });
@@ -906,6 +967,39 @@ async function validateRequiredFile(filePath, name) {
 
 function isMissingFileError(error) {
   return Boolean(error && typeof error === "object" && error.code === "ENOENT");
+}
+
+function buildBmpFixture(width, height, colors) {
+  const bitsPerPixel = 24;
+  const rowStride = Math.floor((bitsPerPixel * width + 31) / 32) * 4;
+  const pixelDataSize = rowStride * height;
+  const buffer = Buffer.alloc(54 + pixelDataSize);
+  buffer.write("BM", 0, "ascii");
+  buffer.writeUInt32LE(buffer.length, 2);
+  buffer.writeUInt32LE(54, 10);
+  buffer.writeUInt32LE(40, 14);
+  buffer.writeInt32LE(width, 18);
+  buffer.writeInt32LE(-height, 22);
+  buffer.writeUInt16LE(1, 26);
+  buffer.writeUInt16LE(bitsPerPixel, 28);
+  buffer.writeUInt32LE(0, 30);
+  buffer.writeUInt32LE(pixelDataSize, 34);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const [red, green, blue] = hexToRgb(colors[y * width + x] || "#000000");
+      const offset = 54 + y * rowStride + x * 3;
+      buffer[offset] = blue;
+      buffer[offset + 1] = green;
+      buffer[offset + 2] = red;
+    }
+  }
+  return buffer;
+}
+
+function hexToRgb(value) {
+  const hex = String(value || "#000000").replace("#", "");
+  return [0, 2, 4].map((index) => parseInt(hex.slice(index, index + 2), 16));
 }
 
 function runCommand(command, args) {
