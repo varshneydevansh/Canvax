@@ -101,6 +101,7 @@ flowchart LR
 - Adds `npm run review-artifact`, a local no-API static HTML/CSS review for generated artifacts that checks semantic landmarks, heading structure, labels, links, image alts, form labels, responsive cues, focus styles, and Canvax source bindings before a production port.
 - Adds `npm run review-snapshot`, a local no-API screenshot review that samples real browser snapshot pixels for dimensions, blankness risk, palette variety, dominant-color balance, and contrast spread.
 - Adds `npm run review-jury`, a local no-API design jury that combines artifact review, screenshot review, and Canvax inspection context into a designer-facing verdict for hierarchy, accessibility, responsiveness, brand/system fit, tweak targeting, motion/readability, visual integrity, and production readiness.
+- Adds `npm run review-dom`, a local no-API headless-browser DOM/layout review for the Preview surface that checks rendered structure, horizontal overflow, offscreen elements, target sizes, headings, landmarks, motion cues, and Canvax source bindings.
 - Adds Preview `Mark tweak`, a local no-API region-targeting path: drag over generated output, enter the requested change, and Canvax writes a structured correction request for Codex under `exports/canvax-preview-tweak-latest.{json,md}` plus an archived tweak record. The rewrite executor consumes the matching latest tweak, maps it into affected regions/component targets, and writes `codex-patch-task.json` for the real implementation pass.
 - Adds `npm run execute-patch -- --task <codex-patch-task.json>`, a local no-API proof path that applies a deterministic region tweak to Canvax-generated implementation bundles while preserving `data-canvax-node-id` bindings for future corrections.
 - Adds `npm run verify-tokens`, a local no-API gate that checks a Canvax build contract's extracted palette is actually present in generated implementation CSS/HTML or in manifest-listed production files before treating the artifact as design-system aligned.
@@ -359,6 +360,14 @@ If you want that browser pass to fail hard instead of skipping on host-level Chr
 ```bash
 CANVAX_BROWSER_STRICT=1 npm run browser-regression
 ```
+
+When you only want the rendered Preview DOM/layout gate, run:
+
+```bash
+npm run review-dom
+```
+
+That writes `exports/canvax-dom-review-latest.json` and `.md`. It uses local headless Chrome only; it does not call a hosted model, image API, or paid API.
 
 ## Live Export Files
 

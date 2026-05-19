@@ -14,9 +14,17 @@ const snapshotRoot = resolve(
   "browser-snapshots",
   "latest",
 );
+const exportsRoot = resolve(projectRoot, "exports");
+const domReviewJsonPath = resolve(exportsRoot, "canvax-dom-review-latest.json");
+const domReviewMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-dom-review-latest.md",
+);
 
 const results = [];
 const snapshots = [];
+const args = process.argv.slice(2);
+const domReviewOnly = args.includes("--dom-review-only");
 
 const chromePath = await detectChromeBinary();
 const serviceState = await detectCanvaxServiceState();
@@ -55,33 +63,40 @@ if (!liveUrl) {
     detail: "Chrome binary not found",
   });
 } else {
-  await rm(snapshotRoot, { recursive: true, force: true });
-  await mkdir(snapshotRoot, { recursive: true });
-  await validateBrowserSelfTest({
-    name: "board browser self-test passes",
-    chromePath,
-    url: `${liveUrl}/?selftest=1`,
-    resultsId: "selftest-results",
-    timeoutMs: boardSelfTestTimeoutMs,
-  });
-  await validateBrowserSelfTest({
-    name: "preview browser self-test passes",
-    chromePath,
-    url: `${liveUrl}/preview.html?selftest=1`,
-    resultsId: "preview-selftest-results",
-    timeoutMs: previewSelfTestTimeoutMs,
-  });
-  await validateResponsiveSmokeMatrix({
+  if (!domReviewOnly) {
+    await rm(snapshotRoot, { recursive: true, force: true });
+    await mkdir(snapshotRoot, { recursive: true });
+    await validateBrowserSelfTest({
+      name: "board browser self-test passes",
+      chromePath,
+      url: `${liveUrl}/?selftest=1`,
+      resultsId: "selftest-results",
+      timeoutMs: boardSelfTestTimeoutMs,
+    });
+    await validateBrowserSelfTest({
+      name: "preview browser self-test passes",
+      chromePath,
+      url: `${liveUrl}/preview.html?selftest=1`,
+      resultsId: "preview-selftest-results",
+      timeoutMs: previewSelfTestTimeoutMs,
+    });
+    await validateResponsiveSmokeMatrix({
+      chromePath,
+      liveUrl,
+      timeoutMs: responsiveSmokeTimeoutMs,
+    });
+    await validateAdvancedMapSmoke({
+      chromePath,
+      liveUrl,
+      timeoutMs: responsiveSmokeTimeoutMs,
+    });
+    await writeSnapshotIndex();
+  }
+  await validateDomLayoutReview({
     chromePath,
     liveUrl,
     timeoutMs: responsiveSmokeTimeoutMs,
   });
-  await validateAdvancedMapSmoke({
-    chromePath,
-    liveUrl,
-    timeoutMs: responsiveSmokeTimeoutMs,
-  });
-  await writeSnapshotIndex();
 }
 
 const failed = results.filter((entry) => !entry.passed);
@@ -186,6 +201,50 @@ async function validateAdvancedMapSmoke({ chromePath, liveUrl, timeoutMs }) {
       viewport,
       timeoutMs,
       expression: buildAdvancedMapSmokeExpression(),
+    });
+  }
+}
+
+async function validateDomLayoutReview({ chromePath, liveUrl, timeoutMs }) {
+  const viewport = { label: "desktop", width: 1440, height: 1024 };
+  try {
+    const browser = await launchChromeSession(
+      chromePath,
+      `${liveUrl}/preview.html?responsivecheck=1`,
+      { viewport },
+    );
+    try {
+      const review = await browser.evaluateExpression(
+        buildDomLayoutReviewExpression(),
+        timeoutMs,
+      );
+      await writeDomReview(review);
+      const passed = Boolean(review?.status !== "fail");
+      results.push({
+        name: "preview DOM layout review passes",
+        passed,
+        detail: passed
+          ? `${review.status} ${review.score}/100 -> ${toProjectRelative(domReviewJsonPath)}`
+          : review?.summary || "DOM layout review failed",
+      });
+    } finally {
+      await browser.close();
+    }
+  } catch (error) {
+    if (isRecoverableBrowserSkip(error)) {
+      results.push({
+        name: "preview DOM layout review passes",
+        passed: true,
+        skipped: true,
+        detail:
+          "headless Chrome did not settle on this host; rerun with CANVAX_BROWSER_STRICT=1 to fail hard",
+      });
+      return;
+    }
+    results.push({
+      name: "preview DOM layout review passes",
+      passed: false,
+      detail: error instanceof Error ? error.message : "Unknown browser error",
     });
   }
 }
@@ -430,6 +489,148 @@ function buildPreviewResponsiveSmokeExpression() {
   })()`;
 }
 
+function buildDomLayoutReviewExpression() {
+  return `(() => {
+    if (location.href === "about:blank" || !document.body) {
+      return {
+        readyState: "loading",
+        pendingNavigation: true,
+        source: {
+          type: "browser",
+          url: location.href
+        }
+      };
+    }
+    const visibleBox = (node) => {
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      const visible = box.width > 0 && box.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        Number(style.opacity || 1) > 0.01;
+      return {
+        tag: node.tagName.toLowerCase(),
+        id: node.id || "",
+        className: typeof node.className === "string" ? node.className : "",
+        text: (node.textContent || "").trim().replace(/\\s+/g, " ").slice(0, 90),
+        role: node.getAttribute("role") || "",
+        ariaLabel: node.getAttribute("aria-label") || "",
+        width: Math.round(box.width),
+        height: Math.round(box.height),
+        left: Math.round(box.left),
+        right: Math.round(box.right),
+        top: Math.round(box.top),
+        bottom: Math.round(box.bottom),
+        visible
+      };
+    };
+    const level = (id, label, passed, detail, severity = "fail", evidence = []) => ({
+      id,
+      label,
+      level: passed ? "pass" : severity,
+      detail,
+      evidence
+    });
+    const nodes = [...document.body.querySelectorAll("*")];
+    const visible = nodes.map(visibleBox).filter((entry) => entry.visible);
+    const interactiveSelectors = "a[href],button,input,select,textarea,[role='button'],[tabindex]:not([tabindex='-1'])";
+    const interactive = [...document.querySelectorAll(interactiveSelectors)]
+      .map(visibleBox)
+      .filter((entry) => entry.visible);
+    const tinyTargets = interactive.filter((entry) => entry.width < 32 || entry.height < 32);
+    const offscreen = visible.filter((entry) =>
+      entry.left < -2 ||
+      entry.right > window.innerWidth + 2 ||
+      entry.top < -2 && entry.bottom < 0
+    );
+    const headings = [...document.querySelectorAll("h1,h2,h3")]
+      .map((node) => ({
+        tag: node.tagName.toLowerCase(),
+        text: (node.textContent || "").trim().replace(/\\s+/g, " ").slice(0, 120)
+      }))
+      .filter((entry) => entry.text);
+    const landmarks = [...document.querySelectorAll("main,nav,header,footer,aside,[role='main'],[role='navigation'],[role='banner'],[role='contentinfo']")]
+      .map((node) => node.tagName.toLowerCase() + (node.getAttribute("role") ? ":" + node.getAttribute("role") : ""));
+    const canvaxBindings = [...document.querySelectorAll("[data-canvax-node-id]")]
+      .map((node) => node.getAttribute("data-canvax-node-id"))
+      .filter(Boolean);
+    const animated = visible.filter((entry) => {
+      const node = document.elementFromPoint(
+        Math.min(window.innerWidth - 1, Math.max(0, entry.left + 1)),
+        Math.min(window.innerHeight - 1, Math.max(0, entry.top + 1))
+      );
+      if (!node) return false;
+      const style = getComputedStyle(node);
+      return style.transitionDuration !== "0s" || style.animationName !== "none";
+    });
+    const viewport = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+      scrollHeight: document.documentElement.scrollHeight
+    };
+    const checks = [
+      level("document-ready", "Document ready", document.readyState === "complete", "Document readyState is " + document.readyState + "."),
+      level("visible-structure", "Visible structure", visible.length >= 8, "Found " + visible.length + " visible elements."),
+      level("horizontal-overflow", "Horizontal overflow", viewport.scrollWidth <= window.innerWidth + 12, "Viewport width " + viewport.width + ", scrollWidth " + viewport.scrollWidth + ".", "fail"),
+      level("offscreen-elements", "Offscreen visible elements", offscreen.length === 0, "Found " + offscreen.length + " visible element(s) outside the viewport.", "warn", offscreen.slice(0, 8)),
+      level("interactive-targets", "Interactive target sizes", tinyTargets.length === 0, "Found " + tinyTargets.length + " visible interactive target(s) under 32px.", "warn", tinyTargets.slice(0, 8)),
+      level("headings", "Heading text", headings.length > 0, "Found " + headings.length + " heading(s).", "warn", headings.slice(0, 8)),
+      level("landmarks", "Landmarks", landmarks.length > 0, "Found " + landmarks.length + " landmark(s).", "warn", landmarks.slice(0, 12)),
+      level("canvax-bindings", "Canvax source bindings", canvaxBindings.length > 0, "Found " + canvaxBindings.length + " data-canvax-node-id binding(s).", "warn", canvaxBindings.slice(0, 12)),
+      level("motion-cues", "Motion cues", animated.length > 0, "Found " + animated.length + " visible element(s) with transition or animation cues.", "warn")
+    ];
+    const failCount = checks.filter((check) => check.level === "fail").length;
+    const warnCount = checks.filter((check) => check.level === "warn").length;
+    const score = Math.max(0, 100 - failCount * 22 - warnCount * 7);
+    const status = failCount ? "fail" : warnCount ? "review" : "pass";
+    return {
+      kind: "canvax-dom-layout-review",
+      schemaVersion: 1,
+      createdAt: new Date().toISOString(),
+      requiresOpenAiApiKey: false,
+      readyState: document.readyState,
+      source: {
+        type: "browser",
+        url: location.href
+      },
+      status,
+      score,
+      viewport,
+      visibleElementCount: visible.length,
+      interactiveElementCount: interactive.length,
+      checks,
+      summary: status.toUpperCase() + " " + score + "/100. " + checks.filter((check) => check.level === "pass").length + " pass, " + warnCount + " warn, " + failCount + " fail.",
+      noApiBoundary: "This review inspects rendered DOM and layout through local headless Chrome only. It does not call a hosted model, image API, or paid API."
+    };
+  })()`;
+}
+
+async function writeDomReview(review) {
+  await mkdir(exportsRoot, { recursive: true });
+  await writeFile(domReviewJsonPath, `${JSON.stringify(review, null, 2)}\n`);
+  await writeFile(domReviewMarkdownPath, buildDomReviewMarkdown(review));
+}
+
+function buildDomReviewMarkdown(review) {
+  const lines = [
+    "# Canvax DOM Layout Review",
+    "",
+    `- Status: ${review.status}`,
+    `- Score: ${review.score}/100`,
+    `- Source: ${review.source?.url || "unknown"}`,
+    `- Requires OpenAI API key: ${review.requiresOpenAiApiKey ? "yes" : "no"}`,
+    "",
+    "## Checks",
+    "",
+  ];
+  (review.checks || []).forEach((check) => {
+    lines.push(`- ${check.level}: ${check.label} - ${check.detail}`);
+  });
+  lines.push("", "## Boundary", "", review.noApiBoundary || "");
+  return `${lines.join("\n")}\n`;
+}
+
 function parsePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -519,6 +720,9 @@ async function launchChromeSession(
       },
       async waitForResponsiveSmoke(expression, timeoutMs) {
         return waitForResponsiveSmokeState(cdp, expression, timeoutMs);
+      },
+      async evaluateExpression(expression, timeoutMs) {
+        return waitForEvaluatedValue(cdp, expression, timeoutMs);
       },
       async captureScreenshot(filePath) {
         const result = await cdp.send("Page.captureScreenshot", {
@@ -848,6 +1052,32 @@ async function waitForResponsiveSmokeState(cdp, expression, timeoutMs) {
     ? `Timed out after ${timeoutMs}ms; failures=${lastState.failures?.join("; ") || "none reported"}.`
     : `Timed out after ${timeoutMs}ms.`;
   throw new Error(detail);
+}
+
+async function waitForEvaluatedValue(cdp, expression, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastState = null;
+  while (Date.now() < deadline) {
+    try {
+      const response = await cdp.send("Runtime.evaluate", {
+        expression,
+        returnByValue: true,
+        awaitPromise: true,
+      });
+      const value = response?.result?.result?.value ?? response?.result?.value;
+      lastState = value || lastState;
+      if (value?.readyState === "complete" || value?.kind) {
+        return value;
+      }
+    } catch {
+      // Retry while the page is still navigating.
+    }
+    await delay(200);
+  }
+  if (lastState) {
+    return lastState;
+  }
+  throw new Error(`Timed out after ${timeoutMs}ms.`);
 }
 
 async function waitForSelfTestState(cdp, resultsId, timeoutMs) {

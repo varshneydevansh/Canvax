@@ -328,6 +328,15 @@ const checks = [
         ],
       },
       {
+        path: "scripts/browser-regression.mjs",
+        includes: [
+          "canvax-dom-layout-review",
+          "preview DOM layout review passes",
+          "noApiBoundary",
+          "data-canvax-node-id",
+        ],
+      },
+      {
         path: "scripts/execute-build-request.mjs",
         includes: [
           "applyDesignTokenPalette",
@@ -399,6 +408,7 @@ const checks = [
           "artifact design review dry-run is valid",
           "visual snapshot review dry-run is valid",
           "design jury review dry-run is valid",
+          "DOM layout review schema is valid",
           "design token enforcement verifier dry-run is valid",
           "design token production manifest verifier dry-run is valid",
           "production port proof dry-run is valid",
@@ -426,7 +436,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, a local project-link bridge, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, live DOM/AI browser visual critique, automatically applied arbitrary production patching, and evidence from Codex completing a real external/user project edit remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, a local project-link bridge, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary production patching, and evidence from Codex completing a real external/user project edit remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -560,6 +570,7 @@ const checks = [
           "mcp",
           "review-snapshot",
           "review-jury",
+          "review-dom",
           "regression",
         ],
       },

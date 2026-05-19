@@ -159,7 +159,10 @@ The useful lesson for Canvax:
   review-jury` combines those lower-level signals into designer-facing
   hierarchy, accessibility, responsiveness, brand/system, tweak-targeting,
   motion/readability, visual-integrity, and production-readiness categories.
-  True live DOM or AI visual critique remains open.
+  `npm run review-dom` now adds a local headless-browser Preview DOM/layout
+  pass for overflow, offscreen elements, target sizes, headings, landmarks,
+  motion cues, and Canvax source bindings. Hosted AI visual critique and deeper
+  motion semantics remain open.
 - Keep agent/tool adapters optional. Canvax should stay local-first and no-API by
   default, then bridge to Codex, ChatGPT, Browser, image generation, or future MCP
   hosts when those capabilities are present.
@@ -479,6 +482,9 @@ checked for blank/flat/clipped risks.
 `npm run review-jury` combines static artifact review, screenshot review, and
 Canvax inspection context into a named local design-jury verdict before port or
 rewrite.
+`npm run review-dom` opens Preview in local headless Chrome and writes a no-API
+DOM/layout review for rendered structure, overflow, offscreen visible elements,
+target sizes, landmarks, motion cues, and Canvax source bindings.
 
 Needed:
 
@@ -488,8 +494,9 @@ Needed:
 - Extract visual tokens from a URL, screenshot, or existing app. **Current-frame
   sketch token extraction and locally readable placed/reference-image sampling
   shipped; text/CSS token extraction from URLs, files, generated artifacts, and
-  inline snippets shipped; static HTML/JSX semantic extraction shipped; live DOM
-  inspection and browser-rendered visual critique remain open.**
+  inline snippets shipped; static HTML/JSX semantic extraction shipped; local
+  Preview DOM/layout review shipped through `npm run review-dom`; hosted AI
+  visual critique remains open.**
 - Enforce those tokens when Codex generates or refines UI.
   **Initial deterministic executor enforcement shipped for generated CSS
   variables and port contracts; manifest-listed production-file enforcement
@@ -502,8 +509,9 @@ Needed:
   `get_project_link`; native host registration remains open.**
 - Add live visual critique for generated/browser output.
   **Local pixel-level screenshot review shipped through `npm run
-  review-snapshot`, and local design-jury aggregation shipped through
-  `npm run review-jury`; live DOM/motion/AI critique remains open.**
+  review-snapshot`, local rendered DOM/layout review shipped through `npm run
+  review-dom`, and local design-jury aggregation shipped through `npm run
+  review-jury`; hosted AI critique and deeper motion semantics remain open.**
 
 ### 6. Image Model And Asset Workflow
 

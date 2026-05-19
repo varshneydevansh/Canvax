@@ -77,6 +77,11 @@ const designJuryReviewPath = resolve(
   "exports",
   "canvax-design-jury-latest.json",
 );
+const domLayoutReviewPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-dom-review-latest.json",
+);
 const productionPortProofPath = resolve(
   projectRoot,
   "artifacts",
@@ -294,6 +299,17 @@ await validateOptionalJsonSchema(
     value.subreviews?.artifactReviews &&
     value.subreviews?.visualReview,
   "design jury review schema is valid",
+);
+await validateOptionalJsonSchema(
+  domLayoutReviewPath,
+  (value) =>
+    value?.kind === "canvax-dom-layout-review" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.checks) &&
+    typeof value?.status === "string",
+  "DOM layout review schema is valid",
 );
 await validateOptionalJsonSchema(
   productionPortProofPath,

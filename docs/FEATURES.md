@@ -278,6 +278,7 @@ Boundary:
 - `npm run package-design-kits` writes a shareable no-API design-kit library artifact with full kit JSON, local versions, source paths, SHA-256 checksums, and install notes for moving kit libraries between Canvax workspaces.
 - `npm run extract-tokens` can scan public URLs, local HTML/CSS files, generated screen artifacts, pasted CSS/HTML text, or local raster screenshots for palette, CSS variables, font-family cues, semantic HTML/JSX structure, Canvax-bound node ids, and screenshot pixel-sample colors without an API key, writing `exports/canvax-external-design-tokens-latest.{json,md}`. Advanced `Import external` brings that latest pack back into the active Design kit.
 - `npm run review-artifact` statically reviews generated HTML/CSS artifacts for landmarks, heading structure, action/link labels, image alternatives, form labels, responsive cues, focus styles, and Canvax source bindings before a production port, without an API key.
+- `npm run review-dom` inspects the rendered Preview DOM/layout in local headless Chrome for overflow, offscreen visible elements, target sizes, headings, landmarks, motion cues, and Canvax source bindings, without an API key.
 - Image prompt packs include a `canvax-style-lock` block with palette, continuity rules, adaptation rules, negative rules, design-context summary, frame signals, and extracted sketch-token cues so image/book/comic/poster candidates can stay consistent across frames.
 - In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
 
@@ -789,6 +790,14 @@ pixels locally, and flags dimension mismatches, blank/flat output risk, weak
 palette variety, dominant-color imbalance, and low contrast spread. It is useful
 after browser regression, but it is still a pixel smoke test rather than a
 hosted AI critique or a replacement for manual design review.
+
+`npm run review-dom` is the local rendered DOM/layout gate for Preview. It uses
+headless Chrome against the current local Preview route and writes
+`exports/canvax-dom-review-latest.{json,md}` with checks for document readiness,
+visible structure, horizontal overflow, offscreen visible elements, small
+interactive targets, heading text, landmarks, motion cues, and
+`data-canvax-node-id` bindings. It is no-API browser inspection: stronger than
+static source parsing, but still not a hosted AI design critic.
 
 `npm run review-jury` is the local design-jury gate. It combines
 `review-artifact`, `review-snapshot`, and `npm run inspect` context into one

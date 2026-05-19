@@ -227,6 +227,21 @@ captures, and very flat outputs. It does not understand layout semantics,
 animation, or live DOM behavior, so keep manual/browser visual review for design
 quality decisions.
 
+Review the live Preview DOM/layout when you need a rendered-structure gate:
+
+```bash
+npm run review-dom
+CANVAX_BROWSER_STRICT=1 npm run review-dom
+```
+
+`review-dom` writes `exports/canvax-dom-review-latest.json` and `.md`. It opens
+the local Preview route in headless Chrome and checks rendered structure,
+horizontal overflow, offscreen visible elements, interactive target sizes,
+heading text, landmarks, transition/animation cues, and
+`data-canvax-node-id` bindings. It is still local and no-API. It is not a
+hosted AI critic, but it closes the gap between static source review and
+pixel-only screenshot review.
+
 Run the local design jury when you want one designer-facing verdict instead of
 reading separate artifact and screenshot reports:
 
@@ -555,6 +570,7 @@ Important files:
 - `exports/canvax-preview-tweak-latest.md`
 - `exports/canvax-artifact-review-latest.json`
 - `exports/canvax-visual-snapshot-review-latest.json`
+- `exports/canvax-dom-review-latest.json`
 - `exports/canvax-design-jury-latest.json`
 - `exports/canvax-project-link-latest.json`
 - `exports/canvax-project-link-latest.md`

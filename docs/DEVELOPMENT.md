@@ -277,6 +277,14 @@ the latest browser snapshot index by default, writes
 low palette variety, dominant-color imbalance, dimension mismatches, and weak
 contrast spread. It does not replace live DOM inspection or designer review.
 
+Use `npm run review-dom` when Preview needs a rendered DOM/layout smoke gate
+without running the full responsive browser regression. The command opens the
+local Preview route in headless Chrome and writes
+`exports/canvax-dom-review-latest.{json,md}` with checks for horizontal
+overflow, offscreen visible elements, small interactive targets, headings,
+landmarks, motion cues, and `data-canvax-node-id` bindings. It is no-API local
+browser inspection, not hosted AI critique.
+
 Use `npm run review-jury` when a generated surface needs one local
 designer-facing gate before port or rewrite. It composes the static artifact
 review, screenshot pixel review, and Canvax inspection bridge into

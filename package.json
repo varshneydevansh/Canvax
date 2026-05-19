@@ -18,6 +18,7 @@
     "mcp": "node scripts/canvax-mcp-server.mjs",
     "review-snapshot": "node scripts/review-visual-snapshot.mjs",
     "review-jury": "node scripts/review-design-jury.mjs",
+    "review-dom": "node scripts/browser-regression.mjs --dom-review-only",
     "validate-design-kits": "node scripts/validate-design-kits.mjs",
     "package-design-kits": "node scripts/package-design-kits.mjs",
     "project-link": "node scripts/link-project-target.mjs",

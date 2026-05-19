@@ -680,7 +680,7 @@ design-kits/*.json
   -> validate-design-kits
 ```
 
-`scripts/extract-design-tokens.mjs` is the current external-source bridge. It scans public URLs, local HTML/CSS files, generated artifacts, inline CSS/HTML text, or local raster screenshots for explicit colors, CSS variables, font-family rules, sampled image palettes, and local HTML/JSX structure, then writes `canvax-external-design-tokens` JSON/Markdown. The `semanticStructure` block records detected landmarks, component signals, headings, actions, forms, class-role hints, and Canvax source bindings such as `data-canvax-node-id` / `data-canvax-node-type`. Advanced `Import external` reads the latest JSON pack from `exports/` and normalizes it into `designKit.designTokens`. Screenshot extraction is local and uses raster pixel sampling; semantic extraction reads source text/static artifacts only, not a live browser DOM or AI critique, and it does not call any AI or paid API.
+`scripts/extract-design-tokens.mjs` is the current external-source bridge. It scans public URLs, local HTML/CSS files, generated artifacts, inline CSS/HTML text, or local raster screenshots for explicit colors, CSS variables, font-family rules, sampled image palettes, and local HTML/JSX structure, then writes `canvax-external-design-tokens` JSON/Markdown. The `semanticStructure` block records detected landmarks, component signals, headings, actions, forms, class-role hints, and Canvax source bindings such as `data-canvax-node-id` / `data-canvax-node-type`. Advanced `Import external` reads the latest JSON pack from `exports/` and normalizes it into `designKit.designTokens`. Screenshot extraction is local and uses raster pixel sampling; semantic extraction reads source text/static artifacts only. Live rendered checks belong to `scripts/browser-regression.mjs` / `npm run review-dom`, and none of these paths call an AI or paid API.
 
 `scripts/verify-token-enforcement.mjs` is the matching enforcement bridge. It
 reads `implementation/canvax-build-contract.json`, extracts the recorded
@@ -747,6 +747,15 @@ checks dimensions, sample count, palette variety, dominant-color balance, and
 contrast spread. This gives Canvax a no-API visual smoke gate over actual
 browser snapshots. It still does not inspect the live DOM, layout tree, motion,
 or semantic design quality.
+
+`scripts/browser-regression.mjs --dom-review-only` is the local rendered
+DOM/layout review bridge exposed as `npm run review-dom`. It launches local
+headless Chrome against Preview, evaluates the rendered document, and writes
+`exports/canvax-dom-review-latest.{json,md}`. The payload checks document
+readiness, visible structure, horizontal overflow, offscreen visible elements,
+small interactive targets, headings, landmarks, transition/animation cues, and
+`data-canvax-node-id` bindings. This is browser-assisted no-API critique, not
+hosted AI critique and not automatic production patching.
 
 `scripts/review-design-jury.mjs` is the local design-jury bridge. It composes
 static artifact review, visual snapshot review, and the read-only Canvax

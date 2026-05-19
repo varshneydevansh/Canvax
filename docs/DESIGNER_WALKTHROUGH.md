@@ -201,6 +201,7 @@ artifacts/canvax/browser-snapshots/latest/preview-desktop-1440x1024.png
 artifacts/canvax/browser-snapshots/latest/preview-laptop-1024x820.png
 artifacts/canvax/browser-snapshots/latest/preview-tablet-768x900.png
 artifacts/canvax/browser-snapshots/latest/preview-narrow-430x840.png
+exports/canvax-dom-review-latest.md
 ```
 
 Use those screenshots to review:

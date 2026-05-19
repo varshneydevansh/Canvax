@@ -1,6 +1,6 @@
 # Canvax Execution Status
 
-Updated: May 18, 2026
+Updated: May 19, 2026
 
 This file tracks what is actually implemented from `canvax-live-collaboration-plan.md` so work does not drift between chat turns. For the stricter objective-to-evidence audit, see `docs/CANVAX_PARITY_AUDIT.md`.
 
@@ -112,6 +112,7 @@ Status: In progress
 - [x] `npm run review-artifact` emits a no-API static design-readiness review for generated HTML/CSS artifacts before production porting
 - [x] `npm run review-snapshot` emits a no-API pixel-level visual snapshot review for browser screenshots, covering dimensions, palette variety, dominant color balance, blankness risk, and contrast spread
 - [x] `npm run review-jury` emits a no-API design-jury verdict that combines artifact review, screenshot review, and Canvax inspection context into hierarchy/accessibility/responsiveness/brand/tweak/motion/visual/production categories
+- [x] `npm run review-dom` emits a no-API rendered Preview DOM/layout review for overflow, offscreen elements, target sizes, headings, landmarks, motion cues, and Canvax source bindings
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service
 - [x] Isolated service lifecycle regression covers start, reuse, port mismatch, restart, status, and stop on throwaway ports without disrupting the default board
 - [x] CLI can recover a matching Canvax service from `/api/status` when runtime files are stale or missing
