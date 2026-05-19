@@ -125,10 +125,11 @@ The useful lesson for Canvax:
 - Keep the reusable kit layer file-based and simple. Canvax now reads
   `design-kits/*.json` as repository design kits, exposes them through the same
   searchable `Design kit` dropdown, validates and searches them with
-  `npm run validate-design-kits -- --query <term>`, and exports the selected kit
-  source path through the normal `designKit` handoff. The remaining opportunity
-  is packaging, versioning, and team sharing for larger kit libraries without
-  making the default Workbench feel like a prompt console.
+  `npm run validate-design-kits -- --query <term>`, packages them with
+  `npm run package-design-kits`, and exports the selected kit source path
+  through the normal `designKit` handoff. The remaining opportunity is hosted or
+  team-level sharing for larger kit libraries without making the default
+  Workbench feel like a prompt console.
 
 ## Current Canvax Shape
 
@@ -393,7 +394,9 @@ built-in and repository kits, and the validator exposes the same discovery path
 through `npm run validate-design-kits -- --query <term>`. The external token
 pack now also includes static `semanticStructure` extraction for HTML/JSX
 artifacts: landmarks, component signals, headings, actions, forms, class
-signals, and Canvax node bindings.
+signals, and Canvax node bindings. `npm run package-design-kits` writes a
+shareable no-API kit-library artifact with full kit JSON, local versions, source
+paths, SHA-256 checksums, and install notes.
 
 Needed:
 

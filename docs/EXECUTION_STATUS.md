@@ -102,6 +102,7 @@ Status: In progress
 - [x] Build with Codex local executor writes `implementation/ACCEPTANCE.md`, a human-readable production-readiness checklist with selector binding, responsive/accessibility, no-API, and publish-back gates
 - [x] `npm run verify-tokens` can verify extracted design-token palettes against both local implementation artifacts and production files listed in `artifacts/canvax/codex-output.json`
 - [x] Repository design kits under `design-kits/*.json` load into the searchable Design kit dropdown and validate/discover with `npm run validate-design-kits` plus `npm run validate-design-kits -- --query <term>`
+- [x] `npm run package-design-kits` writes a shareable no-API kit-library artifact with full kit JSON, local versions, source paths, SHA-256 checksums, and install notes
 - [x] `npm run extract-tokens -- --image <local-screenshot>` samples local raster screenshots/images into the same importable external token pack without an API key
 - [x] `npm run extract-tokens` emits a no-API `semanticStructure` block for HTML/JSX artifacts, including landmarks, component signals, actions, forms, headings, class signals, and Canvax node bindings
 - [x] CLI/runtime status validates the live Canvax PID, workspace root, runtime path, local transport, and no-API host capability before reusing an existing service

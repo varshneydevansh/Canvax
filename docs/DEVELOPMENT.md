@@ -224,6 +224,11 @@ lists them under `Repository kits` in the searchable Design kit dropdown. Run
 `npm run validate-design-kits -- --query <term>` when checking which local kits
 match a product, poster, book, or brand direction.
 
+Run `npm run package-design-kits` when a kit library should be shared or
+archived. It writes `exports/canvax-design-kit-library-latest.{json,md}` with
+the full kit JSON, source path, local version, SHA-256 checksum, and install
+instructions. Use `--query <term>` to package a subset.
+
 Use `npm run extract-tokens -- --image <local-screenshot>` when a rendered
 screen, browser snapshot, generated image, or app screenshot should contribute
 palette cues to the active Design kit. This samples raster pixels locally and

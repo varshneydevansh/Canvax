@@ -653,7 +653,19 @@ design-kits/*.json
 ```
 
 `scripts/validate-design-kits.mjs` checks that local kit files have the required
-shape and remain no-API.
+shape and remain no-API. `scripts/package-design-kits.mjs` builds the matching
+shareable library artifact, `exports/canvax-design-kit-library-latest.{json,md}`,
+with full kit JSON, local versions, source paths, SHA-256 checksums, and install
+notes. This gives Canvax an Open Design-style reusable system library without
+requiring a hosted registry.
+
+```text
+design-kits/*.json
+  -> package-design-kits
+  -> canvax-design-kit-library-latest.{json,md}
+  -> copied/imported into another workspace design-kits/
+  -> validate-design-kits
+```
 
 `scripts/extract-design-tokens.mjs` is the current external-source bridge. It scans public URLs, local HTML/CSS files, generated artifacts, inline CSS/HTML text, or local raster screenshots for explicit colors, CSS variables, font-family rules, sampled image palettes, and local HTML/JSX structure, then writes `canvax-external-design-tokens` JSON/Markdown. The `semanticStructure` block records detected landmarks, component signals, headings, actions, forms, class-role hints, and Canvax source bindings such as `data-canvax-node-id` / `data-canvax-node-type`. Advanced `Import external` reads the latest JSON pack from `exports/` and normalizes it into `designKit.designTokens`. Screenshot extraction is local and uses raster pixel sampling; semantic extraction reads source text/static artifacts only, not a live browser DOM or AI critique, and it does not call any AI or paid API.
 

@@ -57,6 +57,11 @@ const codexOutputManifestPath = resolve(
   "canvax",
   "codex-output.json",
 );
+const designKitLibraryPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-design-kit-library-latest.json",
+);
 const curlBinary = "/usr/bin/curl";
 const upstreamProposalPath = resolve(
   projectRoot,
@@ -72,6 +77,7 @@ await validateExecuteBuildRequestDryRun();
 await validateExecuteRewriteRequestDryRun();
 await validateExternalDesignTokenExtractorDryRun();
 await validateImageDesignTokenExtractorDryRun();
+await validateDesignKitLibraryPackageDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
@@ -210,6 +216,17 @@ await validateOptionalJsonSchema(
     value.version >= 1 &&
     Array.isArray(value?.changes),
   "codex output manifest schema is valid",
+);
+await validateOptionalJsonSchema(
+  designKitLibraryPath,
+  (value) =>
+    value?.kind === "canvax-design-kit-library" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.kits) &&
+    value.integrity?.algorithm === "sha256",
+  "design kit library package schema is valid",
 );
 
 const failed = results.filter((entry) => !entry.passed);
@@ -468,6 +485,43 @@ async function validateImageDesignTokenExtractorDryRun() {
   } catch (error) {
     results.push({
       name: "image design token extractor dry-run is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateDesignKitLibraryPackageDryRun() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/package-design-kits.mjs",
+      "--query",
+      "scythian",
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const library = payload.library;
+    const passed = Boolean(
+      payload.dryRun &&
+        library?.kind === "canvax-design-kit-library" &&
+        library.requiresOpenAiApiKey === false &&
+        library.source?.query === "scythian" &&
+        library.kits?.length === 1 &&
+        library.kits?.[0]?.id === "scythian-constructivist" &&
+        library.kits?.[0]?.checksum &&
+        library.integrity?.algorithm === "sha256",
+    );
+    results.push({
+      name: "design kit library packager dry-run is valid",
+      passed,
+      detail: passed
+        ? `${library.kits.length}/${library.source.totalKitCount} kits packaged`
+        : "packager did not return expected design-kit library",
+    });
+  } catch (error) {
+    results.push({
+      name: "design kit library packager dry-run is valid",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

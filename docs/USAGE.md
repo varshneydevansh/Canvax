@@ -156,7 +156,16 @@ Validate those files with:
 ```bash
 npm run validate-design-kits
 npm run validate-design-kits -- --query scythian
+npm run package-design-kits
+npm run package-design-kits -- --query storybook
 ```
+
+`package-design-kits` writes
+`exports/canvax-design-kit-library-latest.json` and `.md`. That artifact is a
+local no-API sharing bundle with source paths, full kit JSON, local versions,
+SHA-256 checksums, and install notes. Use it when you want to move a campaign,
+book, product, or client design-system kit library into another Canvax
+workspace without adding a hosted account.
 
 The shipped starter kits are:
 
