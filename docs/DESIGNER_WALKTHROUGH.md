@@ -83,7 +83,7 @@ Then use the full loop when you need more control:
 6. Press `Make` for a local generated surface.
 7. Press `Build` when you want a Codex-readable real implementation request and local starter output.
 8. Press `Apply` when the generated output should refresh from your latest sketch, voice note, and correction marks.
-9. Use `Focus canvas` when the tray feels too busy; use `Show brief` to bring it back.
+9. Use `Open scratchpad` when the tray feels too busy; use `Show brief` to bring it back.
 
 ## Output Correction Loop
 
@@ -209,7 +209,7 @@ Use those screenshots to review:
 - first-view complexity
 - clipped labels
 - overlapping controls
-- whether `Focus canvas` meaning is clear
+- whether `Open scratchpad` meaning is clear
 - whether Workbench and Advanced feel like the same product
 - whether generated output references look like references, not extra sketch frames
 - whether the Advanced command deck remains solid while inspecting long frame/map content

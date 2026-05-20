@@ -89,7 +89,7 @@ flowchart LR
 - Adds local project switching in both Workbench and the Advanced left rail: create a blank project, duplicate the current board, switch between browser-local projects, and delete a project when another one exists. The active project remains the one that writes `exports/canvax-live-latest.*` for Codex.
 - Adds a Stitch-like local Project Browser overlay with searchable project cards, active-project state, and Open/Duplicate/Delete actions so designers can switch boards without using a tiny dropdown.
 - Writes `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/`, so each local project has recoverable live JSON/Markdown, task, rewrite, image-prompt, voice, asset, image-host, build-request, and checkpoint files while `/canvax` still reads the active compatibility handoff.
-- Adds a floating designer rail in `Focus canvas`, so tools, undo/redo, dictation, Make, and Apply stay available when the tray is intentionally hidden for canvas-first work.
+- Adds a floating designer rail in `Open scratchpad` mode, so tools, undo/redo, dictation, Make, and Apply stay available when the tray is intentionally hidden for canvas-first work.
 - Keeps a compact frame/surface/action/focus summary visible when the Workbench tray is hidden, so canvas-first mode does not lose context.
 - Adds a bottom Workbench command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching.
 - Keeps the focused Workbench rail as a bottom command dock with brush `-` / `+` controls and an `Image` action for spatial image-generation handoff.

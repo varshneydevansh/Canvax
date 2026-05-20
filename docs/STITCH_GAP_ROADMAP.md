@@ -27,7 +27,7 @@ before
   left timeline + top toolbar + canvas + right inspector + separate preview
 
 after
-  Codex brief + sketch card + generated output card + Focus canvas command composer
+  Codex brief + sketch card + generated output card + Open scratchpad command composer
   Advanced remains available for frames, flow, manifests, captures, and debugging.
 ```
 
@@ -275,12 +275,12 @@ mirrors, and a native Codex project surface.
 - Asset candidates now normalize into a `placementMap` contract with slot id, normalized bounds, source-viewport pixel bounds, CSS placement, a target selector, HTML slot scaffold, and output-slot records. The companion `canvax-asset-candidate-review` summary groups candidates by frame and exposes pending, placed, attached, and accepted queues plus no-API host handoff files. Canvax now also writes `exports/canvax-image-host-task-latest.*`, a machine-readable host execution contract with one task per candidate, return-slot binding, and acceptance criteria. This gives Codex or a host image tool exact placement and review data for UI image regions, poster art, book spreads, and illustration candidates without requiring Canvax to call a paid API.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
-- Workbench now exposes project switching, viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the `Focus canvas` designer rail without requiring the user to open Advanced mode.
+- Workbench now exposes project switching, viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the `Open scratchpad` designer rail without requiring the user to open Advanced mode.
 - Workbench surface presets now cover UI, poster, slide, book-spread, storyboard, comic-page, square, and free-canvas work so Canvax can support broader design/illustration planning, not only app screens.
 - Workbench now exposes action modes for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`.
 - Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short guided path before they need every control.
-- Workbench now has a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply in `Focus canvas`, so the main sketch loop can stay canvas-first without crowding the default brief.
-- The Workbench rail now behaves like the primary bottom designer dock in `Focus canvas`, with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
+- Workbench now has a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply in `Open scratchpad`, so the main sketch loop can stay canvas-first without crowding the default brief.
+- The Workbench rail now behaves like the primary bottom designer dock in `Open scratchpad`, with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
 - The rail and slider size controls now resize selected elements in Select mode and only act globally when no element is selected.
 - The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it is a compact command strip focused on brief, surface/action context, voice, and generated output.
 - The generated output card remains a compact thumbnail/status/correction target, and Workbench adds a larger output stage through `Split` and `Output` focus modes for comfortable inspection and correction marks.
@@ -422,7 +422,7 @@ Current stepping stone:
 ```text
 done
   Workbench -> Free canvas preset -> large sketch surface
-  Focus canvas -> bottom rail and composer for canvas-first controls without reopening the tray
+  Open scratchpad -> bottom rail and composer for canvas-first controls without reopening the tray
   generated output overlay -> saved correction marks for Codex
   generated preview review aids -> opt-in original sketch and design notes
   Workbench Map -> zoomable frame/variant project graph exported as spatialWorkspace

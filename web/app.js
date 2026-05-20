@@ -3319,7 +3319,7 @@ function renderWorkspaceMode() {
   dom.workbenchTrayToggle.hidden = mode !== "simple";
   dom.workbenchTrayToggle.textContent = state.workbenchTrayCollapsed
     ? "Show brief"
-    : "Focus canvas";
+    : "Open scratchpad";
   dom.workbenchTrayToggle.setAttribute(
     "aria-pressed",
     String(state.workbenchTrayCollapsed),
@@ -3752,7 +3752,7 @@ function toggleWorkbenchTray() {
   renderAll();
   renderStatus(
     state.workbenchTrayCollapsed
-      ? "Designer focus on: tray hidden, canvas is primary"
+      ? "Scratchpad open: canvas, dock, and composer are primary"
       : "Workbench tray shown",
   );
 }

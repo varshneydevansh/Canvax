@@ -291,11 +291,11 @@ Behavior:
 - lets designers lock important Map objects so reference images, generated outputs, and notes can stay selectable/copyable but protected from accidental move, resize, grouping, reordering, duplication, or deletion; locked state exports on each `spatialWorkspace.objects[]` record and in copied context Markdown
 - exports the current or last rendered Map viewport as `spatialWorkspace.viewport`, including zoom, scroll offset, visible bounds, and normalized center, so Codex can understand which part of a large board the designer is looking at
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
-- provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply when `Focus canvas` is active
+- provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Make, Image, and Apply when `Open scratchpad` is active
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching in focused canvas mode
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
-- `Focus canvas` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible; `Show brief` brings the context tray back
+- `Open scratchpad` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible; `Show brief` brings the context tray back
 - `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
 - `Live rewrite` is an opt-in mode that runs the same local no-API rewrite executor after autosnap/freeze saves the latest handoff
 - if a new autosnap/freeze happens while Live rewrite is already refreshing output, Canvax queues the newest handoff and runs it as soon as the in-flight rewrite finishes
@@ -349,7 +349,7 @@ The smoke check is structural, not a replacement for visual taste review. It ver
 
 Workbench Map also has a dedicated visual smoke fixture. It opens the designer-first Map focus on desktop and narrow widths, scrolls the spatial workspace into view before capture, verifies the `Start with your design` chip remains first, checks that the Map timeline, output shelf, and spatial cards render, and fails on document-level horizontal overflow. The narrow Workbench smoke also asserts that the canvas appears in the first visible screen instead of being pushed below a long control tray. This keeps the Stitch-like spatial canvas from regressing into a clipped or hidden secondary panel.
 
-The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated screen targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use. The same test asserts that the default Workbench brief keeps the fixed rail/composer hidden, while `Focus canvas` makes those controls visible.
+The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated screen targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use. The same test asserts that the default Workbench brief keeps the fixed rail/composer hidden, while `Open scratchpad` makes those controls visible.
 
 `npm run e2e-workflow` is the explicit rough-sketch-to-real-output proof. It creates a synthetic sketch frame with voice, correction marks, image prompt data, and asset candidates, then verifies the no-API build executor, dry-run Codex manifest binding, and rewrite executor as one chain. The proof manifest is written to `artifacts/canvax/e2e-workflow/latest/result.json`.
 

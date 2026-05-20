@@ -151,11 +151,11 @@ It hides advanced panels and keeps only:
 - correction marks drawn directly over generated output
 - pasted or dropped images as movable/resizable image assets on the frame
 - `Add image` as the visible Workbench file-picker path for editable reference images, generated candidates, book/storyboard art, or UI assets
-- a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Make`, `Image`, and `Apply` when `Focus canvas` is active
+- a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Make`, `Image`, and `Apply` when `Open scratchpad` is active
 - a bottom command composer for typed or pasted dictation with `Talk`, `Note`, `Make`, and `Apply` in focused canvas mode
 - context-sensitive size controls: `-` / `+` resize selected elements in Select mode and otherwise update the current brush/eraser size
 - eraser behavior that only removes drawn ink, not the paper/grid base, and does not export as black prompt/materialize geometry
-- `Focus canvas` / `Show brief` for canvas-first designer focus
+- `Open scratchpad` / `Show brief` for canvas-first designer focus
 - `Apply to Codex`
 - `Preview`
 
