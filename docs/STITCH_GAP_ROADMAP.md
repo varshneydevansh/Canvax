@@ -632,7 +632,11 @@ Needed:
 - Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan with momentum/coast, Shift-drag lasso selection, selected-set dragging/resizing, selection-created group regions, group contents selection/fitting, front/back layer ordering, cursor-centered pinch/ctrl-wheel zoom, minimap click-to-pan, Fit map recovery, edge expansion when cards/objects are dragged into the left/top boundary, persistent trailing workspace room, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, collapse repeated outputs to the latest useful per-frame/per-kind card, sit inside the output shelf lane with an inline legend explaining that they are references not frames, and can be promoted into editable `Output edit` frames. Richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Deterministic variants now appear as connected editable Flow frames plus selectable/resizable/movable `variant-branch` Map objects, expose in-place `Use variant` actions in Map, and export as explicit editable spatial branch/object records with semantic recipes, branch prompts, design moves, style knobs, and custom properties. Hosted AI-generated variants remain a future host bridge.**
-- Voice-driven critique/refinement lane.
+- Voice-driven critique/refinement lane. **Initial local `Voice intent queue`
+  shipped in Workbench and voice exports. It categorizes recent spoken notes into
+  placement, scale, visual style, flow, asset, copy, or general intent cards so
+  critique is visible next to the sketch before Apply/Live rewrite. Native
+  Codex microphone capture and continuous hosted co-editing remain open.**
 - Branchable design explorations with a clear agent/output history.
 - Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant". **Initial Workbench quick-prompt chips shipped.**
 - Brand polish across board, Preview, generated routes, and docs.

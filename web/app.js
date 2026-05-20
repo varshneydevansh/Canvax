@@ -188,6 +188,45 @@ const workbenchPromptChips = [
   },
 ];
 
+const voiceIntentRules = [
+  {
+    id: "placement",
+    label: "Placement",
+    detail: "Use this note to move, align, or reposition the design.",
+    pattern: /\b(move|place|position|align|shift|left|right|top|bottom|center|above|below|near|beside)\b/i,
+  },
+  {
+    id: "scale",
+    label: "Scale",
+    detail: "Use this note to resize, emphasize, or reduce an element.",
+    pattern: /\b(bigger|larger|smaller|resize|scale|wide|tall|short|hero|emphasis|prominent)\b/i,
+  },
+  {
+    id: "visual",
+    label: "Visual style",
+    detail: "Use this note to change color, type, contrast, or atmosphere.",
+    pattern: /\b(color|colour|font|type|bold|contrast|dark|light|dramatic|soft|texture|style|palette)\b/i,
+  },
+  {
+    id: "flow",
+    label: "Flow",
+    detail: "Use this note for motion, state, scroll, or prototype behavior.",
+    pattern: /\b(scroll|transition|animate|animation|state|hover|click|tap|flow|next|after|before|when|then)\b/i,
+  },
+  {
+    id: "asset",
+    label: "Asset",
+    detail: "Use this note for image, illustration, icon, or media direction.",
+    pattern: /\b(image|photo|illustration|icon|poster|asset|character|background|scene|shot|spread)\b/i,
+  },
+  {
+    id: "copy",
+    label: "Copy",
+    detail: "Use this note for labels, text, tone, or wording.",
+    pattern: /\b(text|copy|label|headline|title|caption|wording|tone|message|cta)\b/i,
+  },
+];
+
 const viewportPresets = {
   desktop: { label: "Desktop", width: 1440, height: 1024, columns: 12 },
   laptop: { label: "Laptop", width: 1366, height: 900, columns: 12 },
@@ -462,6 +501,7 @@ const dom = {
   focusPreview: document.querySelector("#focus-preview"),
   focusStatus: document.querySelector("#focus-status"),
   focusTranscript: document.querySelector("#focus-transcript"),
+  focusVoiceIntents: document.querySelector("#focus-voice-intents"),
   focusManualInput: document.querySelector("#focus-manual-input"),
   focusAddManual: document.querySelector("#focus-add-manual"),
   workbenchOutputBadge: document.querySelector("#workbench-output-badge"),
@@ -4249,6 +4289,7 @@ function renderFocusPad() {
       "Draw rough placement, start talking or paste a note, then Apply to Codex.";
   }
 
+  renderFocusVoiceIntentLane(relevantSegments);
   renderWorkbenchOutput();
   renderAssetCandidateTray();
 
@@ -4279,6 +4320,36 @@ function renderFocusPad() {
       `,
     )
     .join("");
+}
+
+function renderFocusVoiceIntentLane(segments = voiceSegmentsForCurrentScope()) {
+  const intents = buildVoiceIntentQueue(segments, { limit: 4 });
+  if (!intents.length) {
+    dom.focusVoiceIntents.hidden = true;
+    dom.focusVoiceIntents.innerHTML = "";
+    return;
+  }
+
+  dom.focusVoiceIntents.hidden = false;
+  dom.focusVoiceIntents.innerHTML = `
+    <div class="voice-intent-heading">
+      <span>Voice intent queue</span>
+      <small>${intents.length} active</small>
+    </div>
+    <div class="voice-intent-grid">
+      ${intents
+        .map(
+          (intent) => `
+            <article class="voice-intent-card" data-intent="${escapeHtml(intent.category)}">
+              <span>${escapeHtml(intent.label)}</span>
+              <strong>${escapeHtml(intent.summary)}</strong>
+              <p>${escapeHtml(intent.detail)}</p>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderWorkbenchPromptChips() {
@@ -17121,7 +17192,53 @@ function buildVoiceExport(frameSelection = state.frames) {
     latestSegmentAt: segments[0]?.at || "",
     segments,
     frameGroups,
+    intentQueue: buildVoiceIntentQueue(segments, { limit: 12 }),
   };
+}
+
+function buildVoiceIntentQueue(segments, options = {}) {
+  const limit = Number.isFinite(Number(options.limit))
+    ? Math.max(1, Number(options.limit))
+    : 8;
+  return (Array.isArray(segments) ? segments : [])
+    .map((segment) => {
+      const text = cleanString(segment?.text);
+      if (!text) {
+        return null;
+      }
+      const matchedRule =
+        voiceIntentRules.find((rule) => rule.pattern.test(text)) ||
+        {
+          id: "intent",
+          label: "Intent",
+          detail: "Use this spoken note as direct design instruction.",
+        };
+      return {
+        id: `intent-${cleanString(segment.id) || uid("voice-intent")}`,
+        segmentId: cleanString(segment.id),
+        category: matchedRule.id,
+        label: matchedRule.label,
+        detail: matchedRule.detail,
+        summary: summarizeVoiceIntent(text),
+        text,
+        frameId: cleanString(segment.frameId),
+        frameTitle: cleanString(segment.frameTitle),
+        scope: segment.scope === "session" ? "session" : "frame",
+        provider: cleanString(segment.provider),
+        at: cleanString(segment.at),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+    .slice(0, limit);
+}
+
+function summarizeVoiceIntent(text) {
+  const normalized = cleanString(text).replace(/\s+/g, " ");
+  if (normalized.length <= 74) {
+    return normalized;
+  }
+  return `${normalized.slice(0, 71).trim()}...`;
 }
 
 function buildVoiceSectionLines(
@@ -17160,6 +17277,22 @@ function buildVoiceSectionLines(
       );
     });
   });
+
+  if (voiceExport.intentQueue?.length) {
+    if (lines.length) {
+      lines.push("");
+    }
+    lines.push("### Intent queue");
+    voiceExport.intentQueue.forEach((intent) => {
+      const scope =
+        intent.scope === "session"
+          ? "board"
+          : intent.frameTitle || "current frame";
+      lines.push(
+        `- ${intent.label} (${scope}): ${collapseVoiceTextForMarkdown(intent.summary || intent.text)}`,
+      );
+    });
+  }
 
   return lines;
 }
@@ -21756,8 +21889,9 @@ async function runSelfTest() {
           Boolean(dom.focusImageInput) &&
           Boolean(dom.focusAddContext) &&
           Boolean(dom.workbenchReviewOutput) &&
-          Boolean(dom.workbenchOutputStageReview),
-        "Workbench bottom composer, context import, and design review controls render",
+          Boolean(dom.workbenchOutputStageReview) &&
+          Boolean(dom.focusVoiceIntents),
+        "Workbench composer, context import, review controls, and voice intent lane render",
       ),
     );
     const moreActions = document.querySelector(".focus-more-actions");
@@ -25541,6 +25675,12 @@ async function exerciseLargeSessionSelfTest(results) {
       assert(
         exportPackage.voice.segmentCount === fixture.voiceSegments.length,
         "large-session export keeps voice segments",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.voice.intentQueue.length > 0,
+        "large-session export keeps voice intent queue",
       ),
     );
     results.push(

@@ -2861,6 +2861,76 @@ body[data-workspace-mode="simple"] .focus-pad-voice .helper-text {
     background: rgba(255, 255, 255, 0.58);
 }
 
+.voice-intent-lane {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.voice-intent-heading,
+.voice-intent-card {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.voice-intent-heading {
+    justify-content: space-between;
+    color: rgba(255, 248, 236, 0.74);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.voice-intent-heading small {
+    color: rgba(255, 248, 236, 0.48);
+    font: inherit;
+}
+
+.voice-intent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.45rem;
+}
+
+.voice-intent-card {
+    align-items: flex-start;
+    flex-direction: column;
+    min-width: 0;
+    padding: 0.58rem 0.65rem;
+    border-radius: 0.85rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.12);
+    background:
+        linear-gradient(145deg, rgba(12, 141, 123, 0.16), transparent 58%),
+        rgba(255, 248, 236, 0.08);
+}
+
+.voice-intent-card span {
+    color: #aee4db;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.voice-intent-card strong,
+.voice-intent-card p {
+    margin: 0;
+}
+
+.voice-intent-card strong {
+    color: rgba(255, 248, 236, 0.92);
+    font-size: 0.85rem;
+    line-height: 1.25;
+}
+
+.voice-intent-card p {
+    color: rgba(255, 248, 236, 0.56);
+    font-size: 0.73rem;
+    line-height: 1.25;
+}
+
 .swatch {
     width: 2.2rem;
     height: 2.2rem;

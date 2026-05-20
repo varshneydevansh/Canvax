@@ -92,6 +92,7 @@ flowchart LR
 - Adds a floating designer rail in `Open scratchpad` mode, so tools, undo/redo, dictation, Make, and Apply stay available when the tray is intentionally hidden for canvas-first work.
 - Keeps a compact frame/surface/action/focus summary visible when the Workbench tray is hidden, so canvas-first mode does not lose context.
 - Adds a bottom Workbench command composer for typed/pasted dictation, Talk, Note, Make, and Apply while sketching.
+- Adds a Workbench `Voice intent queue`, turning recent spoken/manual notes into local refinement cards for placement, scale, visual style, flow, asset, copy, or general intent and exporting the same queue for Codex.
 - Keeps the focused Workbench rail as a bottom command dock with brush `-` / `+` controls and an `Image` action for spatial image-generation handoff.
 - Keeps the main Workbench tray compact, with surface selection, action selection, host capability status, and design-context status visible without pushing the canvas below the fold.
 - Adds Workbench quick-prompt chips for common refinement directions like font, drama, mobile variant, spacing, and image candidates.

@@ -111,6 +111,7 @@ Current completed baseline:
 - Generated materialized outputs now open clean by default. Original sketch and free-note overlays are opt-in review aids instead of always-visible artifacts that can be mistaken for generated UI or eraser residue.
 - The floating rail is now the primary bottom designer dock in `Open scratchpad`, with brush `-` / `+`, undo/redo, Talk, Make, Image, and Apply.
 - Workbench now has a bottom command composer in `Open scratchpad` for typed/pasted dictation, Talk, Note, Make, and Apply so the user can keep sketching without returning to the top tray.
+- Workbench now shows a local `Voice intent queue` beside the transcript. Recent spoken/manual notes become lightweight refinement cards for placement, scale, visual style, flow, asset, copy, or general intent, and the same queue exports inside the voice handoff for Codex.
 - The rail size controls are context-sensitive: they resize selected elements in Select mode and change the brush/eraser size otherwise.
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
 - The Workbench tray now uses a compact three-column command strip so the active canvas is visible in the first viewport instead of being pushed below the fold.

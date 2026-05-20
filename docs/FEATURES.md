@@ -254,6 +254,7 @@ Behavior:
 - exposes `New frame` and `New section`, where section creation also creates a continuation link in the flow graph
 - exposes only four drawing tools: pen, rectangle, arrow, erase
 - exposes one voice action and one manual spoken-note field
+- turns recent voice/manual notes into a compact `Voice intent queue` with local categories such as Placement, Scale, Visual style, Flow, Asset, and Copy, so spoken critique becomes visible refinement state instead of raw transcript only
 - exposes quick-prompt chips for common refinements such as `Try another font`, `Make it more dramatic`, `Show mobile variant`, `Tighten spacing`, and `Add image candidates`
 - exposes `Start with your design` as the first quick chip, switching to Map and opening the file/image context picker so a screenshot, sketch, or reference can become a spatial card before generation
 - exposes `Make real` for the local generated-screen pass
@@ -571,6 +572,7 @@ Behavior:
 - manual voice notes are the fallback when live speech recognition is unavailable
 - Codex chat transcript forwarding is available through `./canvax --transcript "..." --scope frame|session`
 - voice segments are exported into JSON, Markdown prompt output, and `exports/canvax-voice-latest.md`
+- voice segments also export an `intentQueue`, a local keyword-derived set of refinement cards that helps Codex distinguish placement, scale, visual style, flow, asset, copy, or general intent without requiring hosted speech/image APIs
 
 Use voice notes when:
 

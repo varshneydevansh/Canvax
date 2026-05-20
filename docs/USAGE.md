@@ -144,6 +144,7 @@ It hides advanced panels and keeps only:
 - `Pen`, `Rect`, `Arrow`, and `Erase`
 - `Start talking` / `Stop talking`
 - a quick manual voice note field
+- a `Voice intent queue` that turns recent spoken/manual notes into local refinement cards for placement, scale, visual style, flow, asset, copy, or general intent
 - quick-prompt chips for common refinements like `Try another font`, `Make it more dramatic`, `Show mobile variant`, `Tighten spacing`, and `Add image candidates`
 - `Make real` for a local generated-screen preview
 - generated output beside the sketch when a preview target exists

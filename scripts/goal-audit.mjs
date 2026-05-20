@@ -458,6 +458,8 @@ const checks = [
           "maybeExecuteLiveRewriteFromFreeze",
           "liveRewriteQueued",
           "buildVoiceExport",
+          "buildVoiceIntentQueue",
+          "focus-voice-intents",
           "transcriptBridge",
         ],
       },
@@ -513,7 +515,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local Preview region-tweak requests now feed the rewrite executor, emit Codex patch tasks, and can apply deterministic edits to Canvax-generated implementation bundles or explicit project-linked files, but arbitrary unlinked production app patches still require Codex judgment.",
+      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local voice intent cards and Preview region-tweak requests now feed the handoff/rewrite path, emit Codex patch tasks, and can apply deterministic edits to Canvax-generated implementation bundles or explicit project-linked files, but arbitrary unlinked production app patches still require Codex judgment.",
   },
   {
     id: "image-asset-handoff",
