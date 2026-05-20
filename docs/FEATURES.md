@@ -314,6 +314,7 @@ Behavior:
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
 - provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Pin, Make, Image, and Apply when `Open scratchpad` is active
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Pin, Make, and Apply while sketching in focused canvas mode; `Pin` turns the current instruction into a visible Map note and voice-context entry
+- mirrors the quick refinement chips above the focused composer, so common Stitch-like prompts such as font, drama, mobile variant, spacing, and image candidates are available while the canvas-first scratchpad is open
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
 - `Open scratchpad` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible; `Show brief` brings the context tray back

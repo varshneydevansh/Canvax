@@ -170,6 +170,7 @@ It hides advanced panels and keeps only:
 - `Add image` as the visible Workbench file-picker path for editable reference images, generated candidates, book/storyboard art, or UI assets
 - a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Pin`, `Make`, `Image`, and `Apply` when `Open scratchpad` is active
 - a bottom command composer for typed or pasted dictation with `Talk`, `Note`, `Pin`, `Make`, and `Apply` in focused canvas mode; `Pin` leaves the current instruction as a visible Map note and voice-context entry
+- scratchpad quick refinement chips above the composer for common changes like font, drama, mobile variant, spacing, and image candidates
 - context-sensitive size controls: `-` / `+` resize selected elements in Select mode and otherwise update the current brush/eraser size
 - eraser behavior that only removes drawn ink, not the paper/grid base, and does not export as black prompt/materialize geometry
 - `Open scratchpad` / `Show brief` for canvas-first designer focus

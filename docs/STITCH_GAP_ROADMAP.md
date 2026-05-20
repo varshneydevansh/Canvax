@@ -652,7 +652,7 @@ Needed:
   through `workbench.agentLog` and Build-with-Codex
   `implementationContext.workbench.agentLog`. True hosted branch history with
   replayable AI decisions remains open.**
-- Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant". **Initial Workbench quick-prompt chips shipped.**
+- Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant". **Initial Workbench quick-prompt chips shipped, and the same chips now mirror above the floating scratchpad composer so common refinements stay available while the canvas-first mode is open.**
 - Brand polish across board, Preview, generated routes, and docs.
 
 ### P2: Make Codex The Differentiator

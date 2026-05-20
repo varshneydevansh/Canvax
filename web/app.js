@@ -455,6 +455,7 @@ const dom = {
   workbenchSummaryAction: document.querySelector("#workbench-summary-action"),
   workbenchSummaryFocus: document.querySelector("#workbench-summary-focus"),
   workbenchRail: document.querySelector("#workbench-rail"),
+  workbenchComposerChips: document.querySelector("#workbench-composer-chips"),
   workbenchComposer: document.querySelector("#workbench-composer"),
   workbenchComposerInput: document.querySelector("#workbench-composer-input"),
   workbenchComposerTalk: document.querySelector("#workbench-composer-talk"),
@@ -1063,6 +1064,13 @@ function bindEvents() {
   });
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
   dom.focusPromptChips.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-workbench-prompt]");
+    if (!button) {
+      return;
+    }
+    applyWorkbenchPromptChip(button.dataset.workbenchPrompt);
+  });
+  dom.workbenchComposerChips.addEventListener("click", (event) => {
     const button = event.target.closest("[data-workbench-prompt]");
     if (!button) {
       return;
@@ -4403,7 +4411,7 @@ function renderFocusVoiceIntentLane(segments = voiceSegmentsForCurrentScope()) {
 }
 
 function renderWorkbenchPromptChips() {
-  dom.focusPromptChips.innerHTML = workbenchPromptChips
+  const markup = workbenchPromptChips
     .map(
       (chip, index) => `
         <button
@@ -4418,6 +4426,8 @@ function renderWorkbenchPromptChips() {
       `,
     )
     .join("");
+  dom.focusPromptChips.innerHTML = markup;
+  dom.workbenchComposerChips.innerHTML = markup;
 }
 
 function applyWorkbenchPromptChip(chipId) {
@@ -22596,8 +22606,10 @@ async function runSelfTest() {
       assert(
         workbenchPromptChips.length ===
           dom.focusPromptChips.querySelectorAll("[data-workbench-prompt]")
-            .length,
-        "Workbench quick prompt chips render",
+            .length &&
+          dom.workbenchComposerChips.querySelectorAll("[data-workbench-prompt]")
+            .length === workbenchPromptChips.length,
+        "Workbench quick prompt chips render in tray and scratchpad composer",
       ),
     );
     results.push(
