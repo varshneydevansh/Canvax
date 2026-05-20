@@ -3945,7 +3945,13 @@ function keepMapAsActiveSurface() {
 function handleMapCreateAction(action) {
   keepMapAsActiveSurface();
   if (action === "frame") {
+    const flowPosition = visibleMapCenterPosition(
+      FLOW_CARD_WIDTH,
+      FLOW_CARD_HEIGHT,
+      { index: state.frames.length },
+    );
     addFrame({
+      flowPosition,
       status: "Map frame added",
     });
     return;
@@ -5683,6 +5689,32 @@ function defaultSpatialObjectPosition(index) {
   };
 }
 
+function visibleMapCenterPosition(width, height, options = {}) {
+  const fallback = defaultSpatialObjectPosition(
+    Number.isFinite(options.index) ? options.index : state.spatialObjects.length,
+  );
+  const shell = dom.flowShell;
+  if (!shell || !shell.clientWidth || !shell.clientHeight) {
+    return fallback;
+  }
+  const zoom = Math.max(0.1, Number.isFinite(state.flowZoom) ? state.flowZoom : 1);
+  const visibleLeft = shell.scrollLeft / zoom;
+  const visibleTop = shell.scrollTop / zoom;
+  const visibleWidth = shell.clientWidth / zoom;
+  const visibleHeight = shell.clientHeight / zoom;
+  const offset = Number.isFinite(options.offset) ? options.offset : 0;
+  return {
+    x: Math.max(
+      FLOW_SURFACE_PADDING,
+      Math.round(visibleLeft + visibleWidth / 2 - width / 2 + offset),
+    ),
+    y: Math.max(
+      FLOW_SURFACE_PADDING,
+      Math.round(visibleTop + visibleHeight / 2 - height / 2 + offset),
+    ),
+  };
+}
+
 function defaultOutputSpatialObjectPosition(index) {
   const column = index % 3;
   const row = Math.floor(index / 3);
@@ -5839,6 +5871,7 @@ function addSpatialNoteObject() {
     subtitle: cleanString(text),
     sourceKind: "manual-note",
     status: "note",
+    ...visibleMapCenterPosition(SPATIAL_OBJECT_WIDTH, SPATIAL_OBJECT_HEIGHT),
     meta: {
       text: cleanString(text),
       createdFrom: "workbench-map",
@@ -5911,6 +5944,10 @@ function addSpatialGroupObject() {
     status: "group",
     width: SPATIAL_OBJECT_WIDTH * 2 + 44,
     height: SPATIAL_OBJECT_HEIGHT * 1.55,
+    ...visibleMapCenterPosition(
+      SPATIAL_OBJECT_WIDTH * 2 + 44,
+      SPATIAL_OBJECT_HEIGHT * 1.55,
+    ),
     meta: {
       text: cleanString(title),
       createdFrom: "workbench-map",
@@ -6081,6 +6118,7 @@ async function addSpatialFileObject(file) {
     subtitle: `${file.type || "file"} • ${formatFileSize(file.size)}`,
     sourceKind: "reference-file",
     status: isImage ? "image reference" : "file reference",
+    ...visibleMapCenterPosition(SPATIAL_OBJECT_WIDTH, SPATIAL_OBJECT_HEIGHT),
     meta: {
       fileName: file.name || "",
       mimeType: file.type || "",
@@ -16524,7 +16562,7 @@ function addFrame(options = {}) {
     motion: options.motion || "",
     assets: options.assets || "",
     mobile: options.mobile || "",
-    flowPosition: defaultFlowPosition(state.frames.length),
+    flowPosition: options.flowPosition || defaultFlowPosition(state.frames.length),
   });
   state.frames.push(frame);
   state.activeFrameId = frame.id;
@@ -24447,13 +24485,21 @@ function assertWorkbenchSpatialMap() {
     viewportExport.normalizedVisibleBounds?.width > 0 &&
     viewportExport.normalizedVisibleBounds?.height > 0;
   const mapCreateFrameCount = state.frames.length;
+  const expectedMapCreateFramePosition = visibleMapCenterPosition(
+    FLOW_CARD_WIDTH,
+    FLOW_CARD_HEIGHT,
+    { index: mapCreateFrameCount },
+  );
   handleMapCreateAction("frame");
+  const createdMapFrame = currentFrame();
   const mapCreateFrameWorks =
     state.frames.length === mapCreateFrameCount + 1 &&
     state.viewMode === "flow" &&
     state.workbenchFocus === "map" &&
     state.workbenchTrayCollapsed === true &&
-    currentFrame()?.title === `Frame ${mapCreateFrameCount + 1}`;
+    createdMapFrame?.title === `Frame ${mapCreateFrameCount + 1}` &&
+    createdMapFrame?.flowPosition?.x === expectedMapCreateFramePosition.x &&
+    createdMapFrame?.flowPosition?.y === expectedMapCreateFramePosition.y;
   const spatialMapDetail = JSON.stringify({
     mapVisible,
     zoomChanged,
@@ -24481,6 +24527,7 @@ function assertWorkbenchSpatialMap() {
     navigatorPanned,
     viewportExported,
     mapCreateFrameWorks,
+    expectedMapCreateFramePosition,
     viewportExport,
     fitMap: {
       zoom: state.flowZoom,
