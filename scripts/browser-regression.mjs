@@ -85,6 +85,11 @@ if (!liveUrl) {
       liveUrl,
       timeoutMs: responsiveSmokeTimeoutMs,
     });
+    await validateWorkbenchMapSmoke({
+      chromePath,
+      liveUrl,
+      timeoutMs: responsiveSmokeTimeoutMs,
+    });
     await validateAdvancedMapSmoke({
       chromePath,
       liveUrl,
@@ -193,6 +198,23 @@ async function validateResponsiveSmokeMatrix({ chromePath, liveUrl, timeoutMs })
   }
 }
 
+async function validateWorkbenchMapSmoke({ chromePath, liveUrl, timeoutMs }) {
+  const viewports = responsiveSmokeViewports.filter((viewport) =>
+    ["desktop", "narrow"].includes(viewport.label),
+  );
+  for (const viewport of viewports) {
+    await validateResponsiveSmoke({
+      name: `workbench map visual smoke passes at ${viewport.label}`,
+      surface: "board-workbench-map",
+      chromePath,
+      url: `${liveUrl}/?responsivecheck=1&visualfixture=workbench-map`,
+      viewport,
+      timeoutMs,
+      expression: buildWorkbenchMapSmokeExpression(),
+    });
+  }
+}
+
 async function validateAdvancedMapSmoke({ chromePath, liveUrl, timeoutMs }) {
   const viewports = responsiveSmokeViewports.filter((viewport) =>
     ["desktop", "tablet"].includes(viewport.label),
@@ -225,6 +247,56 @@ async function validateProjectBrowserSmoke({ chromePath, liveUrl, timeoutMs }) {
       expression: buildProjectBrowserSmokeExpression(),
     });
   }
+}
+
+function buildWorkbenchMapSmokeExpression() {
+  return `(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    document.querySelector("#flow-workspace")?.scrollIntoView({ block: "start" });
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return {
+        width: box.width,
+        height: box.height,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        visible: box.width > 0 && box.height > 0
+      };
+    };
+    const failures = [];
+    const flow = rect("#flow-workspace");
+    const flowShell = rect("#flow-shell");
+    const mapTimeline = rect("#map-timeline");
+    const outputLane = rect(".spatial-lane-output");
+    const firstPromptChip = document.querySelector("[data-workbench-prompt]");
+    const mapCards = document.querySelectorAll("[data-flow-frame-id], [data-spatial-object-id]");
+    if (document.readyState !== "complete") failures.push("document not complete");
+    if (document.body?.dataset?.workspaceMode !== "simple") failures.push("workbench mode not active");
+    if (document.body?.dataset?.workbenchFocus !== "map") failures.push("workbench map focus not active");
+    if (document.body?.dataset?.viewMode !== "flow") failures.push("flow map not active");
+    if (!flow?.visible || !flowShell?.visible) failures.push("workbench map missing");
+    if (!mapTimeline?.visible) failures.push("map timeline missing");
+    if (!outputLane?.visible) failures.push("output shelf missing");
+    if (!mapCards.length) failures.push("map cards missing");
+    if (firstPromptChip?.dataset?.workbenchPrompt !== "design-context") failures.push("design-context quick chip is not first");
+    if (document.documentElement.scrollWidth > window.innerWidth + 16) failures.push("document has horizontal overflow");
+    if (flowShell && flowShell.height < Math.min(320, window.innerHeight * 0.38)) failures.push("workbench map viewport too short");
+    return {
+      passed: failures.length === 0,
+      failures,
+      mode: document.body?.dataset?.workspaceMode || "",
+      focus: document.body?.dataset?.workbenchFocus || "",
+      viewMode: document.body?.dataset?.viewMode || "",
+      cardCount: mapCards.length,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  })()`;
 }
 
 function buildProjectBrowserSmokeExpression() {

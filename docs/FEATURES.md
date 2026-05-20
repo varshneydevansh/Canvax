@@ -262,7 +262,7 @@ Behavior:
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
 - provides `Tidy map` to reflow frame cards plus generated-output and checkpoint shelf objects into compact readable lanes when a long session starts to sprawl
-- exposes a `visualfixture=advanced-map` browser-regression fixture so the dense Advanced Map state, output shelf, generated-output labels, compact `Made` rail badges, and scrolled Advanced command deck can be verified with screenshots; the board responsive smoke also fails on document-level horizontal overflow so narrow Workbench clipping is caught
+- exposes `visualfixture=workbench-map` and `visualfixture=advanced-map` browser-regression fixtures so both the designer-first Workbench Map and dense Advanced Map states can be verified with screenshots; the checks cover the map timeline, output shelf, generated-output labels, compact `Made` rail badges, scrolled Advanced command deck opacity, and document-level horizontal overflow so narrow Workbench clipping is caught
 - styles generated variant cards as branch objects with lineage chips and primary-variant state, so generated directions do not look like ordinary duplicate frames
 - adds `Use variant` directly to variant cards and matching variant Map objects, so a designer can promote a generated direction as primary without leaving the spatial workbench
 - exports editable generated variant branches through `spatialWorkspace.variantBranches` and `spatialWorkspace.objects`, including source frame, target frame, direction, connection, editable state, primary-promotion state, and object-level context
@@ -346,6 +346,8 @@ The browser regression harness validates the board and Preview at the widths des
 ```
 
 The smoke check is structural, not a replacement for visual taste review. It verifies that the shell, toolbar, canvas/stage, Preview header, and compare surfaces remain visible and do not collapse at those sizes. The browser regression harness also captures board and Preview PNGs for each viewport and writes an index under `artifacts/canvax/browser-snapshots/latest/`.
+
+Workbench Map also has a dedicated visual smoke fixture. It opens the designer-first Map focus on desktop and narrow widths, scrolls the spatial workspace into view before capture, verifies the `Start with your design` chip remains first, checks that the Map timeline, output shelf, and spatial cards render, and fails on document-level horizontal overflow. This keeps the Stitch-like spatial canvas from regressing into a clipped or hidden secondary panel.
 
 The board browser self-test also includes a dense long-session Map fixture. It renders 18 captured frames with voice notes, generated screen targets, generated artifacts, changed files, checkpoints, and asset candidates in the same spatial workspace so regressions in large project boards fail before manual use. The same test asserts that the default Workbench brief keeps the fixed rail/composer hidden, while `Focus canvas` makes those controls visible.
 
