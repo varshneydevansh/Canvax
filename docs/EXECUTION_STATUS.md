@@ -61,6 +61,7 @@ Status: In progress
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
 - [x] Workbench/Advanced `Map` includes a floating `Add to canvas` dock for Frame, Note, File, Group, Variants, Make, and Build actions; new frame/context objects land in the current visible Map region so designers can create from the spatial canvas itself
 - [x] Workbench/Advanced `Map` accepts direct file/image drops and creates a movable spatial reference card at the drop point
+- [x] Workbench/Advanced `Map` accepts direct text paste/drop and creates movable spatial notes from raw ideas, critique, URLs, prompt fragments, or transcript snippets
 - [x] Workbench `Map` styles generated variants as branch cards with visible lineage and primary state
 - [x] Workbench `Map` variant cards expose `Use variant` so generated directions can be promoted in-place without leaving the spatial workbench
 - [x] Workbench `Map` now mirrors generated variants as selectable/resizable/movable `variant-branch` Map objects with object-level context and `Use variant`

@@ -3697,7 +3697,8 @@ select,
     overscroll-behavior: contain;
 }
 
-.flow-shell.map-file-drop-active {
+.flow-shell.map-file-drop-active,
+.flow-shell.map-text-drop-active {
     border-color: rgba(255, 93, 58, 0.68);
     box-shadow:
         inset 0 0 0 0.16rem rgba(255, 93, 58, 0.32),
@@ -3705,7 +3706,8 @@ select,
         0 1.35rem 3rem rgba(24, 17, 14, 0.18);
 }
 
-.flow-shell.map-file-drop-active::after {
+.flow-shell.map-file-drop-active::after,
+.flow-shell.map-text-drop-active::after {
     content: "Drop to add this file to the Map";
     position: sticky;
     z-index: 45;
@@ -3729,6 +3731,10 @@ select,
     text-transform: uppercase;
     transform: translateX(-50%);
     pointer-events: none;
+}
+
+.flow-shell.map-text-drop-active::after {
+    content: "Drop text to pin it as a Map note";
 }
 
 .flow-navigator {

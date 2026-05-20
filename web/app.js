@@ -1198,7 +1198,7 @@ function bindEvents() {
   dom.flowShell.addEventListener("dragover", onMapFileDragOver);
   dom.flowShell.addEventListener("dragleave", onMapFileDragLeave);
   dom.flowShell.addEventListener("drop", (event) => {
-    void onMapFileDrop(event);
+    void onMapDrop(event);
   });
   dom.flowNavigator.addEventListener("pointerdown", onFlowNavigatorPointerDown);
   dom.mapCreateDock.addEventListener("click", (event) => {
@@ -1617,6 +1617,9 @@ function bindEvents() {
 
   window.addEventListener("paste", async (event) => {
     if (await tryPasteElements(event)) {
+      return;
+    }
+    if (await tryPasteMapContext(event)) {
       return;
     }
 
@@ -5906,17 +5909,32 @@ function addSpatialNoteObject() {
   if (!cleanString(text)) {
     return;
   }
-  const title = compactDisplayText(text, 44) || "Map note";
-  addSpatialObject({
+  addSpatialTextNoteObject(text, {
+    createdFrom: "workbench-map",
+  });
+}
+
+function addSpatialTextNoteObject(text, options = {}) {
+  const cleanText = cleanString(text);
+  if (!cleanText) {
+    return null;
+  }
+  const title = compactDisplayText(cleanText, 44) || "Map note";
+  const position =
+    options.position ||
+    visibleMapCenterPosition(SPATIAL_OBJECT_WIDTH, SPATIAL_OBJECT_HEIGHT);
+  return addSpatialObject({
     type: "map-note",
     title,
-    subtitle: cleanString(text),
+    subtitle: cleanText,
     sourceKind: "manual-note",
     status: "note",
-    ...visibleMapCenterPosition(SPATIAL_OBJECT_WIDTH, SPATIAL_OBJECT_HEIGHT),
+    ...position,
     meta: {
-      text: cleanString(text),
-      createdFrom: "workbench-map",
+      text: cleanText,
+      createdFrom: options.createdFrom || "workbench-map",
+      ...(options.frameId ? { frameId: options.frameId } : {}),
+      ...(options.frameTitle ? { frameTitle: options.frameTitle } : {}),
     },
   });
 }
@@ -6170,6 +6188,7 @@ async function addSpatialFileObject(file, options = {}) {
       mimeType,
       size: file.size || 0,
       thumbnailDataUrl,
+      ...(options.createdFrom ? { createdFrom: options.createdFrom } : {}),
     },
   });
 }
@@ -15618,15 +15637,31 @@ function dragEventHasFiles(event) {
   return Boolean(transfer.files?.length) || types.includes("Files");
 }
 
+function dragEventHasMapText(event) {
+  const transfer = event?.dataTransfer;
+  if (!transfer || dragEventHasFiles(event)) {
+    return false;
+  }
+  const types = Array.from(transfer.types || []);
+  return types.includes("text/plain") || types.includes("text/uri-list");
+}
+
 function onMapFileDragOver(event) {
-  if (!dragEventHasFiles(event)) {
+  if (!dragEventHasFiles(event) && !dragEventHasMapText(event)) {
     return;
   }
   event.preventDefault();
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = "copy";
   }
-  dom.flowShell.classList.add("map-file-drop-active");
+  dom.flowShell.classList.toggle(
+    "map-text-drop-active",
+    dragEventHasMapText(event),
+  );
+  dom.flowShell.classList.toggle(
+    "map-file-drop-active",
+    dragEventHasFiles(event),
+  );
 }
 
 function onMapFileDragLeave(event) {
@@ -15635,6 +15670,17 @@ function onMapFileDragLeave(event) {
     return;
   }
   dom.flowShell.classList.remove("map-file-drop-active");
+  dom.flowShell.classList.remove("map-text-drop-active");
+}
+
+async function onMapDrop(event) {
+  if (dragEventHasFiles(event)) {
+    await onMapFileDrop(event);
+    return;
+  }
+  if (dragEventHasMapText(event)) {
+    onMapTextDrop(event);
+  }
 }
 
 async function onMapFileDrop(event) {
@@ -15643,6 +15689,7 @@ async function onMapFileDrop(event) {
   }
   event.preventDefault();
   dom.flowShell.classList.remove("map-file-drop-active");
+  dom.flowShell.classList.remove("map-text-drop-active");
   keepMapAsActiveSurface();
   const files = Array.from(event.dataTransfer?.files || []).filter(Boolean);
   if (!files.length) {
@@ -15667,6 +15714,38 @@ async function onMapFileDrop(event) {
       ? "Dropped 1 file onto the Map"
       : `Dropped ${addedCount} files onto the Map`,
   );
+}
+
+function onMapTextDrop(event) {
+  if (!dragEventHasMapText(event)) {
+    return null;
+  }
+  const text =
+    event.dataTransfer?.getData("text/plain") ||
+    event.dataTransfer?.getData("text/uri-list") ||
+    "";
+  const cleanText = cleanString(text);
+  if (!cleanText) {
+    return null;
+  }
+  event.preventDefault();
+  dom.flowShell.classList.remove("map-file-drop-active");
+  dom.flowShell.classList.remove("map-text-drop-active");
+  keepMapAsActiveSurface();
+  const position = visibleMapPointPosition(
+    event.clientX,
+    event.clientY,
+    SPATIAL_OBJECT_WIDTH,
+    SPATIAL_OBJECT_HEIGHT,
+  );
+  const object = addSpatialTextNoteObject(cleanText, {
+    position,
+    createdFrom: "map-text-drop",
+  });
+  if (object) {
+    renderStatus("Dropped text onto the Map as a note");
+  }
+  return object;
 }
 
 function upsertConnection(fromFrameId, toFrameId) {
@@ -15994,6 +16073,52 @@ async function tryPasteElements(event) {
   } catch {
     return false;
   }
+}
+
+async function tryPasteMapContext(event) {
+  if (state.viewMode !== "flow" || shouldIgnoreDeleteShortcut(event.target)) {
+    return false;
+  }
+
+  const imageItem = Array.from(event.clipboardData?.items || []).find((item) =>
+    item.type.startsWith("image/"),
+  );
+  if (imageItem) {
+    const file = imageItem.getAsFile();
+    if (!file) {
+      return false;
+    }
+    event.preventDefault();
+    keepMapAsActiveSurface();
+    await addSpatialFileObject(file, {
+      position: visibleMapCenterPosition(
+        SPATIAL_OBJECT_WIDTH,
+        SPATIAL_OBJECT_HEIGHT,
+      ),
+      createdFrom: "map-clipboard-image",
+    });
+    renderStatus("Pasted image onto the Map as a reference");
+    return true;
+  }
+
+  const text = cleanString(event.clipboardData?.getData("text/plain") || "");
+  if (!text) {
+    return false;
+  }
+  event.preventDefault();
+  keepMapAsActiveSurface();
+  const object = addSpatialTextNoteObject(text, {
+    position: visibleMapCenterPosition(
+      SPATIAL_OBJECT_WIDTH,
+      SPATIAL_OBJECT_HEIGHT,
+    ),
+    createdFrom: "map-clipboard-text",
+  });
+  if (object) {
+    renderStatus("Pasted text onto the Map as a note");
+    return true;
+  }
+  return false;
 }
 
 function pasteElements(elements) {
@@ -24642,6 +24767,70 @@ async function assertWorkbenchSpatialMap() {
     droppedMapFile?.x === expectedDropPosition.x &&
     droppedMapFile?.y === expectedDropPosition.y &&
     !dom.flowShell.classList.contains("map-file-drop-active");
+  const textDropClientPoint = {
+    x: shellRect.left + 520,
+    y: shellRect.top + 340,
+  };
+  const expectedTextDropPosition = visibleMapPointPosition(
+    textDropClientPoint.x,
+    textDropClientPoint.y,
+    SPATIAL_OBJECT_WIDTH,
+    SPATIAL_OBJECT_HEIGHT,
+  );
+  let textDropPrevented = false;
+  const droppedMapNote = onMapTextDrop({
+    clientX: textDropClientPoint.x,
+    clientY: textDropClientPoint.y,
+    dataTransfer: {
+      files: [],
+      types: ["text/plain"],
+      getData(type) {
+        return type === "text/plain"
+          ? "Pin the comparison table beside the generated output"
+          : "";
+      },
+    },
+    preventDefault() {
+      textDropPrevented = true;
+    },
+  });
+  const mapTextDropWorks =
+    textDropPrevented &&
+    droppedMapNote?.type === "map-note" &&
+    droppedMapNote?.meta?.createdFrom === "map-text-drop" &&
+    droppedMapNote?.meta?.text.includes("comparison table") &&
+    droppedMapNote?.x === expectedTextDropPosition.x &&
+    droppedMapNote?.y === expectedTextDropPosition.y &&
+    !dom.flowShell.classList.contains("map-text-drop-active");
+  const expectedTextPastePosition = visibleMapCenterPosition(
+    SPATIAL_OBJECT_WIDTH,
+    SPATIAL_OBJECT_HEIGHT,
+  );
+  let textPastePrevented = false;
+  const mapTextPasteConsumed = await tryPasteMapContext({
+    clipboardData: {
+      items: [],
+      getData(type) {
+        return type === "text/plain"
+          ? "Use a calmer editorial rhythm for the book spread"
+          : "";
+      },
+    },
+    preventDefault() {
+      textPastePrevented = true;
+    },
+    target: dom.flowShell,
+  });
+  const pastedMapNote = state.spatialObjects.find(
+    (object) => object.meta?.createdFrom === "map-clipboard-text",
+  );
+  const mapTextPasteWorks =
+    mapTextPasteConsumed &&
+    textPastePrevented &&
+    pastedMapNote?.type === "map-note" &&
+    pastedMapNote?.meta?.text.includes("editorial rhythm") &&
+    pastedMapNote?.x === expectedTextPastePosition.x &&
+    pastedMapNote?.y === expectedTextPastePosition.y;
   const spatialMapDetail = JSON.stringify({
     mapVisible,
     zoomChanged,
@@ -24670,14 +24859,34 @@ async function assertWorkbenchSpatialMap() {
     viewportExported,
     mapCreateFrameWorks,
     mapFileDropWorks,
+    mapTextDropWorks,
+    mapTextPasteWorks,
     expectedMapCreateFramePosition,
     expectedDropPosition,
+    expectedTextDropPosition,
+    expectedTextPastePosition,
     droppedMapFile: droppedMapFile
       ? {
           x: droppedMapFile.x,
           y: droppedMapFile.y,
           title: droppedMapFile.title,
           sourceKind: droppedMapFile.sourceKind,
+        }
+      : null,
+    droppedMapNote: droppedMapNote
+      ? {
+          x: droppedMapNote.x,
+          y: droppedMapNote.y,
+          title: droppedMapNote.title,
+          createdFrom: droppedMapNote.meta?.createdFrom,
+        }
+      : null,
+    pastedMapNote: pastedMapNote
+      ? {
+          x: pastedMapNote.x,
+          y: pastedMapNote.y,
+          title: pastedMapNote.title,
+          createdFrom: pastedMapNote.meta?.createdFrom,
         }
       : null,
     viewportExport,
@@ -24733,8 +24942,10 @@ async function assertWorkbenchSpatialMap() {
       navigatorPanned &&
       viewportExported &&
       mapCreateFrameWorks &&
-      mapFileDropWorks,
-    "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, drops files, and exports frames, objects, and group containment",
+      mapFileDropWorks &&
+      mapTextDropWorks &&
+      mapTextPasteWorks,
+    "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, drops files/text, pastes notes, and exports frames, objects, and group containment",
     spatialMapDetail,
   );
 }
