@@ -641,8 +641,10 @@ Needed:
   local Workbench `Agent log` shipped. It rolls Make/Apply/Review, rewrite,
   output activity, checkpoints, design-jury verdicts, and voice-intent cards
   into a compact lower-left activity panel so designers do not have to open
-  Advanced to confirm what Canvax/Codex just did. True hosted branch history
-  with replayable AI decisions remains open.**
+  Advanced to confirm what Canvax/Codex just did. The same activity is exported
+  through `workbench.agentLog` and Build-with-Codex
+  `implementationContext.workbench.agentLog`. True hosted branch history with
+  replayable AI decisions remains open.**
 - Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant". **Initial Workbench quick-prompt chips shipped.**
 - Brand polish across board, Preview, generated routes, and docs.
 

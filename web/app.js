@@ -10020,6 +10020,57 @@ function dedupeAgentLogItems(items) {
   });
 }
 
+function buildWorkbenchAgentLogExport(options = {}) {
+  const limit = Number.isFinite(Number(options.limit))
+    ? Math.max(1, Number(options.limit))
+    : 9;
+  const items = buildWorkbenchAgentLogItems()
+    .slice(0, limit)
+    .map((item) => ({
+      id: cleanString(item.id),
+      kind: cleanString(item.kind),
+      title: cleanString(item.title),
+      detail: cleanString(item.detail),
+      tone: cleanString(item.tone) || "neutral",
+      at: cleanString(item.at),
+    }));
+  return {
+    kind: "canvax-workbench-agent-log",
+    generatedAt: new Date().toISOString(),
+    itemCount: items.length,
+    latestAt: items[0]?.at || "",
+    items,
+  };
+}
+
+function buildWorkbenchExport(options = {}) {
+  const workspaceMode =
+    workspaceModes.find((entry) => entry.id === state.workspaceMode) ||
+    workspaceModes[0];
+  const workbenchFocus =
+    workbenchFocusModes.find((entry) => entry.id === state.workbenchFocus) ||
+    workbenchFocusModes[0];
+  const viewMode = viewModes.find((entry) => entry.id === state.viewMode);
+  const actionMode = currentActionMode();
+  return {
+    kind: "canvax-workbench-state",
+    workspaceMode: state.workspaceMode,
+    workspaceModeLabel: workspaceMode.label,
+    viewMode: state.viewMode,
+    viewModeLabel: viewMode?.label || state.viewMode,
+    focus: state.workbenchFocus,
+    focusLabel: workbenchFocus.label,
+    focusDescription: workbenchFocus.description,
+    startPath: "1 Sketch -> 2 Talk -> 3 Make -> 4 Map",
+    actionMode: actionMode.id,
+    actionModeLabel: actionMode.label,
+    actionModeDescription: actionMode.description,
+    trayCollapsed: Boolean(state.workbenchTrayCollapsed),
+    agentLogOpen: Boolean(state.workbenchAgentLogOpen),
+    agentLog: buildWorkbenchAgentLogExport({ limit: options.agentLogLimit }),
+  };
+}
+
 function renderRewriteQueue() {
   const items = buildRewriteQueue();
   dom.rewriteQueueCount.textContent = `${items.length} ${items.length === 1 ? "frame" : "frames"}`;
@@ -17644,6 +17695,7 @@ async function buildExportPackage(frameSelection = state.frames) {
     transport: currentTransportDescriptor(),
     project,
     workspaceMode: state.workspaceMode,
+    workbench: buildWorkbenchExport(),
     board: state.board,
     activeFrameId: state.activeFrameId,
     entryFrameId: state.entryFrameId,
@@ -19553,11 +19605,6 @@ function buildImplementationContext({
   const workspaceMode =
     workspaceModes.find((entry) => entry.id === state.workspaceMode) ||
     workspaceModes[0];
-  const workbenchFocus =
-    workbenchFocusModes.find((entry) => entry.id === state.workbenchFocus) ||
-    workbenchFocusModes[0];
-  const viewMode = viewModes.find((entry) => entry.id === state.viewMode);
-  const actionMode = currentActionMode();
   const selectedObjects = Array.isArray(spatialContext?.selectedObjects)
     ? spatialContext.selectedObjects
     : [];
@@ -19578,20 +19625,9 @@ function buildImplementationContext({
     purpose:
       "Designer-facing context for Codex real-code generation. Treat this as the bridge between rough sketch, Workbench mode, Map objects, variants, voice, image direction, and output binding.",
     workbench: {
-      workspaceMode: state.workspaceMode,
-      workspaceModeLabel: workspaceMode.label,
+      ...buildWorkbenchExport({ agentLogLimit: 6 }),
       workspaceModeDescription: workspaceMode.description,
-      viewMode: state.viewMode,
-      viewModeLabel: viewMode?.label || state.viewMode,
-      focus: state.workbenchFocus,
-      focusLabel: workbenchFocus.label,
-      focusDescription: workbenchFocus.description,
-      startPath: "1 Sketch -> 2 Talk -> 3 Make -> 4 Map",
-      actionMode: actionMode.id,
-      actionModeLabel: actionMode.label,
-      actionModeDescription: actionMode.description,
       generationRecipe: generationSummaryText(generation),
-      trayCollapsed: Boolean(state.workbenchTrayCollapsed),
     },
     frameRole: {
       id: frame?.id || activeTaskFrame?.id || "",
@@ -21075,6 +21111,7 @@ function buildLivePreviewPayload() {
     updatedAt: new Date().toISOString(),
     transport: currentTransportDescriptor(),
     workspaceMode: state.workspaceMode,
+    workbench: buildWorkbenchExport(),
     project: buildProjectExportMetadata(),
     liveMarkdown: buildPromptMarkdown(),
     liveVoiceMarkdown: buildVoiceMarkdown(),
@@ -21084,6 +21121,7 @@ function buildLivePreviewPayload() {
       generatedAt: new Date().toISOString(),
       transport: currentTransportDescriptor(),
       workspaceMode: state.workspaceMode,
+      workbench: buildWorkbenchExport(),
       project: buildProjectExportMetadata(),
       board: structuredClone(state.board),
       activeFrameId: state.activeFrameId,
@@ -22672,8 +22710,10 @@ async function runSelfTest() {
             "canvax-design-kit" &&
           buildRealResult.request.implementationContext.workbench?.startPath?.includes(
             "Sketch",
-          ),
-        "build real request creates no-API frame-to-code contract with design kit and designer context",
+          ) &&
+          buildRealResult.request.implementationContext.workbench?.agentLog
+            ?.kind === "canvax-workbench-agent-log",
+        "build real request creates no-API frame-to-code contract with design kit, designer context, and agent log",
         buildRealResult?.latestMarkdownPath ||
           "Build real request did not return a latest markdown path.",
       ),
@@ -25977,6 +26017,13 @@ async function exerciseLargeSessionSelfTest(results) {
       assert(
         previewPayload.liveExport.frames.length === fixture.frames.length,
         "large-session live preview mirrors all frames",
+      ),
+    );
+    results.push(
+      assert(
+        exportPackage.workbench?.agentLog?.itemCount > 0 &&
+          previewPayload.liveExport.workbench?.agentLog?.itemCount > 0,
+        "large-session live export carries Workbench agent log",
       ),
     );
     results.push(

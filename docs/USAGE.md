@@ -576,6 +576,7 @@ The JSON file is the primary source because it contains:
 - snapshot paths
 - flow connections
 - voice notes
+- `workbench.agentLog`, the same recent Make/Apply/Review/rewrite/output/checkpoint/voice activity shown in the Workbench `Agent log`
 
 When present, `exports/canvax-checkpoint-latest.json` is the best “what was happening at this exact moment?” handoff because it merges:
 
@@ -1028,7 +1029,7 @@ This is different from `Generate screen`:
 - The request does not call a paid API and does not require `OPENAI_API_KEY`.
 - The board now immediately runs the no-API local build executor after the request is saved, so the Workbench and Preview get a frame-bound preview plus an implementation starter bundle without requiring a terminal command.
 - The starter bundle now includes a React-ready component/CSS pair, Vite/Next adapter stubs, framework adapter notes, and a frame-to-code ownership map so Codex can trace sketch elements to generated selectors/files when it ports the artifact into a real app route.
-- The request also includes an `implementationContext` block that carries the designer loop state: Workbench mode/focus, the `1 Sketch -> 2 Talk -> 3 Make -> 4 Map` start path, action mode, generation recipe, active Design kit, extracted sketch tokens when present, selected Map object prompts, variant recipe/style knobs, output-edit target, and image style lock.
+- The request also includes an `implementationContext` block that carries the designer loop state: Workbench mode/focus, the `1 Sketch -> 2 Talk -> 3 Make -> 4 Map` start path, action mode, generation recipe, recent Workbench Agent log, active Design kit, extracted sketch tokens when present, selected Map object prompts, variant recipe/style knobs, output-edit target, and image style lock.
 - The local executor reads the active Design kit too. Product, poster, book/storyboard, and dashboard kits can shape the generated starter theme/atmosphere, and extracted sketch/reference tokens now drive generated CSS color variables while also carrying palette/density/shape cues into the integration contract and Codex port task.
 - The local executor reads that `implementationContext` too. Variant/style/Map guidance can select a visible starter theme such as `poster-archive`, `midnight-cinema`, or `quiet-editorial`; the generated preview/starter files include theme-specific atmosphere layers plus a `Designer context` panel so Codex and the designer can see which direction shaped the output.
 - The bundle also writes `implementation/codex-port-task.json`, which gives Codex a single machine-readable port task with source files, suggested React/Vite/Next destinations, required bindings, acceptance criteria, and publish commands.

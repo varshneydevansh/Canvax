@@ -32,6 +32,14 @@ const checks = [
         ],
       },
       {
+        path: "web/app.js",
+        includes: [
+          "function buildWorkbenchAgentLogExport",
+          "function buildWorkbenchExport",
+          "implementationContext.workbench?.agentLog",
+        ],
+      },
+      {
         path: "scripts/canvax.mjs",
         includes: ["handleRunDesignReview", "design-review-executed"],
       },

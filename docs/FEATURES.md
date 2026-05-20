@@ -265,7 +265,7 @@ Behavior:
 - exposes `Add image` as the primary Workbench file-picker path for editable references, generated candidates, book/storyboard art, and UI assets
 - shows the connected generated output inside the Workbench tray when one exists
 - shows `Review` beside the connected generated output, running the local no-API design jury and showing `Ready`, `Needs review`, `Blocked`, or `Review stale` directly in Workbench
-- shows a compact `Agent log` in the lower-left Workbench surface. It summarizes the latest Make/Apply/Review/rewrite/output/checkpoint/voice events so designers can see whether Canvax registered a click or generated a new output without opening Advanced.
+- shows a compact `Agent log` in the lower-left Workbench surface. It summarizes the latest Make/Apply/Review/rewrite/output/checkpoint/voice events so designers can see whether Canvax registered a click or generated a new output without opening Advanced. The same activity exports through `workbench.agentLog` in the live handoff and through `implementationContext.workbench.agentLog` in Build-with-Codex requests.
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
 - provides `Tidy map` to reflow frame cards plus generated-output and checkpoint shelf objects into compact readable lanes when a long session starts to sprawl
