@@ -95,6 +95,14 @@ const imageHostTaskMarkdownPath = resolve(
   exportsRoot,
   "canvax-image-host-task-latest.md",
 );
+const imageResultsJsonPath = resolve(
+  exportsRoot,
+  "canvax-image-results-latest.json",
+);
+const imageResultsMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-image-results-latest.md",
+);
 const transcriptBridgePath = resolve(exportsRoot, "canvax-transcript-bridge.json");
 const transcriptBridgeMarkdownPath = resolve(
   exportsRoot,
@@ -197,6 +205,7 @@ function buildTransportDescriptor(overrides = {}) {
       imageGenerationBrief:
         "exports/canvax-image-generation-brief-latest.json",
       imageHostTask: "exports/canvax-image-host-task-latest.json",
+      imageResults: "exports/canvax-image-results-latest.json",
     },
     liveMirror: {
       type: "browser-storage",
@@ -477,6 +486,8 @@ async function runCli() {
           imageGenerationBriefMarkdownPath,
           imageHostTaskJsonPath,
           imageHostTaskMarkdownPath,
+          imageResultsJsonPath,
+          imageResultsMarkdownPath,
           projectExportsRoot,
           projectRegistryJsonPath,
           projectRegistryMarkdownPath,
@@ -515,6 +526,8 @@ async function runCli() {
         imageGenerationBriefMarkdownPath,
         imageHostTaskJsonPath,
         imageHostTaskMarkdownPath,
+        imageResultsJsonPath,
+        imageResultsMarkdownPath,
         assetCandidatesRoot,
         latestCheckpointPath,
         checkpointsIndexPath,
@@ -554,6 +567,8 @@ async function runCli() {
           imageGenerationBriefMarkdownPath,
           imageHostTaskJsonPath,
           imageHostTaskMarkdownPath,
+          imageResultsJsonPath,
+          imageResultsMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -745,6 +760,8 @@ async function runServer(port) {
           imageGenerationBriefMarkdownPath,
           imageHostTaskJsonPath,
           imageHostTaskMarkdownPath,
+          imageResultsJsonPath,
+          imageResultsMarkdownPath,
           assetCandidatesRoot,
           latestCheckpointPath,
           checkpointsIndexPath,
@@ -985,6 +1002,8 @@ function normalizeProjectExportMetadata(source, exportPackage = {}) {
       ),
       imageHostTaskJsonPath: join(root, "canvax-image-host-task-latest.json"),
       imageHostTaskMarkdownPath: join(root, "canvax-image-host-task-latest.md"),
+      imageResultsJsonPath: join(root, "canvax-image-results-latest.json"),
+      imageResultsMarkdownPath: join(root, "canvax-image-results-latest.md"),
       buildRequestJsonPath: join(root, "canvax-build-real-latest.json"),
       buildRequestMarkdownPath: join(root, "canvax-build-real-latest.md"),
       checkpointJsonPath: join(root, "canvax-checkpoint-latest.json"),
@@ -3401,6 +3420,8 @@ async function handlePreviewState(response) {
       imageGenerationBriefMarkdownPath,
       imageHostTaskJsonPath,
       imageHostTaskMarkdownPath,
+      imageResultsJsonPath,
+      imageResultsMarkdownPath,
       projectExportsRoot,
       projectRegistryJsonPath,
       projectRegistryMarkdownPath,
@@ -7231,6 +7252,8 @@ function buildRuntime(port) {
     imageGenerationBriefMarkdownPath,
     imageHostTaskJsonPath,
     imageHostTaskMarkdownPath,
+    imageResultsJsonPath,
+    imageResultsMarkdownPath,
     assetCandidatesRoot,
     latestCheckpointPath,
     checkpointsIndexPath,
@@ -7374,6 +7397,9 @@ function buildRecoveredRuntime(status, port) {
       status.imageHostTaskJsonPath || imageHostTaskJsonPath,
     imageHostTaskMarkdownPath:
       status.imageHostTaskMarkdownPath || imageHostTaskMarkdownPath,
+    imageResultsJsonPath: status.imageResultsJsonPath || imageResultsJsonPath,
+    imageResultsMarkdownPath:
+      status.imageResultsMarkdownPath || imageResultsMarkdownPath,
     assetCandidatesRoot: status.assetCandidatesRoot || assetCandidatesRoot,
     latestCheckpointPath: status.latestCheckpointPath || latestCheckpointPath,
     checkpointsIndexPath: status.checkpointsIndexPath || checkpointsIndexPath,
