@@ -53,14 +53,15 @@ Open Design adds practical product pressure in three areas:
   form and deterministic direction picker are useful, but Canvax should express
   them as designer chips and sensible defaults so Workbench still feels like a
   canvas, not an intake form.
-- Canvax needs a read-only host bridge. Open Design's MCP-style access to live
+- Canvax needs a local host bridge. Open Design's MCP-style access to live
   design files maps to Canvax tools such as `get_current_frame`,
   `get_spatial_workspace`, `get_design_kit`, and `get_output_binding`, so Codex
   can read the live board without export-and-attach friction. The local
   `npm run inspect` bridge is now available, including `project-link`, and
-  `npm run mcp` exposes the same payloads as read-only stdio MCP tools,
-  including `get_project_link`. Native Codex/ChatGPT host registration remains
-  future work.
+  `npm run mcp` exposes the same payloads as stdio MCP read tools, including
+  `get_project_link`. It now also exposes `attach_generated_asset` for the
+  no-API hosted-image return path. Native Codex/ChatGPT host registration
+  remains future work.
 
 The next pressure is hosted/team sharing and first-party agent-readable live
 project access without making the Workbench feel like a prompt-only artifact
@@ -73,7 +74,8 @@ Codex can modify.
 
 The newest Open Design benchmark sharpens the next product gaps:
 
-- local MCP tooling now exists; first-party host registration is still the
+- local MCP tooling now exists, including hosted-image result attachment;
+  first-party host registration is still the
   remaining bridge gap
 - a named design-critique or design-jury stage over generated surfaces
 - live preview tweak targeting where a selected output region becomes a Codex
@@ -169,8 +171,9 @@ Current completed baseline:
   stable no-API inspection payload for the current frame, spatial workspace,
   design kit, output binding, and linked project files. This is the local
   precursor to a future MCP/native host bridge.
-- `npm run mcp` now exposes that same inspection data as read-only stdio MCP
-  tools for hosts that can register local commands.
+- `npm run mcp` now exposes that same inspection data as stdio MCP read tools
+  for hosts that can register local commands, plus `attach_generated_asset` for
+  binding returned hosted-image files/URLs/data images back to Canvax slots.
 - `npm run review-snapshot` now samples browser screenshots locally and writes a
   no-API visual snapshot review for dimensions, blankness risk, palette variety,
   dominant-color balance, and contrast spread. This strengthens browser
@@ -554,14 +557,15 @@ The user should not need to think about `exports/`, manifests, or API keys durin
 
 ### Task 4.3: Plan ChatGPT Apps SDK / MCP Bridge
 
-- **Status**: Shipped documentation baseline in `docs/CHATGPT_APP_BRIDGE.md`. Implementation remains future work.
-- **Location**: `docs/upstream-proposal.md`, `docs/CHATGPT_APP_BRIDGE.md`
+- **Status**: Documentation baseline shipped, local inspection MCP shipped, and initial no-API generated-asset attachment tool shipped. Native first-party host registration remains future work.
+- **Location**: `docs/upstream-proposal.md`, `docs/CHATGPT_APP_BRIDGE.md`, `scripts/canvax-mcp-server.mjs`
 - **Description**: Document how Canvax could become a ChatGPT App: MCP server tools for `get_latest_frame`, `create_task_pack`, `attach_generated_asset`, and optional iframe UI.
 - **Complexity**: 4/10
 - **Dependencies**: Task 4.2
 - **Acceptance Criteria**:
   - Clear boundary between Codex skill, Codex plugin, ChatGPT App, and local browser board. **Documented.**
   - No claim that a localhost page can directly control ChatGPT proprietary UI. **Documented.**
+  - Local MCP can read Canvax context and attach a generated asset result without an API key. **Initial implementation shipped.**
 - **Validation**:
   - Docs review against official Apps SDK docs.
 

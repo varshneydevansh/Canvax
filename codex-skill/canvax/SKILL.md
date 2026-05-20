@@ -71,7 +71,7 @@ This repo now includes that practical transcript bridge. When `/canvax` is activ
 
 Use `--scope session` when the spoken instruction applies to the whole board. The board imports queued transcript entries into its voice notes through preview-state polling, and Codex should also read `exports/canvax-transcript-bridge.json` if the board has not imported it yet.
 
-If the user asks how this becomes native to ChatGPT/Codex, use `docs/CHATGPT_APP_BRIDGE.md` as the boundary. The local skill remains the current working path; a future host bridge would expose Canvax through MCP/App tools such as `get_latest_frame`, `create_task_pack`, `create_image_prompt_pack`, `attach_generated_asset`, `publish_codex_output`, and `append_transcript`. Do not claim that localhost Canvax can directly control ChatGPT, invoke ChatGPT Images, or read the Codex microphone without that host bridge.
+If the user asks how this becomes native to ChatGPT/Codex, use `docs/CHATGPT_APP_BRIDGE.md` as the boundary. The local skill remains the current working path; `npm run mcp` now exposes local MCP read tools plus `attach_generated_asset` for no-API hosted-image returns, while future host bridges would still be needed for native task creation, image invocation, transcript events, `publish_codex_output`, and embedded UI. Do not claim that localhost Canvax can directly control ChatGPT, invoke ChatGPT Images, or read the Codex microphone without that host bridge.
 
 ## Use saved exports
 

@@ -59,6 +59,13 @@ const toolDefinitions = [
       "Read the complete local Canvax inspection payload for the current or requested frame.",
     inputSchema: buildInputSchema(true),
   },
+  {
+    name: "attach_generated_asset",
+    runner: "image-result-import",
+    description:
+      "Attach a hosted image-generation result back to a Canvax asset candidate slot. Accepts a local workspace path, /workspace path, URL, or data image. Writes local no-API image result handoff files unless dryRun is true.",
+    inputSchema: buildAttachGeneratedAssetInputSchema(),
+  },
 ];
 
 const toolMap = new Map(toolDefinitions.map((tool) => [tool.name, tool]));
@@ -133,7 +140,7 @@ async function handleMessage(request) {
           version: "0.1.0",
         },
         instructions:
-          "Use Canvax tools to read the local visual handoff, frame, spatial map, design kit, output bindings, and linked real-project files. These tools are read-only and do not require API keys.",
+          "Use Canvax tools to read the local visual handoff, frame, spatial map, design kit, output bindings, and linked real-project files. Read tools are no-API inspection tools; attach_generated_asset is the only local write tool and only imports a supplied image path into Canvax image-result/candidate handoff files.",
       });
       return;
     }
@@ -143,7 +150,7 @@ async function handleMessage(request) {
     }
     if (method === "tools/list") {
       writeResult(id, {
-        tools: toolDefinitions.map(({ command, ...tool }) => tool),
+        tools: toolDefinitions.map(publicToolDefinition),
       });
       return;
     }
@@ -155,7 +162,10 @@ async function handleMessage(request) {
         writeError(id, -32602, `Unknown Canvax tool: ${name}`);
         return;
       }
-      const payload = await callCanvaxInspection(tool, params.arguments || {});
+      const payload =
+        tool.runner === "image-result-import"
+          ? await callImageResultImport(tool, params.arguments || {})
+          : await callCanvaxInspection(tool, params.arguments || {});
       writeResult(id, {
         content: [
           {
@@ -200,6 +210,51 @@ async function callCanvaxInspection(tool, args) {
   };
 }
 
+async function callImageResultImport(tool, args) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("attach_generated_asset arguments must be an object.");
+  }
+  const imagePath = cleanArgString(args.imagePath);
+  if (!imagePath) {
+    throw new Error("attach_generated_asset requires imagePath.");
+  }
+  const commandArgs = [
+    "scripts/import-image-results.mjs",
+    "--image",
+    imagePath,
+    "--json",
+  ];
+  appendStringOption(commandArgs, "--candidate", args.candidateId);
+  appendStringOption(commandArgs, "--slot", args.slotId);
+  appendStringOption(commandArgs, "--task", args.taskId);
+  appendStringOption(commandArgs, "--notes", args.notes);
+  appendStringOption(commandArgs, "--title", args.title);
+  if (Number.isInteger(args.taskIndex) && args.taskIndex >= 0) {
+    commandArgs.push("--task-index", String(args.taskIndex));
+  }
+  if (args.accept === true) {
+    commandArgs.push("--accept");
+  }
+  if (args.copy === true) {
+    commandArgs.push("--copy");
+  }
+  if (args.noUpdateCandidates === true) {
+    commandArgs.push("--no-update-candidates");
+  }
+  if (args.dryRun === true) {
+    commandArgs.push("--dry-run");
+  }
+  const payload = await runJsonCommand("node", commandArgs);
+  return {
+    kind: "canvax-mcp-tool-result",
+    schemaVersion: 1,
+    requiresOpenAiApiKey: false,
+    tool: tool.name,
+    mutation: "attach-generated-asset",
+    imageResultPack: payload,
+  };
+}
+
 async function runSelfTest() {
   const list = {
     jsonrpc: "2.0",
@@ -216,14 +271,35 @@ async function runSelfTest() {
       arguments: {},
     },
   };
+  const attachCall = {
+    jsonrpc: "2.0",
+    id: 3,
+    method: "tools/call",
+    params: {
+      name: "attach_generated_asset",
+      arguments: {
+        candidateId: "asset-mcp-self-test",
+        slotId: "asset-mcp-self-test-slot-1",
+        imagePath: "docs/assets/canvax-logo.svg",
+        dryRun: true,
+      },
+    },
+  };
   const listResponse = await dispatchForSelfTest(list);
   const callResponse = await dispatchForSelfTest(call);
+  const attachResponse = await dispatchForSelfTest(attachCall);
   const passed = Boolean(
     Array.isArray(listResponse.result?.tools) &&
       listResponse.result.tools.some((tool) => tool.name === "get_current_frame") &&
       listResponse.result.tools.some((tool) => tool.name === "get_project_link") &&
+      listResponse.result.tools.some((tool) => tool.name === "attach_generated_asset") &&
       callResponse.result?.structuredContent?.kind === "canvax-mcp-tool-result" &&
-      callResponse.result?.structuredContent?.requiresOpenAiApiKey === false,
+      callResponse.result?.structuredContent?.requiresOpenAiApiKey === false &&
+      attachResponse.result?.structuredContent?.kind === "canvax-mcp-tool-result" &&
+      attachResponse.result?.structuredContent?.imageResultPack?.kind ===
+        "canvax-image-results" &&
+      attachResponse.result?.structuredContent?.imageResultPack
+        ?.requiresOpenAiApiKey === false,
   );
   if (!passed) {
     console.log(
@@ -233,6 +309,7 @@ async function runSelfTest() {
           kind: "canvax-mcp-self-test",
           listResponse,
           callResponse,
+          attachResponse,
         },
         null,
         2,
@@ -250,11 +327,18 @@ async function runSelfTest() {
         protocolVersion,
         toolCount: listResponse.result.tools.length,
         summaryKind: callResponse.result.structuredContent.inspection.kind,
+        attachKind:
+          attachResponse.result.structuredContent.imageResultPack.kind,
       },
       null,
       2,
     ),
   );
+}
+
+function publicToolDefinition(tool) {
+  const { command, runner, ...publicTool } = tool;
+  return publicTool;
 }
 
 function dispatchForSelfTest(request) {
@@ -299,6 +383,80 @@ function buildInputSchema(includeFrame) {
     additionalProperties: false,
     properties,
   };
+}
+
+function buildAttachGeneratedAssetInputSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["imagePath"],
+    properties: {
+      imagePath: {
+        type: "string",
+        description:
+          "Returned image file path, workspace-relative path, /workspace path, URL, or data image URL.",
+      },
+      candidateId: {
+        type: "string",
+        description:
+          "Canvax asset candidate id. When omitted, the latest image host task can infer it from taskId or taskIndex.",
+      },
+      slotId: {
+        type: "string",
+        description:
+          "Canvax output slot id. When omitted, Canvax infers it from the matching host task or candidate.",
+      },
+      taskId: {
+        type: "string",
+        description: "Image host task id from canvax-image-host-task-latest.json.",
+      },
+      taskIndex: {
+        type: "integer",
+        minimum: 0,
+        description:
+          "Zero-based task index from the latest image host task, useful when candidateId is not known.",
+      },
+      notes: {
+        type: "string",
+        description: "Optional note about the returned image.",
+      },
+      title: {
+        type: "string",
+        description: "Optional title for the returned image result.",
+      },
+      accept: {
+        type: "boolean",
+        description:
+          "When true, mark the returned image as the accepted candidate result.",
+      },
+      copy: {
+        type: "boolean",
+        description:
+          "When true, copy local files into artifacts/canvax/image-results.",
+      },
+      noUpdateCandidates: {
+        type: "boolean",
+        description:
+          "When true, write the image result pack without updating the asset candidate pack.",
+      },
+      dryRun: {
+        type: "boolean",
+        description:
+          "When true, validate and return the image result pack without writing files.",
+      },
+    },
+  };
+}
+
+function appendStringOption(commandArgs, option, value) {
+  const clean = cleanArgString(value);
+  if (clean) {
+    commandArgs.push(option, clean);
+  }
+}
+
+function cleanArgString(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function writeResult(id, result) {
@@ -368,12 +526,13 @@ function printHelp() {
   node scripts/canvax-mcp-server.mjs
   node scripts/canvax-mcp-server.mjs --self-test
 
-Runs a read-only Model Context Protocol-style stdio server for Canvax. The
+Runs a local Model Context Protocol-style stdio server for Canvax. The
 server exposes these local no-API tools:
 
 ${toolDefinitions.map((tool) => `- ${tool.name}`).join("\n")}
 
-Messages are newline-delimited JSON-RPC over stdio. The server reads local
-Canvax export and manifest files only; it does not call OpenAI, ChatGPT, image
-APIs, browser automation, or paid APIs.`);
+Messages are newline-delimited JSON-RPC over stdio. The inspection tools read
+local Canvax export and manifest files. attach_generated_asset writes only
+local Canvax image-result/candidate handoff files. The server does not call
+OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.`);
 }

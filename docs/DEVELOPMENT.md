@@ -314,11 +314,14 @@ changed artifact list back through `scripts/write-codex-output.mjs`. Keep this
 boundary explicit: it proves generated-bundle and project-linked patchability,
 not arbitrary unlinked production app patching.
 
-Use `npm run mcp` to launch the read-only local stdio MCP server. It exposes the
-inspection commands as tools for hosts that can register a local MCP command:
+Use `npm run mcp` to launch the local stdio MCP server. It exposes the
+inspection commands as read tools for hosts that can register a local MCP command:
 `get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
-`get_design_kit`, `get_output_binding`, and `get_canvax_all`. Use
-`npm run mcp -- --self-test` in regression or host setup checks.
+`get_design_kit`, `get_output_binding`, `get_project_link`, and
+`get_canvax_all`. It also exposes `attach_generated_asset`, which writes only
+local no-API image-result/candidate handoff files through the same path as
+`npm run import-image-results`. Use `npm run mcp -- --self-test` in regression
+or host setup checks.
 
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 

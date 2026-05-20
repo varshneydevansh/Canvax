@@ -794,13 +794,15 @@ artifact, and Codex output manifest, then returns a stable
 `project-link`, or `all`. This gives Codex a local tool-shaped contract today
 and defines the payload future MCP/native host tools should mirror.
 
-`scripts/canvax-mcp-server.mjs` wraps that inspection bridge in a read-only
-stdio MCP server. It handles `initialize`, `tools/list`, `tools/call`, and
-`ping` over newline-delimited JSON-RPC and exposes `get_canvax_summary`,
+`scripts/canvax-mcp-server.mjs` wraps that inspection bridge in a local stdio
+MCP server. It handles `initialize`, `tools/list`, `tools/call`, and `ping` over
+newline-delimited JSON-RPC and exposes `get_canvax_summary`,
 `get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
-`get_output_binding`, `get_project_link`, and `get_canvax_all`. The tool results
-include both text content and structured content, and every payload keeps
-`requiresOpenAiApiKey: false`.
+`get_output_binding`, `get_project_link`, and `get_canvax_all`. It also exposes
+`attach_generated_asset`, which is a narrow local write tool around
+`scripts/import-image-results.mjs` for hosted image-result returns. The tool
+results include both text content and structured content, and every payload
+keeps `requiresOpenAiApiKey: false`.
 
 `scripts/review-visual-snapshot.mjs` is the local screenshot-review bridge. It
 uses the image-token extractor path to sample PNG/BMP browser screenshots, then

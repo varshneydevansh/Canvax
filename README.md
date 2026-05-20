@@ -112,7 +112,7 @@ flowchart LR
 - Adds `npm run production-port-proof`, a local no-API proof fixture that creates a production-like route/component/CSS bundle, binds it to a Codex output manifest, verifies required token colors across the manifest-listed files, runs the static artifact review, and applies a production-like `codex-patch-task.json`.
 - Adds `npm run project-link`, a local no-API code-folder link that binds existing app route/component/CSS files to a Canvax frame, writes `exports/canvax-project-link-latest.*`, and can publish a frame-bound Codex output manifest for real project work.
 - Adds `npm run inspect`, a local no-API read-only bridge that returns the current frame, spatial workspace, active design kit, output bindings, and linked project files as stable JSON/Markdown for Codex or future MCP-style tools.
-- Adds `npm run mcp`, a local no-API stdio MCP server exposing read-only Canvax tools for current frame, spatial workspace, design kit, output binding, project link, summary, and full inspection payloads.
+- Adds `npm run mcp`, a local no-API stdio MCP server exposing Canvax tools for current frame, spatial workspace, design kit, output binding, project link, summary, full inspection payloads, and hosted-image result attachment through `attach_generated_asset`.
 - Uses a shared Workbench/Advanced mode guide so the default loop reads as sketch, talk, make/apply while Advanced reads as project rail, canvas deck, and handoff inspector.
 - Keeps Advanced in the same product language with a solid command deck and bounded frame/map workspace that stay readable over long sessions.
 - Supports freehand sketching, shapes, labels, selection, grouping, captures, and flow links between frames.

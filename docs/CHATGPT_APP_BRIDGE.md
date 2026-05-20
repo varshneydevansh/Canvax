@@ -95,11 +95,13 @@ flowchart TD
 
 These tools should be thin wrappers over the files and APIs Canvax already has.
 
-Local status: `npm run mcp` now exposes a read-only stdio MCP server over the
-existing inspection bridge. The shipped tools are `get_canvax_summary`,
+Local status: `npm run mcp` now exposes a stdio MCP server over the existing
+inspection bridge. The shipped read tools are `get_canvax_summary`,
 `get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
-`get_output_binding`, and `get_canvax_all`. The tools below remain the future
-write/host-capability layer for task creation and generated asset attachment.
+`get_output_binding`, `get_project_link`, and `get_canvax_all`. The shipped
+write/return tool is `attach_generated_asset`, a no-API wrapper around
+`npm run import-image-results` for binding hosted image outputs back to Canvax
+candidate slots. Task creation and native host registration remain future work.
 
 ### `get_latest_frame`
 
@@ -271,11 +273,11 @@ Codex app -> in-app Browser / Atlas -> http://localhost:3210
 ## Implementation Sequence
 
 1. Keep local file exports canonical.
-2. Add an MCP server wrapper around the existing Canvax service endpoints. **Local read-only stdio wrapper exists through `npm run mcp`.**
+2. Add an MCP server wrapper around the existing Canvax service endpoints. **Local stdio wrapper exists through `npm run mcp`; read tools inspect Canvax state, and `attach_generated_asset` is the narrow no-API result-return write path.**
 3. Implement `get_latest_frame`, `create_task_pack`, `create_image_prompt_pack`, and `attach_generated_asset` as host-registered tools when first-party write/asset permissions are available.
 4. Add a small app component that renders the Workbench frame/Preview in a host iframe.
 5. Add host transcript forwarding when the client exposes it.
-6. Add host image result attachment when the client exposes it. **Local no-API result import now exists through `npm run import-image-results`; native host attachment remains future work.**
+6. Add host image result attachment when the client exposes it. **Local no-API result import exists through `npm run import-image-results`, and the local MCP server now exposes the same path as `attach_generated_asset`; native first-party host registration remains future work.**
 7. Preserve `local-companion` mode as the fallback for all users.
 
 ## Source References

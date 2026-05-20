@@ -865,12 +865,13 @@ design-system context, output manifest binding, and linked real project files
 without asking the user to paste raw exports. It is the CLI precursor to a
 future MCP/native host bridge, not the final host bridge.
 
-`npm run mcp` is the read-only local stdio MCP server. It exposes
+`npm run mcp` is the local stdio MCP server. It exposes
 `get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
 `get_design_kit`, `get_output_binding`, `get_project_link`, and
-`get_canvax_all` as MCP tools backed by the same inspection payloads. It is
-still local and no-API; native
-Codex/ChatGPT registration remains a host configuration step.
+`get_canvax_all` as MCP tools backed by the same inspection payloads. It also
+exposes `attach_generated_asset` as a narrow local write tool for hosted image
+result returns. It is still local and no-API; native Codex/ChatGPT registration
+remains a host configuration step.
 
 `npm run review-snapshot` is the local visual snapshot gate. It reads either the
 latest browser snapshot index or explicit `--image` paths, samples screenshot

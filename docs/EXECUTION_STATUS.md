@@ -114,7 +114,8 @@ Status: In progress
 - [x] `npm run project-link` links explicit real project route/component/CSS files to a Canvax frame, extracts lightweight source structure and bindings, writes `exports/canvax-project-link-latest.*`, and can publish a frame-bound Codex output manifest without an API key
 - [x] `npm run execute-patch` can patch explicit route/component/CSS files from the latest project-link contract when a `codex-patch-task.json` references those linked files
 - [x] `npm run inspect` exposes a no-API read-only inspection bridge for current frame, spatial workspace, design kit, output bindings, and linked project files as the local precursor to future MCP/native host tools
-- [x] `npm run mcp` exposes those read-only inspection payloads, including `get_project_link`, through local stdio MCP tools for hosts that can register a local command
+- [x] `npm run mcp` exposes those inspection payloads, including `get_project_link`, through local stdio MCP tools for hosts that can register a local command
+- [x] `npm run mcp` also exposes `attach_generated_asset`, a no-API local write tool that binds hosted image results back to Canvax candidate slots through the image-result import contract
 - [x] Repository design kits under `design-kits/*.json` load into the searchable Design kit dropdown and validate/discover with `npm run validate-design-kits` plus `npm run validate-design-kits -- --query <term>`
 - [x] `npm run package-design-kits` writes a shareable no-API kit-library artifact with full kit JSON, local versions, source paths, SHA-256 checksums, and install notes
 - [x] `npm run extract-tokens -- --image <local-screenshot>` samples local raster screenshots/images into the same importable external token pack without an API key

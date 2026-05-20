@@ -884,7 +884,7 @@ Today, Canvax is:
 - a browser sketch board
 - a local command
 - a Codex skill wrapper
-- a local read-only MCP server when launched with `npm run mcp`
+- a local MCP server when launched with `npm run mcp`; most tools are read-only inspection tools, and `attach_generated_asset` is the narrow image-result return tool
 
 Today, Canvax is not yet:
 
@@ -896,7 +896,7 @@ Today, Canvax is not yet:
 
 Those deeper integrations are part of the roadmap in `canvax-live-collaboration-plan.md`. The host bridge boundary and proposed MCP/App tools are documented in `docs/CHATGPT_APP_BRIDGE.md`.
 
-## Read-Only MCP Server
+## Local MCP Server
 
 Canvax ships a local stdio MCP server for hosts that can register local
 commands:
@@ -906,7 +906,7 @@ npm run mcp
 npm run mcp -- --self-test
 ```
 
-The server is read-only and exposes:
+The server exposes read tools:
 
 - `get_canvax_summary`
 - `get_current_frame`
@@ -916,10 +916,16 @@ The server is read-only and exposes:
 - `get_project_link`
 - `get_canvax_all`
 
+It also exposes one write/return tool:
+
+- `attach_generated_asset`
+
 Each tool returns the same local no-API inspection payload shape as
-`npm run inspect`. This is stronger than asking the user to paste JSON exports,
-but it is still not the same as first-party Codex or ChatGPT registration; the
-host has to be configured to launch the server.
+`npm run inspect`, except `attach_generated_asset`, which wraps
+`npm run import-image-results` and writes only local image-result/candidate
+handoff files. This is stronger than asking the user to paste JSON exports, but
+it is still not the same as first-party Codex or ChatGPT registration; the host
+has to be configured to launch the server.
 
 The current voice path is browser speech recognition when available, or pasted macOS/Codex dictation text when it is not. A native Codex version could reuse the Codex microphone reader directly, but that requires first-party Codex client integration or an app/plugin bridge that exposes transcript events to Canvax.
 

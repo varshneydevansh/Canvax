@@ -461,6 +461,7 @@ const checks = [
           "get_design_kit",
           "get_output_binding",
           "get_project_link",
+          "attach_generated_asset",
           "requiresOpenAiApiKey: false",
         ],
       },
@@ -502,7 +503,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, Workbench output review gating, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, an allowlisted project-link patch proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary unlinked production patching, and evidence from Codex completing a real external/user project edit remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, Workbench output review gating, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, an allowlisted project-link patch proof, a local read-only inspection CLI, a local stdio MCP read bridge, and a narrow MCP image-result return tool are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary unlinked production patching, and evidence from Codex completing a real external/user project edit remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -600,6 +601,10 @@ const checks = [
           "canvax-image-result-return-contract",
           "requiresOpenAiApiKey: false",
         ],
+      },
+      {
+        path: "scripts/canvax-mcp-server.mjs",
+        includes: ["attach_generated_asset", "canvax-image-results"],
       },
       {
         path: "docs/FEATURES.md",

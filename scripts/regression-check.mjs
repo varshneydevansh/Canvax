@@ -1252,15 +1252,16 @@ async function validateCanvaxMcpSelfTest() {
       payload?.ok &&
         payload?.kind === "canvax-mcp-self-test" &&
         payload.requiresOpenAiApiKey === false &&
-        payload.toolCount >= 7 &&
-        payload.summaryKind === "canvax-readonly-inspection",
+        payload.toolCount >= 8 &&
+        payload.summaryKind === "canvax-readonly-inspection" &&
+        payload.attachKind === "canvax-image-results",
     );
     results.push({
       name: "Canvax MCP server self-test is valid",
       passed,
       detail: passed
         ? `${payload.toolCount} tools`
-        : "MCP server did not expose expected read-only tools",
+        : "MCP server did not expose expected Canvax tools",
     });
   } catch (error) {
     results.push({
