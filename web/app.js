@@ -448,6 +448,7 @@ const dom = {
   focusCreateVariants: document.querySelector("#focus-create-variants"),
   focusPromoteVariant: document.querySelector("#focus-promote-variant"),
   focusImagePack: document.querySelector("#focus-image-pack"),
+  focusAddContext: document.querySelector("#focus-add-context"),
   focusAutoRewrite: document.querySelector("#focus-auto-rewrite"),
   focusVoiceToggle: document.querySelector("#focus-voice-toggle"),
   focusApply: document.querySelector("#focus-apply"),
@@ -958,6 +959,10 @@ function bindEvents() {
   });
   dom.focusImagePack.addEventListener("click", () => {
     void saveImagePromptPackForHost();
+  });
+  dom.focusAddContext.addEventListener("click", () => {
+    setWorkbenchFocus("map");
+    dom.spatialFileInput.click();
   });
   dom.focusAutoRewrite.addEventListener("click", () => {
     setAutoRewriteEnabled(!state.autoRewrite);
@@ -21541,8 +21546,9 @@ async function runSelfTest() {
           Boolean(dom.workbenchComposerMake) &&
           Boolean(dom.workbenchComposerApply) &&
           Boolean(dom.focusAddImage) &&
-          Boolean(dom.focusImageInput),
-        "Workbench bottom command composer and image import controls render",
+          Boolean(dom.focusImageInput) &&
+          Boolean(dom.focusAddContext),
+        "Workbench bottom command composer and context import controls render",
       ),
     );
     const moreActions = document.querySelector(".focus-more-actions");
@@ -21552,6 +21558,7 @@ async function runSelfTest() {
         Boolean(moreActions) &&
           Boolean(moreActionGrid) &&
           Boolean(moreActionGrid.querySelector("#focus-image-pack")) &&
+          Boolean(moreActionGrid.querySelector("#focus-add-context")) &&
           Boolean(moreActionGrid.querySelector("#focus-auto-rewrite")),
         "Workbench secondary actions are grouped",
       ),

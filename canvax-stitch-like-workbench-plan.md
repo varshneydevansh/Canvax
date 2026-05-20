@@ -116,6 +116,7 @@ Current completed baseline:
 - The Workbench tray now uses a compact three-column command strip so the active canvas is visible in the first viewport instead of being pushed below the fold.
 - Workbench quick-prompt chips add common refinement intent such as font, drama, mobile variant, spacing, and image candidates without opening Advanced mode.
 - Workbench secondary actions now sit behind a `More actions` disclosure so the default composer focuses on the everyday frame/free-canvas/build/preview loop instead of showing every power tool at once.
+- Workbench `More actions` now includes `Add context`, which switches to Map and opens the file/image reference-card picker so designers can place supporting files and images on the spatial board without starting in Advanced mode.
 - Collapsed Workbench keeps a compact frame/surface/action/focus summary visible so canvas-first mode does not feel detached from the active task.
 - Action mode selection is available in Workbench and is exported into task/image prompt packs.
 - Surface presets now include slide, book spread, storyboard, and comic page in addition to UI/poster/free-canvas presets, so the same loop can support product screens, decks, illustration planning, and sequential art.
