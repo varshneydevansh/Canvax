@@ -49,7 +49,7 @@ verification gates. It is the source of truth before claiming the goal is done.
 
 ## Latest Verification
 
-Verified locally on May 19, 2026 after the project-link bridge, project-linked patch dry-run, production-like patch proof, React/framework build handoff, no-API image generation brief, no-API image host task, and strict prompt-to-artifact goal-audit passes:
+Verified locally on May 20, 2026 after the Workbench output review gate, voice intent queue, project-link bridge, project-linked patch dry-run, production-like patch proof, React/framework build handoff, no-API image generation brief, no-API image host task, and strict prompt-to-artifact goal-audit passes:
 
 ```text
 npm run check      -> pass
@@ -59,7 +59,7 @@ npm run goal-audit -> evidence pass, overallComplete false
 ```
 
 The regression run includes service lifecycle checks, the no-API e2e workflow,
-board browser self-test with 109 assertions, Preview browser self-test with 17
+board browser self-test with 113 assertions, Preview browser self-test with 17
 assertions, responsive board/Preview screenshots at 1440, 1024, 768, and 430
 pixel widths, plus the Map viewport/tidy, lane-order, object prompt/context,
 compact spatial-context assertions, opt-in materialized review overlays,
