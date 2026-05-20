@@ -642,6 +642,14 @@ const dom = {
   mapUngroupSelection: document.querySelector("#map-ungroup-selection"),
   mapSelectGroupContents: document.querySelector("#map-select-group-contents"),
   mapFitGroup: document.querySelector("#map-fit-group"),
+  mapAlignLeft: document.querySelector("#map-align-left"),
+  mapAlignCenter: document.querySelector("#map-align-center"),
+  mapAlignRight: document.querySelector("#map-align-right"),
+  mapAlignTop: document.querySelector("#map-align-top"),
+  mapAlignMiddle: document.querySelector("#map-align-middle"),
+  mapAlignBottom: document.querySelector("#map-align-bottom"),
+  mapDistributeHorizontal: document.querySelector("#map-distribute-horizontal"),
+  mapDistributeVertical: document.querySelector("#map-distribute-vertical"),
   mapLaneEarlier: document.querySelector("#map-lane-earlier"),
   mapLaneLater: document.querySelector("#map-lane-later"),
   mapSendObjectBack: document.querySelector("#map-send-object-back"),
@@ -1244,6 +1252,24 @@ function bindEvents() {
     selectSelectedSpatialGroupContents,
   );
   dom.mapFitGroup.addEventListener("click", fitSelectedSpatialGroupsToContents);
+  [
+    ["left", dom.mapAlignLeft],
+    ["center", dom.mapAlignCenter],
+    ["right", dom.mapAlignRight],
+    ["top", dom.mapAlignTop],
+    ["middle", dom.mapAlignMiddle],
+    ["bottom", dom.mapAlignBottom],
+  ].forEach(([alignment, button]) => {
+    button?.addEventListener("click", () => {
+      alignSelectedSpatialObjects(alignment);
+    });
+  });
+  dom.mapDistributeHorizontal?.addEventListener("click", () =>
+    distributeSelectedSpatialObjects("horizontal"),
+  );
+  dom.mapDistributeVertical?.addEventListener("click", () =>
+    distributeSelectedSpatialObjects("vertical"),
+  );
   dom.mapLaneEarlier.addEventListener("click", () =>
     reorderSelectedSpatialSequence("earlier"),
   );
@@ -6884,6 +6910,163 @@ function nudgeSelectedSpatialObject(deltaX, deltaY) {
   return true;
 }
 
+function spatialSelectionTransformEntries() {
+  return selectedSpatialObjectsForTransform()
+    .map((object) => ({
+      object,
+      bounds: spatialObjectBounds(object),
+    }))
+    .filter((entry) => entry.bounds);
+}
+
+function canAlignSelectedSpatialObjects() {
+  const objects = selectedSpatialObjectsForTransform();
+  return objects.length >= 2 && canMutateSpatialObjects(objects);
+}
+
+function canDistributeSelectedSpatialObjects(axis = "horizontal") {
+  const entries = spatialSelectionTransformEntries();
+  if (
+    entries.length < 3 ||
+    hasLockedSpatialObjects(entries.map((entry) => entry.object))
+  ) {
+    return false;
+  }
+  const sorted = sortSpatialDistributionEntries(entries, axis);
+  return (
+    sorted.length >= 3 &&
+    spatialDistributionCenter(sorted.at(0), axis) !==
+      spatialDistributionCenter(sorted.at(-1), axis)
+  );
+}
+
+function commitSpatialObjectTransform(status) {
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(status);
+}
+
+function alignSelectedSpatialObjects(alignment) {
+  const entries = spatialSelectionTransformEntries();
+  if (entries.length < 2) {
+    renderStatus("Select at least two Map objects to align");
+    return false;
+  }
+  if (hasLockedSpatialObjects(entries.map((entry) => entry.object))) {
+    renderLockedSpatialObjectStatus("align them");
+    return false;
+  }
+  const selectionBounds = unionBounds(entries.map((entry) => entry.bounds));
+  if (!selectionBounds) {
+    return false;
+  }
+  let changed = false;
+  entries.forEach(({ object, bounds }) => {
+    const width = bounds.right - bounds.left;
+    const height = bounds.bottom - bounds.top;
+    let targetX = object.x;
+    let targetY = object.y;
+    if (alignment === "left") {
+      targetX = selectionBounds.left;
+    } else if (alignment === "center") {
+      targetX = selectionBounds.left + selectionBounds.width / 2 - width / 2;
+    } else if (alignment === "right") {
+      targetX = selectionBounds.right - width;
+    } else if (alignment === "top") {
+      targetY = selectionBounds.top;
+    } else if (alignment === "middle") {
+      targetY = selectionBounds.top + selectionBounds.height / 2 - height / 2;
+    } else if (alignment === "bottom") {
+      targetY = selectionBounds.bottom - height;
+    }
+    const deltaX = Math.round(targetX - object.x);
+    const deltaY = Math.round(targetY - object.y);
+    if (deltaX || deltaY) {
+      moveSpatialObjectByDelta(object, deltaX, deltaY);
+      changed = true;
+    }
+  });
+  if (!changed) {
+    renderStatus("Selected Map objects are already aligned");
+    return false;
+  }
+  commitSpatialObjectTransform(
+    `Aligned ${entries.length} Map objects ${spatialAlignmentLabel(alignment)}`,
+  );
+  return true;
+}
+
+function spatialAlignmentLabel(alignment) {
+  return (
+    {
+      left: "left",
+      center: "center",
+      right: "right",
+      top: "top",
+      middle: "middle",
+      bottom: "bottom",
+    }[alignment] || "together"
+  );
+}
+
+function sortSpatialDistributionEntries(entries, axis) {
+  const centerForAxis = (entry) => spatialDistributionCenter(entry, axis);
+  return [...entries].sort((a, b) => centerForAxis(a) - centerForAxis(b));
+}
+
+function spatialDistributionCenter(entry, axis) {
+  if (axis === "vertical") {
+    return entry.bounds.top + (entry.bounds.bottom - entry.bounds.top) / 2;
+  }
+  return entry.bounds.left + (entry.bounds.right - entry.bounds.left) / 2;
+}
+
+function distributeSelectedSpatialObjects(axis = "horizontal") {
+  const entries = spatialSelectionTransformEntries();
+  if (entries.length < 3) {
+    renderStatus("Select at least three Map objects to distribute");
+    return false;
+  }
+  if (hasLockedSpatialObjects(entries.map((entry) => entry.object))) {
+    renderLockedSpatialObjectStatus("distribute them");
+    return false;
+  }
+  const sorted = sortSpatialDistributionEntries(entries, axis);
+  const firstCenter = spatialDistributionCenter(sorted[0], axis);
+  const lastCenter = spatialDistributionCenter(sorted.at(-1), axis);
+  if (firstCenter === lastCenter) {
+    renderStatus("Spread selected Map objects before distributing them");
+    return false;
+  }
+  const step = (lastCenter - firstCenter) / (sorted.length - 1);
+  let changed = false;
+  sorted.forEach((entry, index) => {
+    const targetCenter = firstCenter + step * index;
+    const width = entry.bounds.right - entry.bounds.left;
+    const height = entry.bounds.bottom - entry.bounds.top;
+    const targetX =
+      axis === "horizontal" ? targetCenter - width / 2 : entry.object.x;
+    const targetY =
+      axis === "vertical" ? targetCenter - height / 2 : entry.object.y;
+    const deltaX = Math.round(targetX - entry.object.x);
+    const deltaY = Math.round(targetY - entry.object.y);
+    if (deltaX || deltaY) {
+      moveSpatialObjectByDelta(entry.object, deltaX, deltaY);
+      changed = true;
+    }
+  });
+  if (!changed) {
+    renderStatus("Selected Map objects are already evenly distributed");
+    return false;
+  }
+  commitSpatialObjectTransform(
+    `Distributed ${entries.length} Map objects ${axis === "vertical" ? "vertically" : "horizontally"}`,
+  );
+  return true;
+}
+
 function sendSelectedSpatialObjectsBack() {
   return reorderSelectedSpatialObjects("back");
 }
@@ -11969,6 +12152,26 @@ function renderMapSelectionActions() {
   dom.mapSelectGroupContents.disabled = selectedGroups.length === 0;
   dom.mapFitGroup.disabled =
     selectedGroups.length === 0 || hasLockedSpatialObjects(selectedGroups);
+  [
+    dom.mapAlignLeft,
+    dom.mapAlignCenter,
+    dom.mapAlignRight,
+    dom.mapAlignTop,
+    dom.mapAlignMiddle,
+    dom.mapAlignBottom,
+  ].forEach((button) => {
+    if (button) {
+      button.disabled = !canAlignSelectedSpatialObjects();
+    }
+  });
+  if (dom.mapDistributeHorizontal) {
+    dom.mapDistributeHorizontal.disabled =
+      !canDistributeSelectedSpatialObjects("horizontal");
+  }
+  if (dom.mapDistributeVertical) {
+    dom.mapDistributeVertical.disabled =
+      !canDistributeSelectedSpatialObjects("vertical");
+  }
   dom.mapLaneEarlier.textContent = hasBranchSelection
     ? "Branch earlier"
     : "Lane earlier";
@@ -12014,7 +12217,7 @@ function renderMapSelectionActions() {
     dom.mapSelectedObjectDetail.textContent =
       hasLockedSelection
         ? "Locked selections can be copied or unlocked, but not moved, resized, reordered, duplicated, grouped, or deleted."
-        : "Arrow keys move the selection. Use Lane earlier/later for output/history order, Group, Bring front / Send back, duplicate, delete, clear, or copy combined context.";
+        : "Arrow keys move the selection. Align or distribute objects, use Lane earlier/later for output/history order, Group, Bring front / Send back, duplicate, delete, clear, or copy combined context.";
     dom.mapObjectTitle.value = "";
     dom.mapObjectSubtitle.value = "";
     dom.mapObjectStatus.value = "";
@@ -25917,6 +26120,22 @@ async function assertManualSpatialObjectControls() {
     status: "note",
     meta: { text: "Outside transform target" },
   });
+  const alignmentObject = addSpatialObject({
+    type: "map-note",
+    title: "Self-test align note",
+    subtitle: "Alignment transform target",
+    sourceKind: "manual-note",
+    status: "note",
+    meta: { text: "Alignment transform target" },
+  });
+  const spacingObject = addSpatialObject({
+    type: "map-note",
+    title: "Self-test spacing note",
+    subtitle: "Distribution transform target",
+    sourceKind: "manual-note",
+    status: "note",
+    meta: { text: "Distribution transform target" },
+  });
   const objectRecord = object ? spatialObjectById(object.id) : null;
   const groupRecord = group ? spatialObjectById(group.id) : null;
   const nestedGroupRecord = nestedGroup
@@ -25928,12 +26147,18 @@ async function assertManualSpatialObjectControls() {
   const outsideRecord = outsideObject
     ? spatialObjectById(outsideObject.id)
     : null;
+  const alignmentRecord = alignmentObject
+    ? spatialObjectById(alignmentObject.id)
+    : null;
+  const spacingRecord = spacingObject ? spatialObjectById(spacingObject.id) : null;
   if (
     objectRecord &&
     groupRecord &&
     nestedGroupRecord &&
     nestedChildRecord &&
-    outsideRecord
+    outsideRecord &&
+    alignmentRecord &&
+    spacingRecord
   ) {
     groupRecord.x = 360;
     groupRecord.y = 460;
@@ -25953,6 +26178,14 @@ async function assertManualSpatialObjectControls() {
     outsideRecord.y = 560;
     outsideRecord.width = 220;
     outsideRecord.height = 150;
+    alignmentRecord.x = 1340;
+    alignmentRecord.y = 720;
+    alignmentRecord.width = 220;
+    alignmentRecord.height = 150;
+    spacingRecord.x = 1640;
+    spacingRecord.y = 860;
+    spacingRecord.width = 220;
+    spacingRecord.height = 150;
     activeFrame.flowPosition = { x: 470, y: 550 };
     renderFlowBoard();
   }
@@ -25962,11 +26195,19 @@ async function assertManualSpatialObjectControls() {
       nestedGroup &&
       nestedChild &&
       outsideObject &&
+      alignmentObject &&
+      spacingObject &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${object.id}'] [data-spatial-object-remove]`,
       ) &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${outsideObject.id}']`,
+      ) &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${alignmentObject.id}']`,
+      ) &&
+      dom.flowBoard.querySelector(
+        `[data-spatial-object-id='${spacingObject.id}']`,
       ) &&
       dom.flowBoard.querySelector(
         `[data-spatial-object-id='${group.id}'].map-group`,
@@ -26006,6 +26247,22 @@ async function assertManualSpatialObjectControls() {
     dom.mapSelectGroupContents.disabled &&
     Boolean(dom.mapFitGroup) &&
     dom.mapFitGroup.disabled &&
+    Boolean(dom.mapAlignLeft) &&
+    dom.mapAlignLeft.disabled &&
+    Boolean(dom.mapAlignCenter) &&
+    dom.mapAlignCenter.disabled &&
+    Boolean(dom.mapAlignRight) &&
+    dom.mapAlignRight.disabled &&
+    Boolean(dom.mapAlignTop) &&
+    dom.mapAlignTop.disabled &&
+    Boolean(dom.mapAlignMiddle) &&
+    dom.mapAlignMiddle.disabled &&
+    Boolean(dom.mapAlignBottom) &&
+    dom.mapAlignBottom.disabled &&
+    Boolean(dom.mapDistributeHorizontal) &&
+    dom.mapDistributeHorizontal.disabled &&
+    Boolean(dom.mapDistributeVertical) &&
+    dom.mapDistributeVertical.disabled &&
     Boolean(dom.mapLaneEarlier) &&
     dom.mapLaneEarlier.disabled &&
     Boolean(dom.mapLaneLater) &&
@@ -26364,6 +26621,141 @@ async function assertManualSpatialObjectControls() {
     Boolean(groupAfterMultiNudge && objectAfterMultiNudge) &&
     groupAfterMultiNudge.x === groupXBeforeMultiNudge + 16 &&
     objectAfterMultiNudge.x === objectXBeforeMultiNudge + 16;
+  const outsideAlignRecord = outsideObject
+    ? spatialObjectById(outsideObject.id)
+    : null;
+  const alignmentAlignRecord = alignmentObject
+    ? spatialObjectById(alignmentObject.id)
+    : null;
+  const spacingAlignRecord = spacingObject
+    ? spatialObjectById(spacingObject.id)
+    : null;
+  if (outsideAlignRecord && alignmentAlignRecord && spacingAlignRecord) {
+    outsideAlignRecord.x = 2100;
+    outsideAlignRecord.y = 1240;
+    outsideAlignRecord.width = 220;
+    outsideAlignRecord.height = 150;
+    alignmentAlignRecord.x = 2600;
+    alignmentAlignRecord.y = 1420;
+    alignmentAlignRecord.width = 220;
+    alignmentAlignRecord.height = 150;
+    spacingAlignRecord.x = 3300;
+    spacingAlignRecord.y = 1580;
+    spacingAlignRecord.width = 220;
+    spacingAlignRecord.height = 150;
+    setSelectedSpatialObjects(
+      [
+        outsideAlignRecord.id,
+        alignmentAlignRecord.id,
+        spacingAlignRecord.id,
+      ],
+      spacingAlignRecord.id,
+    );
+    renderFlowInspector();
+    renderFlowBoard();
+    renderSpec();
+  }
+  const alignmentActionsEnabled =
+    Boolean(dom.mapAlignLeft) &&
+    !dom.mapAlignLeft.disabled &&
+    Boolean(dom.mapAlignCenter) &&
+    !dom.mapAlignCenter.disabled &&
+    Boolean(dom.mapAlignRight) &&
+    !dom.mapAlignRight.disabled &&
+    Boolean(dom.mapAlignTop) &&
+    !dom.mapAlignTop.disabled &&
+    Boolean(dom.mapAlignMiddle) &&
+    !dom.mapAlignMiddle.disabled &&
+    Boolean(dom.mapAlignBottom) &&
+    !dom.mapAlignBottom.disabled &&
+    Boolean(dom.mapDistributeHorizontal) &&
+    !dom.mapDistributeHorizontal.disabled &&
+    Boolean(dom.mapDistributeVertical) &&
+    !dom.mapDistributeVertical.disabled;
+  const alignResult =
+    Boolean(outsideAlignRecord && alignmentAlignRecord && spacingAlignRecord) &&
+    alignSelectedSpatialObjects("left");
+  const alignedLeft =
+    alignResult &&
+    outsideAlignRecord.x === alignmentAlignRecord.x &&
+    alignmentAlignRecord.x === spacingAlignRecord.x;
+  if (outsideAlignRecord && alignmentAlignRecord && spacingAlignRecord) {
+    outsideAlignRecord.x = 2100;
+    outsideAlignRecord.y = 1240;
+    alignmentAlignRecord.x = 2600;
+    alignmentAlignRecord.y = 1420;
+    spacingAlignRecord.x = 3300;
+    spacingAlignRecord.y = 1580;
+    setSelectedSpatialObjects(
+      [
+        outsideAlignRecord.id,
+        alignmentAlignRecord.id,
+        spacingAlignRecord.id,
+      ],
+      spacingAlignRecord.id,
+    );
+    renderFlowInspector();
+    renderFlowBoard();
+    renderSpec();
+  }
+  const distributeBeforeCenters = [
+    outsideAlignRecord,
+    alignmentAlignRecord,
+    spacingAlignRecord,
+  ]
+    .filter(Boolean)
+    .map((entry) =>
+      spatialDistributionCenter(
+        { bounds: spatialObjectBounds(entry) },
+        "horizontal",
+      ),
+    )
+    .sort((a, b) => a - b);
+  const distributionResult = distributeSelectedSpatialObjects("horizontal");
+  const distributedCenters = distributionResult
+    ? [outsideAlignRecord, alignmentAlignRecord, spacingAlignRecord]
+        .filter(Boolean)
+        .map((entry) =>
+          spatialDistributionCenter(
+            { bounds: spatialObjectBounds(entry) },
+            "horizontal",
+          ),
+        )
+        .sort((a, b) => a - b)
+    : [];
+  const distributedHorizontal =
+    distributeBeforeCenters.length === 3 &&
+    distributedCenters.length === 3 &&
+    Math.round(distributedCenters[1] - distributedCenters[0]) ===
+      Math.round(distributedCenters[2] - distributedCenters[1]);
+  const objectRestoreRecord = object ? spatialObjectById(object.id) : null;
+  const groupRestoreRecord = group ? spatialObjectById(group.id) : null;
+  const outsideRestoreRecord = outsideObject
+    ? spatialObjectById(outsideObject.id)
+    : null;
+  const alignmentRestoreRecord = alignmentObject
+    ? spatialObjectById(alignmentObject.id)
+    : null;
+  const spacingRestoreRecord = spacingObject
+    ? spatialObjectById(spacingObject.id)
+    : null;
+  if (
+    objectRestoreRecord &&
+    outsideRestoreRecord &&
+    alignmentRestoreRecord &&
+    spacingRestoreRecord &&
+    groupRestoreRecord
+  ) {
+    objectRestoreRecord.x = groupRestoreRecord.x + 70;
+    objectRestoreRecord.y = groupRestoreRecord.y + 75;
+    outsideRestoreRecord.x = 1040;
+    outsideRestoreRecord.y = 560;
+    alignmentRestoreRecord.x = 1340;
+    alignmentRestoreRecord.y = 720;
+    spacingRestoreRecord.x = 1640;
+    spacingRestoreRecord.y = 860;
+    renderFlowBoard();
+  }
   setSelectedSpatialObjects([]);
   const lassoTargetBounds = unionBounds(
     [object, outsideObject]
@@ -26635,6 +27027,12 @@ async function assertManualSpatialObjectControls() {
   if (outsideObject) {
     removeSpatialObject(outsideObject.id);
   }
+  if (alignmentObject) {
+    removeSpatialObject(alignmentObject.id);
+  }
+  if (spacingObject) {
+    removeSpatialObject(spacingObject.id);
+  }
   if (nestedGroup) {
     removeSpatialObject(nestedGroup.id);
   }
@@ -26649,6 +27047,8 @@ async function assertManualSpatialObjectControls() {
           nestedGroup?.id,
           nestedChild?.id,
           outsideObject?.id,
+          alignmentObject?.id,
+          spacingObject?.id,
         ].includes(entry.id),
       )
     : false;
@@ -26692,6 +27092,9 @@ async function assertManualSpatialObjectControls() {
       multiSelected &&
       multiContextExported &&
       multiNudged &&
+      alignmentActionsEnabled &&
+      alignedLeft &&
+      distributedHorizontal &&
       lassoSelected &&
       selectionResized &&
       groupedFromSelection &&
@@ -26703,7 +27106,7 @@ async function assertManualSpatialObjectControls() {
       selectedObjectExported &&
       exported &&
       removed,
-    "Manual spatial map note and group can be selected, locked, grouped, ungrouped, nudged, duplicated, copied/pasted, deleted, moved with members, resized, exported, and removed",
+    "Manual spatial map note and group can be selected, locked, grouped, ungrouped, aligned, distributed, nudged, duplicated, copied/pasted, deleted, moved with members, resized, exported, and removed",
     JSON.stringify({
       added,
       selectedRendered,
@@ -26732,6 +27135,13 @@ async function assertManualSpatialObjectControls() {
       multiSelected,
       multiContextExported,
       multiNudged,
+      alignmentActionsEnabled,
+      alignResult,
+      alignedLeft,
+      distributionResult,
+      distributedHorizontal,
+      distributeBeforeCenters,
+      distributedCenters,
       lassoSelected,
       lassoHitCount: lassoHits.length,
       selectionResized,
