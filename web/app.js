@@ -150,6 +150,13 @@ const actionModes = [
 
 const workbenchPromptChips = [
   {
+    id: "design-context",
+    label: "Start with your design",
+    actionMode: "build-ui",
+    action: "add-context",
+    note: "Add a screenshot, sketch, file, or reference image to the Map as project context before generating.",
+  },
+  {
     id: "font",
     label: "Try another font",
     actionMode: "refine-ui",
@@ -961,8 +968,7 @@ function bindEvents() {
     void saveImagePromptPackForHost();
   });
   dom.focusAddContext.addEventListener("click", () => {
-    setWorkbenchFocus("map");
-    dom.spatialFileInput.click();
+    openWorkbenchContextPicker();
   });
   dom.focusAutoRewrite.addEventListener("click", () => {
     setAutoRewriteEnabled(!state.autoRewrite);
@@ -3801,6 +3807,12 @@ function openWorkbenchImagePicker() {
   renderStatus("Choose an image to place as an editable canvas object");
 }
 
+function openWorkbenchContextPicker() {
+  setWorkbenchFocus("map");
+  dom.spatialFileInput?.click();
+  renderStatus("Choose a file or image to add as a Map context card");
+}
+
 function handleWorkbenchRailAction(action) {
   if (action === "size-down") {
     adjustActiveSize(-2);
@@ -4265,6 +4277,14 @@ function renderWorkbenchPromptChips() {
 function applyWorkbenchPromptChip(chipId) {
   const chip = workbenchPromptChips.find((item) => item.id === chipId);
   if (!chip) {
+    return;
+  }
+  if (chip.action === "add-context") {
+    state.board.actionMode = normalizeActionMode(chip.actionMode).id;
+    state.focusLastAppliedText = `Quick action: ${chip.label}`;
+    persistState();
+    renderAll();
+    openWorkbenchContextPicker();
     return;
   }
   state.voice.scope = "frame";
@@ -21496,12 +21516,22 @@ async function runSelfTest() {
       ),
     );
     renderWorkbenchPromptChips();
+    const firstPromptChip = dom.focusPromptChips.querySelector(
+      "[data-workbench-prompt]",
+    );
     results.push(
       assert(
         workbenchPromptChips.length ===
           dom.focusPromptChips.querySelectorAll("[data-workbench-prompt]")
             .length,
         "Workbench quick prompt chips render",
+      ),
+    );
+    results.push(
+      assert(
+        firstPromptChip?.dataset.workbenchPrompt === "design-context" &&
+          firstPromptChip.textContent.includes("Start with your design"),
+        "Workbench quick prompts start with design context import",
       ),
     );
     results.push(

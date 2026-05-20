@@ -430,6 +430,7 @@ function buildBoardResponsiveSmokeExpression() {
     if (!canvas?.visible) failures.push("canvas missing");
     if (shell && shell.width > window.innerWidth + 16) failures.push("shell wider than viewport");
     if (toolbar && toolbar.width > window.innerWidth + 16) failures.push("toolbar wider than viewport");
+    if (document.documentElement.scrollWidth > window.innerWidth + 16) failures.push("document has horizontal overflow");
     if (stage && stage.width < Math.min(300, window.innerWidth * 0.56)) failures.push("stage collapsed");
     if (canvas && canvas.height < 240) failures.push("canvas too short");
     return {

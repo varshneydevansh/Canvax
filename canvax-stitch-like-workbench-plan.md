@@ -115,6 +115,7 @@ Current completed baseline:
 - The Workbench tray is reduced to brief/context/voice/output; duplicate tray tool chips are hidden in simple mode so the canvas and dock carry the interaction.
 - The Workbench tray now uses a compact three-column command strip so the active canvas is visible in the first viewport instead of being pushed below the fold.
 - Workbench quick-prompt chips add common refinement intent such as font, drama, mobile variant, spacing, and image candidates without opening Advanced mode.
+- The first Workbench quick chip is now `Start with your design`, matching the Stitch-like first-turn pattern by routing directly to Map and opening the local screenshot/file/image context picker.
 - Workbench secondary actions now sit behind a `More actions` disclosure so the default composer focuses on the everyday frame/free-canvas/build/preview loop instead of showing every power tool at once.
 - Workbench `More actions` now includes `Add context`, which switches to Map and opens the file/image reference-card picker so designers can place supporting files and images on the spatial board without starting in Advanced mode.
 - Collapsed Workbench keeps a compact frame/surface/action/focus summary visible so canvas-first mode does not feel detached from the active task.

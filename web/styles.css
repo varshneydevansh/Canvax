@@ -5534,6 +5534,25 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
 
     body[data-workspace-mode="simple"] .focus-pad {
         grid-template-columns: 1fr;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    body[data-workspace-mode="simple"] .focus-pad-context {
+        grid-template-columns: 1fr;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    body[data-workspace-mode="simple"] .focus-pad > *,
+    body[data-workspace-mode="simple"] .focus-pad-actions,
+    body[data-workspace-mode="simple"] .focus-project-control,
+    body[data-workspace-mode="simple"] .workbench-output-card,
+    body[data-workspace-mode="simple"] .focus-pad-voice {
+        min-width: 0;
+        max-width: 100%;
     }
 
     body[data-workspace-mode="simple"] .focus-pad-copy,
@@ -5550,13 +5569,14 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
 
     .focus-project-actions {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: 1fr;
         justify-content: stretch;
     }
 
     .focus-project-actions .ghost-button {
         min-width: 0;
-        padding-inline: 0.35rem;
+        padding-inline: 0.3rem;
+        font-size: 0.78rem;
     }
 
     .focus-pad-copy h2 {
