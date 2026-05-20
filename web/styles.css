@@ -2659,7 +2659,7 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
     bottom: 5.05rem;
     z-index: 7;
     display: grid;
-    grid-template-columns: minmax(16rem, 1fr) repeat(4, auto);
+    grid-template-columns: minmax(16rem, 1fr) repeat(5, auto);
     align-items: stretch;
     gap: 0.45rem;
     width: min(68rem, calc(100vw - 1.6rem));

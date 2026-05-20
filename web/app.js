@@ -459,6 +459,7 @@ const dom = {
   workbenchComposerInput: document.querySelector("#workbench-composer-input"),
   workbenchComposerTalk: document.querySelector("#workbench-composer-talk"),
   workbenchComposerNote: document.querySelector("#workbench-composer-note"),
+  workbenchComposerPin: document.querySelector("#workbench-composer-pin"),
   workbenchComposerMake: document.querySelector("#workbench-composer-make"),
   workbenchComposerApply: document.querySelector("#workbench-composer-apply"),
   workbenchAgentLog: document.querySelector("#workbench-agent-log"),
@@ -968,6 +969,9 @@ function bindEvents() {
   });
   dom.workbenchComposerNote.addEventListener("click", () => {
     addManualVoiceNote("workbench-composer");
+  });
+  dom.workbenchComposerPin.addEventListener("click", () => {
+    pinComposerInstructionToMap();
   });
   dom.workbenchComposerMake.addEventListener("click", () => {
     commitManualVoiceDraft("workbench-composer");
@@ -3939,6 +3943,10 @@ function handleWorkbenchRailAction(action) {
     }
     return;
   }
+  if (action === "pin-note") {
+    pinComposerInstructionToMap({ promptIfEmpty: true });
+    return;
+  }
   if (action === "generate") {
     void generateCurrentScreen();
     return;
@@ -5776,6 +5784,57 @@ function addSpatialNoteObject() {
       createdFrom: "workbench-map",
     },
   });
+}
+
+function pinComposerInstructionToMap({
+  promptIfEmpty = false,
+  focusMap = true,
+} = {}) {
+  let text = cleanString(state.voice.manualDraft);
+  if (!text && promptIfEmpty) {
+    text = cleanString(
+      window.prompt(
+        "Pin a note to the spatial map",
+        state.board.goal || "Design intent",
+      ),
+    );
+  }
+  if (!text) {
+    renderStatus("Type or dictate an instruction before pinning it to Map");
+    return null;
+  }
+  state.voice.manualDraft = "";
+  syncManualVoiceDraftControls();
+  addVoiceSegment(text, { provider: "map-note" });
+  const object = addSpatialObject({
+    type: "map-note",
+    title: compactDisplayText(text, 44) || "Pinned instruction",
+    subtitle: text,
+    sourceKind: "manual-note",
+    status: "pinned instruction",
+    frameIds: [currentFrame().id],
+    meta: {
+      text,
+      codexAction:
+        "Use this pinned spoken/sketched instruction as active design intent.",
+      prompt: text,
+      createdFrom: "workbench-composer",
+      voiceProvider: "map-note",
+      frameId: currentFrame().id,
+      frameTitle: currentFrame().title,
+    },
+  });
+  if (focusMap) {
+    state.workspaceMode = "simple";
+    state.workbenchFocus = "map";
+    state.viewMode = "flow";
+    state.workbenchTrayCollapsed = true;
+    persistState();
+    renderAll();
+  }
+  void saveExportToWorkspace({ silent: true });
+  renderStatus("Pinned instruction to Map and voice context");
+  return object;
 }
 
 function addSpatialGroupObject() {
@@ -9674,6 +9733,7 @@ function syncManualVoiceDraftControls() {
   dom.voiceAddManual.disabled = !hasDraft;
   dom.focusAddManual.disabled = !hasDraft;
   dom.workbenchComposerNote.disabled = !hasDraft;
+  dom.workbenchComposerPin.disabled = !hasDraft;
 }
 
 function commitManualVoiceDraft(provider = "manual-note") {
@@ -22586,6 +22646,8 @@ async function runSelfTest() {
       assert(
         Boolean(dom.workbenchComposerInput) &&
           Boolean(dom.workbenchComposerTalk) &&
+          Boolean(dom.workbenchComposerNote) &&
+          Boolean(dom.workbenchComposerPin) &&
           Boolean(dom.workbenchComposerMake) &&
           Boolean(dom.workbenchComposerApply) &&
           Boolean(dom.focusAddImage) &&
@@ -22597,6 +22659,42 @@ async function runSelfTest() {
           Boolean(dom.workbenchAgentLog) &&
           Boolean(dom.workbenchAgentLogToggle),
         "Workbench composer, context import, review controls, voice intent lane, and agent log render",
+      ),
+    );
+    const previousPinState = {
+      workspaceMode: state.workspaceMode,
+      workbenchFocus: state.workbenchFocus,
+      workbenchTrayCollapsed: state.workbenchTrayCollapsed,
+      viewMode: state.viewMode,
+      spatialObjects: [...state.spatialObjects],
+      voice: {
+        ...state.voice,
+        segments: [...state.voice.segments],
+      },
+    };
+    updateManualVoiceDraft("Move the generated hero art to the right", {
+      render: false,
+    });
+    const pinnedComposerNote = pinComposerInstructionToMap({
+      focusMap: false,
+    });
+    const pinComposerOk =
+      pinnedComposerNote?.meta?.createdFrom === "workbench-composer" &&
+      pinnedComposerNote?.meta?.prompt?.includes("hero art") &&
+      state.voice.segments[0]?.provider === "map-note" &&
+      state.voice.manualDraft === "";
+    state.workspaceMode = previousPinState.workspaceMode;
+    state.workbenchFocus = previousPinState.workbenchFocus;
+    state.workbenchTrayCollapsed = previousPinState.workbenchTrayCollapsed;
+    state.viewMode = previousPinState.viewMode;
+    state.spatialObjects = previousPinState.spatialObjects;
+    state.voice = previousPinState.voice;
+    persistState();
+    renderAll();
+    results.push(
+      assert(
+        pinComposerOk,
+        "Workbench composer pins instructions as Map notes and voice context",
       ),
     );
     const moreActions = document.querySelector(".focus-more-actions");

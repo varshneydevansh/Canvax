@@ -289,6 +289,7 @@ mirrors, and a native Codex project surface.
 - Workbench now exposes action modes for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`.
 - Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short guided path before they need every control.
 - Workbench now has a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply in `Open scratchpad`, so the main sketch loop can stay canvas-first without crowding the default brief.
+- The Workbench composer can now `Pin` the current typed/dictated instruction directly onto the spatial Map as a visible note object while also preserving it in voice context. This makes spoken design intent part of the same canvas object layer as frames, generated outputs, references, and assets.
 - The Workbench rail now behaves like the primary bottom designer dock in `Open scratchpad`, with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
 - The rail and slider size controls now resize selected elements in Select mode and only act globally when no element is selected.
 - The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it is a compact command strip focused on brief, surface/action context, voice, and generated output.
