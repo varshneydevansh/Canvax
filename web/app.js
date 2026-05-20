@@ -2780,6 +2780,7 @@ function createInitialState() {
     mapObjectFilter: "all",
     mapObjectSearch: "",
     assetCandidatePack: null,
+    imageResultPack: null,
     spatialObjects: [],
     hiddenSpatialObjectIds: [],
     selectedSpatialObjectId: null,
@@ -2805,6 +2806,7 @@ function createInitialState() {
       designContext: null,
       designKitGallery: null,
       designJury: null,
+      imageResultPack: null,
       outputDigest: null,
       outputActivity: [],
       sessionEvents: [],
@@ -4477,6 +4479,32 @@ function normalizeAssetCandidatePack(pack) {
     requiresOpenAiApiKey: Boolean(pack.requiresOpenAiApiKey),
     reviewSummary: buildAssetCandidateReviewSummary(candidates),
     candidates,
+  };
+}
+
+function normalizeImageResultPack(pack) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    return null;
+  }
+  const results = Array.isArray(pack.results)
+    ? pack.results
+        .filter((result) => result && typeof result === "object")
+        .map((result) => ({
+          ...result,
+          candidateId: cleanString(result.candidateId),
+          slotId: cleanString(result.slotId || result.outputSlot?.slotId),
+          imagePath: cleanString(result.imagePath || result.outputSlot?.imagePath),
+          status: cleanString(result.status || "returned"),
+          accepted: Boolean(result.accepted || result.outputSlot?.accepted),
+        }))
+        .filter((result) => result.candidateId && result.imagePath)
+    : [];
+  return {
+    ...pack,
+    kind: pack.kind || "canvax-image-results",
+    requiresOpenAiApiKey: Boolean(pack.requiresOpenAiApiKey),
+    results,
+    resultCount: results.length,
   };
 }
 
@@ -7323,6 +7351,42 @@ function assetCandidateById(candidateId) {
   return candidates.find((candidate) => candidate.id === candidateId) || null;
 }
 
+function latestImageResultForCandidate(candidateId) {
+  const id = cleanString(candidateId);
+  if (!id) {
+    return null;
+  }
+  const results = state.imageResultPack?.results || [];
+  return (
+    results
+      .slice()
+      .reverse()
+      .find((result) => result.candidateId === id && result.imagePath) || null
+  );
+}
+
+function assetCandidateSlotImageSource(candidate) {
+  const slots = Array.isArray(candidate?.outputSlots)
+    ? candidate.outputSlots
+    : [];
+  const slot = slots.find((item) => item?.imagePath) || null;
+  const result = latestImageResultForCandidate(candidate?.id);
+  const imagePath = cleanString(result?.imagePath || slot?.imagePath);
+  if (!imagePath) {
+    return null;
+  }
+  const source = resolveAssetCandidateImageSource(imagePath);
+  if (!source) {
+    return null;
+  }
+  return {
+    source,
+    slot,
+    result,
+    accepted: Boolean(result?.accepted || slot?.accepted),
+  };
+}
+
 function assetCandidateElements(candidateId) {
   return state.frames.flatMap((frame) =>
     frame.elements
@@ -7359,19 +7423,30 @@ function assetCandidateReviewState(candidate) {
   const attached = latestAssetCandidateElement(candidate?.id, {
     preferImage: true,
   });
-  if (accepted) {
-    return { label: "Accepted", tone: "accepted", attached };
+  const imported = assetCandidateSlotImageSource(candidate);
+  const previewSrc =
+    attached?.element?.imageDataUrl ||
+    attached?.element?.src ||
+    imported?.source?.src ||
+    "";
+  if (accepted || imported?.accepted) {
+    return { label: "Accepted", tone: "accepted", attached, imported, previewSrc };
   }
   if (attached?.element?.imageDataUrl || attached?.element?.src) {
-    return { label: "Attached", tone: "attached", attached };
+    return { label: "Attached", tone: "attached", attached, imported, previewSrc };
+  }
+  if (imported?.source?.src) {
+    return { label: "Returned", tone: "attached", attached, imported, previewSrc };
   }
   if (latestAssetCandidateElement(candidate?.id)) {
-    return { label: "Slot placed", tone: "placed", attached };
+    return { label: "Slot placed", tone: "placed", attached, imported, previewSrc };
   }
   return {
     label: candidate?.status === "accepted" ? "Accepted" : "Prompt-ready",
     tone: candidate?.status === "accepted" ? "accepted" : "ready",
     attached: null,
+    imported: null,
+    previewSrc,
   };
 }
 
@@ -7613,6 +7688,7 @@ function renderAssetCandidateTray() {
           const placement = candidate.placement || "whole frame";
           const review = assetCandidateReviewState(candidate);
           const previewImage =
+            review.previewSrc ||
             review.attached?.element?.imageDataUrl ||
             review.attached?.element?.src ||
             "";
@@ -7634,6 +7710,7 @@ function renderAssetCandidateTray() {
               <div class="asset-candidate-review-row">
                 <span class="asset-candidate-status" data-tone="${escapeHtml(review.tone)}">${escapeHtml(review.label)}</span>
                 ${review.attached ? `<button class="ghost-button compact" type="button" data-asset-candidate-select="${escapeHtml(candidate.id)}">Select</button>` : ""}
+                ${!review.attached && review.imported ? `<span class="asset-candidate-status" data-tone="attached">Imported result</span>` : ""}
               </div>
               ${
                 previewImage
@@ -17478,6 +17555,8 @@ async function refreshPreviewStateFromServer() {
       designKitGallery:
         data.designKitGallery || state.serverStatus.designKitGallery || null,
       designJury: data.designJury || state.serverStatus.designJury || null,
+      imageResultPack:
+        data.imageResultPack || state.serverStatus.imageResultPack || null,
       outputDigest: nextOutputDigest,
       outputActivity: nextOutputActivity,
       transcriptBridge: data.transcriptBridge || null,
@@ -17519,6 +17598,9 @@ async function refreshPreviewStateFromServer() {
         state.serverStatus.sessionEventsPath ||
         "",
     };
+    state.imageResultPack = normalizeImageResultPack(
+      state.serverStatus.imageResultPack,
+    );
     syncSpatialObjectsFromHandoffs();
     importTranscriptBridge(data.transcriptBridge);
     renderCheckpointPanel();
@@ -17540,6 +17622,7 @@ async function refreshPreviewStateFromServer() {
       designContext: state.serverStatus.designContext || null,
       designKitGallery: state.serverStatus.designKitGallery || null,
       designJury: state.serverStatus.designJury || null,
+      imageResultPack: state.serverStatus.imageResultPack || null,
       outputDigest: state.serverStatus.outputDigest || null,
       outputActivity: state.serverStatus.outputActivity || [],
       sessionEvents: state.serverStatus.sessionEvents || [],
@@ -26058,6 +26141,7 @@ async function assertAssetCandidateTrayPlacement() {
   const previousSelection = selectionIds();
   const previousSelectedElementId = state.selectedElementId;
   const previousAssetCandidatePack = structuredClone(state.assetCandidatePack);
+  const previousImageResultPack = structuredClone(state.imageResultPack);
   const history = ensureHistory(frame.id);
   const previousHistory = {
     past: structuredClone(history.past),
@@ -26065,6 +26149,9 @@ async function assertAssetCandidateTrayPlacement() {
   };
   const candidateId = "asset-selftest-region";
   const pathCandidateId = "asset-selftest-path-region";
+  const resultCandidateId = "asset-selftest-result-region";
+  const resultImageDataUrl =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Crect width='32' height='32' fill='%230c8d7b'/%3E%3C/svg%3E";
 
   state.assetCandidatePack = normalizeAssetCandidatePack({
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -26099,6 +26186,34 @@ async function assertAssetCandidateTrayPlacement() {
         aspectRatio: "1:1",
         outputSlots: [],
       },
+      {
+        id: resultCandidateId,
+        type: "region",
+        status: "prompt-ready",
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
+        title: "Self-test hosted result region",
+        prompt: "Show a hosted image result imported from the no-API return pack.",
+        negativePrompt: "",
+        bounds: { x: 0.36, y: 0.48, w: 0.18, h: 0.16 },
+        placement: "center",
+        aspectRatio: "1:1",
+        outputSlots: [],
+      },
+    ],
+  });
+  state.imageResultPack = normalizeImageResultPack({
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-image-results",
+    requiresOpenAiApiKey: false,
+    results: [
+      {
+        kind: "canvax-image-result",
+        candidateId: resultCandidateId,
+        slotId: `${resultCandidateId}-slot-1`,
+        status: "returned",
+        imagePath: resultImageDataUrl,
+      },
     ],
   });
   const normalizedCandidate = assetCandidateById(candidateId);
@@ -26124,6 +26239,13 @@ async function assertAssetCandidateTrayPlacement() {
       `[data-asset-candidate-path="${pathCandidateId}"]`,
     ),
   );
+  const hostedResultReview = assetCandidateReviewState(
+    assetCandidateById(resultCandidateId),
+  );
+  const hostedResultRendered =
+    hostedResultReview?.tone === "attached" &&
+    hostedResultReview?.previewSrc?.startsWith("data:image/svg+xml") &&
+    dom.assetCandidateTray.innerHTML.includes("Imported result");
   const element = placeAssetCandidatePlaceholder(candidateId);
   const file = await createSelfTestImageFile();
   const imageElement = await placeAssetCandidateImage(candidateId, file);
@@ -26156,6 +26278,7 @@ async function assertAssetCandidateTrayPlacement() {
     clipboardHostTaskText.includes("Output slot:") &&
     clipboardHostTaskText.includes("Requires OpenAI API key: no") &&
     pathImportInputRendered &&
+    hostedResultRendered &&
     normalizedCandidate?.placementMap?.kind === "canvax-asset-placement" &&
     normalizedCandidate?.outputSlots?.[0]?.slotId ===
       `${candidateId}-slot-1` &&
@@ -26180,8 +26303,8 @@ async function assertAssetCandidateTrayPlacement() {
     acceptedSlot?.status === "accepted" &&
     acceptedSlot?.imageElementId === imageElement.id &&
     placementMap.targetSelector?.includes(candidateId) &&
-    reviewSummary.placementReady === 2 &&
-    reviewSummary.slotCount === 2 &&
+    reviewSummary.placementReady === 3 &&
+    reviewSummary.slotCount === 3 &&
     reviewSummary.attached === 1 &&
     reviewSummary.accepted === 1 &&
     reviewSummary.kind === "canvax-asset-candidate-review" &&
@@ -26192,7 +26315,7 @@ async function assertAssetCandidateTrayPlacement() {
     reviewSummary.hostHandoff?.copyReadyFiles?.includes(
       "exports/canvax-image-generation-brief-latest.md",
     ) &&
-    reviewGroup?.total === 2 &&
+    reviewGroup?.total === 3 &&
     reviewGroup?.acceptedCandidateIds?.includes(candidateId) &&
     reviewSummary.acceptedCandidateIds?.includes(candidateId) &&
     acceptedSummary?.imageElementId === imageElement.id;
@@ -26203,6 +26326,7 @@ async function assertAssetCandidateTrayPlacement() {
   history.past = previousHistory.past;
   history.future = previousHistory.future;
   state.assetCandidatePack = previousAssetCandidatePack;
+  state.imageResultPack = previousImageResultPack;
   setSelectedElements(previousSelection, previousSelectedElementId);
   persistState();
   renderAll();

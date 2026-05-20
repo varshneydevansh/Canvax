@@ -1262,6 +1262,36 @@ function scopePreviewManifestToLiveProject(manifest, liveExport) {
   });
 }
 
+function scopeImageResultPackToLiveProject(pack, liveExport) {
+  if (!pack || typeof pack !== "object") {
+    return null;
+  }
+  const project = liveExportProject(liveExport);
+  if (!project) {
+    return pack;
+  }
+  const packProjectId = cleanString(pack.project?.id || pack.projectId);
+  if (packProjectId && packProjectId !== project.id) {
+    return null;
+  }
+  const frameIds = liveExportFrameIds(liveExport);
+  const results = Array.isArray(pack.results)
+    ? pack.results.filter((result) => {
+        const frameId = cleanString(result.sourceFrameId || result.frameId);
+        return !frameId || frameIds.has(frameId);
+      })
+    : [];
+  if (!results.length && Array.isArray(pack.results) && pack.results.length) {
+    return null;
+  }
+  return {
+    ...pack,
+    project: pack.project || project,
+    results,
+    resultCount: results.length,
+  };
+}
+
 async function readCheckpointHistoryForLiveProject(liveExport) {
   const project = liveExportProject(liveExport);
   if (!project?.id) {
@@ -3366,6 +3396,10 @@ async function handlePreviewState(response) {
   const designJury = enhanceDesignJuryReview(
     await readOptionalJson(designJuryJsonPath),
   );
+  const imageResultPack = scopeImageResultPackToLiveProject(
+    await readOptionalJson(imageResultsJsonPath),
+    liveExport,
+  );
   const projectRegistry = await readOptionalJson(projectRegistryJsonPath);
   const codexOutputManifest = scopePreviewManifestToLiveProject(
     await readOptionalJson(codexOutputManifestPath),
@@ -3405,6 +3439,7 @@ async function handlePreviewState(response) {
     previewSnapshots,
     previewTweak,
     designJury,
+    imageResultPack,
     projectRegistry,
     paths: {
       liveJsonPath,
