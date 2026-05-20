@@ -56,6 +56,41 @@ const checks = [
       "Manual taste review for first-time-designer clarity is still required, but the default surface now has a four-step guided Start here path, an inline local output review gate, and a compact Workbench Agent log.",
   },
   {
+    id: "local-project-switching",
+    requirement: "Local project switching keeps Canvax handoff and output context scoped to the active board",
+    currentState: "partial-local",
+    evidence: [
+      {
+        path: "web/app.js",
+        includes: [
+          "function buildProjectExportMetadata",
+          "projectRegistry",
+          "projectSnapshotKey",
+          "buildMaterializePayloadWithMode",
+          "publishWorkspaceOutput",
+        ],
+      },
+      {
+        path: "scripts/canvax.mjs",
+        includes: [
+          "function scopePreviewManifestToLiveProject",
+          "function readCheckpointHistoryForLiveProject",
+          "project-scoped",
+          "manifestEntryMatchesLiveProject",
+        ],
+      },
+      {
+        path: "docs/FEATURES.md",
+        includes: [
+          "`/api/preview-state` is scoped to the active project",
+          "Checkpoint history is read from that project's checkpoint index",
+        ],
+      },
+    ],
+    remainingGap:
+      "Project switching is still local/browser-profile scoped rather than hosted/team synced, and generated output history remains file-backed instead of a full collaborative project database.",
+  },
+  {
     id: "unified-workbench-advanced",
     requirement: "Unified Workbench and Advanced experience",
     currentState: "partial-local",

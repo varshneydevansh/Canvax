@@ -1301,6 +1301,26 @@ async function validateRunningPreviewState() {
     const changes = Array.isArray(payload?.previewManifest?.changes)
       ? payload.previewManifest.changes
       : [];
+    const liveProjectId =
+      typeof payload?.liveExport?.project?.id === "string"
+        ? payload.liveExport.project.id
+        : "";
+    const checkpointProjectId =
+      typeof payload?.checkpointHistory?.project?.id === "string"
+        ? payload.checkpointHistory.project.id
+        : "";
+    const previewManifestProjectId =
+      typeof payload?.previewManifest?.project?.id === "string"
+        ? payload.previewManifest.project.id
+        : "";
+    const projectScopePassed = Boolean(
+      !liveProjectId ||
+        ((checkpointProjectId === liveProjectId ||
+          payload?.checkpointHistory === null) &&
+          (!payload?.previewManifest ||
+            !previewManifestProjectId ||
+            previewManifestProjectId === liveProjectId)),
+    );
     const changeIds = changes
       .map((entry) =>
         entry && typeof entry === "object" ? String(entry.id || "") : "",
@@ -1329,13 +1349,14 @@ async function validateRunningPreviewState() {
           typeof event.type === "string" &&
           typeof event.id === "string",
       ) &&
+      projectScopePassed &&
       changeIds.length === new Set(changeIds).size,
     );
     results.push({
       name: "preview-state payload is valid when the Canvax service is running",
       passed,
       detail: passed
-        ? `${liveUrl} (${changeIds.length} unique changes)`
+        ? `${liveUrl} (${changeIds.length} unique changes, project ${liveProjectId || "global"})`
         : "invalid preview-state payload",
     });
 

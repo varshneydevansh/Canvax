@@ -282,6 +282,7 @@ mirrors, and a native Codex project surface.
 - Autosnap and manual freeze write live handoff files.
 - Captures and checkpoints preserve collaboration moments.
 - Workbench now exposes project switching, viewport choice, new frame creation, connected section creation, free-canvas mode, local screen generation, generated-output correction marks, and the `Open scratchpad` designer rail without requiring the user to open Advanced mode.
+- `/api/preview-state` now scopes checkpoint history and generated output manifests to the active project when project metadata is available. Checkpoints come from `exports/projects/<project-id>/canvax-checkpoints.json`; output targets/artifacts/changes must match the active project id or active live-export frame ids. This reduces stale generated cards when switching local boards.
 - Workbench surface presets now cover UI, poster, slide, book-spread, storyboard, comic-page, square, and free-canvas work so Canvax can support broader design/illustration planning, not only app screens.
 - Workbench now exposes action modes for `Build UI`, `Refine UI`, `Write spec`, `Image prompt`, and `Variations`.
 - Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short guided path before they need every control.

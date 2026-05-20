@@ -1128,6 +1128,149 @@ async function updateProjectCheckpointIndex(project, record) {
   );
 }
 
+function manifestProjectId(value) {
+  const explicit =
+    cleanString(value?.projectId) ||
+    cleanString(value?.activeProjectId) ||
+    cleanString(value?.project?.id);
+  if (explicit) {
+    return explicit;
+  }
+  const kind = cleanString(value?.kind);
+  const looksLikeProject =
+    kind === "canvax-project" ||
+    cleanString(value?.storage) === "browser-local-plus-file-export" ||
+    Boolean(value?.handoff) ||
+    Boolean(value?.compatibilityHandoff) ||
+    Array.isArray(value?.projects);
+  return looksLikeProject ? cleanString(value?.id) : "";
+}
+
+function normalizeManifestProject(value) {
+  const id = cleanString(value?.id) || manifestProjectId(value);
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    title:
+      cleanString(value?.title) ||
+      cleanString(value?.projectTitle) ||
+      cleanString(value?.name),
+  };
+}
+
+function liveExportProject(liveExport) {
+  return normalizeManifestProject(liveExport?.project);
+}
+
+function liveExportFrameIds(liveExport) {
+  const ids = new Set();
+  if (Array.isArray(liveExport?.frames)) {
+    liveExport.frames.forEach((frame) => {
+      const id = cleanString(frame?.id);
+      if (id) {
+        ids.add(id);
+      }
+    });
+  }
+  [
+    cleanString(liveExport?.activeFrameId),
+    cleanString(liveExport?.entryFrameId),
+  ].forEach((id) => {
+    if (id) {
+      ids.add(id);
+    }
+  });
+  return ids;
+}
+
+function manifestEntryFrameIds(entry) {
+  const ids = normalizeStringArray(entry?.frameIds);
+  [
+    cleanString(entry?.frameId),
+    cleanString(entry?.sourceFrameId),
+  ].forEach((id) => {
+    if (id) {
+      ids.push(id);
+    }
+  });
+  return Array.from(new Set(ids));
+}
+
+function manifestEntryMatchesLiveProject(entry, project, frameIds) {
+  const entryProjectId = manifestProjectId(entry);
+  if (entryProjectId) {
+    return entryProjectId === project.id;
+  }
+  const ids = manifestEntryFrameIds(entry);
+  if (ids.length) {
+    return ids.some((id) => frameIds.has(id));
+  }
+  return false;
+}
+
+function scopePreviewManifestToLiveProject(manifest, liveExport) {
+  const project = liveExportProject(liveExport);
+  if (!project || !manifest || typeof manifest !== "object") {
+    return manifest;
+  }
+  const manifestProject = manifestProjectId(manifest);
+  if (manifestProject) {
+    return manifestProject === project.id ? manifest : null;
+  }
+  const normalized = normalizePreviewManifest(manifest);
+  const frameIds = liveExportFrameIds(liveExport);
+  const targets = normalizePreviewTargets(normalized.targets || []).filter(
+    (target) => manifestEntryMatchesLiveProject(target, project, frameIds),
+  );
+  const artifacts = normalizePreviewArtifacts(normalized.artifacts || []).filter(
+    (artifact) => manifestEntryMatchesLiveProject(artifact, project, frameIds),
+  );
+  const changes = normalizePreviewChanges(
+    normalized.changes || [],
+  ).filter((change) => manifestEntryMatchesLiveProject(change, project, frameIds));
+  if (!targets.length && !artifacts.length && !changes.length) {
+    return null;
+  }
+  return normalizePreviewManifest({
+    ...normalized,
+    project,
+    targets,
+    artifacts,
+    changes,
+    previewUrl: "",
+  });
+}
+
+async function readCheckpointHistoryForLiveProject(liveExport) {
+  const project = liveExportProject(liveExport);
+  if (!project?.id) {
+    return enhanceCheckpointHistory(await readOptionalJson(checkpointsIndexPath));
+  }
+  const projectIndexPath = resolve(
+    projectExportsRoot,
+    project.id,
+    "canvax-checkpoints.json",
+  );
+  const projectIndex = await readOptionalJson(projectIndexPath);
+  if (projectIndex && typeof projectIndex === "object") {
+    return enhanceCheckpointHistory({
+      ...projectIndex,
+      project: projectIndex.project || project,
+      source: "project-scoped",
+    });
+  }
+  return enhanceCheckpointHistory({
+    schemaVersion: HANDOFF_SCHEMA_VERSION,
+    kind: "canvax-project-checkpoints",
+    updatedAt: "",
+    project,
+    source: "project-scoped",
+    items: [],
+  });
+}
+
 async function handleSaveExport(request, response) {
   const payload = await readJson(request);
   if (!payload.package || !Array.isArray(payload.package.frames)) {
@@ -3080,12 +3223,18 @@ async function handlePublishWorkspaceOutput(request, response) {
   const payload = await readJson(request);
   const frameId = cleanString(payload?.frameId);
   const frameTitle = cleanString(payload?.frameTitle);
+  const project = normalizeManifestProject(payload?.project);
   const clear = Boolean(payload?.clear);
   const existingCodexManifest = await readOptionalJson(codexOutputManifestPath);
   const manualPreviewManifest = await readOptionalJson(previewManifestPath);
   const existingManifest = normalizePreviewManifest(
     existingCodexManifest || {},
   );
+  const liveProjectStub = {
+    project,
+    activeFrameId: frameId,
+    frames: frameId ? [{ id: frameId, title: frameTitle }] : [],
+  };
 
   if (clear) {
     try {
@@ -3099,7 +3248,10 @@ async function handlePublishWorkspaceOutput(request, response) {
       changeCount: 0,
       manifest: null,
       previewManifest: enhanceManifest(
-        mergeManifestSources(manualPreviewManifest, null),
+        scopePreviewManifestToLiveProject(
+          mergeManifestSources(manualPreviewManifest, null),
+          liveProjectStub,
+        ),
       ),
     });
   }
@@ -3111,6 +3263,7 @@ async function handlePublishWorkspaceOutput(request, response) {
   const nextManifest = buildAutoPublishedCodexManifest(existingManifest, {
     frameId,
     frameTitle,
+    project,
     changeEntries,
   });
 
@@ -3135,9 +3288,12 @@ async function handlePublishWorkspaceOutput(request, response) {
       ? enhanceManifest(nextManifest)
       : null,
     previewManifest: enhanceManifest(
-      mergeManifestSources(
-        manualPreviewManifest,
-        hasManifestContent(nextManifest) ? nextManifest : null,
+      scopePreviewManifestToLiveProject(
+        mergeManifestSources(
+          manualPreviewManifest,
+          hasManifestContent(nextManifest) ? nextManifest : null,
+        ),
+        liveProjectStub,
       ),
     ),
     codexOutputManifestPath,
@@ -3177,11 +3333,14 @@ async function handlePreviewState(response) {
   const transcriptBridge = enhanceTranscriptBridge(
     await readOptionalJson(transcriptBridgePath),
   );
-  const checkpointHistory = enhanceCheckpointHistory(
-    await readOptionalJson(checkpointsIndexPath),
+  const checkpointHistory = await readCheckpointHistoryForLiveProject(
+    liveExport,
   );
   const sessionEvents = await readRecentSessionEvents(sessionEventsPath, 48);
-  const previewManifest = await readOptionalJson(previewManifestPath);
+  const previewManifest = scopePreviewManifestToLiveProject(
+    await readOptionalJson(previewManifestPath),
+    liveExport,
+  );
   const previewTweak = enhancePreviewTweak(
     await readOptionalJson(previewTweakJsonPath),
   );
@@ -3189,7 +3348,10 @@ async function handlePreviewState(response) {
     await readOptionalJson(designJuryJsonPath),
   );
   const projectRegistry = await readOptionalJson(projectRegistryJsonPath);
-  const codexOutputManifest = await readOptionalJson(codexOutputManifestPath);
+  const codexOutputManifest = scopePreviewManifestToLiveProject(
+    await readOptionalJson(codexOutputManifestPath),
+    liveExport,
+  );
   const workspaceFollow = await buildLiveWorkspaceFollowState({
     liveExport,
     codexOutputManifest,
@@ -3698,6 +3860,11 @@ function normalizeMaterializePayload(value) {
     generatedAt: cleanString(source.generatedAt) || new Date().toISOString(),
     transport: normalizeTransportDescriptor(source.transport),
     board: normalizeMaterializeBoard(source.board),
+    project: normalizeProjectExportMetadata(source.project, {
+      board: source.board || {},
+      frames: source.frame ? [source.frame] : [],
+      activeFrameId: source.frame?.id || "",
+    }),
     generation: normalizeMaterializeGeneration(
       source.generation || source.board?.generation,
     ),
@@ -4259,6 +4426,7 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
   const frameId = cleanString(materialized.frame.id) || "frame";
   const frameTitle = cleanString(materialized.frame.title) || "Untitled frame";
   const generation = normalizeMaterializeGeneration(materialized.generation);
+  const project = normalizeManifestProject(materialized.project);
   const generationSummary = buildMaterializeGenerationSummary(generation);
   const generatedScreen = generation.mode === "generate-screen";
   const targetId = `materialize-target-${frameId}`;
@@ -4294,6 +4462,7 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
     ...manifest,
     updatedAt: new Date().toISOString(),
     source: "canvax-materialize",
+    project,
     previewUrl: "",
     notes,
     targets: [
@@ -4320,6 +4489,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
           refinement.summary ||
           (generatedScreen ? generationSummary : "Materialized preview refreshed."),
         generationSummary,
+        project,
+        projectId: project?.id || "",
         refinement,
       },
       ...preservedTargets,
@@ -4345,6 +4516,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
           refinement.summary ||
           (generatedScreen ? generationSummary : "Materialized preview refreshed."),
         generationSummary,
+        project,
+        projectId: project?.id || "",
         refinement,
       },
       {
@@ -4364,6 +4537,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
           refinement.summary ||
           (generatedScreen ? generationSummary : "Materialized preview context."),
         generationSummary,
+        project,
+        projectId: project?.id || "",
         refinement,
       },
       {
@@ -4385,6 +4560,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
           refinement.summary ||
           (generatedScreen ? generationSummary : "Materialized preview metadata."),
         generationSummary,
+        project,
+        projectId: project?.id || "",
         refinement,
       },
       ...(materialized.sketchPath
@@ -4406,6 +4583,8 @@ function upsertMaterializedPreviewManifest(existingManifest, materialized) {
                 refinement.summary ||
                 (generatedScreen ? generationSummary : "Sketch overlay saved."),
               generationSummary,
+              project,
+              projectId: project?.id || "",
               refinement,
             },
           ]
@@ -6790,6 +6969,8 @@ function enhanceCheckpointHistory(value) {
   }
   return {
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
+    project: normalizeManifestProject(value.project),
+    source: cleanString(value.source),
     items: Array.isArray(value.items)
       ? value.items.map((item) => enhanceCheckpointRecord(item)).filter(Boolean)
       : [],
@@ -7659,7 +7840,7 @@ function clearPrimaryPreviewTarget(existingManifest) {
 
 function buildAutoPublishedCodexManifest(
   existingManifest,
-  { frameId = "", frameTitle = "", changeEntries = [] } = {},
+  { frameId = "", frameTitle = "", project = null, changeEntries = [] } = {},
 ) {
   const baseManifest = normalizePreviewManifest(existingManifest || {});
   const targetLabel = frameTitle || "the current board";
@@ -7672,6 +7853,7 @@ function buildAutoPublishedCodexManifest(
     ...baseManifest,
     updatedAt: new Date().toISOString(),
     source: "codex-auto-publish",
+    project: project || baseManifest.project,
     notes,
     changes: changeEntries,
     targets: baseManifest.targets,
@@ -7683,6 +7865,7 @@ async function buildLiveWorkspaceFollowState({
   liveExport,
   codexOutputManifest,
 } = {}) {
+  const project = liveExportProject(liveExport);
   const activeFrameId =
     cleanString(liveExport?.activeFrameId) ||
     cleanString(liveExport?.entryFrameId);
@@ -7704,7 +7887,7 @@ async function buildLiveWorkspaceFollowState({
       ? codexOutputManifest.changes.length
       : 0,
   });
-  const cacheKey = `${activeFrameId}::${frameTitle}::${manifestSignature}`;
+  const cacheKey = `${project?.id || "global"}::${activeFrameId}::${frameTitle}::${manifestSignature}`;
   if (
     workspaceFollowCache &&
     workspaceFollowCache.key === cacheKey &&
@@ -7729,6 +7912,7 @@ async function buildLiveWorkspaceFollowState({
       {
         frameId: activeFrameId,
         frameTitle,
+        project,
         changeEntries,
       },
     );
@@ -7784,7 +7968,7 @@ async function buildLiveWorkspaceFollowState({
 
 function buildLiveWorkspaceFollowManifest(
   existingManifest,
-  { frameId = "", frameTitle = "", changeEntries = [] } = {},
+  { frameId = "", frameTitle = "", project = null, changeEntries = [] } = {},
 ) {
   const baseManifest = normalizePreviewManifest(existingManifest || {});
   const liveChanges = mergeLiveWorkspaceChanges(
@@ -7797,6 +7981,7 @@ function buildLiveWorkspaceFollowManifest(
     ...baseManifest,
     updatedAt: new Date().toISOString(),
     source: source ? `${source}+workspace-follow` : "codex-workspace-follow",
+    project: project || baseManifest.project,
     notes: baseManifest.notes,
     targets: baseManifest.targets,
     artifacts: baseManifest.artifacts,
@@ -7980,6 +8165,7 @@ function normalizePreviewManifest(value, existingManifest = null) {
     version: Number(next.version) || Number(fallback.version) || 1,
     updatedAt: new Date().toISOString(),
     source: cleanString(next.source) || cleanString(fallback.source) || "codex",
+    project: normalizeManifestProject(next.project || fallback.project),
     previewUrl:
       cleanString(next.previewUrl) ||
       primaryTarget?.url ||
@@ -8107,6 +8293,8 @@ function normalizePreviewTarget(entry, index = 0) {
           sourceFrameTitle: "",
           sourceFrameUpdatedAt: "",
           changeSummary: "",
+          project: null,
+          projectId: "",
           refinement: normalizeMaterializeRefinement(null),
         }
       : null;
@@ -8145,6 +8333,8 @@ function normalizePreviewTarget(entry, index = 0) {
     sourceFrameTitle: cleanString(entry.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(entry.sourceFrameUpdatedAt),
     changeSummary: cleanString(entry.changeSummary),
+    project: normalizeManifestProject(entry.project),
+    projectId: manifestProjectId(entry),
     refinement: normalizeMaterializeRefinement(entry.refinement),
   };
 }
@@ -8177,6 +8367,8 @@ function normalizePreviewArtifact(entry, index = 0) {
           sourceFrameTitle: "",
           sourceFrameUpdatedAt: "",
           changeSummary: "",
+          project: null,
+          projectId: "",
           refinement: normalizeMaterializeRefinement(null),
         }
       : null;
@@ -8209,6 +8401,8 @@ function normalizePreviewArtifact(entry, index = 0) {
     sourceFrameTitle: cleanString(entry.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(entry.sourceFrameUpdatedAt),
     changeSummary: cleanString(entry.changeSummary),
+    project: normalizeManifestProject(entry.project),
+    projectId: manifestProjectId(entry),
     refinement: normalizeMaterializeRefinement(entry.refinement),
   };
 }
@@ -8254,6 +8448,8 @@ function normalizePreviewChange(entry, index = 0) {
           kind: "updated",
           summary: "",
           frameIds: [],
+          project: null,
+          projectId: "",
         }
       : null;
   }
@@ -8277,6 +8473,8 @@ function normalizePreviewChange(entry, index = 0) {
     kind: cleanString(entry.kind) || "updated",
     summary: cleanString(entry.summary) || cleanString(entry.description),
     frameIds: normalizeStringArray(entry.frameIds),
+    project: normalizeManifestProject(entry.project),
+    projectId: manifestProjectId(entry),
   };
 }
 

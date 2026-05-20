@@ -20886,6 +20886,7 @@ async function buildMaterializePayloadWithMode(
     storageVersion: STORAGE_VERSION,
     generatedAt: new Date().toISOString(),
     transport: currentTransportDescriptor(),
+    project: buildProjectExportMetadata(),
     board: structuredClone(state.board),
     generation: {
       mode: mode === "generate-screen" ? "generate-screen" : "materialize",
@@ -21280,6 +21281,7 @@ async function publishWorkspaceOutput(options = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        project: buildProjectExportMetadata(),
         frameId,
         frameTitle,
       }),
@@ -21336,7 +21338,12 @@ async function clearPublishedCodexOutput() {
     const response = await fetch("/api/publish-workspace-output", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clear: true }),
+      body: JSON.stringify({
+        clear: true,
+        project: buildProjectExportMetadata(),
+        frameId: currentFrame()?.id || "",
+        frameTitle: currentFrame()?.title || "",
+      }),
     });
     const data = await response.json();
     if (!response.ok) {

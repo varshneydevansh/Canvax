@@ -92,6 +92,12 @@ The `Browse` action opens a searchable card browser for the same local registry,
 with active-project state, frame counts, active-frame labels, and card-level
 Open / Duplicate / Delete actions.
 
+`/api/preview-state` is scoped to the active project when a project id is known.
+Checkpoint history is read from that project's checkpoint index, and generated
+output manifests are filtered by project id or by frame ids that exist in the
+active live export. This prevents stale generated cards and checkpoint trails
+from another local board from appearing after a project switch.
+
 ```mermaid
 flowchart LR
     Picker[Project picker] --> Registry[local project registry]

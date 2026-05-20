@@ -116,6 +116,13 @@ simple default, while the project folder prevents build requests, image
 candidates, image-host tasks, and checkpoints from becoming ambiguous after a
 designer switches projects.
 
+The local service also scopes the live board state it sends back to the browser.
+`/api/preview-state` reads checkpoint history from the active project's
+`exports/projects/<project-id>/canvax-checkpoints.json` and filters generated
+output manifests to the active project or active project frame ids. That keeps
+old generated cards and checkpoint trails from another local project from
+appearing on the current Map after a project switch.
+
 ## What To Draw
 
 Canvax is intentionally generic. Use it for:
