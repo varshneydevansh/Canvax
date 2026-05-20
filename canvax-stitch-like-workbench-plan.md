@@ -177,6 +177,12 @@ Current completed baseline:
   and Canvax inspection context into a named no-API design-jury verdict for
   hierarchy, accessibility, responsiveness, brand/system fit, tweak targeting,
   motion/readability, visual integrity, and production readiness.
+- Workbench now exposes that same local design-jury pass as a `Review` action
+  on the connected output surface. It writes
+  `exports/canvax-design-jury-latest.{json,md}`, records a
+  `design-review-executed` event, and keeps the result visible as a compact
+  output badge so designers can see whether the generated surface is ready,
+  blocked, stale, or needs review.
 - The Design kit card now includes local presets for product apps, poster
   systems, book spreads, dashboards, and storyboards, so designers can apply a
   reusable surface/mood/action/recipe bundle without manually editing every
@@ -428,6 +434,23 @@ The user should not need to think about `exports/`, manifests, or API keys durin
   - Toggle `Sketch`, `Split`, and `Output`.
   - Draw correction marks on the large output surface.
   - Run responsive screenshots/smoke checks.
+
+### Task 2.5: Add Output Review Verdict To Workbench
+
+- **Status**: Shipped initial version. Workbench output cards now expose `Review` and show local design-jury verdict badges.
+- **Location**: `scripts/canvax.mjs`, `web/index.html`, `web/app.js`, `web/styles.css`
+- **Description**: Let a designer run the local no-API design-jury gate from the visible output surface instead of a terminal command. The board posts the connected artifact path to `/api/run-design-review`, writes the latest JSON/Markdown review, records the event, and renders a compact `Ready` / `Needs review` / `Blocked` / `Review stale` badge.
+- **Complexity**: 5/10
+- **Dependencies**: Tasks 2.2-2.4 and local `npm run review-jury`
+- **Acceptance Criteria**:
+  - Review button appears only when an output artifact is attached.
+  - The button shows in-flight feedback while the review runs.
+  - Verdict persists through `/api/preview-state` and refreshes on the output card.
+  - A stale verdict is marked when the latest review does not match the connected output path.
+- **Validation**:
+  - `POST /api/run-design-review` against a current materialized artifact returns `executed: true`.
+  - `node scripts/browser-regression.mjs`
+  - `npm run check`
 
 ## Sprint 3: Real Codex Task Pack
 

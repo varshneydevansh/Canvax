@@ -9,6 +9,7 @@ Board        -> draw, label, connect, speak, freeze
 Preview      -> compare sketch vs output
 Generate     -> richer local screen generation
 Materialize  -> local "make it feel real" pass
+Review       -> local design-jury gate for generated output
 Checkpoints  -> preserve collaboration moments
 Manifests    -> connect Codex output back into Canvax
 Rewrite queue-> tell Codex what needs attention next
@@ -19,9 +20,11 @@ flowchart LR
     B[Board] --> E[Exports]
     B --> G[Generate screen]
     B --> M[Materialize]
+    O --> R[Local design review]
     E --> C[Codex]
     C --> O[Output manifest]
     O --> P[Preview]
+    R --> P
     B --> P
     E --> K[Checkpoints]
 ```
@@ -216,6 +219,7 @@ There are two implementation paths:
 
 - `Generate screen`: richer local screen generation from the current frame using the board recipe
 - `Materialize`: quick local styled preview from the current frame
+- `Review`: local no-API design-jury check for the connected generated output
 - `Codex implementation`: actual code, specs, artifacts, and changed files in the workspace
 
 When Codex Browser Use / Atlas is available, `/canvax` should open `http://localhost:3210` there and keep both the board and Preview inside Codex. That lets Codex inspect the same UI surfaces the user is steering. External browsers are fallback surfaces, not the primary Canvax experience.
@@ -259,6 +263,7 @@ Behavior:
 - turns pasted or dropped images into editable frame elements for generated candidates, reference crops, storyboards, posters, or UI assets
 - exposes `Add image` as the primary Workbench file-picker path for editable references, generated candidates, book/storyboard art, and UI assets
 - shows the connected generated output inside the Workbench tray when one exists
+- shows `Review` beside the connected generated output, running the local no-API design jury and showing `Ready`, `Needs review`, `Blocked`, or `Review stale` directly in Workbench
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
 - provides `Tidy map` to reflow frame cards plus generated-output and checkpoint shelf objects into compact readable lanes when a long session starts to sprawl
@@ -299,6 +304,7 @@ Behavior:
 - `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
 - `Live rewrite` is an opt-in mode that runs the same local no-API rewrite executor after autosnap/freeze saves the latest handoff
 - if a new autosnap/freeze happens while Live rewrite is already refreshing output, Canvax queues the newest handoff and runs it as soon as the in-flight rewrite finishes
+- `Review` calls `/api/run-design-review`, writes `exports/canvax-design-jury-latest.{json,md}`, records a `design-review-executed` session event, and keeps the verdict visible on the output card without requiring a terminal command
 - `Preview` remains available without exposing the rest of Advanced mode
 
 ```text
@@ -331,6 +337,7 @@ Boundary:
 - `npm run extract-tokens` can scan public URLs, local HTML/CSS files, generated screen artifacts, pasted CSS/HTML text, or local raster screenshots for palette, CSS variables, font-family cues, semantic HTML/JSX structure, Canvax-bound node ids, and screenshot pixel-sample colors without an API key, writing `exports/canvax-external-design-tokens-latest.{json,md}`. Advanced `Import external` brings that latest pack back into the active Design kit.
 - `npm run review-artifact` statically reviews generated HTML/CSS artifacts for landmarks, heading structure, action/link labels, image alternatives, form labels, responsive cues, focus styles, and Canvax source bindings before a production port, without an API key.
 - `npm run review-dom` inspects the rendered Preview DOM/layout in local headless Chrome for overflow, offscreen visible elements, target sizes, headings, landmarks, motion cues, and Canvax source bindings, without an API key.
+- `npm run review-jury` and the Workbench `Review` button combine local artifact, screenshot, DOM/inspection context, and design readiness signals into a named no-API verdict before a generated surface is treated as ready.
 - Image prompt packs include a `canvax-style-lock` block with palette, continuity rules, adaptation rules, negative rules, design-context summary, frame signals, and extracted sketch-token cues so image/book/comic/poster candidates can stay consistent across frames.
 - In Advanced mode, `Create DESIGN.md` writes a starter project design file from the current board without overwriting an existing file.
 

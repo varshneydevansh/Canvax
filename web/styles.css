@@ -2135,6 +2135,41 @@ body[data-workspace-mode="simple"] .workbench-prompt-chips {
     border-color: rgba(240, 162, 2, 0.36);
 }
 
+.design-review-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2rem;
+    max-width: 10rem;
+    padding: 0.35rem 0.6rem;
+    overflow: hidden;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.14);
+    color: rgba(255, 248, 236, 0.78);
+    background: rgba(255, 248, 236, 0.08);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.design-review-badge[data-tone="synced"] {
+    color: #eaf7f5;
+    background: rgba(12, 141, 123, 0.22);
+    border-color: rgba(12, 141, 123, 0.36);
+}
+
+.design-review-badge[data-tone="warning"] {
+    color: #fff7db;
+    background: rgba(240, 162, 2, 0.2);
+    border-color: rgba(240, 162, 2, 0.34);
+}
+
+.design-review-badge[data-tone="danger"] {
+    color: #fff0eb;
+    background: rgba(242, 90, 50, 0.26);
+    border-color: rgba(242, 90, 50, 0.42);
+}
+
 .workbench-output-surface {
     position: relative;
     min-height: 11rem;
@@ -2261,7 +2296,7 @@ body[data-workspace-mode="simple"] .workbench-output-badge {
 
 body[data-workspace-mode="simple"] .workbench-output-footer {
     gap: 0.45rem;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 
 .workbench-output-footer .helper-text {

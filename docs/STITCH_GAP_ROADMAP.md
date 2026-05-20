@@ -159,6 +159,12 @@ The useful lesson for Canvax:
   review-jury` combines those lower-level signals into designer-facing
   hierarchy, accessibility, responsiveness, brand/system, tweak-targeting,
   motion/readability, visual-integrity, and production-readiness categories.
+  Workbench now exposes that same local no-API design-jury loop as a `Review`
+  action next to the connected output surface. It writes
+  `exports/canvax-design-jury-latest.{json,md}`, records a
+  `design-review-executed` session event, and shows a compact verdict badge
+  (`Ready`, `Needs review`, `Blocked`, or `Review stale`) without requiring the
+  designer to run a terminal command.
   `npm run review-dom` now adds a local headless-browser Preview DOM/layout
   pass for overflow, offscreen elements, target sizes, headings, landmarks,
   motion cues, and Canvax source bindings. Hosted AI visual critique and deeper
@@ -502,7 +508,9 @@ visual smoke gate, so screenshot artifacts are not only archived but also
 checked for blank/flat/clipped risks.
 `npm run review-jury` combines static artifact review, screenshot review, and
 Canvax inspection context into a named local design-jury verdict before port or
-rewrite.
+rewrite. Workbench can now run that same gate from the connected output card
+through `/api/run-design-review`, then surface the result as a visible output
+badge.
 `npm run review-dom` opens Preview in local headless Chrome and writes a no-API
 DOM/layout review for rendered structure, overflow, offscreen visible elements,
 target sizes, landmarks, motion cues, and Canvax source bindings.
@@ -532,7 +540,8 @@ Needed:
   **Local pixel-level screenshot review shipped through `npm run
   review-snapshot`, local rendered DOM/layout review shipped through `npm run
   review-dom`, and local design-jury aggregation shipped through `npm run
-  review-jury`; hosted AI critique and deeper motion semantics remain open.**
+  review-jury`; Workbench can now trigger the local design-jury verdict from the
+  output card. Hosted AI critique and deeper motion semantics remain open.**
 
 ### 6. Image Model And Asset Workflow
 

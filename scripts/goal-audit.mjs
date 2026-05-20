@@ -26,7 +26,13 @@ const checks = [
           "data-designer-start=\"sketch\"",
           "More actions",
           "workspace-mode-guide",
+          "workbench-review-output",
+          "workbench-design-review-badge",
         ],
+      },
+      {
+        path: "scripts/canvax.mjs",
+        includes: ["handleRunDesignReview", "design-review-executed"],
       },
       {
         path: "docs/DESIGNER_WALKTHROUGH.md",
@@ -38,7 +44,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Manual first-use design review is still required, but the default surface now has a four-step guided Start here path.",
+      "Manual taste review for first-time-designer clarity is still required, but the default surface now has a four-step guided Start here path and an inline local output review gate.",
   },
   {
     id: "unified-workbench-advanced",
@@ -439,7 +445,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, an allowlisted project-link patch proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary unlinked production patching, and evidence from Codex completing a real external/user project edit remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, Workbench output review gating, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, an allowlisted project-link patch proof, a local read-only inspection CLI, and a local stdio MCP server are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary unlinked production patching, and evidence from Codex completing a real external/user project edit remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",

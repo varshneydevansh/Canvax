@@ -822,6 +822,13 @@ accessibility, responsive readiness, brand/system fit, preview tweak targeting,
 motion/readability, visual integrity, and production readiness. It is the local
 no-API precursor to richer hosted or browser-assisted design critique.
 
+The board exposes this bridge through `POST /api/run-design-review`. Workbench
+passes the currently connected output artifact path, the server runs
+`scripts/review-design-jury.mjs --json`, allows nonzero review verdicts to
+return as data, writes `exports/canvax-design-jury-latest.{json,md}`, appends a
+`design-review-executed` session event, and publishes the verdict through
+`/api/preview-state` for inline output badges.
+
 ```text
 reference CSS / HTML / JSX / sketch / image samples
   -> design token pack
@@ -837,6 +844,7 @@ reference CSS / HTML / JSX / sketch / image samples
   -> canvax-mcp-server host tool bridge
   -> review-visual-snapshot screenshot gate
   -> review-design-jury designer verdict
+  -> /api/run-design-review Workbench verdict
 ```
 
 Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. The Workbench candidate tray lets users copy a one-candidate host task, place those records as editable frame slots, or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.

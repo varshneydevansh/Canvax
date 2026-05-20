@@ -126,6 +126,11 @@ const previewTweakMarkdownPath = resolve(
   exportsRoot,
   "canvax-preview-tweak-latest.md",
 );
+const designJuryJsonPath = resolve(exportsRoot, "canvax-design-jury-latest.json");
+const designJuryMarkdownPath = resolve(
+  exportsRoot,
+  "canvax-design-jury-latest.md",
+);
 const codexOutputManifestPath = resolve(codexOutputRoot, "codex-output.json");
 const legacyJsonPath = resolve(exportsRoot, "canvax-storyboard-latest.json");
 const legacyMarkdownPath = resolve(exportsRoot, "canvax-storyboard-latest.md");
@@ -463,6 +468,8 @@ async function runCli() {
           transcriptBridgeMarkdownPath,
           buildRealRequestJsonPath,
           buildRealRequestMarkdownPath,
+          designJuryJsonPath,
+          designJuryMarkdownPath,
           buildRequestsRoot,
           assetCandidatesJsonPath,
           assetCandidatesMarkdownPath,
@@ -790,6 +797,13 @@ async function runServer(port) {
         url.pathname === "/api/execute-rewrite-request"
       ) {
         return handleExecuteRewriteRequest(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/run-design-review"
+      ) {
+        return handleRunDesignReview(request, response);
       }
 
       if (
@@ -1568,6 +1582,89 @@ async function handleExecuteRewriteRequest(request, response) {
         error instanceof Error
           ? error.message
           : "Rewrite request execution failed.",
+    });
+  }
+}
+
+async function handleRunDesignReview(request, response) {
+  const payload = await readJson(request);
+  const rawArtifactPath = cleanString(
+    payload?.artifactPath || payload?.previewPath || payload?.path,
+  );
+  const rawSnapshotIndex = cleanString(payload?.snapshotIndex);
+  const frameId = cleanString(payload?.frameId);
+  const frameTitle = cleanString(payload?.frameTitle);
+  const args = ["scripts/review-design-jury.mjs", "--json"];
+
+  let artifactPath = "";
+  if (rawArtifactPath) {
+    const resolvedArtifactPath = rawArtifactPath.startsWith("/")
+      ? resolve(rawArtifactPath)
+      : resolve(projectRoot, rawArtifactPath);
+    if (!isAllowedWorkspacePath(resolvedArtifactPath)) {
+      return writeJson(response, 400, {
+        executed: false,
+        error: "Design review artifact must be inside the Canvax workspace.",
+      });
+    }
+    artifactPath = toWorkspaceRelativePath(resolvedArtifactPath);
+    args.push("--artifact", artifactPath);
+  }
+
+  if (rawSnapshotIndex) {
+    const resolvedSnapshotIndex = rawSnapshotIndex.startsWith("/")
+      ? resolve(rawSnapshotIndex)
+      : resolve(projectRoot, rawSnapshotIndex);
+    if (!isAllowedWorkspacePath(resolvedSnapshotIndex)) {
+      return writeJson(response, 400, {
+        executed: false,
+        error: "Design review snapshot index must be inside the Canvax workspace.",
+      });
+    }
+    args.push("--snapshot-index", toWorkspaceRelativePath(resolvedSnapshotIndex));
+  }
+
+  try {
+    const { stdout } = await runCommand(process.execPath, args, {
+      cwd: projectRoot,
+      allowFailure: true,
+    });
+    const review = JSON.parse(stdout);
+    if (review?.kind !== "canvax-design-jury-review") {
+      throw new Error("Design review returned an unexpected payload.");
+    }
+
+    await appendFile(
+      sessionEventsPath,
+      `${JSON.stringify({
+        type: "design-review-executed",
+        at: new Date().toISOString(),
+        frameId,
+        frameTitle,
+        artifactPath,
+        status: cleanString(review.status),
+        decision: cleanString(review.decision),
+        score: Number(review.score) || 0,
+      })}\n`,
+    );
+
+    return writeJson(response, 200, {
+      executed: true,
+      review,
+      jsonPath: toWorkspaceRelativePath(designJuryJsonPath),
+      markdownPath: toWorkspaceRelativePath(designJuryMarkdownPath),
+      markdownUrl: workspaceUrlForPath(
+        toWorkspaceRelativePath(designJuryMarkdownPath),
+        review.createdAt || new Date().toISOString(),
+      ),
+    });
+  } catch (error) {
+    return writeJson(response, 500, {
+      executed: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Design review execution failed.",
     });
   }
 }
@@ -3088,6 +3185,9 @@ async function handlePreviewState(response) {
   const previewTweak = enhancePreviewTweak(
     await readOptionalJson(previewTweakJsonPath),
   );
+  const designJury = enhanceDesignJuryReview(
+    await readOptionalJson(designJuryJsonPath),
+  );
   const projectRegistry = await readOptionalJson(projectRegistryJsonPath);
   const codexOutputManifest = await readOptionalJson(codexOutputManifestPath);
   const workspaceFollow = await buildLiveWorkspaceFollowState({
@@ -3123,6 +3223,7 @@ async function handlePreviewState(response) {
     outputDigest,
     previewSnapshots,
     previewTweak,
+    designJury,
     projectRegistry,
     paths: {
       liveJsonPath,
@@ -3149,6 +3250,8 @@ async function handlePreviewState(response) {
       previewManifestPath,
       previewTweakJsonPath,
       previewTweakMarkdownPath,
+      designJuryJsonPath,
+      designJuryMarkdownPath,
       codexOutputManifestPath,
       previewSnapshotsIndexPath,
     },
@@ -3164,6 +3267,19 @@ function enhancePreviewTweak(tweak) {
     href: workspaceUrlForPath(relative(projectRoot, previewTweakJsonPath)),
     markdownHref: workspaceUrlForPath(
       relative(projectRoot, previewTweakMarkdownPath),
+    ),
+  };
+}
+
+function enhanceDesignJuryReview(review) {
+  if (review?.kind !== "canvax-design-jury-review") {
+    return null;
+  }
+  return {
+    ...review,
+    href: workspaceUrlForPath(relative(projectRoot, designJuryJsonPath)),
+    markdownHref: workspaceUrlForPath(
+      relative(projectRoot, designJuryMarkdownPath),
     ),
   };
 }
@@ -7229,7 +7345,7 @@ async function runCommand(command, args, options = {}) {
       reject(error);
     });
     child.on("close", (code) => {
-      if (code === 0) {
+      if (code === 0 || options.allowFailure) {
         resolvePromise({ stdout, stderr });
         return;
       }

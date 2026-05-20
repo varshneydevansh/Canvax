@@ -468,6 +468,10 @@ const dom = {
   workbenchOutputSurface: document.querySelector("#workbench-output-surface"),
   workbenchOutputMeta: document.querySelector("#workbench-output-meta"),
   workbenchOpenOutput: document.querySelector("#workbench-open-output"),
+  workbenchReviewOutput: document.querySelector("#workbench-review-output"),
+  workbenchDesignReviewBadge: document.querySelector(
+    "#workbench-design-review-badge",
+  ),
   workbenchClearMarks: document.querySelector("#workbench-clear-marks"),
   workbenchOutputStage: document.querySelector("#workbench-output-stage"),
   workbenchOutputStageBadge: document.querySelector(
@@ -481,6 +485,12 @@ const dom = {
   ),
   workbenchOutputStageOpen: document.querySelector(
     "#workbench-output-stage-open",
+  ),
+  workbenchOutputStageReview: document.querySelector(
+    "#workbench-output-stage-review",
+  ),
+  workbenchOutputStageReviewBadge: document.querySelector(
+    "#workbench-output-stage-review-badge",
   ),
   assetCandidateTray: document.querySelector("#asset-candidate-tray"),
   railSizeValue: document.querySelector("#rail-size-value"),
@@ -984,6 +994,12 @@ function bindEvents() {
     void applyFocusPadToCodex();
   });
   dom.focusPreview.addEventListener("click", openPreviewWindow);
+  dom.workbenchReviewOutput.addEventListener("click", () => {
+    void runWorkbenchDesignReview();
+  });
+  dom.workbenchOutputStageReview.addEventListener("click", () => {
+    void runWorkbenchDesignReview();
+  });
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
   dom.focusPromptChips.addEventListener("click", (event) => {
     const button = event.target.closest("[data-workbench-prompt]");
@@ -2206,6 +2222,7 @@ function hydrateState() {
         hostCapabilities: null,
         designContext: null,
         designKitGallery: null,
+        designJury: null,
         outputDigest: null,
         outputActivity: [],
         sessionEvents: [],
@@ -2217,6 +2234,7 @@ function hydrateState() {
       liveRewriteActiveSignature: "",
       lastAutoRewriteSignature: "",
       buildRealInFlight: false,
+      designReviewInFlight: false,
       outputCheckpointInFlight: false,
       outputAnnotationDraft: null,
       lastActionScope: "",
@@ -2719,6 +2737,7 @@ function createInitialState() {
       hostCapabilities: null,
       designContext: null,
       designKitGallery: null,
+      designJury: null,
       outputDigest: null,
       outputActivity: [],
       sessionEvents: [],
@@ -2731,6 +2750,7 @@ function createInitialState() {
     liveRewriteActiveSignature: "",
     lastAutoRewriteSignature: "",
     buildRealInFlight: false,
+    designReviewInFlight: false,
     outputCheckpointInFlight: false,
     outputAnnotationDraft: null,
     lastActionScope: "",
@@ -4172,6 +4192,8 @@ function renderFocusPad() {
   dom.focusApply.disabled = Boolean(state.focusApplyInFlight);
   dom.focusGenerate.disabled = Boolean(state.generationInFlight);
   dom.focusBuildReal.disabled = Boolean(state.buildRealInFlight);
+  dom.workbenchReviewOutput.disabled = Boolean(state.designReviewInFlight);
+  dom.workbenchOutputStageReview.disabled = Boolean(state.designReviewInFlight);
   dom.buildRealScreen.disabled = Boolean(state.buildRealInFlight);
   dom.buildRealScreenPanel.disabled = Boolean(state.buildRealInFlight);
   dom.focusPromoteVariant.hidden = !frame.variant?.label;
@@ -4204,6 +4226,9 @@ function renderFocusPad() {
   if (state.buildRealInFlight) {
     dom.focusStatus.textContent =
       "Creating the real implementation request and frame-to-code contract for Codex...";
+  } else if (state.designReviewInFlight) {
+    dom.focusStatus.textContent =
+      "Running the local no-API design jury over the connected output...";
   } else if (state.focusApplyInFlight) {
     dom.focusStatus.textContent =
       "Saving the sketch, voice context, and checkpoint for Codex...";
@@ -8038,6 +8063,7 @@ function renderWorkbenchOutput() {
   dom.workbenchOpenOutput.href = targetUrl || "#";
   dom.workbenchOutputStageOpen.hidden = !targetUrl;
   dom.workbenchOutputStageOpen.href = targetUrl || "#";
+  renderDesignReviewControls(target);
   dom.workbenchClearMarks.hidden = annotationCount === 0;
 
   const context = {
@@ -8121,6 +8147,91 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
   metaNode.textContent = annotationCount
     ? `${baseMeta} ${annotationCount} correction mark(s) are attached to this output.`
     : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
+}
+
+function renderDesignReviewControls(target) {
+  const canReview = Boolean(target?.previewPath || target?.path);
+  const summary = canReview
+    ? describeDesignJuryReview(state.serverStatus.designJury, target)
+    : null;
+  const buttons = [
+    dom.workbenchReviewOutput,
+    dom.workbenchOutputStageReview,
+  ].filter(Boolean);
+  const badges = [
+    dom.workbenchDesignReviewBadge,
+    dom.workbenchOutputStageReviewBadge,
+  ].filter(Boolean);
+
+  buttons.forEach((button) => {
+    button.hidden = !canReview;
+    button.disabled = state.designReviewInFlight || !canReview;
+    button.textContent = state.designReviewInFlight ? "Reviewing..." : "Review";
+  });
+
+  badges.forEach((badge) => {
+    badge.hidden = !summary;
+    if (!summary) {
+      badge.textContent = "No review";
+      badge.dataset.tone = "empty";
+      return;
+    }
+    badge.textContent = summary.label;
+    badge.dataset.tone = summary.tone;
+    badge.title = summary.detail;
+  });
+}
+
+function describeDesignJuryReview(review, target) {
+  if (review?.kind !== "canvax-design-jury-review") {
+    return null;
+  }
+  const targetPath = cleanString(target?.previewPath || target?.path);
+  const sourceArtifacts = Array.isArray(review.source?.artifacts)
+    ? review.source.artifacts
+    : [];
+  const reviewedPaths = sourceArtifacts
+    .map((artifact) => cleanString(artifact.path || artifact.label))
+    .filter(Boolean);
+  const coversTarget =
+    !targetPath ||
+    reviewedPaths.some(
+      (path) => path === targetPath || path.endsWith(targetPath),
+    );
+  const score = Number.isFinite(Number(review.score))
+    ? Math.round(Number(review.score))
+    : null;
+  const decision = cleanString(review.decision || review.status);
+  const stale = targetPath && !coversTarget;
+  const baseLabel =
+    review.status === "fail"
+      ? "Blocked"
+      : review.status === "review"
+        ? "Needs review"
+        : "Ready";
+  const label = stale
+    ? "Review stale"
+    : `${baseLabel}${score === null ? "" : ` ${score}`}`;
+  const tone = stale
+    ? "warning"
+    : review.status === "fail"
+      ? "danger"
+      : review.status === "review"
+        ? "warning"
+        : "synced";
+  return {
+    label,
+    tone,
+    detail: [
+      stale
+        ? "The latest design-jury result does not match the connected output target."
+        : review.summary || "Local no-API design-jury verdict.",
+      decision ? `Decision: ${decision}` : "",
+      reviewedPaths.length ? `Reviewed: ${reviewedPaths.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
 }
 
 function currentWorkbenchTarget() {
@@ -9101,6 +9212,69 @@ async function applyFocusPadToCodex() {
     }
   } finally {
     state.focusApplyInFlight = false;
+    renderFocusPad();
+  }
+}
+
+async function runWorkbenchDesignReview() {
+  const frame = currentFrame();
+  const target = currentWorkbenchTarget();
+  const artifactPath = cleanString(target?.previewPath || target?.path);
+  if (state.designReviewInFlight) {
+    return null;
+  }
+  if (!artifactPath) {
+    dom.workspaceStatus.textContent =
+      "Make or attach an output before running the local design review.";
+    renderStatus("No output to review yet");
+    return null;
+  }
+
+  state.designReviewInFlight = true;
+  renderWorkbenchOutput();
+  renderStatus("Running local no-API design review...");
+  dom.workspaceStatus.textContent =
+    `Reviewing ${designerOutputTargetLabelFromItem(target, frame.title)} with the local design jury...`;
+
+  try {
+    const response = await fetch("/api/run-design-review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        artifactPath,
+        frameId: frame.id,
+        frameTitle: frame.title,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data?.executed) {
+      throw new Error(data.error || "Design review failed.");
+    }
+    state.serverStatus = {
+      ...state.serverStatus,
+      designJury: data.review || null,
+    };
+    await refreshPreviewStateFromServer();
+    const summary = describeDesignJuryReview(
+      state.serverStatus.designJury,
+      target,
+    );
+    state.focusLastAppliedText = summary
+      ? `Design review: ${summary.label}. ${data.markdownPath || "Review handoff saved."}`
+      : "Design review saved.";
+    dom.workspaceStatus.textContent =
+      data.markdownPath || "Design review saved to exports.";
+    renderStatus(summary ? `Design review: ${summary.label}` : "Design review saved");
+    return data;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Design review failed.";
+    dom.workspaceStatus.textContent = message;
+    renderStatus("Design review failed");
+    return null;
+  } finally {
+    state.designReviewInFlight = false;
+    renderWorkbenchOutput();
     renderFocusPad();
   }
 }
@@ -16622,6 +16796,7 @@ async function refreshPreviewStateFromServer() {
       designContext: data.designContext || state.serverStatus.designContext || null,
       designKitGallery:
         data.designKitGallery || state.serverStatus.designKitGallery || null,
+      designJury: data.designJury || state.serverStatus.designJury || null,
       outputDigest: nextOutputDigest,
       outputActivity: nextOutputActivity,
       transcriptBridge: data.transcriptBridge || null,
@@ -16667,6 +16842,7 @@ async function refreshPreviewStateFromServer() {
     importTranscriptBridge(data.transcriptBridge);
     renderCheckpointPanel();
     renderCodexOutput();
+    renderWorkbenchOutput();
     renderFlowBoard();
     renderServerStatus();
     void maybeCheckpointOutputUpdate(previousOutputDigest, nextOutputDigest);
@@ -16681,6 +16857,7 @@ async function refreshPreviewStateFromServer() {
       hostCapabilities: state.serverStatus.hostCapabilities || null,
       designContext: state.serverStatus.designContext || null,
       designKitGallery: state.serverStatus.designKitGallery || null,
+      designJury: state.serverStatus.designJury || null,
       outputDigest: state.serverStatus.outputDigest || null,
       outputActivity: state.serverStatus.outputActivity || [],
       sessionEvents: state.serverStatus.sessionEvents || [],
@@ -21577,8 +21754,10 @@ async function runSelfTest() {
           Boolean(dom.workbenchComposerApply) &&
           Boolean(dom.focusAddImage) &&
           Boolean(dom.focusImageInput) &&
-          Boolean(dom.focusAddContext),
-        "Workbench bottom command composer and context import controls render",
+          Boolean(dom.focusAddContext) &&
+          Boolean(dom.workbenchReviewOutput) &&
+          Boolean(dom.workbenchOutputStageReview),
+        "Workbench bottom composer, context import, and design review controls render",
       ),
     );
     const moreActions = document.querySelector(".focus-more-actions");

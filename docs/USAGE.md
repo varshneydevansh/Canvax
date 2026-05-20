@@ -315,6 +315,18 @@ responsive readiness, brand/system fit, preview tweak targeting,
 motion/readability, visual integrity, and production readiness. It is still a
 local heuristic review, not a hosted AI design critic or live DOM inspector.
 
+In Workbench, the connected output card also exposes `Review` when an artifact
+path is available. That button calls the local `/api/run-design-review` route,
+writes the same latest JSON/Markdown files, records a `design-review-executed`
+session event, and shows a compact verdict badge:
+
+```text
+Ready        -> local review passed
+Needs review -> local review found warnings
+Blocked      -> local review found blocking failures
+Review stale -> latest verdict does not match the currently connected output
+```
+
 The verifier reads the contract palette and checks nearby CSS/HTML/JSX files for
 those colors. It is local, does not call an AI model, and does not require
 `OPENAI_API_KEY`. This is useful after importing a design system from another
