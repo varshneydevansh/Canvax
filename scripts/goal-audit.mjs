@@ -594,12 +594,20 @@ const checks = [
         includes: ["renderAssetCandidateTray", "Copy prompt", "Attach path"],
       },
       {
+        path: "scripts/import-image-results.mjs",
+        includes: [
+          "canvax-image-results",
+          "canvax-image-result-return-contract",
+          "requiresOpenAiApiKey: false",
+        ],
+      },
+      {
         path: "docs/FEATURES.md",
-        includes: ["image host task", "Asset candidates"],
+        includes: ["image host task", "Asset candidates", "image results"],
       },
     ],
     remainingGap:
-      "Direct ChatGPT image generation and editing are host-provided, not locally provided by Canvax.",
+      "Direct ChatGPT image generation and editing are host-provided, not locally provided by Canvax; returned files now have a no-API import contract that binds them back to candidate slots.",
   },
   {
     id: "no-api-key-core",

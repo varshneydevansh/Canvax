@@ -233,6 +233,7 @@ Status: In progress
 - [x] Asset candidate packs include placement contracts, style-lock references, output slots, and a `canvax-asset-candidate-review` summary with frame-grouped pending/placed/attached/accepted queues, accepted candidate IDs, image element bindings, and no-API host handoff files
 - [x] Asset candidate saves now also write `exports/canvax-image-generation-brief-latest.*` with copy-ready host prompts, style-lock context, placement contracts, output-slot status, and the same frame-grouped review queue
 - [x] Asset candidate saves now also write `exports/canvax-image-host-task-latest.*` with one no-API hosted-image task per candidate, return-slot binding, and acceptance criteria
+- [x] Hosted image returns can now be imported with `npm run import-image-results`, writing `exports/canvax-image-results-latest.*`, archived result records, project-scoped mirrors, and candidate-slot updates without requiring `OPENAI_API_KEY`
 - [x] Asset candidate packs, image-generation briefs, image-host tasks, build requests, and checkpoints now carry the active Canvax project metadata and write project-scoped latest mirrors under `exports/projects/<project-id>/`
 - [x] Asset candidate tray now exposes `Copy host task`, so designers can send one exact candidate task to the current image host without opening JSON
 - [x] Workbench exposes image import from both the primary controls and the focused floating rail, placing references/generated candidates as editable canvas objects

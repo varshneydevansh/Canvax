@@ -1067,6 +1067,8 @@ The asset candidate pack is stored at:
 - `exports/canvax-image-generation-brief-latest.md`
 - `exports/canvax-image-host-task-latest.json`
 - `exports/canvax-image-host-task-latest.md`
+- `exports/canvax-image-results-latest.json`
+- `exports/canvax-image-results-latest.md`
 - `artifacts/canvax/asset-candidates/...`
 
 Each candidate is a prompt-ready asset slot:
@@ -1118,6 +1120,20 @@ The image host task is the machine-readable execution handoff. It combines:
 - an explicit `requiresOpenAiApiKey: false` and `noApiBoundary` declaration
 - the same active project metadata as the candidate pack and image brief
 
+The image results import is the return handoff. It lets Codex or a hosted
+ChatGPT image workflow bind a returned file, URL, or data image back to a
+candidate and output slot:
+
+```bash
+npm run import-image-results -- --task-index 0 --image artifacts/images/output.png
+npm run import-image-results -- --candidate asset-id --slot slot-id --image artifacts/images/output.png --accept
+```
+
+It writes `exports/canvax-image-results-latest.*`, archives the result under
+`artifacts/canvax/image-results/...`, mirrors project-scoped latest files when
+project metadata exists, and updates the matching candidate output slot unless
+`--no-update-candidates` is passed.
+
 Workbench now reads the latest candidate pack and renders a compact `Asset candidates` tray after `Image pack` succeeds. Each card can:
 
 - copy the candidate prompt plus pixel/CSS placement contract for ChatGPT/Codex image-generation hosts
@@ -1138,8 +1154,10 @@ flowchart LR
     B --> C[Asset candidate records]
     C --> H[Image generation brief]
     H --> K[Image host task]
+    K --> L[Image results import]
     C --> D[Workbench candidate tray]
     K --> F
+    L --> F
     D --> E[Place editable slot]
     D --> F[Attach generated image]
     D --> J[Attach workspace path]
@@ -1152,7 +1170,7 @@ flowchart LR
     classDef pack fill:#fff7e6,stroke:#f0a202,color:#211815;
     classDef image fill:#eaf7f5,stroke:#0c8d7b,color:#10201d;
     class A sketch;
-    class B,C,D,H,K pack;
+    class B,C,D,H,K,L pack;
     class E,F,G,I image;
 ```
 

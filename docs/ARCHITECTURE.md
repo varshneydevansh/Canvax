@@ -677,15 +677,18 @@ Image/asset handoff files:
 - `exports/canvax-asset-candidates-latest.json`
 - `exports/canvax-image-generation-brief-latest.json`
 - `exports/canvax-image-host-task-latest.json`
+- `exports/canvax-image-results-latest.json`
 - `exports/canvax-external-design-tokens-latest.json`
 - `artifacts/canvax/asset-candidates/...`
+- `artifacts/canvax/image-results/...`
 
 The active project receives matching latest mirrors for asset candidates,
-image-generation briefs, and image-host tasks:
+image-generation briefs, image-host tasks, and image result returns:
 
 - `exports/projects/<project-id>/canvax-asset-candidates-latest.json`
 - `exports/projects/<project-id>/canvax-image-generation-brief-latest.json`
 - `exports/projects/<project-id>/canvax-image-host-task-latest.json`
+- `exports/projects/<project-id>/canvax-image-results-latest.json`
 
 Image prompt packs and asset candidate packs include a `canvax-style-lock` block. It is derived from the active Design kit, board mood, surface, generation recipe, `DESIGN.md` when present, current palette, extracted current-frame sketch/reference tokens when present, and frame notes. The block gives host image tools continuity rules, adaptation rules, negative rules, palette/density/shape cues, visual reference sample metadata, and frame signals for book/comic/poster/UI variants without requiring Canvax to call an image API.
 
@@ -847,7 +850,7 @@ reference CSS / HTML / JSX / sketch / image samples
   -> /api/run-design-review Workbench verdict
 ```
 
-Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. The Workbench candidate tray lets users copy a one-candidate host task, place those records as editable frame slots, or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
+Asset candidates are prompt-ready records with a `placementMap`, style-lock reference, empty output slots, and a `canvax-asset-candidate-review` summary. The placement map includes normalized bounds, source-viewport pixel bounds, CSS placement, a `data-asset-candidate-id` target selector, and a minimal HTML scaffold. The review summary groups candidates by source frame, records pending/placed/attached/accepted IDs, and exposes a no-API `hostHandoff` with the files a Codex/ChatGPT image host should read. The companion image generation brief combines those records into per-candidate `hostPrompt` blocks with placement contracts, output-slot status, and the same review queue. The companion image host task turns those blocks into machine-readable hosted-generation tasks with return-slot binding, return instructions, acceptance criteria, and an explicit `noApiBoundary`. `scripts/import-image-results.mjs` is the matching return bridge: it binds a hosted image file, URL, or data image back to a candidate/slot, writes `exports/canvax-image-results-latest.*`, mirrors project-scoped latest files, and updates the candidate slot unless disabled. The Workbench candidate tray lets users copy a one-candidate host task, place those records as editable frame slots, or attach generated images back to those slots by file picker or workspace path. Canvax still does not generate the image itself unless a future host bridge provides that capability.
 
 ```text
 asset candidate pack
@@ -858,6 +861,7 @@ asset candidate pack
   -> reviewSummary.groups[]
   -> image generation brief copyBlocks[]
   -> image host task tasks[]
+  -> image results import
   -> Workbench asset tray
   -> Map asset object contextMarkdown
   -> Codex / host image tool can preserve placement

@@ -41,6 +41,11 @@ const imageHostTaskJsonPath = resolve(
   "exports",
   "canvax-image-host-task-latest.json",
 );
+const imageResultsJsonPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-image-results-latest.json",
+);
 const latestCheckpointPath = resolve(
   projectRoot,
   "exports",
@@ -126,6 +131,7 @@ await validateCanvaxInspectDryRun();
 await validateCanvaxMcpSelfTest();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
+await validateImageResultImportDryRun();
 await validateProjectScopedBuildAndCheckpointEndpoints();
 await validateRequiredFile(
   upstreamProposalPath,
@@ -243,6 +249,25 @@ await validateOptionalJsonSchema(
     value.noApiBoundary?.canCanvaxCallImageApi === false &&
     value.returnContract?.requiredBindingFields?.includes("candidateId"),
   "image host task schema is valid",
+);
+await validateOptionalJsonSchema(
+  imageResultsJsonPath,
+  (value) =>
+    value?.kind === "canvax-image-results" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    Array.isArray(value?.results) &&
+    value.results.every(
+      (result) =>
+        result.kind === "canvax-image-result" &&
+        result.candidateId &&
+        result.slotId &&
+        result.outputSlot?.imagePath,
+    ) &&
+    value.noApiBoundary?.canCanvaxCallImageApi === false &&
+    value.returnContract?.requiredBindingFields?.includes("imagePath"),
+  "image result import schema is valid",
 );
 await validateOptionalJsonSchema(
   latestCheckpointPath,
@@ -1537,6 +1562,48 @@ async function validateAssetCandidatesEndpoint() {
   } catch (error) {
     results.push({
       name: "asset candidates endpoint writes no-API artifact",
+      passed: false,
+      detail: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+async function validateImageResultImportDryRun() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/import-image-results.mjs",
+      "--candidate",
+      "asset-regression-frame",
+      "--slot",
+      "asset-regression-frame-slot-1",
+      "--image",
+      "docs/assets/canvax-logo.svg",
+      "--dry-run",
+      "--json",
+    ]);
+    const payload = JSON.parse(stdout);
+    const result = payload.results?.[0];
+    const passed = Boolean(
+      payload?.kind === "canvax-image-results" &&
+        payload.requiresOpenAiApiKey === false &&
+        payload.noApiBoundary?.canCanvaxCallImageApi === false &&
+        payload.returnContract?.requiredBindingFields?.includes("imagePath") &&
+        result?.kind === "canvax-image-result" &&
+        result.candidateId === "asset-regression-frame" &&
+        result.slotId === "asset-regression-frame-slot-1" &&
+        result.outputSlot?.imagePath === "docs/assets/canvax-logo.svg" &&
+        payload.candidateUpdate?.skipped === "dry-run",
+    );
+    results.push({
+      name: "image result import dry-run stays no-API",
+      passed,
+      detail: passed
+        ? "scripts/import-image-results.mjs"
+        : "invalid image result import output",
+    });
+  } catch (error) {
+    results.push({
+      name: "image result import dry-run stays no-API",
       passed: false,
       detail: error instanceof Error ? error.message : "Unknown error",
     });

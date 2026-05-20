@@ -275,7 +275,7 @@ Codex app -> in-app Browser / Atlas -> http://localhost:3210
 3. Implement `get_latest_frame`, `create_task_pack`, `create_image_prompt_pack`, and `attach_generated_asset` as host-registered tools when first-party write/asset permissions are available.
 4. Add a small app component that renders the Workbench frame/Preview in a host iframe.
 5. Add host transcript forwarding when the client exposes it.
-6. Add host image result attachment when the client exposes it.
+6. Add host image result attachment when the client exposes it. **Local no-API result import now exists through `npm run import-image-results`; native host attachment remains future work.**
 7. Preserve `local-companion` mode as the fallback for all users.
 
 ## Source References

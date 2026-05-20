@@ -101,6 +101,7 @@ Every save also writes a project-scoped latest handoff:
 - `exports/projects/<project-id>/canvax-asset-candidates-latest.json`
 - `exports/projects/<project-id>/canvax-image-generation-brief-latest.json`
 - `exports/projects/<project-id>/canvax-image-host-task-latest.json`
+- `exports/projects/<project-id>/canvax-image-results-latest.json`
 - `exports/projects/<project-id>/canvax-build-real-latest.json`
 - `exports/projects/<project-id>/canvax-checkpoint-latest.json`
 - `exports/projects/<project-id>/canvax-checkpoints.json`
@@ -779,6 +780,8 @@ The same `Image pack` action also writes asset candidate records:
 - `exports/canvax-image-generation-brief-latest.md`
 - `exports/canvax-image-host-task-latest.json`
 - `exports/canvax-image-host-task-latest.md`
+- `exports/canvax-image-results-latest.json`
+- `exports/canvax-image-results-latest.md`
 - archived copies under `artifacts/canvax/asset-candidates/...`
 
 Asset candidates are prompt-ready records, not generated images. The image generation brief is the copy-ready prompt handoff. The image host task is the execution handoff for Codex/ChatGPT-hosted image generation: it names the exact task, placement contract, output slot, return instructions, and no-API boundary for each candidate. Together they preserve:
@@ -825,6 +828,7 @@ After `Image pack` succeeds, Workbench shows an `Asset candidates` tray. Use it 
 - read `reviewSummary.acceptedCandidates` in the asset candidate pack when Codex needs the chosen image/illustration candidate
 - read `reviewSummary.hostHandoff.copyReadyFiles` when a ChatGPT/Codex image host needs the exact no-API files to consume
 - read `exports/canvax-image-host-task-latest.json` when Codex needs a machine-readable task list for hosted image generation and return-slot binding
+- read `exports/canvax-image-results-latest.json` when Codex needs the returned image file/URL plus the candidate and slot it belongs to
 - read `placementMap` and `outputSlots` when Codex needs to place a poster image, children-book spread region, UI screenshot, or illustration candidate without guessing coordinates
 
 The tray still does not call an image API. It is a local bridge between prompt-ready candidates and whatever image-generation host is available in the current Codex/ChatGPT session.
@@ -837,6 +841,24 @@ artifacts/images/page-01-spread.png
 /Users/devanshvarshney/Canvax/artifacts/images/page-01-spread.png
 ```
 
+When the hosted image result is already on disk, import it as a structured Canvax return artifact:
+
+```bash
+npm run import-image-results -- --task-index 0 --image artifacts/images/page-01-spread.png
+npm run import-image-results -- --candidate asset-id --slot slot-id --image artifacts/images/page-01-spread.png --accept
+```
+
+That writes:
+
+- `exports/canvax-image-results-latest.json`
+- `exports/canvax-image-results-latest.md`
+- `artifacts/canvax/image-results/<request-id>/canvax-image-results.json`
+- `artifacts/canvax/image-results/<request-id>/canvax-image-results.md`
+
+By default, the matching asset candidate output slot is updated with the
+returned `imagePath`. Pass `--no-update-candidates` when you only want a
+separate result record.
+
 ```text
 sketch + labels + voice
   -> Image pack
@@ -846,7 +868,7 @@ sketch + labels + voice
   -> image host task
   -> Workbench asset candidate tray
   -> host image generation
-  -> generated image attached by file picker or workspace path
+  -> generated image imported as image results or attached by file picker/path
   -> matching editable frame/region slot
 ```
 

@@ -1,6 +1,6 @@
 # Canvax Stitch Gap Roadmap
 
-Updated: May 19, 2026
+Updated: May 20, 2026
 
 This document compares the current Canvax repo against the Stitch-style design workflow and records what is done, what is missing, and what should improve next. For a stricter requirement-by-requirement audit with evidence and remaining gaps, see `docs/CANVAX_PARITY_AUDIT.md`. For the short designer workflow and screenshot review path, see `docs/DESIGNER_WALKTHROUGH.md`.
 
@@ -53,6 +53,7 @@ Product rules:
 
 - Canvax core stays local-first and must not require `OPENAI_API_KEY`.
 - Image generation is a host capability or optional adapter, not a baseline dependency.
+- Hosted image results have a local return bridge: `npm run import-image-results` writes `canvax-image-results-latest.*` and binds returned files, URLs, or data images back to candidate slots without an API key.
 - The baseline UI exports prompt packs, task packs, sketches, transcripts, coordinates, and previews that Codex can use in the current chat.
 - Direct ChatGPT/Codex microphone reuse requires a first-party bridge; the local board keeps browser speech, manual dictation, and transcript forwarding as the current bridge.
 - The repo-level plan for this redesign is `canvax-stitch-like-workbench-plan.md`.
@@ -547,7 +548,7 @@ Needed:
 
 ### 6. Image Model And Asset Workflow
 
-Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records with placement maps/output slots, write a consolidated image generation brief with copy-ready host prompts, write a no-API image host task with return-slot binding, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
+Canvax can describe image directions, hold reference underlays, export an image prompt pack with coordinates and an HTML/CSS placement scaffold, write prompt-ready asset candidate records with placement maps/output slots, write a consolidated image generation brief with copy-ready host prompts, write a no-API image host task with return-slot binding, import returned hosted-image files/URLs/data images into `canvax-image-results-latest.*`, and place pasted/dropped image outputs back onto a frame as editable image elements. It still does not directly generate final images by itself.
 
 Target behavior:
 
@@ -563,6 +564,7 @@ done
   image prompt pack -> asset candidate records with placementMap + output slots
   asset candidate records -> image generation brief with copy-ready host prompts
   image generation brief -> image host task with return-slot contract
+  host image result -> import-image-results -> candidate slot binding
   asset candidate records -> Workbench candidate tray -> editable slots
   generated/reference image -> paste/drop -> editable image element on frame
   generated file/path -> candidate tray attach -> editable image element with candidate id
@@ -574,10 +576,10 @@ next
 Needed:
 
 - Asset regions on canvas.
-- Image candidate import and placement back into the board. **Initial candidate tray placement, attach-image import, and workspace-path import are shipped.**
+- Image candidate import and placement back into the board. **Initial candidate tray placement, attach-image import, workspace-path import, and no-API `canvax-image-results-latest.*` return bridge are shipped.**
 - Variant comparison for image generations.
 - Style-lock packs for books, comics, posters, decks, and brand systems. **Initial no-API `canvax-style-lock` block now ships inside image prompt and asset candidate packs.**
-- A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format, consolidated image generation brief, and no-API image host task shipped.**
+- A local artifact format for generated image candidates. **Initial prompt-ready asset candidate format, consolidated image generation brief, no-API image host task, and no-API image result return artifact shipped.**
 - Drag/attach generated image candidates back onto frames. **Initial paste/drop and tray attach workflows are shipped.**
 - Optional Codex-mediated image generation where the current Codex environment supports it, without making the core Canvax workflow depend on a separate user-provided API key.
 
