@@ -7381,6 +7381,141 @@ function cloneSpatialObjectMetaForManualCopy(object) {
   return meta;
 }
 
+function spatialObjectsForClipboard(objects = selectedSpatialObjects()) {
+  const copiedSourceIds = new Set();
+  const clipboardObjects = [];
+  objects.filter(Boolean).forEach((object) => {
+    if (copiedSourceIds.has(object.id) || isSpatialObjectLocked(object)) {
+      return;
+    }
+    clipboardObjects.push(structuredClone(object));
+    copiedSourceIds.add(object.id);
+    if (object.type === "map-group") {
+      spatialObjectsInsideGroup(object).forEach((child) => {
+        if (copiedSourceIds.has(child.id) || isSpatialObjectLocked(child)) {
+          return;
+        }
+        clipboardObjects.push(structuredClone(child));
+        copiedSourceIds.add(child.id);
+      });
+    }
+  });
+  return clipboardObjects;
+}
+
+function copySelectedSpatialObjectsToClipboard(event) {
+  const selected = selectedSpatialObjects();
+  const objects = spatialObjectsForClipboard(selected);
+  if (!selected.length || !event.clipboardData) {
+    return false;
+  }
+  event.preventDefault();
+  const contextText = buildSpatialSelectionContextText(selected);
+  if (!objects.length) {
+    event.clipboardData.setData("text/plain", contextText);
+    renderStatus("Copied Map context; unlock objects before copying them");
+    return false;
+  }
+  const payload = JSON.stringify({
+    kind: "canvax-spatial-objects",
+    version: 1,
+    objects,
+  });
+  event.clipboardData.setData("application/x-canvax-spatial-objects", payload);
+  event.clipboardData.setData(
+    "text/plain",
+    contextText || `Canvax Map selection (${objects.length} objects)`,
+  );
+  renderStatus(
+    objects.length === 1
+      ? "Map object copied"
+      : `${objects.length} Map objects copied`,
+  );
+  return true;
+}
+
+function pasteSpatialObjects(objects, options = {}) {
+  const sourceObjects = Array.isArray(objects)
+    ? objects.filter((object) => object && typeof object === "object")
+    : [];
+  if (!sourceObjects.length) {
+    return [];
+  }
+  keepMapAsActiveSurface();
+  const bounds = unionBounds(sourceObjects.map(spatialObjectBounds).filter(Boolean));
+  const fallbackPosition = visibleMapCenterPosition(
+    bounds?.width || SPATIAL_OBJECT_WIDTH,
+    bounds?.height || SPATIAL_OBJECT_HEIGHT,
+  );
+  const targetPosition = options.position || fallbackPosition;
+  const offsetX = Number.isFinite(options.offsetX)
+    ? options.offsetX
+    : Math.round(targetPosition.x - (bounds?.left || sourceObjects[0].x || 0));
+  const offsetY = Number.isFinite(options.offsetY)
+    ? options.offsetY
+    : Math.round(targetPosition.y - (bounds?.top || sourceObjects[0].y || 0));
+  const idMap = new Map();
+  const clones = sourceObjects
+    .filter((object) => !isSpatialObjectLocked(object))
+    .map((object) => {
+      const nextId = uid("spatial");
+      idMap.set(object.id, nextId);
+      return normalizeSpatialObjects([
+        {
+          ...structuredClone(object),
+          id: nextId,
+          title: `${object.title || "Spatial object"} copy`,
+          sourceId: "",
+          sourceKind: `${object.sourceKind || object.type || "manual"}-copy`,
+          x: Math.max(FLOW_SURFACE_PADDING, Math.round(object.x + offsetX)),
+          y: Math.max(FLOW_SURFACE_PADDING, Math.round(object.y + offsetY)),
+          meta: {
+            ...cloneSpatialObjectMetaForManualCopy(object),
+            pastedFromClipboard: true,
+          },
+        },
+      ])[0];
+    })
+    .filter(Boolean);
+  if (!clones.length) {
+    renderStatus("Unlock Map objects before pasting copies");
+    return [];
+  }
+  clones.forEach((clone) => {
+    const groupedIds = clone.meta?.groupedObjectIds;
+    if (Array.isArray(groupedIds)) {
+      clone.meta.groupedObjectIds = groupedIds
+        .map((id) => idMap.get(id))
+        .filter(Boolean);
+    }
+    if (clone.meta?.copiedWithinGroupId && idMap.has(clone.meta.copiedWithinGroupId)) {
+      clone.meta.copiedWithinGroupId = idMap.get(clone.meta.copiedWithinGroupId);
+    }
+    if (clone.meta?.copiedToGroupId && idMap.has(clone.meta.copiedToGroupId)) {
+      clone.meta.copiedToGroupId = idMap.get(clone.meta.copiedToGroupId);
+    }
+  });
+  state.spatialObjects = normalizeSpatialObjects([
+    ...state.spatialObjects,
+    ...clones,
+  ]);
+  setSelectedSpatialObjects(
+    clones.map((object) => object.id),
+    clones.at(-1)?.id || null,
+  );
+  state.selectedConnectionId = null;
+  persistState();
+  renderFlowBoard();
+  renderSpec();
+  scheduleLivePreviewSync();
+  renderStatus(
+    clones.length === 1
+      ? "Map object pasted"
+      : `${clones.length} Map objects pasted`,
+  );
+  return clones;
+}
+
 async function copySelectedSpatialObjectContext() {
   const objects = selectedSpatialObjects();
   const object = selectedSpatialObject();
@@ -15581,7 +15716,16 @@ function onWindowKeyUp(event) {
 }
 
 function onWindowCopy(event) {
-  if (state.viewMode !== "frame" || shouldIgnoreDeleteShortcut(event.target)) {
+  if (shouldIgnoreDeleteShortcut(event.target)) {
+    return;
+  }
+
+  if (state.viewMode === "flow") {
+    copySelectedSpatialObjectsToClipboard(event);
+    return;
+  }
+
+  if (state.viewMode !== "frame") {
     return;
   }
 
@@ -16078,6 +16222,26 @@ async function tryPasteElements(event) {
 async function tryPasteMapContext(event) {
   if (state.viewMode !== "flow" || shouldIgnoreDeleteShortcut(event.target)) {
     return false;
+  }
+
+  const rawSpatialPayload =
+    event.clipboardData?.getData("application/x-canvax-spatial-objects") ||
+    event.clipboardData?.getData("text/plain");
+  if (rawSpatialPayload) {
+    try {
+      const payload = JSON.parse(rawSpatialPayload);
+      if (
+        payload?.kind === "canvax-spatial-objects" &&
+        Array.isArray(payload.objects) &&
+        payload.objects.length
+      ) {
+        event.preventDefault();
+        const clones = pasteSpatialObjects(payload.objects);
+        return clones.length > 0;
+      }
+    } catch {
+      // Non-Canvax text continues into note/image handling below.
+    }
   }
 
   const imageItem = Array.from(event.clipboardData?.items || []).find((item) =>
@@ -23225,7 +23389,7 @@ async function runSelfTest() {
     results.push(assertSpatialObjectsFromOutputManifest());
     results.push(assertCheckpointSpatialObjects());
     results.push(await assertCheckpointReplayCreatesFrame());
-    results.push(assertManualSpatialObjectControls());
+    results.push(await assertManualSpatialObjectControls());
 
     setSelfTestProgress("undo redo and frame flow");
     const beforeUndo = currentFrame().elements.length;
@@ -25696,7 +25860,7 @@ async function assertCheckpointReplayCreatesFrame() {
   );
 }
 
-function assertManualSpatialObjectControls() {
+async function assertManualSpatialObjectControls() {
   const previous = {
     workspaceMode: state.workspaceMode,
     workbenchFocus: state.workbenchFocus,
@@ -26133,6 +26297,52 @@ function assertManualSpatialObjectControls() {
     deletePrevented &&
     !spatialObjectById(duplicateObject.id) &&
     !state.selectedSpatialObjectId;
+  selectSpatialObject(object?.id, { render: true });
+  const spatialClipboard = {};
+  let spatialCopyPrevented = false;
+  onWindowCopy({
+    clipboardData: {
+      setData(type, value) {
+        spatialClipboard[type] = value;
+      },
+    },
+    target: document.body,
+    preventDefault() {
+      spatialCopyPrevented = true;
+    },
+  });
+  const spatialClipboardPayload = JSON.parse(
+    spatialClipboard["application/x-canvax-spatial-objects"] || "{}",
+  );
+  let spatialPastePrevented = false;
+  const spatialClipboardPasteConsumed = await tryPasteMapContext({
+    clipboardData: {
+      items: [],
+      getData(type) {
+        return type === "application/x-canvax-spatial-objects"
+          ? spatialClipboard["application/x-canvax-spatial-objects"] || ""
+          : "";
+      },
+    },
+    target: document.body,
+    preventDefault() {
+      spatialPastePrevented = true;
+    },
+  });
+  const pastedSpatialObject = selectedSpatialObject();
+  const spatialClipboardPasted =
+    spatialCopyPrevented &&
+    spatialClipboardPayload.kind === "canvax-spatial-objects" &&
+    spatialClipboardPayload.objects?.[0]?.id === object?.id &&
+    spatialClipboardPasteConsumed &&
+    spatialPastePrevented &&
+    pastedSpatialObject?.id !== object?.id &&
+    pastedSpatialObject?.title.includes("copy") &&
+    pastedSpatialObject?.meta?.pastedFromClipboard === true &&
+    !pastedSpatialObject?.meta?.locked;
+  if (pastedSpatialObject && pastedSpatialObject.id !== object?.id) {
+    removeSpatialObject(pastedSpatialObject.id);
+  }
   selectSpatialObject(object?.id, { render: false });
   selectSpatialObject(group?.id, { render: true, additive: true });
   const multiSelected =
@@ -26478,6 +26688,7 @@ function assertManualSpatialObjectControls() {
       nudged &&
       duplicated &&
       duplicateDeleted &&
+      spatialClipboardPasted &&
       multiSelected &&
       multiContextExported &&
       multiNudged &&
@@ -26492,7 +26703,7 @@ function assertManualSpatialObjectControls() {
       selectedObjectExported &&
       exported &&
       removed,
-    "Manual spatial map note and group can be selected, locked, grouped, ungrouped, nudged, duplicated, deleted, moved with members, resized, exported, and removed",
+    "Manual spatial map note and group can be selected, locked, grouped, ungrouped, nudged, duplicated, copied/pasted, deleted, moved with members, resized, exported, and removed",
     JSON.stringify({
       added,
       selectedRendered,
@@ -26517,6 +26728,7 @@ function assertManualSpatialObjectControls() {
       nudged,
       duplicated,
       duplicateDeleted,
+      spatialClipboardPasted,
       multiSelected,
       multiContextExported,
       multiNudged,

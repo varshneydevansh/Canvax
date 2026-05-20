@@ -74,6 +74,21 @@ web/index.html + web/styles.css + web/app.js
     +--> task/image prompt packs
 ```
 
+### Workbench Map Clipboard
+
+Map copy/paste has two layers:
+
+- `application/x-canvax-spatial-objects` carries selected Map objects as a
+  Canvax-only clipboard payload when the browser preserves custom MIME data.
+- `text/plain` carries the same selection as no-API Markdown context so the
+  copy is still useful in Codex, ChatGPT, or a plain notes app.
+
+Paste checks the Canvax spatial payload first. When present, `web/app.js`
+remaps object ids, group child ids, and copied-group references, clears
+manual-copy lock/pin metadata, places the cloned objects in the currently
+visible Map region, and then selects the pasted objects. If only plain text
+survives, Map paste falls back to the normal spatial note path.
+
 ### Local Service
 
 Files:
