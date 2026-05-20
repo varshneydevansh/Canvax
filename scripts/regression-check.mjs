@@ -382,12 +382,21 @@ async function validateCodexOutputDryRun() {
     ]);
     const payload = JSON.parse(stdout);
     const manifest = payload?.manifest;
+    const liveExport = await readOptionalJson(liveJsonPath);
+    const activeProjectId =
+      typeof liveExport?.project?.id === "string" ? liveExport.project.id : "";
     const passed = Boolean(
       payload?.dryRun &&
       typeof payload?.manifestPath === "string" &&
       Number.isInteger(manifest?.version) &&
       manifest.version >= 1 &&
-      Array.isArray(manifest?.changes),
+      Array.isArray(manifest?.changes) &&
+      (!activeProjectId ||
+        (manifest.project?.id === activeProjectId &&
+          typeof payload?.projectManifestPath === "string" &&
+          payload.projectManifestPath.includes(
+            `exports/projects/${activeProjectId}/canvax-codex-output-latest.json`,
+          ))),
     );
     results.push({
       name: "codex output dry-run manifest is valid",
@@ -1799,6 +1808,15 @@ async function validateOptionalJsonSchema(
       passed: false,
       detail: error instanceof Error ? error.message : filePath,
     });
+  }
+}
+
+async function readOptionalJson(filePath) {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
 }
 

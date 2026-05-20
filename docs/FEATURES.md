@@ -98,6 +98,13 @@ output manifests are filtered by project id or by frame ids that exist in the
 active live export. This prevents stale generated cards and checkpoint trails
 from another local board from appearing after a project switch.
 
+`write-codex-output.mjs` also binds new Codex output manifests to the active
+project when the live export has project metadata. It still writes the global
+compatibility manifest at `artifacts/canvax/codex-output.json`, and it mirrors
+the same output to
+`exports/projects/<project-id>/canvax-codex-output-latest.{json,md}` for
+project recovery and comparison.
+
 ```mermaid
 flowchart LR
     Picker[Project picker] --> Registry[local project registry]

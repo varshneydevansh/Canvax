@@ -123,6 +123,13 @@ output manifests to the active project or active project frame ids. That keeps
 old generated cards and checkpoint trails from another local project from
 appearing on the current Map after a project switch.
 
+When Codex publishes implementation output with `scripts/write-codex-output.mjs`,
+Canvax now records the active project on the manifest and mirrors the output to:
+
+- `artifacts/canvax/codex-output.json`
+- `exports/projects/<project-id>/canvax-codex-output-latest.json`
+- `exports/projects/<project-id>/canvax-codex-output-latest.md`
+
 ## What To Draw
 
 Canvax is intentionally generic. Use it for:

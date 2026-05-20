@@ -7,6 +7,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const codexOutputRoot = resolve(projectRoot, "artifacts", "canvax");
 const codexOutputManifestPath = resolve(codexOutputRoot, "codex-output.json");
+const exportRoot = resolve(projectRoot, "exports");
+const liveExportPath = resolve(exportRoot, "canvax-live-latest.json");
+const projectExportsRoot = resolve(exportRoot, "projects");
 
 const args = process.argv.slice(2);
 const wantsJson = args.includes("--json");
@@ -37,18 +40,22 @@ const notes =
     : "");
 const targetType = readOption(args, "--type") || "implementation-preview";
 const frameIds = readMultiOption(args, "--frame");
+const activeProject = await resolveActiveProject(args);
 const manualChanges = readMultiOption(args, "--change").map((entry, index) =>
-  buildChange(entry, index),
+  attachProject(buildChange(entry, index), activeProject),
 );
 const autoPublishedChanges = fromGitStatus
   ? await collectWorkspaceChangeEntries()
   : [];
 const changes = dedupeByKey(
-  [...manualChanges, ...autoPublishedChanges],
+  [
+    ...manualChanges,
+    ...autoPublishedChanges.map((entry) => attachProject(entry, activeProject)),
+  ],
   (entry, index) => entry.id || entry.path || `change-${index + 1}`,
 );
 const artifacts = readMultiOption(args, "--artifact").map((entry, index) =>
-  buildArtifact(entry, index),
+  attachProject(buildArtifact(entry, index), activeProject),
 );
 
 if (
@@ -66,12 +73,13 @@ if (
 }
 
 const existing = await readOptionalJson(codexOutputManifestPath);
-const existingTargets = Array.isArray(existing?.targets)
+const existingTargets = existingManifestMatchesProject(existing, activeProject)
   ? existing.targets.filter((target) => target?.id !== "primary")
   : [];
 const primaryTarget =
   url || previewPath
-    ? {
+    ? attachProject(
+        {
         id: "primary",
         label,
         source,
@@ -80,13 +88,16 @@ const primaryTarget =
         previewPath,
         description,
         frameIds,
-      }
+        },
+        activeProject,
+      )
     : null;
 
 const manifest = {
   version: 1,
   updatedAt: new Date().toISOString(),
   source,
+  project: activeProject,
   previewUrl: url || "",
   notes,
   targets: primaryTarget
@@ -95,6 +106,9 @@ const manifest = {
   changes,
   artifacts,
 };
+const projectManifestPaths = activeProject
+  ? buildProjectManifestPaths(activeProject.id)
+  : null;
 
 if (!wantsDryRun) {
   await mkdir(codexOutputRoot, { recursive: true });
@@ -102,12 +116,25 @@ if (!wantsDryRun) {
     codexOutputManifestPath,
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
+  if (projectManifestPaths) {
+    await mkdir(dirname(projectManifestPaths.jsonPath), { recursive: true });
+    await writeFile(
+      projectManifestPaths.jsonPath,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+    );
+    await writeFile(
+      projectManifestPaths.markdownPath,
+      buildCodexOutputMarkdown(manifest, projectManifestPaths),
+    );
+  }
 }
 
 const result = {
   saved: !wantsDryRun,
   dryRun: wantsDryRun,
   manifestPath: codexOutputManifestPath,
+  projectManifestPath: projectManifestPaths?.jsonPath || "",
+  projectMarkdownPath: projectManifestPaths?.markdownPath || "",
   source,
   changeCount: changes.length,
   artifactCount: artifacts.length,
@@ -123,6 +150,9 @@ if (wantsJson) {
       ? `Dry run prepared Codex output manifest for ${codexOutputManifestPath}`
       : `Saved Codex output manifest to ${codexOutputManifestPath}`,
   );
+  if (projectManifestPaths) {
+    console.log(`Project output manifest: ${projectManifestPaths.jsonPath}`);
+  }
   if (primaryTarget) {
     console.log(`Primary target: ${url || previewPath}`);
   }
@@ -249,6 +279,123 @@ async function clearManifest() {
   }
 }
 
+async function resolveActiveProject(inputArgs) {
+  const explicitId = readOption(inputArgs, "--project-id");
+  if (explicitId) {
+    return {
+      id: explicitId,
+      title: readOption(inputArgs, "--project-title") || explicitId,
+    };
+  }
+  const liveExport = await readOptionalJson(liveExportPath);
+  return normalizeProject(liveExport?.project);
+}
+
+function normalizeProject(value) {
+  const id = cleanString(value?.id);
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    title:
+      cleanString(value?.title) ||
+      cleanString(value?.projectTitle) ||
+      cleanString(value?.name) ||
+      id,
+  };
+}
+
+function attachProject(entry, project) {
+  if (!project || !entry || typeof entry !== "object") {
+    return entry;
+  }
+  return {
+    ...entry,
+    project,
+    projectId: project.id,
+  };
+}
+
+function existingManifestMatchesProject(manifest, project) {
+  if (!Array.isArray(manifest?.targets)) {
+    return false;
+  }
+  if (!project?.id) {
+    return true;
+  }
+  const manifestProject = normalizeProject(manifest.project);
+  return Boolean(manifestProject?.id && manifestProject.id === project.id);
+}
+
+function buildProjectManifestPaths(projectId) {
+  const root = resolve(projectExportsRoot, projectId);
+  return {
+    jsonPath: resolve(root, "canvax-codex-output-latest.json"),
+    markdownPath: resolve(root, "canvax-codex-output-latest.md"),
+  };
+}
+
+function buildCodexOutputMarkdown(manifest, paths) {
+  const lines = [
+    "# Canvax Codex Output",
+    "",
+    `Updated: ${manifest.updatedAt}`,
+    `Source: ${manifest.source}`,
+    `Project: ${manifest.project?.title || manifest.project?.id || "none"}`,
+    "",
+    "## Files",
+    "",
+    `- Global manifest: ${toProjectRelative(codexOutputManifestPath)}`,
+    `- Project manifest: ${toProjectRelative(paths.jsonPath)}`,
+    "",
+    "## Targets",
+    "",
+  ];
+  if (manifest.targets.length) {
+    manifest.targets.forEach((target) => {
+      lines.push(
+        `- ${target.label || target.id}: ${target.url || target.previewPath || "no target"} (${(target.frameIds || []).join(", ") || "unbound"})`,
+      );
+    });
+  } else {
+    lines.push("- None");
+  }
+  lines.push("", "## Changed Files", "");
+  if (manifest.changes.length) {
+    manifest.changes.forEach((change) => {
+      lines.push(
+        `- ${change.path}: ${change.summary || change.kind || "updated"} (${(change.frameIds || []).join(", ") || "unbound"})`,
+      );
+    });
+  } else {
+    lines.push("- None");
+  }
+  lines.push("", "## Artifacts", "");
+  if (manifest.artifacts.length) {
+    manifest.artifacts.forEach((artifact) => {
+      lines.push(
+        `- ${artifact.path}: ${artifact.description || artifact.kind || "artifact"} (${(artifact.frameIds || []).join(", ") || "unbound"})`,
+      );
+    });
+  } else {
+    lines.push("- None");
+  }
+  lines.push("");
+  return `${lines.join("\n")}\n`;
+}
+
+function cleanString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function toProjectRelative(filePath) {
+  return String(filePath || "")
+    .replace(projectRoot, "")
+    .replace(/^[/\\]/, "")
+    .replaceAll("\\", "/");
+}
+
 function printHelp() {
   console.log(`write-codex-output
 
@@ -271,6 +418,8 @@ Options:
   --notes <value>           Manifest-level notes
   --type <value>            Target type label
   --frame <id>              Associate the target with a frame id, repeatable
+  --project-id <id>         Override active Canvax project binding
+  --project-title <value>   Title for --project-id
   --from-git-status         Build changed-file entries from git status automatically
   --dry-run                 Build the manifest without writing it to disk
   --json                    Print machine-readable output

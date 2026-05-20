@@ -108,6 +108,9 @@ When multiple local Canvax projects exist, keep using
 `exports/canvax-live-latest.json` for the active chat unless the user asks for a
 specific project. The file-backed project registry points to each project's
 latest handoff under `exports/projects/<project-id>/`.
+Codex output published through `scripts/write-codex-output.mjs` also mirrors to
+`exports/projects/<project-id>/canvax-codex-output-latest.{json,md}` when the
+active live export contains project metadata.
 
 The task pack and image prompt pack may include `actionMode`, `hostLane`, and `designContext`. Use those fields to decide whether the user is asking for implementation, refinement, specs, image prompting, or variations, and to avoid promising native host features that the current local board does not expose.
 

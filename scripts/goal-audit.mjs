@@ -80,6 +80,14 @@ const checks = [
         ],
       },
       {
+        path: "scripts/write-codex-output.mjs",
+        includes: [
+          "canvax-codex-output-latest.json",
+          "resolveActiveProject",
+          "projectManifestPath",
+        ],
+      },
+      {
         path: "docs/FEATURES.md",
         includes: [
           "`/api/preview-state` is scoped to the active project",
