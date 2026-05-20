@@ -504,6 +504,7 @@ function buildBoardResponsiveSmokeExpression() {
     if (toolbar && toolbar.width > window.innerWidth + 16) failures.push("toolbar wider than viewport");
     if (document.documentElement.scrollWidth > window.innerWidth + 16) failures.push("document has horizontal overflow");
     if (stage && stage.width < Math.min(300, window.innerWidth * 0.56)) failures.push("stage collapsed");
+    if (stage && window.innerWidth <= 480 && stage.top > window.innerHeight * 0.72) failures.push("narrow Workbench hides the canvas below controls");
     if (canvas && canvas.height < 240) failures.push("canvas too short");
     return {
       passed: failures.length === 0,
