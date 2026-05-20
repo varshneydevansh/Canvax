@@ -165,6 +165,7 @@ It hides advanced panels and keeps only:
 - generated output beside the sketch when a preview target exists
 - a lower-left `Agent log` that summarizes recent Make/Apply/Review, rewrite, output, checkpoint, and voice-intent activity without opening Advanced
 - `Sketch`, `Split`, `Output`, and `Map` focus modes for choosing whether the rough canvas, side-by-side comparison, generated surface, or spatial project map is primary
+- a floating `Add to canvas` dock in `Map` for creating frames, notes, file/reference cards, groups, variants, generated screens, or Codex build requests without returning to side panels
 - correction marks drawn directly over generated output
 - pasted or dropped images as movable/resizable image assets on the frame
 - `Add image` as the visible Workbench file-picker path for editable reference images, generated candidates, book/storyboard art, or UI assets

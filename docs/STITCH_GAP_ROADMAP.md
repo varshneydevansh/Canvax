@@ -290,6 +290,7 @@ mirrors, and a native Codex project surface.
 - Workbench now has a `Start here` strip for `1 Sketch`, `2 Talk`, `3 Make`, and `4 Map`, giving first-time designers a short guided path before they need every control.
 - Workbench now has a bottom command composer for typed/pasted dictation, Talk, Note, Make, and Apply in `Open scratchpad`, so the main sketch loop can stay canvas-first without crowding the default brief.
 - The Workbench composer can now `Pin` the current typed/dictated instruction directly onto the spatial Map as a visible note object while also preserving it in voice context. This makes spoken design intent part of the same canvas object layer as frames, generated outputs, references, and assets.
+- Workbench/Advanced `Map` now includes a floating `Add to canvas` dock for Frame, Note, File, Group, Variants, Make, and Build actions, reducing side-panel friction and making the spatial canvas a creation surface instead of only an arrangement view.
 - The Workbench rail now behaves like the primary bottom designer dock in `Open scratchpad`, with tactile actions, undo/redo, brush `-` / `+`, and Image handoff.
 - The rail and slider size controls now resize selected elements in Select mode and only act globally when no element is selected.
 - The Workbench tray no longer duplicates the dock with a second tool grid in simple mode; it is a compact command strip focused on brief, surface/action context, voice, and generated output.
@@ -437,6 +438,7 @@ done
   generated output overlay -> saved correction marks for Codex
   generated preview review aids -> opt-in original sketch and design notes
   Workbench Map -> zoomable frame/variant project graph exported as spatialWorkspace
+  Map Add to canvas dock -> frame, note, file, group, variants, make, and build actions
   Map Add group -> labeled exploration regions
   Map Add note/Add file -> manual context objects
   Map object selection -> Shift-click and Shift-drag lasso + no-API context copy + selected-set drag/resize + nudge/duplicate/delete + group-contained object copies + selectedObjectId export
@@ -636,7 +638,7 @@ Needed:
 
 ### P1: Reach Stitch-Style Core UX
 
-- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan with momentum/coast, Shift-drag lasso selection, selected-set dragging/resizing, selection-created group regions, group contents selection/fitting, front/back layer ordering, cursor-centered pinch/ctrl-wheel zoom, minimap click-to-pan, Fit map recovery, edge expansion when cards/objects are dragged into the left/top boundary, persistent trailing workspace room, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, collapse repeated outputs to the latest useful per-frame/per-kind card, sit inside the output shelf lane with an inline legend explaining that they are references not frames, and can be promoted into editable `Output edit` frames. Richer nested editing remains open.**
+- Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan with momentum/coast, Shift-drag lasso selection, selected-set dragging/resizing, selection-created group regions, group contents selection/fitting, front/back layer ordering, cursor-centered pinch/ctrl-wheel zoom, minimap click-to-pan, Fit map recovery, edge expansion when cards/objects are dragged into the left/top boundary, persistent trailing workspace room, a floating `Add to canvas` creation dock, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, collapse repeated outputs to the latest useful per-frame/per-kind card, sit inside the output shelf lane with an inline legend explaining that they are references not frames, and can be promoted into editable `Output edit` frames. Richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Deterministic variants now appear as connected editable Flow frames plus selectable/resizable/movable `variant-branch` Map objects, expose in-place `Use variant` actions in Map, and export as explicit editable spatial branch/object records with semantic recipes, branch prompts, design moves, style knobs, and custom properties. Hosted AI-generated variants remain a future host bridge.**
 - Voice-driven critique/refinement lane. **Initial local `Voice intent queue`

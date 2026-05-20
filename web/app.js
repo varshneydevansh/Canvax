@@ -596,6 +596,7 @@ const dom = {
   flowNavigatorItems: document.querySelector("#flow-navigator-items"),
   flowNavigatorViewport: document.querySelector("#flow-navigator-viewport"),
   flowNavigatorScale: document.querySelector("#flow-navigator-scale"),
+  mapCreateDock: document.querySelector("#map-create-dock"),
   mapObjectSearch: document.querySelector("#map-object-search"),
   mapObjectFilterChips: document.querySelector("#map-object-filter-chips"),
   addSpatialNote: document.querySelector("#add-spatial-note"),
@@ -1195,6 +1196,13 @@ function bindEvents() {
     passive: true,
   });
   dom.flowNavigator.addEventListener("pointerdown", onFlowNavigatorPointerDown);
+  dom.mapCreateDock.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-map-create-action]");
+    if (!button) {
+      return;
+    }
+    handleMapCreateAction(button.dataset.mapCreateAction);
+  });
   dom.mapObjectFilterChips.addEventListener("click", (event) => {
     const button = event.target.closest("[data-map-object-filter]");
     if (!button) {
@@ -3924,6 +3932,48 @@ function openWorkbenchContextPicker() {
   setWorkbenchFocus("map");
   dom.spatialFileInput?.click();
   renderStatus("Choose a file or image to add as a Map context card");
+}
+
+function keepMapAsActiveSurface() {
+  state.viewMode = "flow";
+  if (state.workspaceMode === "simple") {
+    state.workbenchFocus = "map";
+    state.workbenchTrayCollapsed = true;
+  }
+}
+
+function handleMapCreateAction(action) {
+  keepMapAsActiveSurface();
+  if (action === "frame") {
+    addFrame({
+      status: "Map frame added",
+    });
+    return;
+  }
+  if (action === "note") {
+    addSpatialNoteObject();
+    return;
+  }
+  if (action === "context") {
+    dom.spatialFileInput?.click();
+    renderStatus("Choose a file or image to add as a Map context card");
+    return;
+  }
+  if (action === "group") {
+    addSpatialGroupObject();
+    return;
+  }
+  if (action === "variants") {
+    createVariantFramesFromCurrent();
+    return;
+  }
+  if (action === "screen") {
+    void generateCurrentScreen();
+    return;
+  }
+  if (action === "build") {
+    void buildRealScreenWithCodex();
+  }
 }
 
 function handleWorkbenchRailAction(action) {
@@ -24304,6 +24354,10 @@ function assertWorkbenchSpatialMap() {
     dom.flowNavigatorItems.querySelectorAll(".flow-navigator-item").length >=
       state.frames.length + 3 &&
     dom.flowNavigatorViewport.style.width;
+  const mapCreateDockRendered =
+    Boolean(dom.mapCreateDock) &&
+    dom.mapCreateDock.querySelectorAll("[data-map-create-action]").length >= 7 &&
+    dom.mapCreateDock.textContent.includes("Add to canvas");
   const groupExported = spatialExport.groups.some(
     (group) =>
       group.id === "spatial-selftest-group" &&
@@ -24392,6 +24446,14 @@ function assertWorkbenchSpatialMap() {
     viewportExport.visibleBounds?.left >= 0 &&
     viewportExport.normalizedVisibleBounds?.width > 0 &&
     viewportExport.normalizedVisibleBounds?.height > 0;
+  const mapCreateFrameCount = state.frames.length;
+  handleMapCreateAction("frame");
+  const mapCreateFrameWorks =
+    state.frames.length === mapCreateFrameCount + 1 &&
+    state.viewMode === "flow" &&
+    state.workbenchFocus === "map" &&
+    state.workbenchTrayCollapsed === true &&
+    currentFrame()?.title === `Frame ${mapCreateFrameCount + 1}`;
   const spatialMapDetail = JSON.stringify({
     mapVisible,
     zoomChanged,
@@ -24407,6 +24469,7 @@ function assertWorkbenchSpatialMap() {
     timelineFrameFocused,
     objectRendered,
     navigatorRendered,
+    mapCreateDockRendered,
     groupExported,
     groupedObject,
     assetFilterActive,
@@ -24417,6 +24480,7 @@ function assertWorkbenchSpatialMap() {
     fitMapWorked,
     navigatorPanned,
     viewportExported,
+    mapCreateFrameWorks,
     viewportExport,
     fitMap: {
       zoom: state.flowZoom,
@@ -24465,9 +24529,11 @@ function assertWorkbenchSpatialMap() {
       outputFilterVisible &&
       searchVisible &&
       navigatorRendered &&
+      mapCreateDockRendered &&
       fitMapWorked &&
       navigatorPanned &&
-      viewportExported,
+      viewportExported &&
+      mapCreateFrameWorks,
     "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, and exports frames, objects, and group containment",
     spatialMapDetail,
   );

@@ -59,6 +59,7 @@ Status: In progress
 - [x] Saves now also write `exports/canvax-project-registry-latest.*` and project-scoped latest handoffs under `exports/projects/<project-id>/` for live JSON, Markdown, voice, task pack, rewrite request, image prompt pack, asset candidates, image-generation briefs, image-host tasks, image result returns, build requests, checkpoints, and assets
 - [x] Eraser rendering is isolated to the ink layer so paper/grid/background do not get erased in thumbnails or exports
 - [x] Workbench `Map` focus exposes the frame/variant graph as a zoomable spatial project map
+- [x] Workbench/Advanced `Map` includes a floating `Add to canvas` dock for Frame, Note, File, Group, Variants, Make, and Build actions so designers can create from the spatial canvas itself
 - [x] Workbench `Map` styles generated variants as branch cards with visible lineage and primary state
 - [x] Workbench `Map` variant cards expose `Use variant` so generated directions can be promoted in-place without leaving the spatial workbench
 - [x] Workbench `Map` now mirrors generated variants as selectable/resizable/movable `variant-branch` Map objects with object-level context and `Use variant`
