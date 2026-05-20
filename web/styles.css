@@ -499,13 +499,55 @@ body[data-workspace-mode="advanced"] .inspector-panel {
 }
 
 body[data-workspace-mode="advanced"] .toolbar-main {
-    padding-top: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+    align-items: center;
+    gap: 0.55rem 0.75rem;
     border-top: 0.0625rem solid rgba(255, 248, 236, 0.1);
     background:
         linear-gradient(90deg, rgba(255, 248, 236, 0.06), transparent 62%),
         #261c19;
     border-radius: 1rem;
-    padding: 0.75rem;
+    padding: 0.62rem;
+}
+
+body[data-workspace-mode="advanced"] .toolbar-group {
+    gap: 0.45rem;
+}
+
+body[data-workspace-mode="advanced"] .tool-chip,
+body[data-workspace-mode="advanced"] .segment {
+    min-height: 2.1rem;
+    padding: 0.42rem 0.68rem;
+    font-size: 0.78rem;
+}
+
+body[data-workspace-mode="advanced"] .swatch {
+    width: 1.85rem;
+    height: 1.85rem;
+    min-height: 1.85rem;
+}
+
+body[data-workspace-mode="advanced"] .custom-color-control {
+    width: 2rem;
+    height: 2rem;
+    min-height: 2rem;
+}
+
+body[data-workspace-mode="advanced"] input.color-hex-input {
+    width: 5.9rem;
+    flex-basis: 5.9rem;
+    min-width: 5.9rem;
+    padding: 0.5rem 0.65rem;
+}
+
+body[data-workspace-mode="advanced"] .range-label input {
+    min-width: 7rem;
+}
+
+body[data-workspace-mode="advanced"] .toolbar-status {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
 }
 
 body[data-workspace-mode="advanced"] .panel::after {
@@ -1228,6 +1270,7 @@ button:disabled {
     border: 0.0625rem solid rgba(24, 17, 14, 0.08);
     background: rgba(255, 249, 241, 0.7);
     text-align: left;
+    overflow: hidden;
 }
 
 .frame-card.active {
@@ -1275,6 +1318,11 @@ button:disabled {
     align-items: center;
     justify-content: space-between;
     gap: 0.55rem;
+    min-width: 0;
+}
+
+.frame-meta-row strong {
+    flex: 1 1 auto;
 }
 
 .frame-meta strong,
@@ -1287,6 +1335,9 @@ button:disabled {
 .frame-meta strong,
 .capture-meta strong {
     font-size: 0.95rem;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .frame-meta span,
@@ -1299,6 +1350,8 @@ button:disabled {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: 0 0 auto;
+    max-width: 4.8rem;
     min-height: 1.45rem;
     padding: 0.18rem 0.55rem;
     border-radius: 999px;
@@ -1307,6 +1360,8 @@ button:disabled {
     font-weight: 600;
     letter-spacing: 0.01em;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .frame-status-badge.active {

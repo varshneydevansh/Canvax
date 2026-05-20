@@ -20573,8 +20573,24 @@ function renderFrameOutputBadge(status) {
   if (!status?.label) {
     return "";
   }
+  const label = frameOutputBadgeCompactLabel(status.label);
   const title = status.detail || status.label;
-  return `<span class="frame-status-badge ${escapeHtml(status.tone || "muted")}" title="${escapeHtml(title)}">${escapeHtml(status.label)}</span>`;
+  return `<span class="frame-status-badge ${escapeHtml(status.tone || "muted")}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
+}
+
+function frameOutputBadgeCompactLabel(label) {
+  switch (cleanString(label).toLowerCase()) {
+    case "generated screen":
+      return "Made";
+    case "output synced":
+      return "Synced";
+    case "output stale":
+      return "Stale";
+    case "global target":
+      return "Global";
+    default:
+      return label || "";
+  }
 }
 
 function resolveManifestTargetEntry(manifest, preferredFrameId = "") {

@@ -476,6 +476,13 @@ function buildAdvancedMapSmokeExpression() {
     const mapTimeline = rect("#map-timeline");
     const outputLane = rect(".spatial-lane-output");
     const guide = rect(".spatial-lane-output .spatial-lane-guide");
+    const overflowingFrameBadges = [...document.querySelectorAll(".frame-card .frame-status-badge")].filter((badge) => {
+      const card = badge.closest(".frame-card");
+      if (!card) return true;
+      const badgeBox = badge.getBoundingClientRect();
+      const cardBox = card.getBoundingClientRect();
+      return badgeBox.right > cardBox.right - 4 || badgeBox.left < cardBox.left + 4;
+    });
     const generatedLabels = [
       ...document.querySelectorAll(".spatial-object-node.generated-output .spatial-object-header span")
     ].map((node) => node.textContent.trim().toLowerCase());
@@ -492,6 +499,7 @@ function buildAdvancedMapSmokeExpression() {
     if (!guide?.visible) failures.push("output shelf guide missing");
     if (toolbarRect && toolbarRect.width > window.innerWidth + 16) failures.push("advanced toolbar wider than viewport");
     if (flowShell && flowShell.height < Math.min(360, window.innerHeight * 0.45)) failures.push("flow map viewport too short");
+    if (overflowingFrameBadges.length) failures.push("frame output badge overflows the project rail");
     if (backdrop && backdrop !== "none" && backdrop !== "blur(0px)") failures.push("advanced toolbar uses backdrop blur");
     if (backgroundAlpha < 0.98) failures.push("advanced toolbar background is translucent");
     if (!generatedLabels.length) failures.push("generated output labels missing");
