@@ -883,6 +883,40 @@
                     </button>
                 </nav>
 
+                <section
+                    id="workbench-agent-log"
+                    class="workbench-agent-log"
+                    aria-label="Workbench agent and output activity"
+                >
+                    <button
+                        id="workbench-agent-log-toggle"
+                        class="workbench-agent-log-toggle"
+                        type="button"
+                        aria-expanded="false"
+                    >
+                        <span>Agent log</span>
+                        <strong id="workbench-agent-log-count">0</strong>
+                    </button>
+                    <div
+                        id="workbench-agent-log-panel"
+                        class="workbench-agent-log-panel"
+                        hidden
+                    >
+                        <div class="workbench-agent-log-header">
+                            <span>Recent Canvax activity</span>
+                            <small id="workbench-agent-log-status"
+                                >No activity yet</small
+                            >
+                        </div>
+                        <div
+                            id="workbench-agent-log-list"
+                            class="workbench-agent-log-list empty-state"
+                        >
+                            No agent/output activity yet.
+                        </div>
+                    </div>
+                </section>
+
                 <section class="panel stage-panel">
                     <div class="stage-header">
                         <div>

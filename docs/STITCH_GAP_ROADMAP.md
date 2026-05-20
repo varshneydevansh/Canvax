@@ -637,7 +637,12 @@ Needed:
   placement, scale, visual style, flow, asset, copy, or general intent cards so
   critique is visible next to the sketch before Apply/Live rewrite. Native
   Codex microphone capture and continuous hosted co-editing remain open.**
-- Branchable design explorations with a clear agent/output history.
+- Branchable design explorations with a clear agent/output history. **Initial
+  local Workbench `Agent log` shipped. It rolls Make/Apply/Review, rewrite,
+  output activity, checkpoints, design-jury verdicts, and voice-intent cards
+  into a compact lower-left activity panel so designers do not have to open
+  Advanced to confirm what Canvax/Codex just did. True hosted branch history
+  with replayable AI decisions remains open.**
 - Prompt chips for common refinements like "try another font", "make it more dramatic", "show mobile variant". **Initial Workbench quick-prompt chips shipped.**
 - Brand polish across board, Preview, generated routes, and docs.
 

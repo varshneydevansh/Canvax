@@ -28,6 +28,7 @@ const checks = [
           "workspace-mode-guide",
           "workbench-review-output",
           "workbench-design-review-badge",
+          "workbench-agent-log",
         ],
       },
       {
@@ -44,7 +45,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Manual taste review for first-time-designer clarity is still required, but the default surface now has a four-step guided Start here path and an inline local output review gate.",
+      "Manual taste review for first-time-designer clarity is still required, but the default surface now has a four-step guided Start here path, an inline local output review gate, and a compact Workbench Agent log.",
   },
   {
     id: "unified-workbench-advanced",

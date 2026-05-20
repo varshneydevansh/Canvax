@@ -148,6 +148,7 @@ It hides advanced panels and keeps only:
 - quick-prompt chips for common refinements like `Try another font`, `Make it more dramatic`, `Show mobile variant`, `Tighten spacing`, and `Add image candidates`
 - `Make real` for a local generated-screen preview
 - generated output beside the sketch when a preview target exists
+- a lower-left `Agent log` that summarizes recent Make/Apply/Review, rewrite, output, checkpoint, and voice-intent activity without opening Advanced
 - `Sketch`, `Split`, `Output`, and `Map` focus modes for choosing whether the rough canvas, side-by-side comparison, generated surface, or spatial project map is primary
 - correction marks drawn directly over generated output
 - pasted or dropped images as movable/resizable image assets on the frame

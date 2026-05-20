@@ -460,6 +460,16 @@ const dom = {
   workbenchComposerNote: document.querySelector("#workbench-composer-note"),
   workbenchComposerMake: document.querySelector("#workbench-composer-make"),
   workbenchComposerApply: document.querySelector("#workbench-composer-apply"),
+  workbenchAgentLog: document.querySelector("#workbench-agent-log"),
+  workbenchAgentLogToggle: document.querySelector(
+    "#workbench-agent-log-toggle",
+  ),
+  workbenchAgentLogCount: document.querySelector("#workbench-agent-log-count"),
+  workbenchAgentLogPanel: document.querySelector("#workbench-agent-log-panel"),
+  workbenchAgentLogStatus: document.querySelector(
+    "#workbench-agent-log-status",
+  ),
+  workbenchAgentLogList: document.querySelector("#workbench-agent-log-list"),
   focusPad: document.querySelector("#focus-pad"),
   designerStartActions: document.querySelector("#designer-start-actions"),
   focusViewportSelect: document.querySelector("#focus-viewport-select"),
@@ -964,6 +974,11 @@ function bindEvents() {
   dom.workbenchComposerApply.addEventListener("click", () => {
     commitManualVoiceDraft("workbench-composer");
     void applyFocusPadToCodex();
+  });
+  dom.workbenchAgentLogToggle.addEventListener("click", () => {
+    state.workbenchAgentLogOpen = !state.workbenchAgentLogOpen;
+    persistState();
+    renderWorkbenchAgentLog();
   });
   dom.focusToolButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-focus-tool]");
@@ -2224,6 +2239,9 @@ function hydrateState() {
         : empty.workbenchFocus,
       designKitSearch: cleanString(migrated.designKitSearch),
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
+      workbenchAgentLogOpen: Boolean(
+        migrated.workbenchAgentLogOpen ?? empty.workbenchAgentLogOpen,
+      ),
       outputLaneCollapsed: Boolean(
         migrated.outputLaneCollapsed ?? empty.outputLaneCollapsed,
       ),
@@ -2748,6 +2766,7 @@ function createInitialState() {
     workspaceMode: "simple",
     workbenchFocus: "sketch",
     workbenchTrayCollapsed: false,
+    workbenchAgentLogOpen: false,
     outputLaneCollapsed: true,
     historyLaneCollapsed: true,
     mapObjectFilter: "all",
@@ -3346,6 +3365,7 @@ function renderAll() {
   renderUndoRedo();
   renderServerStatus();
   renderAssetCandidateTray();
+  renderWorkbenchAgentLog();
 }
 
 function renderWorkspaceMode() {
@@ -4291,6 +4311,7 @@ function renderFocusPad() {
 
   renderFocusVoiceIntentLane(relevantSegments);
   renderWorkbenchOutput();
+  renderWorkbenchAgentLog();
   renderAssetCandidateTray();
 
   if (state.voice.interimText) {
@@ -9752,6 +9773,251 @@ function renderOutputActivity() {
       `,
     )
     .join("");
+}
+
+function renderWorkbenchAgentLog() {
+  const items = buildWorkbenchAgentLogItems();
+  const open = Boolean(state.workbenchAgentLogOpen);
+  dom.workbenchAgentLog.dataset.open = String(open);
+  dom.workbenchAgentLogToggle.setAttribute("aria-expanded", String(open));
+  dom.workbenchAgentLogPanel.hidden = !open;
+  dom.workbenchAgentLogCount.textContent = String(items.length);
+  dom.workbenchAgentLogStatus.textContent = items.length
+    ? `${items[0].kind} • ${timeLabel(items[0].at) || "now"}`
+    : "No activity yet";
+
+  if (!items.length) {
+    dom.workbenchAgentLogList.className =
+      "workbench-agent-log-list empty-state";
+    dom.workbenchAgentLogList.textContent =
+      "No agent/output activity yet. Make, Apply, Review, or save a checkpoint.";
+    return;
+  }
+
+  dom.workbenchAgentLogList.className = "workbench-agent-log-list";
+  dom.workbenchAgentLogList.innerHTML = items
+    .map(
+      (item) => `
+        <article class="workbench-agent-log-item" data-tone="${escapeHtml(item.tone)}">
+          <div>
+            <span>${escapeHtml(item.kind)}</span>
+            <strong>${escapeHtml(item.title)}</strong>
+          </div>
+          <small>${escapeHtml(timeLabel(item.at) || item.when || "now")}</small>
+          ${item.detail ? `<p>${escapeHtml(item.detail)}</p>` : ""}
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function buildWorkbenchAgentLogItems() {
+  const items = [];
+  const now = new Date().toISOString();
+  const frame = currentFrame();
+
+  if (state.focusApplyInFlight || state.liveRewriteInFlight) {
+    items.push({
+      id: "live-apply",
+      kind: "Applying",
+      title: "Refreshing from sketch + voice",
+      detail: "Canvax is saving the handoff and updating the attached output.",
+      tone: "active",
+      at: now,
+    });
+  }
+  if (state.generationInFlight || state.buildRealInFlight) {
+    items.push({
+      id: "live-make",
+      kind: "Making",
+      title: state.buildRealInFlight
+        ? "Building Codex request"
+        : "Generating screen",
+      detail: "A local no-API output pass is running for the current frame.",
+      tone: "active",
+      at: now,
+    });
+  }
+  if (state.designReviewInFlight) {
+    items.push({
+      id: "live-review",
+      kind: "Reviewing",
+      title: "Running local design jury",
+      detail:
+        "Checking hierarchy, accessibility, responsiveness, and production readiness.",
+      tone: "active",
+      at: now,
+    });
+  }
+
+  const designJury = state.serverStatus.designJury;
+  if (designJury?.kind === "canvax-design-jury-review") {
+    items.push({
+      id: `design-jury-${designJury.createdAt || "latest"}`,
+      kind: "Review",
+      title:
+        designJury.status === "fail"
+          ? "Design jury blocked output"
+          : designJury.status === "review"
+            ? "Design jury needs review"
+            : "Design jury passed",
+      detail: designJury.summary || designJury.decision || "",
+      tone:
+        designJury.status === "fail"
+          ? "danger"
+          : designJury.status === "review"
+            ? "warning"
+            : "synced",
+      at: designJury.createdAt || now,
+    });
+  }
+
+  buildRewriteQueue()
+    .slice(0, 3)
+    .forEach((item) => {
+      items.push({
+        id: `rewrite-${item.frameId}`,
+        kind: "Rewrite",
+        title: item.title || "Frame needs attention",
+        detail: item.detail || item.label || "",
+        tone: "warning",
+        at: item.updatedAt || now,
+      });
+    });
+
+  (Array.isArray(state.serverStatus.outputActivity)
+    ? state.serverStatus.outputActivity
+    : []
+  )
+    .slice(0, 5)
+    .forEach((item) => {
+      items.push({
+        id: `output-${item.id || item.digest || item.at || item.summary}`,
+        kind: "Output",
+        title: item.summary || "Output update",
+        detail: item.detail || "",
+        tone: "synced",
+        at: item.at || now,
+      });
+    });
+
+  (Array.isArray(state.serverStatus.sessionEvents)
+    ? state.serverStatus.sessionEvents
+    : []
+  )
+    .slice(0, 12)
+    .forEach((event) => {
+      const activity = agentLogItemFromSessionEvent(event);
+      if (activity) {
+        items.push(activity);
+      }
+    });
+
+  const checkpoints = Array.isArray(
+    state.serverStatus.checkpointHistory?.items,
+  )
+    ? state.serverStatus.checkpointHistory.items
+    : [];
+  checkpoints.slice(0, 3).forEach((checkpoint) => {
+    items.push({
+      id: `checkpoint-${checkpoint.id || checkpoint.savedAt}`,
+      kind: "Checkpoint",
+      title: checkpoint.label || checkpointReasonLabel(checkpoint.reason),
+      detail: checkpoint.note || checkpoint.frameTitle || frame.title,
+      tone: "neutral",
+      at: checkpoint.savedAt || checkpoint.at || now,
+    });
+  });
+
+  buildVoiceIntentQueue(voiceSegmentsForCurrentScope(), { limit: 3 }).forEach(
+    (intent) => {
+      items.push({
+        id: `voice-${intent.id}`,
+        kind: "Voice",
+        title: `${intent.label}: ${intent.summary}`,
+        detail: intent.detail,
+        tone: "voice",
+        at: intent.at || now,
+      });
+    },
+  );
+
+  return dedupeAgentLogItems(items)
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+    .slice(0, 9);
+}
+
+function agentLogItemFromSessionEvent(event) {
+  if (!event || typeof event !== "object") {
+    return null;
+  }
+  const type = cleanString(event.type || event.reason);
+  const at = cleanString(event.at || event.savedAt) || new Date().toISOString();
+  if (type === "design-review-executed") {
+    return {
+      id: `event-review-${at}-${event.frameId || ""}`,
+      kind: "Review",
+      title:
+        event.status === "fail"
+          ? "Design review blocked output"
+          : "Design review recorded",
+      detail: [
+        event.frameTitle || "",
+        event.decision ? `decision ${event.decision}` : "",
+        Number.isFinite(Number(event.score)) ? `score ${event.score}` : "",
+      ]
+        .filter(Boolean)
+        .join(" • "),
+      tone: event.status === "fail" ? "danger" : "synced",
+      at,
+    };
+  }
+  if (type === "rewrite-request-executed") {
+    return {
+      id: `event-rewrite-${at}-${event.frameId || ""}`,
+      kind: "Rewrite",
+      title: `${event.frameTitle || "Frame"} refreshed`,
+      detail: event.previewPath || event.contextPath || "",
+      tone: "synced",
+      at,
+    };
+  }
+  if (
+    ["output-update", "publish-output", "materialize", "generate-screen"].includes(
+      type,
+    )
+  ) {
+    return {
+      id: `event-output-${at}-${event.frameId || ""}`,
+      kind: "Output",
+      title: event.label || event.note || checkpointReasonLabel(type),
+      detail: event.outputDigest?.summary || event.frameTitle || "",
+      tone: "synced",
+      at,
+    };
+  }
+  if (type === "checkpoint") {
+    return {
+      id: `event-checkpoint-${event.id || at}`,
+      kind: "Checkpoint",
+      title: event.label || "Checkpoint saved",
+      detail: event.note || event.frameTitle || "",
+      tone: "neutral",
+      at,
+    };
+  }
+  return null;
+}
+
+function dedupeAgentLogItems(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item?.id || seen.has(item.id)) {
+      return false;
+    }
+    seen.add(item.id);
+    return true;
+  });
 }
 
 function renderRewriteQueue() {
@@ -16913,6 +17179,7 @@ async function refreshPreviewStateFromServer() {
     importTranscriptBridge(data.transcriptBridge);
     renderCheckpointPanel();
     renderCodexOutput();
+    renderWorkbenchAgentLog();
     renderWorkbenchOutput();
     renderFlowBoard();
     renderServerStatus();
@@ -21890,8 +22157,10 @@ async function runSelfTest() {
           Boolean(dom.focusAddContext) &&
           Boolean(dom.workbenchReviewOutput) &&
           Boolean(dom.workbenchOutputStageReview) &&
-          Boolean(dom.focusVoiceIntents),
-        "Workbench composer, context import, review controls, and voice intent lane render",
+          Boolean(dom.focusVoiceIntents) &&
+          Boolean(dom.workbenchAgentLog) &&
+          Boolean(dom.workbenchAgentLogToggle),
+        "Workbench composer, context import, review controls, voice intent lane, and agent log render",
       ),
     );
     const moreActions = document.querySelector(".focus-more-actions");
@@ -22872,6 +23141,27 @@ async function runSelfTest() {
           persistedOutputActivityItems,
         ).length === 2,
         "output activity merge dedupes digest entries",
+      ),
+    );
+    state.serverStatus.outputActivity = nextOutputActivityItems;
+    state.serverStatus.sessionEvents = persistedOutputActivityItems.map(
+      (item) => ({
+        id: `agent-log-event-${item.digest}`,
+        at: item.at,
+        reason: "output-update",
+        label: item.summary,
+        note: item.detail,
+        outputDigest: item,
+      }),
+    );
+    const agentLogItems = buildWorkbenchAgentLogItems();
+    results.push(
+      assert(
+        agentLogItems.length > 0 &&
+          agentLogItems.some((item) =>
+            ["Output", "Voice", "Checkpoint"].includes(item.kind),
+          ),
+        "Workbench agent log summarizes output, voice, or checkpoint activity",
       ),
     );
     results.push(
@@ -25773,6 +26063,16 @@ async function exerciseLargeSessionSelfTest(results) {
       assert(
         outputLaneVisible && outputLaneExported,
         "large-session generated output cards sit in the output shelf lane",
+      ),
+    );
+    const largeSessionAgentLog = buildWorkbenchAgentLogItems();
+    results.push(
+      assert(
+        largeSessionAgentLog.length > 0 &&
+          largeSessionAgentLog.some((item) =>
+            ["Output", "Voice", "Checkpoint"].includes(item.kind),
+          ),
+        "large-session Workbench agent log summarizes activity",
       ),
     );
   } finally {
