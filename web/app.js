@@ -426,6 +426,7 @@ const dom = {
   duplicateProject: document.querySelector("#duplicate-project"),
   deleteProject: document.querySelector("#delete-project"),
   projectSwitcherStatus: document.querySelector("#project-switcher-status"),
+  workspaceProjectsButton: document.querySelector("#workspace-projects-button"),
   focusProjectPicker: document.querySelector("#focus-project-picker"),
   focusOpenProjectBrowser: document.querySelector("#focus-open-project-browser"),
   focusNewProject: document.querySelector("#focus-new-project"),
@@ -876,6 +877,7 @@ function bindEvents() {
     switchProject(dom.projectPicker.value);
   });
   dom.openProjectBrowser.addEventListener("click", openProjectBrowser);
+  dom.workspaceProjectsButton?.addEventListener("click", openProjectBrowser);
   dom.newProject.addEventListener("click", createProject);
   dom.duplicateProject.addEventListener("click", duplicateProject);
   dom.deleteProject.addEventListener("click", deleteProject);
@@ -3536,6 +3538,15 @@ function renderProjectSwitcher() {
       ? `${active.frameCount || 1} frame${active.frameCount === 1 ? "" : "s"}; saved to active /canvax handoff.`
       : "Active project writes the current /canvax handoff.";
   }
+  if (dom.workspaceProjectsButton) {
+    const title = active?.title || cleanString(state.board.project) || "Canvax project";
+    const frameCount = Number(active?.frameCount) || state.frames.length || 1;
+    dom.workspaceProjectsButton.innerHTML = `
+      <span>Projects</span>
+      <strong>${escapeHtml(title)}</strong>
+      <small>${escapeHtml(`${frameCount} frame${frameCount === 1 ? "" : "s"}`)}</small>
+    `;
+  }
   if (projectBrowserIsOpen()) {
     renderProjectBrowser();
   }
@@ -3621,7 +3632,7 @@ function renderProjectBrowser() {
                 data-project-id="${escapeHtml(project.id)}"
                 ${active ? "disabled" : ""}
               >
-                ${active ? "Open" : "Open"}
+                ${active ? "Current" : "Open"}
               </button>
               <button
                 class="ghost-button compact"
@@ -22425,8 +22436,9 @@ async function runSelfTest() {
           dom.projectPicker.value === state.projectRegistry.activeProjectId &&
           dom.focusProjectPicker.options.length ===
             dom.projectPicker.options.length &&
-          dom.focusProjectPicker.value === state.projectRegistry.activeProjectId,
-        "project switchers render active project in Advanced and Workbench",
+          dom.focusProjectPicker.value === state.projectRegistry.activeProjectId &&
+          dom.workspaceProjectsButton?.textContent.includes(state.board.project),
+        "project switchers and command-deck launcher render active project",
       ),
     );
     openProjectBrowser();

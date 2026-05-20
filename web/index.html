@@ -163,6 +163,15 @@
                                 Sketch, talk, generate, and apply.
                             </p>
                         </div>
+                        <button
+                            id="workspace-projects-button"
+                            class="project-launcher-button"
+                            type="button"
+                            title="Open local Canvax projects, create a new board, or switch the active /canvax handoff"
+                        >
+                            <span>Projects</span>
+                            <strong>Canvax storyboard</strong>
+                        </button>
                         <div
                             id="workspace-mode-buttons"
                             class="segmented-control workspace-mode-control"
@@ -1344,6 +1353,15 @@
                                     >
                                         Clear outputs
                                     </button>
+                                    <p
+                                        id="map-output-explainer"
+                                        class="map-output-explainer"
+                                    >
+                                        Output shelf cards are generated screens,
+                                        files, or code changes. They are
+                                        references for review/edit-as-frame, not
+                                        extra pages.
+                                    </p>
                                     <button
                                         id="toggle-output-lane"
                                         class="ghost-button"
@@ -2239,8 +2257,9 @@
                         <p class="eyebrow">Local workspaces</p>
                         <h2 id="project-browser-title">Canvax Projects</h2>
                         <p class="helper-text">
-                            Switch boards like a design workbench. The selected
-                            project remains the one Codex reads from
+                            Pick a board, start a new design, or duplicate an
+                            existing direction. The selected project is the one
+                            Codex reads from
                             <code>exports/canvax-live-latest.json</code>.
                         </p>
                     </div>
