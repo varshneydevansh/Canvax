@@ -289,6 +289,7 @@ Behavior:
 - lets designers turn an output preview card into an editable `Output edit` frame, preserving the source frame, generated target path, flow connection, variant branch object, `spatialWorkspace.variantBranches[].outputBinding`, and task/rewrite/build `outputEditBinding` so corrections can happen on a normal sketch frame while Codex still knows the exact generated output being revised
 - saves output correction marks with normalized changed-region bounds, and treats Erase on the output surface as deletion of intersecting correction marks instead of a new exported eraser stroke
 - renders recent checkpoints inside a named spatial history lane in `Map`, so collaboration moments sit beside frames, variants, references, and generated outputs while still reading like a timeline
+- adds `Replay as frame` on checkpoint cards and the checkpoint panel. This creates a new editable `Checkpoint replay` branch from the active frame, uses the saved checkpoint/export snapshot as the underlay, and keeps the source checkpoint/export path in the frame notes for Codex-readable lineage.
 - adds a compact `Map timeline` strip above the spatial board for frames, branches, outputs, and checkpoints; clicking an item focuses/scrolls the Map, and the same sequence exports as `spatialWorkspace.timeline`
 - lets selected output/history cards move earlier or later inside their lane, preserving the lane order in `meta.laneIndex`, the object inspector, context Markdown, and `spatialWorkspace.lanes[].memberObjectIds`
 - lets selected variant/output-edit branch cards move earlier or later in their source-frame branch sequence, or drag across visible sibling branch drop targets to update that sequence, preserving `frame.variant.index`, the branch track, and ordered `spatialWorkspace.variantBranches`
@@ -625,11 +626,13 @@ Behavior:
 - Canvax can create durable collaboration moments
 - checkpoints are created on freeze, autosnap, voice events, materialize, and output updates
 - session events let the board and Preview rebuild recent collaboration activity
+- `Replay as frame` turns a replayable checkpoint into a new editable branch with the saved snapshot as a reference underlay. This is a safe branch operation, not a destructive restore of the active board.
 
 Use checkpoints when:
 
 - you want to preserve the exact collaboration moment
 - you want Codex to read a more exact merged handoff than the rolling live export
+- you want to return to an earlier visual direction and sketch a new iteration from it
 
 ### Publish Changes
 

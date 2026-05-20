@@ -190,6 +190,32 @@ Apply to Codex or Live rewrite
   -> refreshed output manifest target
 ```
 
+### Checkpoint Replay
+
+Recent checkpoints are not only a log. Use `Replay as frame` from the checkpoint
+panel or from a checkpoint card in `Map` when you want to branch from a saved
+moment.
+
+Replay creates a new editable frame connected from the active frame. The saved
+snapshot becomes an underlay, a small label records the checkpoint source, and
+the new frame is marked as a `Checkpoint replay` variant. This is intentionally
+non-destructive: it does not replace the current board state, and it does not
+pretend to restore every raw vector element from old exports. It gives you a
+sketchable branch for "go back to that version and try another direction."
+
+```text
+checkpoint card
+      |
+      v
+Replay as frame
+      |
+      v
+new editable frame with saved snapshot underlay
+      |
+      v
+sketch corrections -> Apply / Build with Codex
+```
+
 `Import` brings an image file into the active frame as an editable canvas object. Use it for references, generated candidates, book/storyboard art, UI screenshots, or visual assets. The same behavior is also available by paste or drag/drop.
 
 `Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, an HTML/CSS placement scaffold, and a style-lock block. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs. The style lock tells the host to preserve visual identity, palette, rendering language, character/object continuity, and frame-to-frame consistency across image candidates.

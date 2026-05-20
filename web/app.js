@@ -1148,6 +1148,14 @@ function bindEvents() {
   dom.checkpointPush.addEventListener("click", () => {
     void saveCheckpointToWorkspace("manual-push", { silent: false });
   });
+  dom.checkpointList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-replay-checkpoint]");
+    if (!button) {
+      return;
+    }
+    event.preventDefault();
+    void replayCheckpointAsFrame(button.dataset.replayCheckpoint);
+  });
   dom.codexPublishOutput.addEventListener("click", () => {
     void publishWorkspaceOutput();
   });
@@ -10111,8 +10119,10 @@ function renderCheckpointPanel() {
 
   dom.checkpointList.className = "checkpoint-list";
   dom.checkpointList.innerHTML = items
-    .map((item) => {
+    .map((item, index) => {
+      const replayKey = item.id || String(index);
       const links = [
+        `<button class="ghost-button compact artifact-link" type="button" data-replay-checkpoint="${escapeHtml(replayKey)}">Replay as frame</button>`,
         item.checkpointUrl
           ? `<a class="ghost-link-button artifact-link" href="${escapeHtml(item.checkpointUrl)}" target="_blank" rel="noopener noreferrer">Open checkpoint</a>`
           : "",
@@ -10962,6 +10972,19 @@ function renderBranchDropTargetMarkup() {
 }
 
 function spatialObjectActionMarkup(object) {
+  if (object?.sourceKind === "checkpoint") {
+    return `
+      <div class="spatial-object-actions">
+        <button
+          class="ghost-button compact spatial-object-replay-button"
+          type="button"
+          data-replay-checkpoint="${escapeHtml(object.sourceId || object.id)}"
+          title="Create an editable frame from this checkpoint"
+        >Replay as frame</button>
+      </div>
+    `;
+  }
+
   if (object?.sourceKind === "variant-branch") {
     const frameId = object.frameIds?.[0] || object.sourceId || "";
     if (!frameId || !frameById(frameId)) {
@@ -11203,6 +11226,266 @@ function createEditableFrameFromOutputObject(object, options = {}) {
     void saveCheckpointToWorkspace("make-output-editable", {
       silent: true,
       note: `Editable output frame created from ${targetLabel}.`,
+    });
+  }
+  return frame;
+}
+
+function checkpointHistoryItems() {
+  const history = state.serverStatus?.checkpointHistory || { items: [] };
+  return Array.isArray(history.items) ? history.items : [];
+}
+
+function checkpointHistoryItemByKey(key) {
+  const value = cleanString(key);
+  const items = checkpointHistoryItems();
+  if (!value) {
+    return null;
+  }
+  const byId = items.find((item) => item.id === value);
+  if (byId) {
+    return byId;
+  }
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 ? items[index] || null : null;
+}
+
+function workspaceHrefForPath(value) {
+  const path = cleanString(value);
+  if (!path) {
+    return "";
+  }
+  if (/^(?:data:|blob:|https?:\/\/|\/)/i.test(path)) {
+    return path;
+  }
+  return `/workspace/${path.replace(/^\.?\//, "")}`;
+}
+
+function checkpointExportHref(item, checkpoint = null) {
+  return (
+    workspaceHrefForPath(item?.jsonUrl) ||
+    workspaceHrefForPath(item?.jsonPath) ||
+    workspaceHrefForPath(checkpoint?.export?.jsonPath) ||
+    workspaceHrefForPath(checkpoint?.jsonPath)
+  );
+}
+
+function checkpointHref(item) {
+  return (
+    workspaceHrefForPath(item?.checkpointUrl) ||
+    workspaceHrefForPath(item?.checkpointPath)
+  );
+}
+
+async function fetchJsonOrNull(url) {
+  const href = workspaceHrefForPath(url);
+  if (!href) {
+    return null;
+  }
+  try {
+    const response = await fetch(href, { cache: "no-store" });
+    if (!response.ok) {
+      return null;
+    }
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function checkpointReplaySourceFrame(item, checkpoint, exportPackage) {
+  const frames = Array.isArray(exportPackage?.frames) ? exportPackage.frames : [];
+  const sourceFrameId =
+    cleanString(item?.frameId) ||
+    cleanString(checkpoint?.frameId) ||
+    cleanString(checkpoint?.activeFrameId) ||
+    cleanString(exportPackage?.activeFrameId);
+  return (
+    frames.find((frame) => frame.id === sourceFrameId) ||
+    frames.find((frame) => frame.id === checkpoint?.activeFrameId) ||
+    frames[0] ||
+    null
+  );
+}
+
+function checkpointReplaySnapshotHref(sourceFrame) {
+  return (
+    workspaceHrefForPath(sourceFrame?.snapshotPath) ||
+    workspaceHrefForPath(sourceFrame?.thumbnailPath) ||
+    workspaceHrefForPath(sourceFrame?.snapshotDataUrl) ||
+    workspaceHrefForPath(sourceFrame?.thumbnailDataUrl)
+  );
+}
+
+function buildCheckpointReplayFrameConfig({
+  item,
+  checkpoint,
+  exportPackage,
+  activeFrame,
+} = {}) {
+  const sourceFrame = checkpointReplaySourceFrame(item, checkpoint, exportPackage);
+  if (!item || !sourceFrame || !activeFrame) {
+    return null;
+  }
+  const snapshotHref = checkpointReplaySnapshotHref(sourceFrame);
+  if (!snapshotHref) {
+    return null;
+  }
+  const sourceTitle =
+    cleanString(sourceFrame.title) ||
+    cleanString(item.frameTitle) ||
+    cleanString(checkpoint?.activeFrameTitle) ||
+    "checkpoint";
+  const savedAt = cleanString(item.savedAt || checkpoint?.savedAt);
+  const checkpointLabel =
+    cleanString(item.label || checkpoint?.label) ||
+    checkpointReasonLabel(item.reason || checkpoint?.reason);
+  const replayIndex =
+    state.frames.filter((frame) => frame.variant?.label === "Checkpoint replay")
+      .length + 1;
+  const activePosition = activeFrame.flowPosition || defaultFlowPosition(0);
+  return {
+    sourceFrame,
+    snapshotHref,
+    frameOptions: {
+      title: `${sourceTitle} · Replay ${replayIndex}`,
+      viewport: sourceFrame.viewport || activeFrame.viewport,
+      objective: [
+        cleanString(sourceFrame.objective),
+        `Checkpoint replay from ${checkpointLabel}${savedAt ? ` saved ${timeLabel(savedAt)}` : ""}.`,
+        "Sketch corrections over this underlay, then use Apply or Build with Codex.",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      layout: [
+        cleanString(sourceFrame.layout),
+        `Replay source: ${checkpointLabel}. This frame is an editable branch, not a destructive restore.`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      motion: cleanString(sourceFrame.motion),
+      assets: [
+        cleanString(sourceFrame.assets),
+        cleanString(item.jsonPath || checkpoint?.export?.jsonPath)
+          ? `Source export: ${item.jsonPath || checkpoint?.export?.jsonPath}.`
+          : "",
+        cleanString(item.checkpointPath || checkpoint?.checkpointPath)
+          ? `Source checkpoint: ${item.checkpointPath || checkpoint?.checkpointPath}.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      mobile: cleanString(sourceFrame.mobile),
+      backgroundImage: snapshotHref,
+      flowPosition: {
+        x: activePosition.x + FLOW_CARD_WIDTH + 160,
+        y: activePosition.y + replayIndex * (FLOW_CARD_HEIGHT + 42),
+      },
+      elements: [
+        {
+          id: uid("label"),
+          type: "label",
+          text: `Replay: ${checkpointLabel}`,
+          x: 56,
+          y: 72,
+          color: "#0c8d7b",
+          size: 16,
+          alpha: 0.94,
+          composite: "source-over",
+          attachedTo: "",
+          anchor: null,
+        },
+      ],
+      captures: [],
+      variant: {
+        sourceFrameId: activeFrame.id,
+        sourceFrameTitle: activeFrame.title,
+        label: "Checkpoint replay",
+        direction:
+          "Checkpoint replay branch. Use the saved snapshot as underlay and sketch the next correction.",
+        index: replayIndex,
+        createdAt: new Date().toISOString(),
+        checkpointId: item.id || "",
+        checkpointExport: item.jsonPath || checkpoint?.export?.jsonPath || "",
+      },
+    },
+    connection: {
+      fromFrameId: activeFrame.id,
+      label: "checkpoint replay",
+      notes: `Editable replay branch created from ${checkpointLabel}.`,
+    },
+  };
+}
+
+async function replayCheckpointAsFrame(key, options = {}) {
+  const {
+    checkpoint: checkpointOverride = null,
+    exportPackage: exportPackageOverride = null,
+    sync = true,
+  } = options;
+  const item = checkpointHistoryItemByKey(key);
+  if (!item) {
+    renderStatus("Checkpoint not found");
+    return null;
+  }
+  const checkpoint =
+    checkpointOverride || (await fetchJsonOrNull(checkpointHref(item)));
+  const exportPackage =
+    exportPackageOverride ||
+    (await fetchJsonOrNull(checkpointExportHref(item, checkpoint)));
+  const activeFrame = currentFrame();
+  const replay = buildCheckpointReplayFrameConfig({
+    item,
+    checkpoint,
+    exportPackage,
+    activeFrame,
+  });
+  if (!replay) {
+    renderStatus("Checkpoint replay needs an export snapshot. Save a new checkpoint first.");
+    dom.workspaceStatus.textContent =
+      "This checkpoint does not include a replayable frame snapshot. Save or push a new checkpoint, then replay it.";
+    return null;
+  }
+
+  await ensureImage(replay.snapshotHref).catch(() => null);
+  const frame = createFrame(replay.frameOptions);
+  const sourceIndex = Math.max(0, state.frames.indexOf(activeFrame));
+  state.frames.splice(sourceIndex + 1, 0, frame);
+  state.connections.push(
+    normalizeConnection({
+      ...replay.connection,
+      toFrameId: frame.id,
+    }),
+  );
+  createSpatialObjectsForVariantFrames(activeFrame, [frame]);
+  const variantObject = spatialObjectById(`variant-object-${frame.id}`);
+  if (variantObject) {
+    variantObject.title = "Checkpoint replay branch";
+    variantObject.subtitle = `Editable replay from ${replay.sourceFrame.title}`;
+    variantObject.status = "checkpoint replay";
+    variantObject.meta = {
+      ...variantObject.meta,
+      checkpointId: item.id || "",
+      checkpointUrl: item.checkpointUrl || "",
+      jsonUrl: item.jsonUrl || "",
+    };
+  }
+  state.activeFrameId = frame.id;
+  state.viewMode = "frame";
+  state.workbenchFocus = "sketch";
+  clearSpatialObjectSelection({ render: false });
+  clearElementSelection();
+  persistState();
+  renderAll();
+  renderStatus("Checkpoint replay frame created");
+  dom.workspaceStatus.textContent =
+    "Checkpoint replay frame created. Sketch corrections over the underlay, then Apply or Build with Codex.";
+  scheduleLivePreviewSync();
+  if (sync) {
+    void saveExportToWorkspace({ silent: true });
+    void saveCheckpointToWorkspace("checkpoint-replay", {
+      silent: true,
+      note: `Replay branch created from ${item.label || item.id || "checkpoint"}.`,
     });
   }
   return frame;
@@ -14240,6 +14523,16 @@ function onFlowBoardClick(event) {
     createEditableFrameFromOutputObjectId(
       makeOutputEditableHandle.dataset.makeOutputEditable,
     );
+    return;
+  }
+
+  const replayCheckpointHandle = event.target.closest(
+    "[data-replay-checkpoint]",
+  );
+  if (replayCheckpointHandle) {
+    event.preventDefault();
+    event.stopPropagation();
+    void replayCheckpointAsFrame(replayCheckpointHandle.dataset.replayCheckpoint);
     return;
   }
 
@@ -20289,6 +20582,7 @@ function checkpointReasonLabel(reason) {
     "generate-screen": "Generate screen",
     "publish-output": "Published output",
     "output-update": "Output update",
+    "checkpoint-replay": "Checkpoint replay",
   };
   return labels[reason] || "Checkpoint";
 }
@@ -20383,6 +20677,8 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
     board: structuredClone(state.board),
     activeFrameId: state.activeFrameId,
     activeFrameTitle: frame?.title || "",
+    frameId: state.activeFrameId,
+    frameTitle: frame?.title || "",
     entryFrameId: state.entryFrameId,
     connections: state.connections.map((connection) => ({
       ...structuredClone(connection),
@@ -22397,6 +22693,7 @@ async function runSelfTest() {
     results.push(assertWorkbenchSpatialMap());
     results.push(assertSpatialObjectsFromOutputManifest());
     results.push(assertCheckpointSpatialObjects());
+    results.push(await assertCheckpointReplayCreatesFrame());
     results.push(assertManualSpatialObjectControls());
 
     setSelfTestProgress("undo redo and frame flow");
@@ -24513,6 +24810,7 @@ function assertCheckpointSpatialObjects() {
   setWorkbenchFocus("map");
   renderFlowBoard();
   const spatialExport = buildSpatialWorkspaceExport();
+  renderCheckpointPanel();
   const exported = spatialExport.objects.some(
     (object) =>
       object.sourceKind === "checkpoint" &&
@@ -24529,6 +24827,46 @@ function assertCheckpointSpatialObjects() {
   const rendered = Boolean(
     dom.flowBoard.querySelector(".spatial-object-node.checkpoint-event"),
   );
+  const replayActionRendered = Boolean(
+    dom.flowBoard.querySelector(
+      ".spatial-object-node.checkpoint-event [data-replay-checkpoint='selftest-checkpoint-1']",
+    ),
+  );
+  const replayPanelActionRendered = Boolean(
+    dom.checkpointList.querySelector(
+      "[data-replay-checkpoint='selftest-checkpoint-1']",
+    ),
+  );
+  const replayConfig = buildCheckpointReplayFrameConfig({
+    item: state.serverStatus.checkpointHistory.items[0],
+    checkpoint: {
+      activeFrameId: frameId,
+      activeFrameTitle: currentFrame().title,
+      export: { jsonPath: "exports/archive/selftest/canvax-storyboard.json" },
+    },
+    exportPackage: {
+      activeFrameId: frameId,
+      frames: [
+        {
+          id: frameId,
+          title: currentFrame().title,
+          viewport: currentFrame().viewport,
+          objective: "Self-test frame",
+          layout: "Self-test layout",
+          motion: "",
+          assets: "",
+          mobile: "",
+          snapshotDataUrl:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB",
+        },
+      ],
+    },
+    activeFrame: currentFrame(),
+  });
+  const replayConfigBuilt =
+    replayConfig?.frameOptions?.backgroundImage?.startsWith("data:image/png") &&
+    replayConfig.frameOptions.variant?.label === "Checkpoint replay" &&
+    replayConfig.connection?.label === "checkpoint replay";
   const laneRendered = Boolean(
     dom.flowBoard.querySelector(".spatial-lane-history"),
   );
@@ -24566,9 +24904,12 @@ function assertCheckpointSpatialObjects() {
   renderAll();
 
   return assert(
-    exported &&
+      exported &&
       laneExported &&
       rendered &&
+      replayActionRendered &&
+      replayPanelActionRendered &&
+      replayConfigBuilt &&
       laneRendered &&
       collapsedExport &&
       collapsedRendered &&
@@ -24576,6 +24917,93 @@ function assertCheckpointSpatialObjects() {
       collapsedButton &&
       expandedAgain,
     "Checkpoint history renders, exports, and collapses as a spatial history lane",
+  );
+}
+
+async function assertCheckpointReplayCreatesFrame() {
+  const frame = currentFrame();
+  const previous = {
+    frames: structuredClone(state.frames),
+    connections: structuredClone(state.connections),
+    spatialObjects: structuredClone(state.spatialObjects),
+    activeFrameId: state.activeFrameId,
+    viewMode: state.viewMode,
+    workbenchFocus: state.workbenchFocus,
+    serverStatus: structuredClone(state.serverStatus),
+  };
+  const item = {
+    id: "selftest-replay-checkpoint",
+    savedAt: new Date().toISOString(),
+    reason: "manual-push",
+    label: "Replay self-test",
+    frameId: frame.id,
+    frameTitle: frame.title,
+    checkpointPath: "artifacts/canvax/checkpoints/selftest/checkpoint.json",
+    jsonPath: "exports/archive/selftest/canvax-storyboard.json",
+  };
+  state.serverStatus = {
+    ...state.serverStatus,
+    checkpointHistory: {
+      updatedAt: new Date().toISOString(),
+      items: [item],
+    },
+  };
+  const beforeFrameCount = state.frames.length;
+  const beforeConnectionCount = state.connections.length;
+  const replayFrame = await replayCheckpointAsFrame(item.id, {
+    sync: false,
+    checkpoint: {
+      id: item.id,
+      savedAt: item.savedAt,
+      label: item.label,
+      activeFrameId: frame.id,
+      activeFrameTitle: frame.title,
+      export: { jsonPath: item.jsonPath },
+    },
+    exportPackage: {
+      activeFrameId: frame.id,
+      frames: [
+        {
+          id: frame.id,
+          title: frame.title,
+          viewport: frame.viewport,
+          objective: "Replay source objective",
+          layout: "Replay source layout",
+          motion: "",
+          assets: "",
+          mobile: "",
+          snapshotDataUrl:
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+        },
+      ],
+    },
+  });
+  const created =
+    Boolean(replayFrame) &&
+    state.frames.length === beforeFrameCount + 1 &&
+    state.connections.length === beforeConnectionCount + 1 &&
+    replayFrame.variant?.label === "Checkpoint replay" &&
+    replayFrame.backgroundImage.startsWith("data:image/png") &&
+    state.connections.some(
+      (connection) =>
+        connection.fromFrameId === frame.id &&
+        connection.toFrameId === replayFrame.id &&
+        connection.label === "checkpoint replay",
+    );
+
+  state.frames = previous.frames;
+  state.connections = previous.connections;
+  state.spatialObjects = previous.spatialObjects;
+  state.activeFrameId = previous.activeFrameId;
+  state.viewMode = previous.viewMode;
+  state.workbenchFocus = previous.workbenchFocus;
+  state.serverStatus = previous.serverStatus;
+  persistState();
+  renderAll();
+
+  return assert(
+    created,
+    "checkpoint replay creates an editable frame from a saved snapshot",
   );
 }
 
