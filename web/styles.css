@@ -3697,6 +3697,40 @@ select,
     overscroll-behavior: contain;
 }
 
+.flow-shell.map-file-drop-active {
+    border-color: rgba(255, 93, 58, 0.68);
+    box-shadow:
+        inset 0 0 0 0.16rem rgba(255, 93, 58, 0.32),
+        inset 0 0 0 999rem rgba(255, 248, 236, 0.08),
+        0 1.35rem 3rem rgba(24, 17, 14, 0.18);
+}
+
+.flow-shell.map-file-drop-active::after {
+    content: "Drop to add this file to the Map";
+    position: sticky;
+    z-index: 45;
+    bottom: 1rem;
+    left: 50%;
+    display: inline-flex;
+    margin: 0 auto 1rem;
+    padding: 0.78rem 1.05rem;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.22);
+    border-radius: 999px;
+    color: #fff8ec;
+    background:
+        linear-gradient(135deg, rgba(255, 93, 58, 0.92), rgba(155, 60, 33, 0.94)),
+        rgba(24, 17, 14, 0.9);
+    box-shadow:
+        0 0.9rem 2.2rem rgba(24, 17, 14, 0.24),
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.12);
+    font-size: 0.76rem;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
 .flow-navigator {
     position: sticky;
     z-index: 36;

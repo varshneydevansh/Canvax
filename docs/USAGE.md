@@ -166,6 +166,7 @@ It hides advanced panels and keeps only:
 - a lower-left `Agent log` that summarizes recent Make/Apply/Review, rewrite, output, checkpoint, and voice-intent activity without opening Advanced
 - `Sketch`, `Split`, `Output`, and `Map` focus modes for choosing whether the rough canvas, side-by-side comparison, generated surface, or spatial project map is primary
 - a floating `Add to canvas` dock in `Map` for creating frames, notes, file/reference cards, groups, variants, generated screens, or Codex build requests without returning to side panels; new spatial items appear in the currently viewed Map region
+- direct file/image drop onto `Map`, which creates a movable spatial reference card at the drop point
 - correction marks drawn directly over generated output
 - pasted or dropped images as movable/resizable image assets on the frame
 - `Add image` as the visible Workbench file-picker path for editable reference images, generated candidates, book/storyboard art, or UI assets
@@ -238,6 +239,8 @@ sketch corrections -> Apply / Build with Codex
 `Image pack` writes a no-API prompt pack for ChatGPT/image-generation host use. It includes a human-readable prompt, normalized coordinates, safe-zone notes, sketch references, output-correction notes, an HTML/CSS placement scaffold, and a style-lock block. The scaffold is not production code; it is a coordinate map that tells an image model where each sketched region belongs. The style lock tells the host to preserve visual identity, palette, rendering language, character/object continuity, and frame-to-frame consistency across image candidates.
 
 Paste or drop an image onto the canvas when you want to bring a generated candidate, reference crop, book illustration pass, or UI asset back into the frame as an editable object. It can be selected, moved, resized, duplicated, layered, labeled, included in prompt packs, and passed into Materialize. Use `Reference underlay` only when the image should sit behind the sketch as tracing/context.
+
+Drop a file or image directly onto `Map` when it should become project context rather than a frame element. Canvax creates a spatial reference card at the drop location, keeps a thumbnail for small images, and exports that card through `spatialWorkspace.objects` so Codex can read it alongside frames, generated outputs, variants, notes, and groups.
 
 If the project root contains `DESIGN.md`, Canvax includes it in the task pack, image prompt pack, and prompt markdown. Use that file for reusable style rules, brand direction, illustration constraints, accessibility rules, product tone, or project-specific design system notes.
 

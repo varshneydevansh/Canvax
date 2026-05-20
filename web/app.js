@@ -1195,6 +1195,11 @@ function bindEvents() {
   dom.flowShell.addEventListener("scroll", renderFlowNavigatorViewport, {
     passive: true,
   });
+  dom.flowShell.addEventListener("dragover", onMapFileDragOver);
+  dom.flowShell.addEventListener("dragleave", onMapFileDragLeave);
+  dom.flowShell.addEventListener("drop", (event) => {
+    void onMapFileDrop(event);
+  });
   dom.flowNavigator.addEventListener("pointerdown", onFlowNavigatorPointerDown);
   dom.mapCreateDock.addEventListener("click", (event) => {
     const button = event.target.closest("[data-map-create-action]");
@@ -5697,7 +5702,10 @@ function visibleMapCenterPosition(width, height, options = {}) {
   if (!shell || !shell.clientWidth || !shell.clientHeight) {
     return fallback;
   }
-  const zoom = Math.max(0.1, Number.isFinite(state.flowZoom) ? state.flowZoom : 1);
+  const zoom = Math.max(
+    0.1,
+    Number.isFinite(state.flowZoom) ? state.flowZoom : 1,
+  );
   const visibleLeft = shell.scrollLeft / zoom;
   const visibleTop = shell.scrollTop / zoom;
   const visibleWidth = shell.clientWidth / zoom;
@@ -5711,6 +5719,40 @@ function visibleMapCenterPosition(width, height, options = {}) {
     y: Math.max(
       FLOW_SURFACE_PADDING,
       Math.round(visibleTop + visibleHeight / 2 - height / 2 + offset),
+    ),
+  };
+}
+
+function visibleMapPointPosition(clientX, clientY, width, height, options = {}) {
+  const fallback = visibleMapCenterPosition(width, height, options);
+  const shell = dom.flowShell;
+  if (
+    !shell ||
+    !Number.isFinite(clientX) ||
+    !Number.isFinite(clientY) ||
+    !shell.clientWidth ||
+    !shell.clientHeight
+  ) {
+    return fallback;
+  }
+  const rect = shell.getBoundingClientRect();
+  const zoom = Math.max(
+    0.1,
+    Number.isFinite(state.flowZoom) ? state.flowZoom : 1,
+  );
+  const offset = Number.isFinite(options.offset) ? options.offset : 0;
+  return {
+    x: Math.max(
+      FLOW_SURFACE_PADDING,
+      Math.round(
+        (clientX - rect.left + shell.scrollLeft) / zoom - width / 2 + offset,
+      ),
+    ),
+    y: Math.max(
+      FLOW_SURFACE_PADDING,
+      Math.round(
+        (clientY - rect.top + shell.scrollTop) / zoom - height / 2 + offset,
+      ),
     ),
   };
 }
@@ -6108,20 +6150,24 @@ function spatialGroupContentBounds(group) {
   return unionBounds(bounds);
 }
 
-async function addSpatialFileObject(file) {
-  const isImage = file.type.startsWith("image/");
+async function addSpatialFileObject(file, options = {}) {
+  const mimeType = file.type || "file";
+  const isImage = mimeType.startsWith("image/");
   const thumbnailDataUrl =
     isImage && file.size <= 1_500_000 ? await readFileAsDataUrl(file) : "";
-  addSpatialObject({
+  const position =
+    options.position ||
+    visibleMapCenterPosition(SPATIAL_OBJECT_WIDTH, SPATIAL_OBJECT_HEIGHT);
+  return addSpatialObject({
     type: isImage ? "reference-image" : "reference-file",
     title: file.name || "Reference file",
-    subtitle: `${file.type || "file"} • ${formatFileSize(file.size)}`,
+    subtitle: `${mimeType} • ${formatFileSize(file.size)}`,
     sourceKind: "reference-file",
     status: isImage ? "image reference" : "file reference",
-    ...visibleMapCenterPosition(SPATIAL_OBJECT_WIDTH, SPATIAL_OBJECT_HEIGHT),
+    ...position,
     meta: {
       fileName: file.name || "",
-      mimeType: file.type || "",
+      mimeType,
       size: file.size || 0,
       thumbnailDataUrl,
     },
@@ -15563,6 +15609,66 @@ function pointFromFlowEvent(event) {
   };
 }
 
+function dragEventHasFiles(event) {
+  const transfer = event?.dataTransfer;
+  if (!transfer) {
+    return false;
+  }
+  const types = Array.from(transfer.types || []);
+  return Boolean(transfer.files?.length) || types.includes("Files");
+}
+
+function onMapFileDragOver(event) {
+  if (!dragEventHasFiles(event)) {
+    return;
+  }
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = "copy";
+  }
+  dom.flowShell.classList.add("map-file-drop-active");
+}
+
+function onMapFileDragLeave(event) {
+  const relatedTarget = event.relatedTarget;
+  if (relatedTarget instanceof Node && dom.flowShell.contains(relatedTarget)) {
+    return;
+  }
+  dom.flowShell.classList.remove("map-file-drop-active");
+}
+
+async function onMapFileDrop(event) {
+  if (!dragEventHasFiles(event)) {
+    return;
+  }
+  event.preventDefault();
+  dom.flowShell.classList.remove("map-file-drop-active");
+  keepMapAsActiveSurface();
+  const files = Array.from(event.dataTransfer?.files || []).filter(Boolean);
+  if (!files.length) {
+    return;
+  }
+  let addedCount = 0;
+  for (const [index, file] of files.entries()) {
+    const position = visibleMapPointPosition(
+      event.clientX,
+      event.clientY,
+      SPATIAL_OBJECT_WIDTH,
+      SPATIAL_OBJECT_HEIGHT,
+      { offset: index * 28 },
+    );
+    const object = await addSpatialFileObject(file, { position });
+    if (object) {
+      addedCount += 1;
+    }
+  }
+  renderStatus(
+    addedCount === 1
+      ? "Dropped 1 file onto the Map"
+      : `Dropped ${addedCount} files onto the Map`,
+  );
+}
+
 function upsertConnection(fromFrameId, toFrameId) {
   const existing = state.connections.find(
     (connection) =>
@@ -22990,7 +23096,7 @@ async function runSelfTest() {
     setSelfTestProgress("image and asset candidates");
     results.push(await assertImageAssetPlacement());
     results.push(await assertAssetCandidateTrayPlacement());
-    results.push(assertWorkbenchSpatialMap());
+    results.push(await assertWorkbenchSpatialMap());
     results.push(assertSpatialObjectsFromOutputManifest());
     results.push(assertCheckpointSpatialObjects());
     results.push(await assertCheckpointReplayCreatesFrame());
@@ -24216,7 +24322,7 @@ function assertWorkbenchRailSizeControls() {
   );
 }
 
-function assertWorkbenchSpatialMap() {
+async function assertWorkbenchSpatialMap() {
   const previous = {
     frames: structuredClone(state.frames),
     workspaceMode: state.workspaceMode,
@@ -24500,6 +24606,42 @@ function assertWorkbenchSpatialMap() {
     createdMapFrame?.title === `Frame ${mapCreateFrameCount + 1}` &&
     createdMapFrame?.flowPosition?.x === expectedMapCreateFramePosition.x &&
     createdMapFrame?.flowPosition?.y === expectedMapCreateFramePosition.y;
+  const dropClientPoint = {
+    x: shellRect.left + 360,
+    y: shellRect.top + 260,
+  };
+  const expectedDropPosition = visibleMapPointPosition(
+    dropClientPoint.x,
+    dropClientPoint.y,
+    SPATIAL_OBJECT_WIDTH,
+    SPATIAL_OBJECT_HEIGHT,
+  );
+  const dropFile = new File(["# Canvax dropped context"], "map-drop.md", {
+    type: "text/markdown",
+  });
+  let dropPrevented = false;
+  await onMapFileDrop({
+    clientX: dropClientPoint.x,
+    clientY: dropClientPoint.y,
+    dataTransfer: {
+      files: [dropFile],
+      types: ["Files"],
+      dropEffect: "none",
+    },
+    preventDefault() {
+      dropPrevented = true;
+    },
+  });
+  const droppedMapFile = state.spatialObjects.find(
+    (object) => object.meta?.fileName === "map-drop.md",
+  );
+  const mapFileDropWorks =
+    dropPrevented &&
+    droppedMapFile?.sourceKind === "reference-file" &&
+    droppedMapFile?.title === "map-drop.md" &&
+    droppedMapFile?.x === expectedDropPosition.x &&
+    droppedMapFile?.y === expectedDropPosition.y &&
+    !dom.flowShell.classList.contains("map-file-drop-active");
   const spatialMapDetail = JSON.stringify({
     mapVisible,
     zoomChanged,
@@ -24527,7 +24669,17 @@ function assertWorkbenchSpatialMap() {
     navigatorPanned,
     viewportExported,
     mapCreateFrameWorks,
+    mapFileDropWorks,
     expectedMapCreateFramePosition,
+    expectedDropPosition,
+    droppedMapFile: droppedMapFile
+      ? {
+          x: droppedMapFile.x,
+          y: droppedMapFile.y,
+          title: droppedMapFile.title,
+          sourceKind: droppedMapFile.sourceKind,
+        }
+      : null,
     viewportExport,
     fitMap: {
       zoom: state.flowZoom,
@@ -24580,8 +24732,9 @@ function assertWorkbenchSpatialMap() {
       fitMapWorked &&
       navigatorPanned &&
       viewportExported &&
-      mapCreateFrameWorks,
-    "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, and exports frames, objects, and group containment",
+      mapCreateFrameWorks &&
+      mapFileDropWorks,
+    "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, drops files, and exports frames, objects, and group containment",
     spatialMapDetail,
   );
 }
