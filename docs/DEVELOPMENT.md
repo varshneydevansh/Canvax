@@ -329,6 +329,9 @@ sketch composition, voice intent, rewrite queue, output binding, project-link,
 image host context, source files, and suggested Codex actions. The matching CLI
 is `npm run host-handoff -- --save`, which writes
 `exports/canvax-host-handoff-latest.{json,md}`. MCP also exposes
+`append_transcript`, which writes only the local transcript bridge through
+`./canvax --transcript`; `publish_codex_output`, which writes only the local
+Codex output manifest through `scripts/write-codex-output.mjs`; and
 `attach_generated_asset`, which writes only local no-API image-result/candidate
 handoff files through the same path as `npm run import-image-results`. Use
 `npm run mcp -- --self-test` in regression or host setup checks.

@@ -1390,9 +1390,11 @@ async function validateCanvaxMcpSelfTest() {
       payload?.ok &&
         payload?.kind === "canvax-mcp-self-test" &&
         payload.requiresOpenAiApiKey === false &&
-        payload.toolCount >= 9 &&
+        payload.toolCount >= 11 &&
         payload.summaryKind === "canvax-readonly-inspection" &&
         payload.hostKind === "canvax-host-handoff" &&
+        payload.transcriptMutation === "append-transcript" &&
+        payload.publishMutation === "publish-codex-output" &&
         payload.attachKind === "canvax-image-results",
     );
     results.push({

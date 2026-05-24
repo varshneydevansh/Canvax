@@ -129,13 +129,15 @@ The useful lesson for Canvax:
   readiness before a generated surface is treated as shippable.
 - Provide a local tool bridge for host agents. Open Design's MCP idea maps
   well to a Canvax local tool surface where Codex/ChatGPT can call
-  `get_current_frame`, `get_spatial_workspace`, `get_design_kit`, and
-  `get_output_binding` without asking the user to attach or paste export files.
+  `get_host_handoff`, `get_current_frame`, `get_spatial_workspace`,
+  `get_design_kit`, and `get_output_binding` without asking the user to attach
+  or paste export files.
   `npm run inspect` now ships the local CLI bridge, including project-link
   payloads for real app files, and `npm run mcp` exposes the same payloads as
-  stdio MCP read tools. The same MCP server now exposes
-  `attach_generated_asset` for the no-API hosted-image return path. Native
-  Codex/ChatGPT host registration remains open.
+  stdio MCP read tools. The same MCP server now exposes `append_transcript`,
+  `publish_codex_output`, and `attach_generated_asset` for no-API host
+  transcript, output-publish, and hosted-image return paths. Native Codex/ChatGPT
+  host registration remains open.
 - Make design rules enforceable, not decorative. The current local loop now has
   extraction (`Extract tokens`, `npm run extract-tokens`), import (`Import
   external`), contract recording (`Build with Codex`), and implementation
@@ -508,9 +510,10 @@ artifact review, and patch-task execution across those files. `npm run inspect` 
 Canvax exports and manifests into a stable no-API inspection payload for current
 frame, spatial workspace, design kit, and output bindings.
 `npm run mcp` exposes that inspection bridge as local MCP tools:
-`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
-`get_design_kit`, `get_output_binding`, `get_canvax_all`, and the narrow
-no-API generated-asset return tool `attach_generated_asset`.
+`get_host_handoff`, `get_canvax_summary`, `get_current_frame`,
+`get_spatial_workspace`, `get_design_kit`, `get_output_binding`,
+`get_canvax_all`, and the narrow no-API write tools `append_transcript`,
+`publish_codex_output`, and `attach_generated_asset`.
 `npm run review-snapshot` samples the latest browser snapshots as a local
 visual smoke gate, so screenshot artifacts are not only archived but also
 checked for blank/flat/clipped risks.

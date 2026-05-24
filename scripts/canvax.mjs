@@ -695,8 +695,11 @@ async function handleTranscriptBridgeCli() {
   const result = await appendTranscriptBridgeEntry({
     text,
     scope: readTranscriptScope(args),
-    source: "codex-chat",
-    provider: "codex-transcript-bridge",
+    frameId: readArgValue(args, ["--frame", "--frame-id"]),
+    frameTitle: readArgValue(args, "--frame-title"),
+    source: readArgValue(args, "--source") || "codex-chat",
+    provider: readArgValue(args, "--provider") || "codex-transcript-bridge",
+    at: readArgValue(args, "--at"),
   });
 
   if (!result) {
@@ -7663,7 +7666,7 @@ Usage:
   ./canvax --restart [--port 3210]
   ./canvax --open-external
   ./canvax --chrome
-  ./canvax --transcript "spoken Codex text" [--scope frame|session]
+  ./canvax --transcript "spoken Codex text" [--scope frame|session] [--frame frame-id]
 
 Behavior:
   - Running without arguments ensures exactly one Canvax service is active.
@@ -7671,6 +7674,7 @@ Behavior:
   - --open-external and --open use macOS open/default browser.
   - --chrome opens Google Chrome explicitly on macOS.
   - --transcript queues Codex chat dictation text into Canvax voice context.
+  - Use --frame/--frame-id, --frame-title, --source, --provider, or --at when a host bridge needs explicit transcript metadata.
   - If Canvax is already running, the existing service is reused.
   - Passing a different --port while Canvax is already running does not start a second server.
   - Use --restart to move Canvax to a different port.

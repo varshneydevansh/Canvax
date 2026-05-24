@@ -807,17 +807,18 @@ code.
 latest live export, task pack, build request, rewrite request, project-link
 artifact, and Codex output manifest, then returns a stable
 `canvax-readonly-inspection` payload for one of these command shapes: `summary`,
-`current-frame`, `spatial-workspace`, `design-kit`, `output-binding`,
+`host-handoff`, `current-frame`, `spatial-workspace`, `design-kit`, `output-binding`,
 `project-link`, or `all`. This gives Codex a local tool-shaped contract today
 and defines the payload future MCP/native host tools should mirror.
 
 `scripts/canvax-mcp-server.mjs` wraps that inspection bridge in a local stdio
 MCP server. It handles `initialize`, `tools/list`, `tools/call`, and `ping` over
 newline-delimited JSON-RPC and exposes `get_canvax_summary`,
-`get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
+`get_host_handoff`, `get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
 `get_output_binding`, `get_project_link`, and `get_canvax_all`. It also exposes
-`attach_generated_asset`, which is a narrow local write tool around
-`scripts/import-image-results.mjs` for hosted image-result returns. The tool
+`append_transcript`, `publish_codex_output`, and `attach_generated_asset`,
+which are narrow local write tools around `scripts/canvax.mjs --transcript`,
+`scripts/write-codex-output.mjs`, and `scripts/import-image-results.mjs`. The tool
 results include both text content and structured content, and every payload
 keeps `requiresOpenAiApiKey: false`.
 

@@ -120,6 +120,7 @@ Status: In progress
 - [x] `npm run inspect` exposes a no-API read-only inspection bridge for current frame, spatial workspace, design kit, output bindings, linked project files, and a consolidated `host-handoff` packet as the local precursor to future MCP/native host tools
 - [x] `npm run host-handoff -- --save` writes `exports/canvax-host-handoff-latest.{json,md}` with the active frame, sketch composition, voice intent, rewrite queue, output binding, project-link, image host context, source files, and next Codex actions
 - [x] `npm run mcp` exposes those inspection payloads, including `get_host_handoff` and `get_project_link`, through local stdio MCP tools for hosts that can register a local command
+- [x] `npm run mcp` exposes `append_transcript` and `publish_codex_output`, no-API local write tools for host transcript events and Codex output manifest publishing
 - [x] `npm run mcp` also exposes `attach_generated_asset`, a no-API local write tool that binds hosted image results back to Canvax candidate slots through the image-result import contract
 - [x] Repository design kits under `design-kits/*.json` load into the searchable Design kit dropdown and validate/discover with `npm run validate-design-kits` plus `npm run validate-design-kits -- --query <term>`
 - [x] `npm run package-design-kits` writes a shareable no-API kit-library artifact with full kit JSON, local versions, source paths, SHA-256 checksums, and install notes
@@ -330,7 +331,7 @@ These are now follow-on tasks, not blockers for the current repo-level prototype
 5. Use `docs/CANVAX_PARITY_AUDIT.md` before claiming that Canvax has reached the active better-than-Stitch goal.
 6. Use `docs/CODEX_BROWSER_WORKFLOW.md` as the preferred operator path for testing Canvax inside Codex Browser Use / Atlas before building native embedding.
 7. Use `docs/DESIGNER_WALKTHROUGH.md` as the short everyday designer path and screenshot-review checklist.
-8. Use `docs/CHATGPT_APP_BRIDGE.md` as the host-integration boundary for future MCP/App tools, native transcript events, and ChatGPT/Codex image-result attachment.
+8. Use `docs/CHATGPT_APP_BRIDGE.md` as the host-integration boundary for MCP/App tools, native microphone event access, and ChatGPT/Codex image-result attachment.
 9. Keep `docs/BRANDING.md` and the SVG assets aligned when changing the project identity.
 10. Treat Workbench as the working baseline: sketch, voice/manual notes, generated output, visual correction marks, and an `Open scratchpad` designer rail before opening Advanced mode.
 11. Keep the core Canvax workflow local-first and Codex-first. Image generation should be exposed as host capability or optional adapter, not as a required API-key path.

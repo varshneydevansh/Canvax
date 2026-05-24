@@ -883,9 +883,11 @@ the final host bridge.
 `get_spatial_workspace`,
 `get_design_kit`, `get_output_binding`, `get_project_link`, and
 `get_canvax_all` as MCP tools backed by the same inspection payloads. It also
-exposes `attach_generated_asset` as a narrow local write tool for hosted image
-result returns. It is still local and no-API; native Codex/ChatGPT registration
-remains a host configuration step.
+exposes `append_transcript`, `publish_codex_output`, and
+`attach_generated_asset` as local no-API write tools for host transcript events,
+Codex output manifest publishing, and hosted image result returns. It is still
+local and no-API; native Codex/ChatGPT registration remains a host configuration
+step.
 
 `npm run review-snapshot` is the local visual snapshot gate. It reads either the
 latest browser snapshot index or explicit `--image` paths, samples screenshot

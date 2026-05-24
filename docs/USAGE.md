@@ -892,7 +892,7 @@ Today, Canvax is:
 - a browser sketch board
 - a local command
 - a Codex skill wrapper
-- a local MCP server when launched with `npm run mcp`; most tools are read-only inspection tools, and `attach_generated_asset` is the narrow image-result return tool
+- a local MCP server when launched with `npm run mcp`; most tools are read-only inspection tools, and the local write tools cover transcript append, Codex output publish, and image-result return
 
 Today, Canvax is not yet:
 
@@ -916,6 +916,7 @@ npm run mcp -- --self-test
 
 The server exposes read tools:
 
+- `get_host_handoff`
 - `get_canvax_summary`
 - `get_current_frame`
 - `get_spatial_workspace`
@@ -924,16 +925,19 @@ The server exposes read tools:
 - `get_project_link`
 - `get_canvax_all`
 
-It also exposes one write/return tool:
+It also exposes local write/return tools:
 
+- `append_transcript`
+- `publish_codex_output`
 - `attach_generated_asset`
 
 Each tool returns the same local no-API inspection payload shape as
-`npm run inspect`, except `attach_generated_asset`, which wraps
-`npm run import-image-results` and writes only local image-result/candidate
-handoff files. This is stronger than asking the user to paste JSON exports, but
-it is still not the same as first-party Codex or ChatGPT registration; the host
-has to be configured to launch the server.
+`npm run inspect`, except the write tools: `append_transcript` wraps
+`./canvax --transcript`, `publish_codex_output` wraps
+`scripts/write-codex-output.mjs`, and `attach_generated_asset` wraps
+`npm run import-image-results`. This is stronger than asking the user to paste
+JSON exports, but it is still not the same as first-party Codex or ChatGPT
+registration; the host has to be configured to launch the server.
 
 The current voice path is browser speech recognition when available, or pasted macOS/Codex dictation text when it is not. A native Codex version could reuse the Codex microphone reader directly, but that requires first-party Codex client integration or an app/plugin bridge that exposes transcript events to Canvax.
 

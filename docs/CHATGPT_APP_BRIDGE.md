@@ -99,9 +99,11 @@ Local status: `npm run mcp` now exposes a stdio MCP server over the existing
 inspection bridge. The shipped read tools are `get_host_handoff`,
 `get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
 `get_output_binding`, `get_project_link`, and `get_canvax_all`. The shipped
-write/return tool is `attach_generated_asset`, a no-API wrapper around
-`npm run import-image-results` for binding hosted image outputs back to Canvax
-candidate slots. Task creation and native host registration remain future work.
+write/return tools are `append_transcript`, `publish_codex_output`, and
+`attach_generated_asset`. They wrap the local transcript bridge,
+`scripts/write-codex-output.mjs`, and `npm run import-image-results`
+respectively. Task creation, image invocation, embedded UI, and native host
+registration remain future work.
 
 `get_host_handoff` is the preferred current bridge read. It is backed by
 `npm run host-handoff -- --json` and can be saved to
@@ -204,6 +206,9 @@ Outputs:
 
 Purpose: bind a Codex-generated route, HTML artifact, spec, or changed file back into Canvax.
 
+Local status: shipped in `npm run mcp` as `publish_codex_output`, backed by
+`scripts/write-codex-output.mjs`. Supports dry-run validation.
+
 Inputs:
 
 - preview URL or workspace path
@@ -222,6 +227,9 @@ Outputs:
 
 Purpose: receive host transcript text from a native Codex/ChatGPT client.
 
+Local status: shipped in `npm run mcp` as `append_transcript`, backed by
+`./canvax --transcript`. Supports dry-run validation and explicit frame ids.
+
 Inputs:
 
 - transcript text
@@ -231,8 +239,8 @@ Inputs:
 
 Outputs:
 
-- updated voice note entry
-- latest voice Markdown path
+- queued transcript entry
+- latest transcript bridge JSON/Markdown paths
 - checkpoint path
 
 ## Host Image Generation Boundary
@@ -299,10 +307,10 @@ Codex app -> in-app Browser / Atlas -> http://localhost:3210
 ## Implementation Sequence
 
 1. Keep local file exports canonical.
-2. Add an MCP server wrapper around the existing Canvax service endpoints. **Local stdio wrapper exists through `npm run mcp`; read tools inspect Canvax state, and `attach_generated_asset` is the narrow no-API result-return write path.**
-3. Implement `get_latest_frame`, `create_task_pack`, `create_image_prompt_pack`, and `attach_generated_asset` as host-registered tools when first-party write/asset permissions are available.
+2. Add an MCP server wrapper around the existing Canvax service endpoints. **Local stdio wrapper exists through `npm run mcp`; read tools inspect Canvax state, and local write tools cover transcript append, Codex output publish, and hosted-image result return.**
+3. Implement `get_latest_frame`, `create_task_pack`, and `create_image_prompt_pack` as richer host-registered task-creation tools when first-party write/asset permissions are available.
 4. Add a small app component that renders the Workbench frame/Preview in a host iframe.
-5. Add host transcript forwarding when the client exposes it.
+5. Add host transcript forwarding when the client exposes it. **The local MCP bridge can now receive transcript text through `append_transcript`; native microphone event access remains a host-client requirement.**
 6. Add host image result attachment when the client exposes it. **Local no-API result import exists through `npm run import-image-results`, and the local MCP server now exposes the same path as `attach_generated_asset`; native first-party host registration remains future work.**
 7. Preserve `local-companion` mode as the fallback for all users.
 

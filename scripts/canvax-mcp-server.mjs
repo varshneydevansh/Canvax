@@ -73,6 +73,20 @@ const toolDefinitions = [
       "Attach a hosted image-generation result back to a Canvax asset candidate slot. Accepts a local workspace path, /workspace path, URL, or data image. Writes local no-API image result handoff files unless dryRun is true.",
     inputSchema: buildAttachGeneratedAssetInputSchema(),
   },
+  {
+    name: "append_transcript",
+    runner: "transcript-append",
+    description:
+      "Append a host-provided voice/chat transcript into Canvax voice context through the local transcript bridge. Writes exports/canvax-transcript-bridge.* unless dryRun is true.",
+    inputSchema: buildAppendTranscriptInputSchema(),
+  },
+  {
+    name: "publish_codex_output",
+    runner: "codex-output-publish",
+    description:
+      "Publish a Codex-generated URL, preview artifact, changed files, or implementation artifacts back to the Canvax Codex output manifest. Uses scripts/write-codex-output.mjs and supports dryRun.",
+    inputSchema: buildPublishCodexOutputInputSchema(),
+  },
 ];
 
 const toolMap = new Map(toolDefinitions.map((tool) => [tool.name, tool]));
@@ -147,7 +161,7 @@ async function handleMessage(request) {
           version: "0.1.0",
         },
         instructions:
-          "Use Canvax tools to read the local visual handoff, host packet, frame, spatial map, design kit, output bindings, and linked real-project files. Read tools are no-API inspection tools; attach_generated_asset is the only local write tool and only imports a supplied image path into Canvax image-result/candidate handoff files.",
+          "Use Canvax tools to read the local visual handoff, host packet, frame, spatial map, design kit, output bindings, and linked real-project files. Read tools are no-API inspection tools. Write tools stay local: append_transcript queues host transcript text into Canvax voice context, attach_generated_asset imports a supplied image path into image-result/candidate handoff files, and publish_codex_output writes the Codex output manifest.",
       });
       return;
     }
@@ -169,10 +183,7 @@ async function handleMessage(request) {
         writeError(id, -32602, `Unknown Canvax tool: ${name}`);
         return;
       }
-      const payload =
-        tool.runner === "image-result-import"
-          ? await callImageResultImport(tool, params.arguments || {})
-          : await callCanvaxInspection(tool, params.arguments || {});
+      const payload = await callTool(tool, params.arguments || {});
       writeResult(id, {
         content: [
           {
@@ -215,6 +226,19 @@ async function callCanvaxInspection(tool, args) {
     tool: tool.name,
     inspection: payload,
   };
+}
+
+async function callTool(tool, args) {
+  if (tool.runner === "image-result-import") {
+    return callImageResultImport(tool, args);
+  }
+  if (tool.runner === "transcript-append") {
+    return callAppendTranscript(tool, args);
+  }
+  if (tool.runner === "codex-output-publish") {
+    return callPublishCodexOutput(tool, args);
+  }
+  return callCanvaxInspection(tool, args);
 }
 
 async function callImageResultImport(tool, args) {
@@ -262,6 +286,101 @@ async function callImageResultImport(tool, args) {
   };
 }
 
+async function callAppendTranscript(tool, args) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("append_transcript arguments must be an object.");
+  }
+  const text = cleanArgString(args.text || args.transcript);
+  if (!text) {
+    throw new Error("append_transcript requires text.");
+  }
+  const scope = normalizeTranscriptScope(args.scope);
+  const frameId = cleanArgString(args.frameId);
+  const frameTitle = cleanArgString(args.frameTitle);
+  const source = cleanArgString(args.source) || "host-transcript";
+  const provider = cleanArgString(args.provider) || "canvax-mcp";
+  const at = cleanArgString(args.at);
+  if (args.dryRun === true) {
+    return {
+      kind: "canvax-mcp-tool-result",
+      schemaVersion: 1,
+      requiresOpenAiApiKey: false,
+      tool: tool.name,
+      mutation: "append-transcript",
+      dryRun: true,
+      transcriptRequest: {
+        text,
+        scope,
+        frameId,
+        frameTitle,
+        source,
+        provider,
+        at,
+      },
+      commandPreview: "node scripts/canvax.mjs --transcript <text> --json",
+    };
+  }
+  const commandArgs = [
+    "scripts/canvax.mjs",
+    "--transcript",
+    text,
+    "--scope",
+    scope,
+    "--source",
+    source,
+    "--provider",
+    provider,
+    "--json",
+  ];
+  appendStringOption(commandArgs, "--frame", frameId);
+  appendStringOption(commandArgs, "--frame-title", frameTitle);
+  appendStringOption(commandArgs, "--at", at);
+  const payload = await runJsonCommand("node", commandArgs);
+  return {
+    kind: "canvax-mcp-tool-result",
+    schemaVersion: 1,
+    requiresOpenAiApiKey: false,
+    tool: tool.name,
+    mutation: "append-transcript",
+    transcriptBridge: payload,
+  };
+}
+
+async function callPublishCodexOutput(tool, args) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    throw new Error("publish_codex_output arguments must be an object.");
+  }
+  const commandArgs = ["scripts/write-codex-output.mjs", "--json"];
+  appendStringOption(commandArgs, "--url", args.url);
+  appendStringOption(commandArgs, "--preview-path", args.previewPath);
+  appendStringOption(commandArgs, "--label", args.label);
+  appendStringOption(commandArgs, "--source", args.source);
+  appendStringOption(commandArgs, "--description", args.description);
+  appendStringOption(commandArgs, "--notes", args.notes);
+  appendStringOption(commandArgs, "--type", args.type);
+  appendStringOption(commandArgs, "--project-id", args.projectId);
+  appendStringOption(commandArgs, "--project-title", args.projectTitle);
+  appendRepeatedStringOptions(commandArgs, "--frame", args.frameIds);
+  appendRepeatedStringOptions(commandArgs, "--frame", args.frameId);
+  appendRepeatedManifestEntries(commandArgs, "--change", args.changes);
+  appendRepeatedManifestEntries(commandArgs, "--artifact", args.artifacts);
+  if (args.fromGitStatus === true) {
+    commandArgs.push("--from-git-status");
+  }
+  if (args.dryRun === true) {
+    commandArgs.push("--dry-run");
+  }
+  const payload = await runJsonCommand("node", commandArgs);
+  return {
+    kind: "canvax-mcp-tool-result",
+    schemaVersion: 1,
+    requiresOpenAiApiKey: false,
+    tool: tool.name,
+    mutation: "publish-codex-output",
+    codexOutput: payload,
+  };
+}
+
 async function runSelfTest() {
   const list = {
     jsonrpc: "2.0",
@@ -301,16 +420,47 @@ async function runSelfTest() {
       arguments: {},
     },
   };
+  const transcriptCall = {
+    jsonrpc: "2.0",
+    id: 5,
+    method: "tools/call",
+    params: {
+      name: "append_transcript",
+      arguments: {
+        text: "Self-test transcript bridge event.",
+        scope: "frame",
+        source: "mcp-self-test",
+        dryRun: true,
+      },
+    },
+  };
+  const publishCall = {
+    jsonrpc: "2.0",
+    id: 6,
+    method: "tools/call",
+    params: {
+      name: "publish_codex_output",
+      arguments: {
+        notes: "Self-test Codex output publish dry-run.",
+        source: "mcp-self-test",
+        dryRun: true,
+      },
+    },
+  };
   const listResponse = await dispatchForSelfTest(list);
   const callResponse = await dispatchForSelfTest(call);
   const attachResponse = await dispatchForSelfTest(attachCall);
   const hostResponse = await dispatchForSelfTest(hostCall);
+  const transcriptResponse = await dispatchForSelfTest(transcriptCall);
+  const publishResponse = await dispatchForSelfTest(publishCall);
   const passed = Boolean(
     Array.isArray(listResponse.result?.tools) &&
       listResponse.result.tools.some((tool) => tool.name === "get_host_handoff") &&
       listResponse.result.tools.some((tool) => tool.name === "get_current_frame") &&
       listResponse.result.tools.some((tool) => tool.name === "get_project_link") &&
       listResponse.result.tools.some((tool) => tool.name === "attach_generated_asset") &&
+      listResponse.result.tools.some((tool) => tool.name === "append_transcript") &&
+      listResponse.result.tools.some((tool) => tool.name === "publish_codex_output") &&
       callResponse.result?.structuredContent?.kind === "canvax-mcp-tool-result" &&
       callResponse.result?.structuredContent?.requiresOpenAiApiKey === false &&
       attachResponse.result?.structuredContent?.kind === "canvax-mcp-tool-result" &&
@@ -321,6 +471,16 @@ async function runSelfTest() {
       hostResponse.result?.structuredContent?.inspection?.payload?.hostHandoff
         ?.kind === "canvax-host-handoff" &&
       hostResponse.result?.structuredContent?.inspection?.payload?.hostHandoff
+        ?.requiresOpenAiApiKey === false &&
+      transcriptResponse.result?.structuredContent?.mutation ===
+        "append-transcript" &&
+      transcriptResponse.result?.structuredContent?.dryRun === true &&
+      transcriptResponse.result?.structuredContent
+        ?.requiresOpenAiApiKey === false &&
+      publishResponse.result?.structuredContent?.mutation ===
+        "publish-codex-output" &&
+      publishResponse.result?.structuredContent?.codexOutput?.dryRun === true &&
+      publishResponse.result?.structuredContent
         ?.requiresOpenAiApiKey === false,
   );
   if (!passed) {
@@ -333,6 +493,8 @@ async function runSelfTest() {
           callResponse,
           attachResponse,
           hostResponse,
+          transcriptResponse,
+          publishResponse,
         },
         null,
         2,
@@ -352,6 +514,10 @@ async function runSelfTest() {
         summaryKind: callResponse.result.structuredContent.inspection.kind,
         hostKind:
           hostResponse.result.structuredContent.inspection.payload.hostHandoff.kind,
+        transcriptMutation:
+          transcriptResponse.result.structuredContent.mutation,
+        publishMutation:
+          publishResponse.result.structuredContent.mutation,
         attachKind:
           attachResponse.result.structuredContent.imageResultPack.kind,
       },
@@ -473,11 +639,180 @@ function buildAttachGeneratedAssetInputSchema() {
   };
 }
 
+function buildAppendTranscriptInputSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["text"],
+    properties: {
+      text: {
+        type: "string",
+        description:
+          "Transcript text from a host voice/chat event. This is text, not raw microphone audio.",
+      },
+      scope: {
+        type: "string",
+        enum: ["frame", "session", "board"],
+        description:
+          "Use frame for the active/current design frame, session or board for whole-board context.",
+      },
+      frameId: {
+        type: "string",
+        description:
+          "Optional target frame id. When omitted, Canvax uses the active frame from the latest live export.",
+      },
+      frameTitle: {
+        type: "string",
+        description: "Optional display title for the target frame.",
+      },
+      source: {
+        type: "string",
+        description: "Optional source label, such as codex-chat or host-mic.",
+      },
+      provider: {
+        type: "string",
+        description: "Optional provider label for the transcript bridge entry.",
+      },
+      at: {
+        type: "string",
+        description: "Optional ISO timestamp for the transcript event.",
+      },
+      dryRun: {
+        type: "boolean",
+        description:
+          "When true, validate and return the transcript request without writing bridge files.",
+      },
+    },
+  };
+}
+
+function buildPublishCodexOutputInputSchema() {
+  const manifestEntrySchema = {
+    anyOf: [
+      {
+        type: "string",
+        description: "Entry formatted as path::summary-or-description::frameIds.",
+      },
+      {
+        type: "object",
+        additionalProperties: false,
+        required: ["path"],
+        properties: {
+          path: { type: "string" },
+          summary: { type: "string" },
+          description: { type: "string" },
+          frameIds: {
+            anyOf: [
+              { type: "string" },
+              { type: "array", items: { type: "string" } },
+            ],
+          },
+          frameId: { type: "string" },
+        },
+      },
+    ],
+  };
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      url: {
+        type: "string",
+        description: "Preview URL to bind as the primary Canvax output target.",
+      },
+      previewPath: {
+        type: "string",
+        description:
+          "Workspace-relative HTML/artifact path to bind as the primary Canvax output target.",
+      },
+      label: { type: "string" },
+      source: { type: "string" },
+      description: { type: "string" },
+      notes: { type: "string" },
+      type: { type: "string" },
+      frameId: { type: "string" },
+      frameIds: {
+        type: "array",
+        items: { type: "string" },
+      },
+      projectId: { type: "string" },
+      projectTitle: { type: "string" },
+      fromGitStatus: {
+        type: "boolean",
+        description:
+          "When true, include current git workspace changes, matching scripts/write-codex-output.mjs --from-git-status.",
+      },
+      changes: {
+        type: "array",
+        items: manifestEntrySchema,
+      },
+      artifacts: {
+        type: "array",
+        items: manifestEntrySchema,
+      },
+      dryRun: {
+        type: "boolean",
+        description:
+          "When true, return the manifest that would be written without changing files.",
+      },
+    },
+  };
+}
+
 function appendStringOption(commandArgs, option, value) {
   const clean = cleanArgString(value);
   if (clean) {
     commandArgs.push(option, clean);
   }
+}
+
+function appendRepeatedStringOptions(commandArgs, option, values) {
+  const normalized = Array.isArray(values) ? values : [values];
+  normalized.forEach((value) => appendStringOption(commandArgs, option, value));
+}
+
+function appendRepeatedManifestEntries(commandArgs, option, entries) {
+  if (!Array.isArray(entries)) {
+    return;
+  }
+  entries
+    .map(formatManifestEntry)
+    .filter(Boolean)
+    .forEach((entry) => commandArgs.push(option, entry));
+}
+
+function formatManifestEntry(entry) {
+  if (typeof entry === "string") {
+    return entry.trim();
+  }
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    return "";
+  }
+  const path = cleanArgString(entry.path);
+  if (!path) {
+    return "";
+  }
+  const summary = cleanArgString(entry.summary || entry.description);
+  const frameIds = normalizeFrameIds(entry.frameIds || entry.frameId).join(",");
+  return `${path}::${summary}::${frameIds}`;
+}
+
+function normalizeFrameIds(value) {
+  if (Array.isArray(value)) {
+    return value.map(cleanArgString).filter(Boolean);
+  }
+  const clean = cleanArgString(value);
+  return clean
+    ? clean
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    : [];
+}
+
+function normalizeTranscriptScope(value) {
+  const scope = cleanArgString(value).toLowerCase();
+  return scope === "session" || scope === "board" ? "session" : "frame";
 }
 
 function cleanArgString(value) {
@@ -557,7 +892,9 @@ server exposes these local no-API tools:
 ${toolDefinitions.map((tool) => `- ${tool.name}`).join("\n")}
 
 Messages are newline-delimited JSON-RPC over stdio. The inspection tools read
-local Canvax export and manifest files. attach_generated_asset writes only
-local Canvax image-result/candidate handoff files. The server does not call
-OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.`);
+local Canvax export and manifest files. append_transcript writes only the local
+Canvax transcript bridge, attach_generated_asset writes only local image-result
+candidate handoff files, and publish_codex_output writes only the local Codex
+output manifest. The server does not call OpenAI, ChatGPT, image APIs, browser
+automation, or paid APIs.`);
 }
