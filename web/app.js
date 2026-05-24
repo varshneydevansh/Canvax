@@ -88,11 +88,11 @@ const workspaceModes = [
   {
     id: "advanced",
     label: "Advanced",
-    description: "Inspector deck for frames, flow, handoff state, and diagnostics.",
+    description: "Same sketch canvas with frame, flow, handoff, and debug tools open.",
     guide: [
       ["Project rail", "Frames, captures, and workspace actions."],
       ["Canvas deck", "Frame tools, Flow map, Map objects, and generated output cards."],
-      ["Handoff inspector", "Notes, voice, manifests, captures, and generation controls."],
+      ["Handoff lane", "Voice, manifests, captures, and generation controls stay attached."],
     ],
   },
 ];
@@ -447,6 +447,7 @@ const dom = {
   workspaceModeLabel: document.querySelector("#workspace-mode-label"),
   workspaceModeDescription: document.querySelector("#workspace-mode-description"),
   workspaceModeGuide: document.querySelector("#workspace-mode-guide"),
+  toolbar: document.querySelector(".toolbar"),
   workbenchFocusButtons: document.querySelector("#workbench-focus-buttons"),
   workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
   workbenchFocusSummary: document.querySelector("#workbench-focus-summary"),
@@ -3749,6 +3750,31 @@ function renderAll() {
   renderServerStatus();
   renderAssetCandidateTray();
   renderWorkbenchAgentLog();
+  renderBusyState();
+}
+
+function currentUiBusyState() {
+  return Boolean(
+    state.focusApplyInFlight ||
+      state.generationInFlight ||
+      state.buildRealInFlight ||
+      state.canvasReplyInFlight ||
+      state.designReviewInFlight ||
+      state.liveRewriteInFlight ||
+      state.outputCheckpointInFlight,
+  );
+}
+
+function renderBusyState() {
+  const busy = currentUiBusyState();
+  document.body.classList.toggle("canvax-busy", busy);
+  document.body.setAttribute("aria-busy", String(busy));
+  [dom.toolbar, dom.focusPad, document.querySelector(".stage-panel")]
+    .filter(Boolean)
+    .forEach((element) => {
+      element.setAttribute("aria-busy", String(busy));
+    });
+  dom.statusPill?.classList.toggle("is-busy", busy);
 }
 
 function renderWorkspaceMode() {
@@ -4767,6 +4793,7 @@ function renderFocusPad() {
       "Draw rough placement, start talking or paste a note, then Apply to Codex.";
   }
 
+  renderBusyState();
   renderFocusVoiceIntentLane(relevantSegments);
   renderWorkbenchOutput();
   renderWorkbenchAgentLog();
@@ -10049,6 +10076,7 @@ function renderStatus(message = state.statusText) {
     state.viewMode === "flow"
       ? "Flow view focuses on frame relationships, ordering, and transitions."
       : state.statusText;
+  renderBusyState();
 }
 
 function supportsBrowserVoiceRecognition() {
@@ -22553,6 +22581,7 @@ async function materializeCurrentFrame(options = {}) {
   const originalMaterializePanelLabel = dom.materializeFramePanel.textContent;
   const originalFocusGenerateLabel = dom.focusGenerate.textContent;
   state.generationInFlight = true;
+  renderBusyState();
   try {
     dom.generateScreen.disabled = true;
     dom.materializeFrame.disabled = true;
@@ -22638,6 +22667,7 @@ async function materializeCurrentFrame(options = {}) {
     dom.generateScreenPanel.textContent = originalGeneratePanelLabel;
     dom.materializeFramePanel.textContent = originalMaterializePanelLabel;
     dom.focusGenerate.textContent = originalFocusGenerateLabel;
+    renderBusyState();
   }
 }
 
@@ -23758,6 +23788,8 @@ async function runSelfTest() {
     );
     closeProjectBrowser();
     results.push(assertWorkspaceModeGuide());
+    results.push(assertStatusAndBusySemantics());
+    results.push(assertAdvancedCommandDeckDensity());
     results.push(
       assert(
         ["slide", "bookSpread", "storyboard", "comicPage"].every(
@@ -25457,9 +25489,111 @@ function assertWorkspaceModeGuide() {
       workbenchText.includes("Sketch") &&
       workbenchText.includes("Make / Apply") &&
       advancedText.includes("Project rail") &&
-      advancedText.includes("Handoff inspector") &&
+      advancedText.includes("Handoff lane") &&
       advancedToolbarPosition !== "sticky",
     "workspace mode guide explains Workbench and Advanced roles",
+  );
+}
+
+function assertStatusAndBusySemantics() {
+  const previous = {
+    statusText: state.statusText,
+    viewMode: state.viewMode,
+    focusApplyInFlight: state.focusApplyInFlight,
+    generationInFlight: state.generationInFlight,
+    buildRealInFlight: state.buildRealInFlight,
+    canvasReplyInFlight: state.canvasReplyInFlight,
+    designReviewInFlight: state.designReviewInFlight,
+    liveRewriteInFlight: state.liveRewriteInFlight,
+    outputCheckpointInFlight: state.outputCheckpointInFlight,
+  };
+
+  state.viewMode = "frame";
+  renderStatus("Self-test status semantics");
+  const liveRegionOk =
+    dom.statusPill?.getAttribute("role") === "status" &&
+    dom.statusPill?.getAttribute("aria-live") === "polite" &&
+    dom.statusPill?.getAttribute("aria-atomic") === "true" &&
+    (dom.statusPill?.textContent || "").includes("Self-test status");
+
+  state.generationInFlight = true;
+  renderBusyState();
+  const busyOk =
+    document.body.getAttribute("aria-busy") === "true" &&
+    dom.toolbar?.getAttribute("aria-busy") === "true" &&
+    dom.focusPad?.getAttribute("aria-busy") === "true" &&
+    dom.statusPill?.classList.contains("is-busy");
+
+  state.focusApplyInFlight = previous.focusApplyInFlight;
+  state.generationInFlight = previous.generationInFlight;
+  state.buildRealInFlight = previous.buildRealInFlight;
+  state.canvasReplyInFlight = previous.canvasReplyInFlight;
+  state.designReviewInFlight = previous.designReviewInFlight;
+  state.liveRewriteInFlight = previous.liveRewriteInFlight;
+  state.outputCheckpointInFlight = previous.outputCheckpointInFlight;
+  state.viewMode = previous.viewMode;
+  renderBusyState();
+  renderStatus(previous.statusText);
+
+  return assert(
+    liveRegionOk &&
+      busyOk &&
+      document.body.getAttribute("aria-busy") ===
+        String(currentUiBusyState()),
+    "status live region and UI busy semantics stay in sync",
+  );
+}
+
+function assertAdvancedCommandDeckDensity() {
+  const previous = {
+    workspaceMode: state.workspaceMode,
+    viewMode: state.viewMode,
+    workbenchFocus: state.workbenchFocus,
+    voiceScope: state.voice.scope,
+    tool: state.tool,
+  };
+  setWorkspaceMode("advanced");
+  state.viewMode = "frame";
+  renderAll();
+
+  const rootFontSize =
+    parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const compactViewport = window.innerWidth <= rootFontSize * 68;
+  const toolbarRect = dom.toolbar?.getBoundingClientRect();
+  const stageRect = document
+    .querySelector(".stage-panel")
+    ?.getBoundingClientRect();
+  const modeGuideColumns = getComputedStyle(dom.workspaceModeGuide)
+    .gridTemplateColumns.split(" ")
+    .filter(Boolean).length;
+  const compactDeckFits =
+    !compactViewport ||
+    (toolbarRect &&
+      stageRect &&
+      toolbarRect.height <= 500 &&
+      stageRect.top <= Math.max(window.innerHeight, 520) &&
+      modeGuideColumns >= 3);
+  const compactDeckDetail = JSON.stringify({
+    compactViewport,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    toolbarHeight: Math.round(toolbarRect?.height || 0),
+    stageTop: Math.round(stageRect?.top || 0),
+    modeGuideColumns,
+  });
+
+  state.workspaceMode = previous.workspaceMode;
+  state.viewMode = previous.viewMode;
+  state.workbenchFocus = previous.workbenchFocus;
+  state.voice.scope = previous.voiceScope;
+  state.tool = previous.tool;
+  persistState();
+  renderAll();
+
+  return assert(
+    Boolean(compactDeckFits),
+    "Advanced command deck leaves the sketch surface visible on compact viewports",
+    compactDeckDetail,
   );
 }
 

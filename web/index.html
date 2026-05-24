@@ -143,7 +143,13 @@
                             Install global `/canvax` skill
                         </button>
                     </div>
-                    <p id="workspace-status" class="helper-text">
+                    <p
+                        id="workspace-status"
+                        class="helper-text"
+                        role="status"
+                        aria-live="polite"
+                        aria-atomic="true"
+                    >
                         Canvax keeps a live export in this workspace under
                         `exports/`.
                     </p>
@@ -151,7 +157,10 @@
             </aside>
 
             <main class="studio">
-                <header class="panel toolbar command-deck">
+                <header
+                    class="panel toolbar command-deck"
+                    aria-busy="false"
+                >
                     <div class="mode-strip">
                         <div>
                             <p class="eyebrow">Workspace mode</p>
@@ -175,7 +184,7 @@
                         <div
                             id="workspace-mode-buttons"
                             class="segmented-control workspace-mode-control"
-                            role="tablist"
+                            role="group"
                             aria-label="Canvax workspace mode"
                         >
                             <button
@@ -317,6 +326,9 @@
 
                         <div class="toolbar-group toolbar-status">
                             <span id="status-pill" class="status-pill"
+                                role="status"
+                                aria-live="polite"
+                                aria-atomic="true"
                                 >Autosnap writes the live canvas after 2s
                                 idle</span
                             >
@@ -681,7 +693,13 @@
                     ></div>
                     <div class="focus-pad-voice">
                         <div>
-                            <p id="focus-status" class="helper-text">
+                            <p
+                                id="focus-status"
+                                class="helper-text"
+                                role="status"
+                                aria-live="polite"
+                                aria-atomic="true"
+                            >
                                 Draw rough placement, dictate or paste the
                                 instruction, then apply.
                             </p>
@@ -978,7 +996,7 @@
                             <div
                                 id="workbench-focus-buttons"
                                 class="segmented-control workbench-focus-control"
-                                role="tablist"
+                                role="group"
                                 aria-label="Workbench focus"
                             >
                                 <button
@@ -1013,7 +1031,7 @@
                             <div
                                 id="view-mode-buttons"
                                 class="segmented-control"
-                                role="tablist"
+                                role="group"
                                 aria-label="Canvas mode"
                             >
                                 <button
@@ -2136,7 +2154,13 @@
                             >0 segments</span
                         >
                     </div>
-                    <p id="voice-status" class="helper-text">
+                    <p
+                        id="voice-status"
+                        class="helper-text"
+                        role="status"
+                        aria-live="polite"
+                        aria-atomic="true"
+                    >
                         Dictation is not running. Use browser voice if it is
                         available here, or paste macOS dictation into the note
                         box below.
@@ -2144,7 +2168,7 @@
                     <div
                         id="voice-scope-buttons"
                         class="segmented-control voice-scope-control"
-                        role="tablist"
+                        role="group"
                         aria-label="Dictation scope"
                     >
                         <button

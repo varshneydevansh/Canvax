@@ -1363,6 +1363,12 @@ button:disabled {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .frame-status-badge.active {
@@ -1922,6 +1928,12 @@ body[data-workspace-mode="simple"] .focus-project-control .helper-text {
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 body[data-workspace-mode="simple"] .focus-frame-meta span {
@@ -2145,6 +2157,11 @@ body[data-workspace-mode="simple"] .workbench-prompt-chips {
     box-shadow:
         inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.05),
         0 1rem 2.6rem rgba(0, 0, 0, 0.18);
+    transition:
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .workbench-output-head,
@@ -2184,6 +2201,12 @@ body[data-workspace-mode="simple"] .workbench-prompt-chips {
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .workbench-output-badge[data-tone="active"],
@@ -2243,6 +2266,11 @@ body[data-workspace-mode="simple"] .workbench-prompt-chips {
     background:
         linear-gradient(135deg, rgba(255, 248, 236, 0.08), transparent),
         #111316;
+    transition:
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 body[data-workspace-mode="simple"] .workbench-output-surface {
@@ -2474,6 +2502,11 @@ body[data-workspace-mode="simple"] .workbench-output-footer .ghost-link-button {
     border-radius: 1rem;
     border: 0.0625rem solid rgba(255, 248, 236, 0.12);
     background: rgba(255, 248, 236, 0.07);
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .asset-candidate-card.active-frame {
@@ -2511,6 +2544,12 @@ body[data-workspace-mode="simple"] .workbench-output-footer .ghost-link-button {
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .asset-candidate-status[data-tone="attached"],
@@ -3381,6 +3420,20 @@ input.color-hex-input[data-invalid="true"] {
     font-size: 0.85rem;
     color: var(--ink);
     background: rgba(24, 17, 14, 0.08);
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
+}
+
+.status-pill.is-busy {
+    border-color: rgba(12, 141, 123, 0.32);
+    background: rgba(12, 141, 123, 0.12);
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.12),
+        0 0.35rem 1rem rgba(12, 141, 123, 0.12);
 }
 
 .stage-panel {
@@ -3548,6 +3601,11 @@ input.color-hex-input[data-invalid="true"] {
         0 0.4rem 1rem rgba(0, 0, 0, 0.08),
         0 1.5rem 4rem rgba(0, 0, 0, 0.12);
     pointer-events: none;
+    transition:
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .canvas-reply-underlay iframe {
@@ -3780,6 +3838,10 @@ select,
     overflow: auto;
     cursor: grab;
     overscroll-behavior: contain;
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background 140ms ease;
 }
 
 .flow-shell.map-file-drop-active,
@@ -3816,6 +3878,7 @@ select,
     text-transform: uppercase;
     transform: translateX(-50%);
     pointer-events: none;
+    animation: drop-hint-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .flow-shell.map-text-drop-active::after {
@@ -4079,6 +4142,10 @@ select,
         0 0 0 0.18rem rgba(12, 141, 123, 0.1),
         0 1rem 2.2rem rgba(24, 17, 14, 0.14);
     pointer-events: none;
+    transition:
+        background 90ms ease,
+        border-color 90ms ease,
+        box-shadow 90ms ease;
 }
 
 .flow-lasso-overlay span {
@@ -4104,6 +4171,10 @@ select,
         0 0 0 0.2rem rgba(255, 93, 58, 0.1),
         0 1rem 2.5rem rgba(24, 17, 14, 0.12);
     pointer-events: none;
+    transition:
+        background 90ms ease,
+        border-color 90ms ease,
+        box-shadow 90ms ease;
 }
 
 .spatial-selection-box.resizing {
@@ -4189,6 +4260,14 @@ select,
     user-select: none;
 }
 
+.flow-card-node:not(.dragging) {
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background 140ms ease,
+        opacity 100ms ease;
+}
+
 .flow-card-node.dragging {
     opacity: 0.9;
     box-shadow:
@@ -4250,6 +4329,14 @@ select,
     text-align: left;
     cursor: grab;
     user-select: none;
+}
+
+.spatial-object-node:not(.dragging) {
+    transition:
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background 140ms ease,
+        opacity 100ms ease;
 }
 
 .spatial-object-node.pinned {
@@ -4377,6 +4464,7 @@ select,
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    animation: selected-label-in 120ms ease-out;
 }
 
 .spatial-object-node.image-frame {
@@ -4467,6 +4555,8 @@ select,
     box-shadow:
         0 0 0 0.35rem rgba(255, 93, 58, 0.16),
         0 0.75rem 1.8rem rgba(255, 93, 58, 0.24);
+    transform-origin: center top;
+    animation: drop-line-in 120ms ease-out;
     pointer-events: none;
 }
 
@@ -5672,6 +5762,11 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
     border-radius: var(--radius-md);
     background: rgba(255, 249, 241, 0.72);
     border: 0.0625rem solid rgba(24, 17, 14, 0.08);
+    transition:
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .codex-output-summary.empty-state,
@@ -5726,6 +5821,11 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
     border-radius: 0.85rem;
     border: 0.0625rem solid rgba(24, 17, 14, 0.08);
     background: rgba(255, 252, 247, 0.88);
+    transition:
+        background 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        opacity 160ms ease;
 }
 
 .artifact-item-row {
@@ -5928,6 +6028,66 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
     margin-top: auto;
 }
 
+@keyframes drop-hint-in {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(0.35rem) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+}
+
+@keyframes selected-label-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.18rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes drop-line-in {
+    from {
+        opacity: 0;
+        transform: scaleY(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .status-pill,
+    .frame-status-badge,
+    .workbench-output-badge,
+    .design-review-badge,
+    .workbench-output-card,
+    .workbench-output-surface,
+    .asset-candidate-card,
+    .asset-candidate-status,
+    .canvas-reply-underlay,
+    .codex-output-card,
+    .artifact-item,
+    .flow-shell,
+    .flow-shell.map-file-drop-active::after,
+    .flow-shell.map-text-drop-active::after,
+    .flow-card-node,
+    .spatial-object-node,
+    .spatial-object-node.selected::after,
+    .flow-lasso-overlay,
+    .spatial-selection-box,
+    .branch-drop-target,
+    .workbench-agent-log-panel {
+        animation: none;
+        transition: none;
+    }
+}
+
 @media (max-width: 86rem) {
     .shell {
         grid-template-columns: minmax(0, 1fr);
@@ -6012,6 +6172,130 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
 
     .mode-guide {
         grid-template-columns: 1fr;
+    }
+
+    body[data-workspace-mode="advanced"] .toolbar {
+        gap: 0.5rem;
+        padding: 0.7rem;
+        border-radius: 1.05rem;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-strip {
+        display: grid;
+        grid-template-columns: minmax(8.5rem, 1fr) minmax(9.5rem, 1fr) auto;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.48rem;
+        border-radius: 0.8rem;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-strip > div:first-child {
+        min-width: 0;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-description {
+        display: none;
+    }
+
+    body[data-workspace-mode="advanced"] .project-launcher-button {
+        min-width: 9.5rem;
+        max-width: none;
+        padding: 0.45rem 0.55rem;
+        border-radius: 0.72rem;
+    }
+
+    body[data-workspace-mode="advanced"] .project-launcher-button strong {
+        font-size: 0.78rem;
+    }
+
+    body[data-workspace-mode="advanced"] .workspace-mode-control {
+        width: auto;
+        min-width: 11rem;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-guide {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.42rem;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-guide-card {
+        align-items: center;
+        gap: 0.06rem 0.32rem;
+        padding: 0.42rem 0.48rem;
+        border-radius: 0.68rem;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-guide-card span {
+        width: 1.18rem;
+        height: 1.18rem;
+        font-size: 0.6rem;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-guide-card strong {
+        overflow: hidden;
+        font-size: 0.74rem;
+        line-height: 1.1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body[data-workspace-mode="advanced"] .mode-guide-card p {
+        display: none;
+    }
+
+    body[data-workspace-mode="advanced"] .toolbar-main {
+        grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+        align-items: start;
+        gap: 0.42rem;
+        padding: 0.48rem;
+        border-radius: 0.78rem;
+    }
+
+    body[data-workspace-mode="advanced"] .toolbar-group {
+        gap: 0.34rem;
+    }
+
+    body[data-workspace-mode="advanced"] .toolbar-label {
+        font-size: 0.64rem;
+    }
+
+    body[data-workspace-mode="advanced"] #tool-buttons {
+        flex-wrap: nowrap;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 0.08rem;
+        scrollbar-width: none;
+    }
+
+    body[data-workspace-mode="advanced"] #tool-buttons::-webkit-scrollbar {
+        display: none;
+    }
+
+    body[data-workspace-mode="advanced"] #tool-buttons .tool-chip {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
+    body[data-workspace-mode="advanced"] .toolbar-status {
+        align-items: center;
+        gap: 0.38rem;
+        justify-content: flex-start;
+    }
+
+    body[data-workspace-mode="advanced"] .toolbar-status .status-pill {
+        flex: 1 1 13rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body[data-workspace-mode="advanced"] .toolbar-status .ghost-button,
+    body[data-workspace-mode="advanced"] .toolbar-status .accent-button {
+        min-height: 2.25rem;
+        padding: 0.42rem 0.62rem;
+        font-size: 0.72rem;
     }
 
     .canvas-note {
@@ -6217,10 +6501,19 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
         gap: 0.65rem;
     }
 
+    body[data-workspace-mode="advanced"] .mode-strip {
+        grid-template-columns: 1fr;
+    }
+
     .workspace-mode-control {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         width: 100%;
+    }
+
+    body[data-workspace-mode="advanced"] .workspace-mode-control {
+        width: 100%;
+        min-width: 0;
     }
 
     .project-launcher-button {
