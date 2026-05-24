@@ -312,7 +312,12 @@ updates targeted files, records `data-canvax-patch-state` metadata, writes
 `artifacts/canvax/applied-patches/latest/result.{json,md}`, and can publish the
 changed artifact list back through `scripts/write-codex-output.mjs`. Keep this
 boundary explicit: it proves generated-bundle and project-linked patchability,
-not arbitrary unlinked production app patching.
+not arbitrary unlinked production app patching. By default the patch executor
+also checks `exports/canvax-project-link-latest.json`: if the patch task frame
+matches the project-link frame and the task component target ids match linked
+`data-canvax-node-id` bindings, the executor adds those allowlisted linked files
+as patch candidates even when the generated rewrite task did not explicitly name
+the real project files. Use `--no-project-link` to disable that expansion.
 
 Use `npm run mcp` to launch the local stdio MCP server. It exposes the
 inspection commands as read tools for hosts that can register a local MCP command:

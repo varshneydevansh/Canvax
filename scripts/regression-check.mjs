@@ -841,8 +841,14 @@ async function validateProjectLinkDryRun() {
   const componentPath = resolve(fixtureRoot, "src", "components", "Hero.jsx");
   const cssPath = resolve(fixtureRoot, "src", "styles.css");
   const patchTaskPath = resolve(fixtureRoot, "codex-patch-task.json");
+  const generatedPatchTaskPath = resolve(
+    fixtureRoot,
+    "generated-codex-patch-task.json",
+  );
   const patchTaskRelativePath =
     ".canvax/project-link-fixture/codex-patch-task.json";
+  const generatedPatchTaskRelativePath =
+    ".canvax/project-link-fixture/generated-codex-patch-task.json";
   try {
     await mkdir(dirname(routePath), { recursive: true });
     await mkdir(dirname(componentPath), { recursive: true });
@@ -883,6 +889,61 @@ async function validateProjectLinkDryRun() {
       (
         await runCommand("node", [
           ...projectLinkArgs,
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
+    await writeFile(
+      generatedPatchTaskPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-codex-patch-task",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          frameId: "frame-project-link",
+          frameTitle: "Project link fixture",
+          previewPath:
+            "artifacts/preview/codex-rewrite/frames/frame-project-link/index.html",
+          trigger: {
+            id: "project-link-generated-task-tweak",
+            note:
+              "Move the linked hero card slightly right from a generated-output correction.",
+          },
+          affectedRegions: [
+            {
+              source: "preview-tweak",
+              note:
+                "Move the linked hero card slightly right from a generated-output correction.",
+              componentTargetIds: ["fixture-card"],
+            },
+          ],
+          componentTargets: [
+            {
+              id: "fixture-card",
+              type: "card",
+              label: "Linked hero card",
+            },
+          ],
+          suggestedFiles: [
+            {
+              path:
+                "artifacts/preview/codex-rewrite/frames/frame-project-link/codex-patch-task.json",
+              role: "generated rewrite task",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const projectLinkExpandedPatch = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-patch-task.mjs",
+          "--task",
+          generatedPatchTaskRelativePath,
+          "--dry-run",
           "--no-publish",
           "--json",
         ])
@@ -960,6 +1021,16 @@ async function validateProjectLinkDryRun() {
         savedResult?.published === false &&
         savedResult?.outputs?.projectLinkJson ===
           "exports/canvax-project-link-latest.json" &&
+        projectLinkExpandedPatch?.ok === true &&
+        projectLinkExpandedPatch?.projectLinkExpansion?.addedFiles?.some((file) =>
+          file.endsWith("src/app/page.html"),
+        ) &&
+        projectLinkExpandedPatch.projectLinkExpansion?.matchedTargetIds?.includes(
+          "fixture-card",
+        ) &&
+        projectLinkExpandedPatch.changedFiles?.some((file) =>
+          file.path.endsWith("src/components/Hero.jsx"),
+        ) &&
         patchResult?.ok === true &&
         patchResult?.changedFileCount >= 2 &&
         patchResult.changedFiles?.some((file) =>

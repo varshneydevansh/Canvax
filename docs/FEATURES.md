@@ -859,6 +859,10 @@ files from the latest project-link contract. In that mode it only patches files
 listed in `exports/canvax-project-link-latest.json`, adds
 `data-canvax-patch-state` metadata where matching `data-canvax-node-id` bindings
 exist, and records the result under `artifacts/canvax/applied-patches/latest/`.
+It also expands generated-output patch tasks through the latest project-link
+contract when the frame id and component target ids match linked
+`data-canvax-node-id` bindings, so a Preview/canvas correction can reach
+allowlisted real route/component/CSS files without hand-editing the task file.
 This gives Canvax a local no-API real-file patch proof while keeping arbitrary
 production edits outside the deterministic executor.
 

@@ -10,6 +10,7 @@ const args = process.argv.slice(2);
 const wantsJson = args.includes("--json");
 const wantsDryRun = args.includes("--dry-run");
 const noPublish = args.includes("--no-publish");
+const includeProjectLink = !args.includes("--no-project-link");
 const resultRoot = resolve(
   projectRoot,
   readOption(args, "--result-root") ||
@@ -75,6 +76,7 @@ const result = {
   note: plan.note,
   targetIds: plan.targetIds,
   motion: plan.motion,
+  projectLinkExpansion: plan.projectLinkExpansion,
   changedFiles: changedFiles.map((change) => ({
     path: change.path,
     kind: change.kind,
@@ -110,6 +112,7 @@ const output = {
   frameId: result.frameId,
   changedFileCount: changedFiles.length,
   changedFiles: result.changedFiles,
+  projectLinkExpansion: result.projectLinkExpansion,
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
 };
@@ -131,7 +134,14 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
   const note = cleanString(task.trigger?.note || task.affectedRegions?.[0]?.note);
   const targetIds = selectPatchTargetIds(task, note);
   const motion = inferMotion(note);
-  const files = classifyPatchFiles(task.suggestedFiles || [], projectLink);
+  const { files, projectLinkExpansion } = classifyPatchFiles(
+    task.suggestedFiles || [],
+    projectLink,
+    {
+      frameId: cleanString(task.frameId),
+      targetIds,
+    },
+  );
   if (!files.length) {
     fail(
       `Patch task has no local Canvax-generated, production-proof, or project-linked implementation files: ${toProjectRelative(absoluteTaskPath)}`,
@@ -146,6 +156,7 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
     targetIds,
     motion,
     files,
+    projectLinkExpansion,
     patchState: "applied",
     patchNote: note || "Applied Canvax patch task.",
   };
@@ -213,10 +224,10 @@ function inferMotion(note) {
   return delta;
 }
 
-function classifyPatchFiles(files, projectLink) {
+function classifyPatchFiles(files, projectLink, context = {}) {
   const seen = new Set();
   const linkedFiles = collectProjectLinkedFiles(projectLink);
-  return files
+  const classifiedFiles = files
     .map((file) => cleanString(file.path || file))
     .filter(Boolean)
     .map((path) => {
@@ -258,6 +269,16 @@ function classifyPatchFiles(files, projectLink) {
       seen.add(file.path);
       return true;
     });
+  const projectLinkExpansion = buildProjectLinkExpansion(
+    classifiedFiles,
+    linkedFiles,
+    context,
+    seen,
+  );
+  return {
+    files: [...classifiedFiles, ...projectLinkExpansion.files],
+    projectLinkExpansion: projectLinkExpansion.summary,
+  };
 }
 
 function collectProjectLinkedFiles(projectLink) {
@@ -283,13 +304,65 @@ function collectProjectLinkedFiles(projectLink) {
         return null;
       }
       seen.add(key);
+      const preserveBindings = Array.isArray(file.preserveBindings)
+        ? file.preserveBindings
+        : [];
+      const summaryBindings = Array.isArray(file.summary?.bindings)
+        ? file.summary.bindings
+        : [];
+      const frameIds = Array.isArray(file.frameIds) ? file.frameIds : [];
       return {
         path: toProjectRelative(absolutePath),
         absolutePath,
         role: cleanString(file.role),
+        frameIds,
+        bindings: [...new Set([...preserveBindings, ...summaryBindings])],
       };
     })
     .filter(Boolean);
+}
+
+function buildProjectLinkExpansion(classifiedFiles, linkedFiles, context, seen) {
+  const frameId = cleanString(context.frameId);
+  const targetIds = Array.isArray(context.targetIds) ? context.targetIds : [];
+  const summary = {
+    enabled: includeProjectLink,
+    source: "exports/canvax-project-link-latest.json",
+    frameId,
+    matchedTargetIds: [],
+    addedFiles: [],
+  };
+  if (!includeProjectLink || !linkedFiles.length || !frameId || !targetIds.length) {
+    return { files: [], summary };
+  }
+  const frameLinkedFiles = linkedFiles.filter(
+    (file) => !file.frameIds.length || file.frameIds.includes(frameId),
+  );
+  const matchedTargetIds = targetIds.filter((targetId) =>
+    frameLinkedFiles.some((file) => file.bindings.includes(targetId)),
+  );
+  summary.matchedTargetIds = matchedTargetIds;
+  if (!matchedTargetIds.length) {
+    return { files: [], summary };
+  }
+  const hasExplicitProjectFiles = classifiedFiles.some((file) =>
+    file.kind?.startsWith("project-"),
+  );
+  if (hasExplicitProjectFiles) {
+    return { files: [], summary };
+  }
+  const files = frameLinkedFiles
+    .map(classifyProjectLinkedFile)
+    .filter(Boolean)
+    .filter((file) => {
+      if (seen.has(file.path)) {
+        return false;
+      }
+      seen.add(file.path);
+      return true;
+    });
+  summary.addedFiles = files.map((file) => file.path);
+  return { files, summary };
 }
 
 function findProjectLinkedFile(path, linkedFiles) {
@@ -647,6 +720,16 @@ function buildMarkdown(result) {
     lines.push("- No files changed.");
   }
   lines.push("", "## Boundary", "", result.noApiBoundary, "");
+  if (result.projectLinkExpansion?.addedFiles?.length) {
+    lines.push(
+      "## Project Link Expansion",
+      "",
+      `Matched targets: ${result.projectLinkExpansion.matchedTargetIds.join(", ")}`,
+      "",
+      ...result.projectLinkExpansion.addedFiles.map((file) => `- ${file}`),
+      "",
+    );
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -732,11 +815,15 @@ function printHelp() {
 Usage:
   node scripts/execute-patch-task.mjs --task artifacts/preview/codex-rewrite/frames/frame-id/codex-patch-task.json
   node scripts/execute-patch-task.mjs --task artifacts/preview/.../codex-patch-task.json --no-publish --json
+  node scripts/execute-patch-task.mjs --task artifacts/.../codex-patch-task.json --no-project-link
   node scripts/execute-patch-task.mjs --task artifacts/.../codex-patch-task.json --result-root artifacts/canvax/applied-patches/custom
 
 Applies a deterministic no-API patch to Canvax-generated implementation files,
 production-like proof files, or explicit files listed in
 exports/canvax-project-link-latest.json and referenced by a
-codex-patch-task.json. This is a local proof path, not a replacement for Codex
+codex-patch-task.json. By default, a frame-bound patch task can also expand
+through the latest project-link contract when its component target ids match
+linked data-canvax-node-id bindings. Use --no-project-link to disable that
+allowlisted expansion. This is a local proof path, not a replacement for Codex
 judgment on arbitrary production app code.`);
 }
