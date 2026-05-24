@@ -90,6 +90,11 @@ if (!liveUrl) {
       liveUrl,
       timeoutMs: responsiveSmokeTimeoutMs,
     });
+    await validateWorkbenchAgentLogSmoke({
+      chromePath,
+      liveUrl,
+      timeoutMs: responsiveSmokeTimeoutMs,
+    });
     await validateAdvancedMapSmoke({
       chromePath,
       liveUrl,
@@ -215,6 +220,23 @@ async function validateWorkbenchMapSmoke({ chromePath, liveUrl, timeoutMs }) {
   }
 }
 
+async function validateWorkbenchAgentLogSmoke({ chromePath, liveUrl, timeoutMs }) {
+  const viewports = responsiveSmokeViewports.filter((viewport) =>
+    ["desktop", "narrow"].includes(viewport.label),
+  );
+  for (const viewport of viewports) {
+    await validateResponsiveSmoke({
+      name: `workbench agent log visual smoke passes at ${viewport.label}`,
+      surface: "board-workbench-agent-log",
+      chromePath,
+      url: `${liveUrl}/?responsivecheck=1&visualfixture=workbench-agent-log`,
+      viewport,
+      timeoutMs,
+      expression: buildWorkbenchAgentLogSmokeExpression(),
+    });
+  }
+}
+
 async function validateAdvancedMapSmoke({ chromePath, liveUrl, timeoutMs }) {
   const viewports = responsiveSmokeViewports.filter((viewport) =>
     ["desktop", "tablet"].includes(viewport.label),
@@ -293,6 +315,61 @@ function buildWorkbenchMapSmokeExpression() {
       focus: document.body?.dataset?.workbenchFocus || "",
       viewMode: document.body?.dataset?.viewMode || "",
       cardCount: mapCards.length,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  })()`;
+}
+
+function buildWorkbenchAgentLogSmokeExpression() {
+  return `(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return {
+        width: box.width,
+        height: box.height,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        visible: box.width > 0 && box.height > 0
+      };
+    };
+    const failures = [];
+    const stage = rect(".stage-panel");
+    const canvas = rect("#board-canvas");
+    const log = rect("#workbench-agent-log");
+    const toggle = rect("#workbench-agent-log-toggle");
+    const panel = rect("#workbench-agent-log-panel");
+    const close = rect("#workbench-agent-log-close");
+    const items = [...document.querySelectorAll(".workbench-agent-log-item")];
+    const expanded = document
+      .querySelector("#workbench-agent-log-toggle")
+      ?.getAttribute("aria-expanded");
+    if (document.readyState !== "complete") failures.push("document not complete");
+    if (document.body?.dataset?.workspaceMode !== "simple") failures.push("workbench mode not active");
+    if (document.body?.dataset?.workbenchFocus !== "sketch") failures.push("sketch focus not active");
+    if (!stage?.visible || !canvas?.visible) failures.push("canvas stage missing");
+    if (!log?.visible || !toggle?.visible || !panel?.visible) failures.push("agent log open state missing");
+    if (!close?.visible) failures.push("agent log close control missing");
+    if (expanded !== "true") failures.push("agent log toggle aria-expanded is not true");
+    if (!items.length) failures.push("agent log items missing");
+    if (panel && toggle && panel.bottom > toggle.top + 1) failures.push("agent log panel does not open above toggle");
+    if (panel && panel.width > Math.min(window.innerWidth - 16, 340)) failures.push("agent log panel too wide");
+    if (panel && panel.top < -2) failures.push("agent log panel clips above viewport");
+    if (close && (close.width < 32 || close.height < 32)) failures.push("agent log close target too small");
+    if (document.documentElement.scrollWidth > window.innerWidth + 16) failures.push("document has horizontal overflow");
+    return {
+      passed: failures.length === 0,
+      failures,
+      mode: document.body?.dataset?.workspaceMode || "",
+      focus: document.body?.dataset?.workbenchFocus || "",
+      itemCount: items.length,
+      panel,
+      toggle,
       width: window.innerWidth,
       height: window.innerHeight
     };

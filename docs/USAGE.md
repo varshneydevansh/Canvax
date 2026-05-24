@@ -163,7 +163,7 @@ It hides advanced panels and keeps only:
 - quick-prompt chips for common refinements like `Try another font`, `Make it more dramatic`, `Show mobile variant`, `Tighten spacing`, and `Add image candidates`
 - `Make real` for a local generated-screen preview
 - generated output beside the sketch when a preview target exists
-- a lower-left `Agent log` that summarizes recent Make/Apply/Review, rewrite, output, checkpoint, and voice-intent activity without opening Advanced
+- a lower-left `Agent log` that opens as a compact upward sheet, summarizes recent Make/Apply/Review, rewrite, output, checkpoint, and voice-intent activity without opening Advanced, and dismisses from the toggle, close control, outside click, or Escape
 - `Sketch`, `Split`, `Output`, and `Map` focus modes for choosing whether the rough canvas, side-by-side comparison, generated surface, or spatial project map is primary
 - a floating `Add to canvas` dock in `Map` for creating frames, notes, file/reference cards, groups, variants, generated screens, or Codex build requests without returning to side panels; new spatial items appear in the currently viewed Map region
 - direct file/image drop onto `Map`, which creates a movable spatial reference card at the drop point

@@ -469,6 +469,7 @@ const dom = {
   workbenchAgentLogToggle: document.querySelector(
     "#workbench-agent-log-toggle",
   ),
+  workbenchAgentLogClose: document.querySelector("#workbench-agent-log-close"),
   workbenchAgentLogCount: document.querySelector("#workbench-agent-log-count"),
   workbenchAgentLogPanel: document.querySelector("#workbench-agent-log-panel"),
   workbenchAgentLogStatus: document.querySelector(
@@ -794,7 +795,14 @@ function init() {
 }
 
 function applyVisualFixture(mode) {
-  if (!["advanced-map", "workbench-map", "project-browser"].includes(mode)) {
+  if (
+    ![
+      "advanced-map",
+      "workbench-map",
+      "project-browser",
+      "workbench-agent-log",
+    ].includes(mode)
+  ) {
     return;
   }
 
@@ -822,13 +830,32 @@ function applyVisualFixture(mode) {
   state.mapObjectFilter = "all";
   state.mapObjectSearch = "";
   state.flowZoom = 0.8;
-  state.viewMode = "flow";
-  state.workbenchFocus = "map";
+  state.viewMode = mode === "workbench-agent-log" ? "frame" : "flow";
+  state.workbenchFocus = mode === "workbench-agent-log" ? "sketch" : "map";
   state.workspaceMode = mode === "advanced-map" ? "advanced" : "simple";
+  state.workbenchTrayCollapsed = mode === "workbench-agent-log";
+  state.workbenchAgentLogOpen = mode === "workbench-agent-log";
   state.serverStatus = {
     ...state.serverStatus,
     previewManifest: fixture.previewManifest,
     checkpointHistory: fixture.checkpointHistory,
+    outputActivity:
+      mode === "workbench-agent-log"
+        ? [
+            {
+              id: "fixture-output-agent-log",
+              summary: "Generated screen bound to canvas reply",
+              detail: "Frame 1 Codex build preview - 3 changed files",
+              at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+            },
+            {
+              id: "fixture-review-agent-log",
+              summary: "Design jury needs review",
+              detail: "Hierarchy pass, spacing review, contrast pass",
+              at: new Date(Date.now() - 1000 * 60 * 11).toISOString(),
+            },
+          ]
+        : state.serverStatus.outputActivity,
     transport: buildTransportDescriptor(),
     hostCapabilities: {
       codexBrowser: {
@@ -1001,16 +1028,45 @@ function bindEvents() {
     commitManualVoiceDraft("workbench-composer");
     void applyFocusPadToCodex();
   });
+  let ignoreNextAgentLogToggleClick = false;
+  let ignoreNextAgentLogToggleClickTimer = 0;
+  dom.workbenchAgentLogToggle.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    ignoreNextAgentLogToggleClick = true;
+    window.clearTimeout(ignoreNextAgentLogToggleClickTimer);
+    ignoreNextAgentLogToggleClickTimer = window.setTimeout(() => {
+      ignoreNextAgentLogToggleClick = false;
+    }, 600);
+    setWorkbenchAgentLogOpen(!state.workbenchAgentLogOpen);
+  });
   dom.workbenchAgentLogToggle.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (ignoreNextAgentLogToggleClick) {
+      ignoreNextAgentLogToggleClick = false;
+      window.clearTimeout(ignoreNextAgentLogToggleClickTimer);
+      return;
+    }
     setWorkbenchAgentLogOpen(!state.workbenchAgentLogOpen);
+  });
+  dom.workbenchAgentLogClose?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setWorkbenchAgentLogOpen(false);
+    dom.workbenchAgentLogToggle?.focus();
   });
   document.addEventListener("pointerdown", (event) => {
     if (!state.workbenchAgentLogOpen) {
       return;
     }
-    if (dom.workbenchAgentLog?.contains(event.target)) {
+    if (
+      event.target instanceof Node &&
+      dom.workbenchAgentLog?.contains(event.target)
+    ) {
       return;
     }
     setWorkbenchAgentLogOpen(false);
@@ -23941,6 +23997,7 @@ async function runSelfTest() {
           Boolean(dom.focusVoiceIntents) &&
           Boolean(dom.workbenchAgentLog) &&
           Boolean(dom.workbenchAgentLogToggle) &&
+          Boolean(dom.workbenchAgentLogClose) &&
           !document.querySelector("#codex-scratchpad-dock"),
         "Workbench composer, canvas reply, context import, review controls, voice intent lane, and compact agent log render",
       ),
@@ -23950,8 +24007,58 @@ async function runSelfTest() {
     const agentLogOpened =
       dom.workbenchAgentLogPanel.hidden === false &&
       dom.workbenchAgentLogToggle.getAttribute("aria-expanded") === "true";
+    const agentLogToggleBox =
+      dom.workbenchAgentLogToggle.getBoundingClientRect();
+    const agentLogPanelBox =
+      dom.workbenchAgentLogPanel.getBoundingClientRect();
+    const agentLogPanelDocksAboveToggle =
+      agentLogPanelBox.bottom <= agentLogToggleBox.top + 1 &&
+      agentLogPanelBox.width <= Math.min(window.innerWidth - 16, 340);
     dom.workbenchAgentLogToggle.click();
     const agentLogClosedByToggle =
+      dom.workbenchAgentLogPanel.hidden === true &&
+      dom.workbenchAgentLogToggle.getAttribute("aria-expanded") === "false";
+    setWorkbenchAgentLogOpen(true, { persist: false });
+    dom.workbenchAgentLogClose.click();
+    const agentLogClosedByCloseButton =
+      dom.workbenchAgentLogPanel.hidden === true &&
+      dom.workbenchAgentLogToggle.getAttribute("aria-expanded") === "false";
+    setWorkbenchAgentLogOpen(true, { persist: false });
+    const pointerBox = dom.workbenchAgentLogToggle.getBoundingClientRect();
+    const pointerX = pointerBox.left + Math.min(72, pointerBox.width / 2);
+    const pointerY = pointerBox.top + pointerBox.height / 2;
+    const pointerHitTarget =
+      document.elementFromPoint(pointerX, pointerY) ||
+      dom.workbenchAgentLogToggle;
+    pointerHitTarget.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        button: 0,
+        clientX: pointerX,
+        clientY: pointerY,
+        pointerId: 91,
+        pointerType: "mouse",
+      }),
+    );
+    pointerHitTarget.dispatchEvent(
+      new PointerEvent("pointerup", {
+        bubbles: true,
+        button: 0,
+        clientX: pointerX,
+        clientY: pointerY,
+        pointerId: 91,
+        pointerType: "mouse",
+      }),
+    );
+    pointerHitTarget.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        button: 0,
+        clientX: pointerX,
+        clientY: pointerY,
+      }),
+    );
+    const agentLogClosedByPointerToggle =
       dom.workbenchAgentLogPanel.hidden === true &&
       dom.workbenchAgentLogToggle.getAttribute("aria-expanded") === "false";
     setWorkbenchAgentLogOpen(true, { persist: false });
@@ -23968,10 +24075,13 @@ async function runSelfTest() {
     results.push(
       assert(
         agentLogOpened &&
+          agentLogPanelDocksAboveToggle &&
           agentLogClosedByToggle &&
+          agentLogClosedByCloseButton &&
+          agentLogClosedByPointerToggle &&
           agentLogClosedByOutside &&
           agentLogClosedByEscape,
-        "Workbench agent log toggles closed, closes outside, and closes on Escape",
+        "Workbench agent log opens compactly above the toggle and dismisses from pointer, close, outside, and Escape paths",
       ),
     );
     const frameForCanvasReply = currentFrame();

@@ -956,6 +956,7 @@
                         id="workbench-agent-log-toggle"
                         class="workbench-agent-log-toggle"
                         type="button"
+                        aria-controls="workbench-agent-log-panel"
                         aria-expanded="false"
                     >
                         <span>Agent log</span>
@@ -967,10 +968,21 @@
                         hidden
                     >
                         <div class="workbench-agent-log-header">
-                            <span>Recent Canvax activity</span>
-                            <small id="workbench-agent-log-status"
-                                >No activity yet</small
+                            <div>
+                                <span>Recent Canvax activity</span>
+                                <small id="workbench-agent-log-status"
+                                    >No activity yet</small
+                                >
+                            </div>
+                            <button
+                                id="workbench-agent-log-close"
+                                class="workbench-agent-log-close"
+                                type="button"
+                                aria-label="Close Agent log"
+                                title="Close Agent log"
                             >
+                                <span aria-hidden="true">x</span>
+                            </button>
                         </div>
                         <div
                             id="workbench-agent-log-list"
