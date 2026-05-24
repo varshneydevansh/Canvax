@@ -3216,6 +3216,157 @@ function createCanvasReplyFromTarget(target, frame = currentFrame()) {
   });
 }
 
+function canvasReplySyncSignature(value) {
+  const reply = normalizeCanvasReply(value);
+  if (!reply) {
+    return "";
+  }
+  return [
+    reply.objectId,
+    reply.target,
+    reply.href,
+    reply.resolvedUrl,
+    reply.previewPath,
+    reply.versionTag,
+    reply.generatedAt,
+    reply.sourceFrameUpdatedAt,
+    reply.changeSummary,
+    reply.refinement?.summary || "",
+    [...reply.frameIds].sort().join(","),
+  ].join("|");
+}
+
+function canvasReplyComparableTime(value) {
+  const reply = normalizeCanvasReply(value);
+  if (!reply) {
+    return Number.NaN;
+  }
+  return Date.parse(
+    reply.sourceFrameUpdatedAt ||
+      reply.generatedAt ||
+      reply.updatedAt ||
+      reply.createdAt ||
+      "",
+  );
+}
+
+function updateFrameCanvasReplyFromTarget(
+  frame,
+  target,
+  { allowOlder = false, updatedAt = new Date().toISOString() } = {},
+) {
+  if (!frame || !target) {
+    return null;
+  }
+  const existing = normalizeCanvasReply(frame.canvasReply);
+  const next = createCanvasReplyFromTarget(target, frame);
+  if (!next) {
+    return null;
+  }
+
+  if (existing && !allowOlder) {
+    const existingTime = canvasReplyComparableTime(existing);
+    const nextTime = canvasReplyComparableTime(next);
+    if (
+      Number.isFinite(existingTime) &&
+      Number.isFinite(nextTime) &&
+      nextTime + 1 < existingTime
+    ) {
+      return null;
+    }
+  }
+
+  const merged = normalizeCanvasReply({
+    ...existing,
+    ...next,
+    createdAt: existing?.createdAt || next.createdAt,
+    updatedAt,
+  });
+  if (!merged) {
+    return null;
+  }
+
+  if (
+    existing &&
+    canvasReplySyncSignature(existing) === canvasReplySyncSignature(merged)
+  ) {
+    return existing;
+  }
+
+  frame.canvasReply = merged;
+  return merged;
+}
+
+function reconcileCanvasReplyFromManifestForFrame(
+  frame,
+  manifest = state.serverStatus.previewManifest,
+) {
+  if (!frame || !normalizeCanvasReply(frame.canvasReply)) {
+    return false;
+  }
+  const target = findFrameSpecificTarget(manifest, frame.id);
+  if (!target) {
+    return false;
+  }
+  const before = canvasReplySyncSignature(frame.canvasReply);
+  const next = updateFrameCanvasReplyFromTarget(frame, target);
+  return Boolean(next && canvasReplySyncSignature(next) !== before);
+}
+
+function reconcileCanvasRepliesFromPreviewManifest(
+  manifest = state.serverStatus.previewManifest,
+) {
+  if (!manifest || !Array.isArray(state.frames)) {
+    return false;
+  }
+  let changed = false;
+  state.frames.forEach((frame) => {
+    if (reconcileCanvasReplyFromManifestForFrame(frame, manifest)) {
+      changed = true;
+    }
+  });
+  if (changed) {
+    persistState();
+  }
+  return changed;
+}
+
+function canvasReplyTargetFromRewriteResult(result, frame = currentFrame()) {
+  if (!result || !frame) {
+    return null;
+  }
+  const previewPath = cleanString(result.previewPath);
+  const previewUrl = cleanString(result.previewUrl);
+  if (!previewPath && !previewUrl) {
+    return null;
+  }
+  const versionTag = new Date().toISOString();
+  const affectedRegionCount = Number(result.affectedRegionCount) || 0;
+  return normalizeManifestTarget(
+    {
+      id: `canvas-reply-rewrite-${frame.id}`,
+      label: `${frame.title || "Frame"} rewritten preview`,
+      source: "canvax-rewrite-request-executor",
+      type: "refined-preview",
+      url: previewUrl,
+      resolvedUrl: previewUrl,
+      previewPath,
+      description:
+        "Local preview artifact refreshed from same-canvas correction marks.",
+      frameIds: [frame.id],
+      versionTag,
+      generatedAt: versionTag,
+      sourceFrameId: frame.id,
+      sourceFrameTitle: frame.title || "",
+      sourceFrameUpdatedAt: frame.updatedAt || versionTag,
+      changeSummary: affectedRegionCount
+        ? `Refreshed ${affectedRegionCount} correction region${affectedRegionCount === 1 ? "" : "s"}.`
+        : "Refreshed from the current same-canvas reply handoff.",
+    },
+    0,
+  );
+}
+
 function canvasReplyTargetForFrame(frame) {
   const reply = normalizeCanvasReply(frame?.canvasReply);
   if (!reply) {
@@ -18257,6 +18408,7 @@ async function maybeExecuteLiveRewriteFromFreeze(exportResult = null, reason = "
     !exportResult ||
     !frame ||
     state.focusApplyInFlight ||
+    state.canvasReplyInFlight ||
     state.buildRealInFlight
   ) {
     return null;
@@ -18617,6 +18769,9 @@ async function refreshPreviewStateFromServer() {
     state.imageResultPack = normalizeImageResultPack(
       state.serverStatus.imageResultPack,
     );
+    const canvasRepliesReconciled = reconcileCanvasRepliesFromPreviewManifest(
+      state.serverStatus.previewManifest,
+    );
     syncSpatialObjectsFromHandoffs();
     importTranscriptBridge(data.transcriptBridge);
     renderCheckpointPanel();
@@ -18625,6 +18780,9 @@ async function refreshPreviewStateFromServer() {
     renderWorkbenchOutput();
     renderFlowBoard();
     renderServerStatus();
+    if (canvasRepliesReconciled) {
+      renderCanvas();
+    }
     void maybeCheckpointOutputUpdate(previousOutputDigest, nextOutputDigest);
   } catch {
     state.serverStatus = {
@@ -22237,40 +22395,77 @@ async function replyInCanvasFromCurrentSketch() {
     return null;
   }
 
+  const isRefresh = Boolean(normalizeCanvasReply(frame.canvasReply));
   state.canvasReplyInFlight = true;
   renderFocusPad();
-  dom.workspaceStatus.textContent =
-    "Freezing the sketch, generating the output, then clearing the drawing layer...";
-  renderStatus("Preparing canvas reply");
+  dom.workspaceStatus.textContent = isRefresh
+    ? "Freezing correction marks, refreshing the bound output, then clearing the drawing layer..."
+    : "Freezing the sketch, generating the output, then clearing the drawing layer...";
+  renderStatus(isRefresh ? "Refreshing canvas reply" : "Preparing canvas reply");
 
   try {
     const sourceExport = await freezeFrame(true, {
       awaitHandoff: true,
-      reason: "canvas-reply-source",
-      status: "Canvas reply source saved",
+      reason: isRefresh ? "canvas-reply-corrections" : "canvas-reply-source",
+      status: isRefresh
+        ? "Canvas reply corrections saved"
+        : "Canvas reply source saved",
     });
-    const generated = await generateCurrentScreen({
-      silent: true,
-      announce: false,
-      openPreview: false,
-      skipCheckpoint: true,
-      exportResult: sourceExport,
-    });
-    if (!generated) {
-      throw new Error("Canvas reply generation did not produce an output.");
+    const sourceFrameUpdatedAt = frame.updatedAt;
+    let generated = null;
+    let executeResult = null;
+    let target = null;
+
+    if (isRefresh) {
+      executeResult = await executeLatestRewriteRequest({
+        exportResult: sourceExport,
+        frameId: frame.id,
+      });
+      state.serverStatus = {
+        ...state.serverStatus,
+        rewriteExecution: {
+          ...executeResult,
+          trigger: "canvas-reply",
+        },
+      };
+      target =
+        findFrameSpecificTarget(state.serverStatus.previewManifest, frame.id) ||
+        canvasReplyTargetFromRewriteResult(executeResult, frame);
+    } else {
+      generated = await generateCurrentScreen({
+        silent: true,
+        announce: false,
+        openPreview: false,
+        skipCheckpoint: true,
+        exportResult: sourceExport,
+      });
+      if (!generated) {
+        throw new Error("Canvas reply generation did not produce an output.");
+      }
+      const manifest =
+        generated.previewManifest || state.serverStatus.previewManifest;
+      target = resolveManifestTargetEntry(manifest, frame.id);
     }
 
-    const manifest = generated.previewManifest || state.serverStatus.previewManifest;
-    const target = resolveManifestTargetEntry(manifest, frame.id);
-    const canvasReply = createCanvasReplyFromTarget(target, frame);
+    const canvasReply = isRefresh
+      ? updateFrameCanvasReplyFromTarget(frame, target, { allowOlder: true })
+      : createCanvasReplyFromTarget(target, frame);
     if (!canvasReply) {
-      throw new Error("Generated output could not be mounted under the canvas.");
+      throw new Error(
+        isRefresh
+          ? "Refreshed output could not be mounted under the canvas."
+          : "Generated output could not be mounted under the canvas.",
+      );
     }
 
     pushHistory(frame.id);
     frame.canvasReply = canvasReply;
     frame.elements = [];
-    frame.updatedAt = new Date().toISOString();
+    frame.updatedAt =
+      canvasReply.sourceFrameUpdatedAt ||
+      sourceFrameUpdatedAt ||
+      canvasReply.generatedAt ||
+      new Date().toISOString();
     state.draftElement = null;
     state.isDrawing = false;
     state.viewMode = "frame";
@@ -22280,19 +22475,26 @@ async function replyInCanvasFromCurrentSketch() {
     frameRenderCache.delete(frame.id);
     persistState();
     renderAll();
-    renderStatus("Canvas reply ready");
-    dom.workspaceStatus.textContent =
-      "Canvas reply is ready. Draw corrections directly over the generated output, then press Reply again.";
+    renderStatus(isRefresh ? "Canvas reply refreshed" : "Canvas reply ready");
+    dom.workspaceStatus.textContent = isRefresh
+      ? "Canvas reply refreshed from the correction marks. Draw another pass over the updated output when ready."
+      : "Canvas reply is ready. Draw corrections directly over the generated output, then press Reply again.";
     scheduleLivePreviewSync();
 
     const exportResult = await saveExportToWorkspace({ silent: true });
-    void saveCheckpointToWorkspace("canvas-reply-ready", {
-      silent: true,
-      exportResult,
-      note: `Mounted ${canvasReply.label || "the generated output"} under ${frame.title} and cleared the sketch layer for corrections.`,
-    });
+    void saveCheckpointToWorkspace(
+      isRefresh ? "canvas-reply-refreshed" : "canvas-reply-ready",
+      {
+        silent: true,
+        exportResult,
+        note: isRefresh
+          ? `Refreshed ${canvasReply.label || "the generated output"} from same-canvas correction marks on ${frame.title} and cleared the correction layer.`
+          : `Mounted ${canvasReply.label || "the generated output"} under ${frame.title} and cleared the sketch layer for corrections.`,
+      },
+    );
     return {
       generated,
+      executeResult,
       target,
       canvasReply,
     };
@@ -23772,6 +23974,99 @@ async function runSelfTest() {
           canvasReplyBinding?.branchFrameId === frameForCanvasReply.id &&
           canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html"),
         "same-canvas reply underlay renders and exports output edit binding",
+      ),
+    );
+    const previousCanvasReplyRefreshState = {
+      canvasReply: structuredClone(frameForCanvasReply.canvasReply || null),
+      elements: structuredClone(frameForCanvasReply.elements || []),
+      updatedAt: frameForCanvasReply.updatedAt,
+    };
+    const correctionElement = {
+      id: "self-test-correction-stroke",
+      type: "path",
+      points: [
+        { x: 80, y: 90 },
+        { x: 180, y: 160 },
+      ],
+      color: palette[0],
+      size: 8,
+      alpha: 1,
+      composite: "source-over",
+      groupId: "",
+    };
+    frameForCanvasReply.updatedAt = "2026-04-01T00:00:03.000Z";
+    frameForCanvasReply.elements = [correctionElement];
+    frameForCanvasReply.canvasReply = normalizeCanvasReply({
+      objectId: "self-test-canvas-reply",
+      label: "Self-test old output",
+      previewPath: "artifacts/preview/self-test/old.html",
+      frameIds: [frameForCanvasReply.id],
+      sourceFrameId: frameForCanvasReply.id,
+      sourceFrameTitle: frameForCanvasReply.title,
+      generatedAt: "2026-04-01T00:00:01.000Z",
+      sourceFrameUpdatedAt: "2026-04-01T00:00:01.000Z",
+      versionTag: "old",
+    });
+    const canvasReplyRefreshOk = reconcileCanvasReplyFromManifestForFrame(
+      frameForCanvasReply,
+      {
+        targets: [
+          {
+            id: "self-test-canvas-reply",
+            label: "Self-test refreshed output",
+            source: "canvax-rewrite-request-executor",
+            type: "refined-preview",
+            previewPath: "artifacts/preview/self-test/refreshed.html",
+            frameIds: [frameForCanvasReply.id],
+            sourceFrameId: frameForCanvasReply.id,
+            sourceFrameTitle: frameForCanvasReply.title,
+            generatedAt: "2026-04-01T00:00:04.000Z",
+            sourceFrameUpdatedAt: "2026-04-01T00:00:03.000Z",
+            versionTag: "refreshed",
+          },
+        ],
+      },
+    );
+    const refreshedReply = normalizeCanvasReply(frameForCanvasReply.canvasReply);
+    const preservedCorrectionLayer =
+      frameForCanvasReply.elements.length === 1 &&
+      frameForCanvasReply.elements[0]?.id === correctionElement.id &&
+      frameForCanvasReply.updatedAt === "2026-04-01T00:00:03.000Z";
+    const skippedOlderReply = !reconcileCanvasReplyFromManifestForFrame(
+      frameForCanvasReply,
+      {
+        targets: [
+          {
+            id: "self-test-canvas-reply",
+            label: "Self-test older output",
+            source: "canvax-rewrite-request-executor",
+            type: "refined-preview",
+            previewPath: "artifacts/preview/self-test/older.html",
+            frameIds: [frameForCanvasReply.id],
+            sourceFrameId: frameForCanvasReply.id,
+            generatedAt: "2026-04-01T00:00:02.000Z",
+            sourceFrameUpdatedAt: "2026-04-01T00:00:02.000Z",
+            versionTag: "older",
+          },
+        ],
+      },
+    );
+    const olderSkippedPreserved =
+      normalizeCanvasReply(frameForCanvasReply.canvasReply)?.previewPath ===
+      "artifacts/preview/self-test/refreshed.html";
+    frameForCanvasReply.canvasReply =
+      previousCanvasReplyRefreshState.canvasReply;
+    frameForCanvasReply.elements = previousCanvasReplyRefreshState.elements;
+    frameForCanvasReply.updatedAt = previousCanvasReplyRefreshState.updatedAt;
+    results.push(
+      assert(
+        canvasReplyRefreshOk &&
+          refreshedReply?.previewPath ===
+            "artifacts/preview/self-test/refreshed.html" &&
+          preservedCorrectionLayer &&
+          skippedOlderReply &&
+          olderSkippedPreserved,
+        "same-canvas reply reconciles newer frame-bound targets without dropping correction marks",
       ),
     );
     const previousPinState = {
