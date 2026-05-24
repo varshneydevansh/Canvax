@@ -2,6 +2,64 @@
 
 Use this as the opening brief for Gemini in Antigravity 2.0.
 
+## Copy-Paste Prompt
+
+Paste this into Gemini in Antigravity 2.0:
+
+```text
+You are taking over Canvax, a local Codex visual workbench at /Users/devanshvarshney/Canvax. Your job is to align it with the best parts of Google Stitch, then push it far beyond Stitch.
+
+Do not build a marketing page or a prettier chat sidebar. Build the actual usable design workbench.
+
+Core product thesis:
+- Canvax should let me design anything visually: UI/UX screens, app flows, websites, book pages, comic/storyboard pages, posters, brand layouts, image-generation prompts, and image-editing directions.
+- The primary interaction is canvas-first: I sketch or mark up a big canvas, speak or type into a simple scratchpad, press Reply/Make, and the generated result appears under or inside the same canvas so I can draw corrections directly on top.
+- It should feel simpler than Stitch for everyday work, because the first screen is just canvas + scratchpad + clear action controls.
+- It should be more powerful than Stitch for implementation, because every generated output is bound to frames, manifests, rewrite requests, Codex output contracts, and real files/artifacts.
+
+Current local path:
+- Run ./canvax from /Users/devanshvarshney/Canvax.
+- Open http://localhost:3210.
+- Workbench is the default surface. Advanced mode is an inspector/debug layer.
+- Do not require OPENAI_API_KEY. Hosted image/model capabilities must remain optional host lanes, not local requirements.
+
+What I want you to do:
+1. Study the existing repo, especially web/index.html, web/app.js, web/styles.css, docs/CANVAX_PARITY_AUDIT.md, docs/STITCH_GAP_ROADMAP.md, docs/CHATGPT_APP_BRIDGE.md, docs/DESIGNER_WALKTHROUGH.md, and codex-skill/canvax/SKILL.md.
+2. Redesign and implement the Workbench so it has one clean canvas-first loop:
+   Sketch -> Talk/Type -> Reply/Make -> generated output appears in the same canvas -> draw corrections -> Reply again.
+3. Treat the scratchpad as a first-class right-side Codex app surface, not a floating toy. It should be compact, calm, and always useful.
+4. Make generated results editable canvas citizens:
+   - generated UI screens
+   - generated variants
+   - book/page layouts
+   - image prompt candidates
+   - imported/generated images
+   - real implementation previews
+5. Make output binding real:
+   Every generated output must carry frame ids, manifest target, outputEditBinding, checkpoint/export context, and rewrite/build linkage.
+6. Preserve the no-API local workflow:
+   The local deterministic generators and executors must work without paid keys. If host image generation exists, prepare prompt packs and return slots, but never require it.
+7. Improve visual taste:
+   Make Canvax feel like a serious creative/code tool: dense but not cluttered, restrained but expressive, high-clarity controls, no marketing hero, no decorative blobs, no generic AI-purple UI, no oversized empty cards.
+8. Verify rendered behavior:
+   Use the in-app/browser workflow or Playwright. Check desktop and mobile. Run self-test routes and project scripts. Fix regressions instead of only documenting them.
+
+Important product bar:
+- Canvax should be usable for a designer sketching a SaaS screen, a writer laying out a book spread, an artist planning an image edit, and a developer turning a sketch into a real implementation target.
+- Do not optimize only for a demo. Optimize for repeated daily iteration.
+- Do not hide the workflow in Advanced mode.
+- Do not leave Reply as a disconnected preview. It must become a live canvas/output rewrite loop.
+
+Before committing:
+- Run node --check web/app.js.
+- Run node --check scripts/canvax.mjs.
+- Run node --check scripts/write-codex-output.mjs.
+- Run http://localhost:3210/?selftest=1 and confirm document.body.dataset.selftestPassed is true.
+- Prefer npm run browser-regression when UI changes are meaningful.
+
+Commit coherent slices with clear messages. Keep docs honest about what is local, what is Codex skill behavior, and what still needs native host bridge support.
+```
+
 ## Mission
 
 You are taking over Canvax as a designer-first Codex visual workbench. The goal is not a prettier chat sidebar. The goal is a real canvas-native collaboration surface where a user can sketch, speak, generate, correct directly over the output, and keep iterating without leaving the canvas.
@@ -53,6 +111,32 @@ The intended loop:
 5. `Reply` again uses the output binding, correction marks, and voice context to update the same output.
 
 The canvas reply should become a first-class frame state and export binding, not just a visual iframe.
+
+## Stitch++ Benchmark
+
+Use Google Stitch as a baseline, not the ceiling.
+
+Canvax should match the useful Stitch feeling:
+
+- fast visual ideation from rough natural-language intent
+- immediate generated screen/page candidates
+- easy iteration without writing long specs
+- approachable controls for non-engineers
+
+Canvax should exceed Stitch in these ways:
+
+- **Canvas-native iteration:** output appears under the same drawing surface, so correction marks are spatial and immediate.
+- **Broader surfaces:** UI screens, websites, mobile app views, book pages, comics, storyboards, posters, decks, image prompt boards, and image-editing plans are all first-class.
+- **Real implementation binding:** every generated artifact can bind to frames, files, manifests, code maps, build requests, patch tasks, and Codex output.
+- **No-API local proof:** deterministic local generation, export, rewrite, and preview flows work without a paid key.
+- **Advanced spatial memory:** generated variants, outputs, references, images, and checkpoints live as editable objects on the Map, not just as chat history.
+- **Host-lane ready:** when Codex/ChatGPT image or code capabilities exist, Canvax already has prompt packs, return slots, and manifest contracts ready.
+
+The highest-level UX requirement is:
+
+```text
+The user should feel they are drawing, speaking, and directly shaping the artifact, not managing a chat transcript.
+```
 
 ## Open Hand
 
