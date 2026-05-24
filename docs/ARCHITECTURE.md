@@ -814,7 +814,8 @@ and defines the payload future MCP/native host tools should mirror.
 `scripts/canvax-mcp-server.mjs` wraps that inspection bridge in a local stdio
 MCP server. It handles `initialize`, `tools/list`, `tools/call`, and `ping` over
 newline-delimited JSON-RPC and exposes `get_canvax_summary`,
-`get_host_handoff`, `get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
+`get_host_handoff`, `create_task_pack`, `create_image_prompt_pack`,
+`get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
 `get_output_binding`, `get_project_link`, and `get_canvax_all`. It also exposes
 `append_transcript`, `publish_codex_output`, and `attach_generated_asset`,
 which are narrow local write tools around `scripts/canvax.mjs --transcript`,

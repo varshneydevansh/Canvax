@@ -172,6 +172,8 @@ async function buildInspection(options) {
       status: "local-readonly-cli",
       futureMcpTools: [
         "get_host_handoff",
+        "create_task_pack",
+        "create_image_prompt_pack",
         "get_current_frame",
         "get_spatial_workspace",
         "get_design_kit",
@@ -200,6 +202,16 @@ function selectPayload(command, payloads) {
   if (command === "host-handoff") {
     return {
       hostHandoff: buildHostHandoff(payloads),
+    };
+  }
+  if (command === "task-pack") {
+    return {
+      taskPackHandoff: buildTaskPackHandoff(payloads),
+    };
+  }
+  if (command === "image-prompt-pack") {
+    return {
+      imagePromptHandoff: buildImagePromptHandoff(payloads),
     };
   }
   if (command === "current-frame") {
@@ -366,6 +378,146 @@ function buildHostHandoff(payloads) {
     nextActions,
     noApiBoundary:
       "This host handoff is assembled from local Canvax files only. It does not call OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.",
+  };
+}
+
+function buildTaskPackHandoff(payloads) {
+  const frameId = payloads.activeFrame?.id || "";
+  const taskPack = payloads.taskPack || {};
+  const frames = filterPackFrames(taskPack.frames, frameId);
+  return {
+    kind: "canvax-host-task-pack",
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    source: "scripts/canvax-inspect.mjs task-pack",
+    sourceFiles: {
+      live: sourceFileSummary(payloads.sourceFiles.live),
+      taskPack: sourceFileSummary(payloads.sourceFiles.taskPack),
+      checkpoint: sourceFileSummary(payloads.sourceFiles.checkpoint),
+      hostHandoff: {
+        path: "exports/canvax-host-handoff-latest.json",
+        exists: false,
+      },
+    },
+    project:
+      taskPack.project ||
+      payloads.live.project ||
+      payloads.buildRequest.project ||
+      null,
+    actionMode: taskPack.actionMode || payloads.live.board?.actionMode || "",
+    actionModeLabel: taskPack.actionModeLabel || "",
+    hostLane: taskPack.hostLane || "",
+    activeFrameId: taskPack.activeFrameId || frameId,
+    activeFrameTitle:
+      taskPack.activeFrameTitle || payloads.activeFrame?.title || "",
+    frameCount: Array.isArray(taskPack.frames) ? taskPack.frames.length : 0,
+    selectedFrameCount: frames.length,
+    designContext: taskPack.designContext || null,
+    designKit: taskPack.designKit || summarizeDesignKit(payloads.designKit),
+    voice: taskPack.voice || summarizeVoiceContext(payloads.live.voice, frameId),
+    rewriteQueue: collectFrameRewriteQueue([taskPack.rewriteQueue], frameId),
+    spatialContext: taskPack.spatialContext || null,
+    imagePromptPackPath:
+      taskPack.imagePromptPackPath ||
+      payloads.sourceFiles.imagePromptPack?.path ||
+      "",
+    frames,
+    nextActions: [
+      {
+        id: "build-or-refine",
+        label: "Use task pack for Codex implementation work",
+        command: "npm run execute-build",
+        reason:
+          "The host task pack carries sketch, voice, frame, action mode, design context, and output handoff metadata.",
+      },
+      {
+        id: "publish-output",
+        label: "Publish resulting output",
+        command: `node scripts/write-codex-output.mjs --from-git-status${
+          frameId ? ` --frame ${frameId}` : ""
+        }`,
+        reason:
+          "After Codex edits files or writes an artifact, bind the result back to Canvax.",
+      },
+    ],
+    noApiBoundary:
+      "This task pack handoff is assembled from local Canvax export files only. It does not call OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.",
+  };
+}
+
+function buildImagePromptHandoff(payloads) {
+  const frameId = payloads.activeFrame?.id || "";
+  const imagePromptPack = payloads.imagePromptPack || {};
+  const frames = filterPackFrames(imagePromptPack.frames, frameId);
+  return {
+    kind: "canvax-host-image-prompt-pack",
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    source: "scripts/canvax-inspect.mjs image-prompt-pack",
+    sourceFiles: {
+      live: sourceFileSummary(payloads.sourceFiles.live),
+      imagePromptPack: sourceFileSummary(payloads.sourceFiles.imagePromptPack),
+      assetCandidates: sourceFileSummary(payloads.sourceFiles.assetCandidates),
+      imageHostTask: sourceFileSummary(payloads.sourceFiles.imageHostTask),
+    },
+    project:
+      imagePromptPack.project ||
+      payloads.live.project ||
+      payloads.taskPack.project ||
+      null,
+    activeFrameId: imagePromptPack.activeFrameId || frameId,
+    activeFrameTitle:
+      imagePromptPack.activeFrameTitle || payloads.activeFrame?.title || "",
+    frameCount: Array.isArray(imagePromptPack.frames)
+      ? imagePromptPack.frames.length
+      : 0,
+    selectedFrameCount: frames.length,
+    styleLock:
+      imagePromptPack.styleLock ||
+      imagePromptPack.designContext?.styleLock ||
+      null,
+    placementScaffold:
+      imagePromptPack.placementScaffold ||
+      imagePromptPack.htmlCssPlacementScaffold ||
+      "",
+    promptCount: countImagePrompts(imagePromptPack),
+    assetCandidateCount: Array.isArray(payloads.assetCandidates?.candidates)
+      ? payloads.assetCandidates.candidates.length
+      : 0,
+    imageHostTaskCount: Array.isArray(payloads.imageHostTask?.tasks)
+      ? payloads.imageHostTask.tasks.length
+      : 0,
+    frames,
+    imagePromptPack,
+    assetCandidates: summarizeAssetHostContext({
+      imagePromptPack,
+      assetCandidates: payloads.assetCandidates,
+      imageHostTask: payloads.imageHostTask,
+      imageResults: payloads.imageResults,
+      sourceFiles: payloads.sourceFiles,
+    }),
+    nextActions: [
+      {
+        id: "host-image-generation",
+        label: "Generate image through host capability",
+        command:
+          "Use the prompt/placement contract, then return the result with attach_generated_asset.",
+        reason:
+          "Canvax keeps image generation host-provided while preserving placement, safe zones, and output slots.",
+      },
+      {
+        id: "attach-generated-asset",
+        label: "Attach generated image result",
+        command:
+          "npm run import-image-results -- --candidate <candidate-id> --slot <slot-id> --image <path-or-url>",
+        reason:
+          "Returned images should bind back to the candidate slot instead of becoming detached files.",
+      },
+    ],
+    noApiBoundary:
+      "This image prompt handoff is assembled from local Canvax export files only. It does not call OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.",
   };
 }
 
@@ -793,6 +945,45 @@ function summarizeAssetHostContext({
   };
 }
 
+function filterPackFrames(frames, frameId) {
+  const normalizedFrames = Array.isArray(frames) ? frames : [];
+  if (!frameId) {
+    return normalizedFrames;
+  }
+  const matching = normalizedFrames.filter((frame) => frame?.id === frameId);
+  return matching.length ? matching : normalizedFrames;
+}
+
+function sourceFileSummary(source) {
+  return {
+    path: source?.path || "",
+    exists: Boolean(source?.exists),
+  };
+}
+
+function countImagePrompts(imagePromptPack) {
+  const frames = Array.isArray(imagePromptPack?.frames)
+    ? imagePromptPack.frames
+    : [];
+  const framePromptCount = frames.reduce((count, frame) => {
+    const prompts = [
+      frame?.prompt,
+      frame?.positivePrompt,
+      frame?.imagePrompt,
+      ...(Array.isArray(frame?.prompts) ? frame.prompts : []),
+      ...(Array.isArray(frame?.assets) ? frame.assets : []),
+    ].filter(Boolean);
+    return count + prompts.length;
+  }, 0);
+  const topLevelPromptCount = [
+    imagePromptPack?.prompt,
+    imagePromptPack?.positivePrompt,
+    imagePromptPack?.imagePrompt,
+    ...(Array.isArray(imagePromptPack?.prompts) ? imagePromptPack.prompts : []),
+  ].filter(Boolean).length;
+  return framePromptCount + topLevelPromptCount;
+}
+
 function summarizeCheckpoint(checkpoint, source) {
   return {
     exists: Boolean(source?.exists),
@@ -1053,6 +1244,8 @@ function parseArgs(argv) {
   const commands = new Set([
     "summary",
     "host-handoff",
+    "task-pack",
+    "image-prompt-pack",
     "current-frame",
     "spatial-workspace",
     "design-kit",
@@ -1121,14 +1314,15 @@ function relativeProjectPath(value) {
 
 function printHelp() {
   console.log(`Usage:
-  node scripts/canvax-inspect.mjs [summary|host-handoff|current-frame|spatial-workspace|design-kit|output-binding|project-link|all] [--json] [--markdown] [--save] [--frame id] [--full]
+  node scripts/canvax-inspect.mjs [summary|host-handoff|task-pack|image-prompt-pack|current-frame|spatial-workspace|design-kit|output-binding|project-link|all] [--json] [--markdown] [--save] [--frame id] [--full]
 
 Reads local Canvax handoff files and returns a stable read-only inspection
 payload for Codex/agent use. This is the local CLI precursor to future MCP tools:
-get_host_handoff, get_current_frame, get_spatial_workspace, get_design_kit,
-get_output_binding, and get_project_link. The host-handoff command assembles
-the current frame, sketch composition, voice intent, rewrite queue, output
-binding, project-link, image host context, and next Codex action into one
-host-readable packet; with --save it writes exports/canvax-host-handoff-latest.*.
+get_host_handoff, create_task_pack, create_image_prompt_pack, get_current_frame,
+get_spatial_workspace, get_design_kit, get_output_binding, and get_project_link.
+The host-handoff command assembles the current frame, sketch composition, voice
+intent, rewrite queue, output binding, project-link, image host context, and next
+Codex action into one host-readable packet; with --save it writes
+exports/canvax-host-handoff-latest.*.
 It does not require OPENAI_API_KEY and does not call hosted models or image APIs.`);
 }

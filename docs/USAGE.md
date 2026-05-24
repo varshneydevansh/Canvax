@@ -917,6 +917,8 @@ npm run mcp -- --self-test
 The server exposes read tools:
 
 - `get_host_handoff`
+- `create_task_pack`
+- `create_image_prompt_pack`
 - `get_canvax_summary`
 - `get_current_frame`
 - `get_spatial_workspace`

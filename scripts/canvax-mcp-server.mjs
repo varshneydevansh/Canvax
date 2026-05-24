@@ -25,6 +25,20 @@ const toolDefinitions = [
     inputSchema: buildInputSchema(false),
   },
   {
+    name: "create_task_pack",
+    command: "task-pack",
+    description:
+      "Return a host-ready no-API task pack handoff from the latest Canvax exports for build, refine, spec, image-prompt, or variation work. Does not call hosted models.",
+    inputSchema: buildInputSchema(true),
+  },
+  {
+    name: "create_image_prompt_pack",
+    command: "image-prompt-pack",
+    description:
+      "Return a host-ready no-API image prompt handoff from the latest Canvax exports, including placement context, style lock, asset candidate counts, and return instructions.",
+    inputSchema: buildInputSchema(true),
+  },
+  {
     name: "get_current_frame",
     command: "current-frame",
     description:
@@ -161,7 +175,7 @@ async function handleMessage(request) {
           version: "0.1.0",
         },
         instructions:
-          "Use Canvax tools to read the local visual handoff, host packet, frame, spatial map, design kit, output bindings, and linked real-project files. Read tools are no-API inspection tools. Write tools stay local: append_transcript queues host transcript text into Canvax voice context, attach_generated_asset imports a supplied image path into image-result/candidate handoff files, and publish_codex_output writes the Codex output manifest.",
+          "Use Canvax tools to read the local visual handoff, host packet, task pack, image prompt pack, frame, spatial map, design kit, output bindings, and linked real-project files. Read tools are no-API inspection tools. Write tools stay local: append_transcript queues host transcript text into Canvax voice context, attach_generated_asset imports a supplied image path into image-result/candidate handoff files, and publish_codex_output writes the Codex output manifest.",
       });
       return;
     }
@@ -420,9 +434,27 @@ async function runSelfTest() {
       arguments: {},
     },
   };
-  const transcriptCall = {
+  const taskPackCall = {
     jsonrpc: "2.0",
     id: 5,
+    method: "tools/call",
+    params: {
+      name: "create_task_pack",
+      arguments: {},
+    },
+  };
+  const imagePromptCall = {
+    jsonrpc: "2.0",
+    id: 6,
+    method: "tools/call",
+    params: {
+      name: "create_image_prompt_pack",
+      arguments: {},
+    },
+  };
+  const transcriptCall = {
+    jsonrpc: "2.0",
+    id: 7,
     method: "tools/call",
     params: {
       name: "append_transcript",
@@ -436,7 +468,7 @@ async function runSelfTest() {
   };
   const publishCall = {
     jsonrpc: "2.0",
-    id: 6,
+    id: 8,
     method: "tools/call",
     params: {
       name: "publish_codex_output",
@@ -451,11 +483,17 @@ async function runSelfTest() {
   const callResponse = await dispatchForSelfTest(call);
   const attachResponse = await dispatchForSelfTest(attachCall);
   const hostResponse = await dispatchForSelfTest(hostCall);
+  const taskPackResponse = await dispatchForSelfTest(taskPackCall);
+  const imagePromptResponse = await dispatchForSelfTest(imagePromptCall);
   const transcriptResponse = await dispatchForSelfTest(transcriptCall);
   const publishResponse = await dispatchForSelfTest(publishCall);
   const passed = Boolean(
     Array.isArray(listResponse.result?.tools) &&
       listResponse.result.tools.some((tool) => tool.name === "get_host_handoff") &&
+      listResponse.result.tools.some((tool) => tool.name === "create_task_pack") &&
+      listResponse.result.tools.some(
+        (tool) => tool.name === "create_image_prompt_pack",
+      ) &&
       listResponse.result.tools.some((tool) => tool.name === "get_current_frame") &&
       listResponse.result.tools.some((tool) => tool.name === "get_project_link") &&
       listResponse.result.tools.some((tool) => tool.name === "attach_generated_asset") &&
@@ -472,6 +510,14 @@ async function runSelfTest() {
         ?.kind === "canvax-host-handoff" &&
       hostResponse.result?.structuredContent?.inspection?.payload?.hostHandoff
         ?.requiresOpenAiApiKey === false &&
+      taskPackResponse.result?.structuredContent?.inspection?.payload
+        ?.taskPackHandoff?.kind === "canvax-host-task-pack" &&
+      taskPackResponse.result?.structuredContent?.inspection?.payload
+        ?.taskPackHandoff?.requiresOpenAiApiKey === false &&
+      imagePromptResponse.result?.structuredContent?.inspection?.payload
+        ?.imagePromptHandoff?.kind === "canvax-host-image-prompt-pack" &&
+      imagePromptResponse.result?.structuredContent?.inspection?.payload
+        ?.imagePromptHandoff?.requiresOpenAiApiKey === false &&
       transcriptResponse.result?.structuredContent?.mutation ===
         "append-transcript" &&
       transcriptResponse.result?.structuredContent?.dryRun === true &&
@@ -493,6 +539,8 @@ async function runSelfTest() {
           callResponse,
           attachResponse,
           hostResponse,
+          taskPackResponse,
+          imagePromptResponse,
           transcriptResponse,
           publishResponse,
         },
@@ -514,6 +562,12 @@ async function runSelfTest() {
         summaryKind: callResponse.result.structuredContent.inspection.kind,
         hostKind:
           hostResponse.result.structuredContent.inspection.payload.hostHandoff.kind,
+        taskPackKind:
+          taskPackResponse.result.structuredContent.inspection.payload
+            .taskPackHandoff.kind,
+        imagePromptKind:
+          imagePromptResponse.result.structuredContent.inspection.payload
+            .imagePromptHandoff.kind,
         transcriptMutation:
           transcriptResponse.result.structuredContent.mutation,
         publishMutation:

@@ -321,12 +321,13 @@ the real project files. Use `--no-project-link` to disable that expansion.
 
 Use `npm run mcp` to launch the local stdio MCP server. It exposes the
 inspection commands as read tools for hosts that can register a local MCP command:
-`get_host_handoff`, `get_canvax_summary`, `get_current_frame`,
-`get_spatial_workspace`, `get_design_kit`, `get_output_binding`,
-`get_project_link`, and `get_canvax_all`. `get_host_handoff` is the preferred
-single-packet read for native-host work because it bundles the active frame,
-sketch composition, voice intent, rewrite queue, output binding, project-link,
-image host context, source files, and suggested Codex actions. The matching CLI
+`get_host_handoff`, `create_task_pack`, `create_image_prompt_pack`,
+`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
+`get_design_kit`, `get_output_binding`, `get_project_link`, and
+`get_canvax_all`. `get_host_handoff` is the preferred single-packet read for
+native-host work because it bundles the active frame, sketch composition, voice
+intent, rewrite queue, output binding, project-link, image host context, source
+files, and suggested Codex actions. The matching CLI
 is `npm run host-handoff -- --save`, which writes
 `exports/canvax-host-handoff-latest.{json,md}`. MCP also exposes
 `append_transcript`, which writes only the local transcript bridge through

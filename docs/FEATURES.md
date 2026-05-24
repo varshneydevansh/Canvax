@@ -879,8 +879,8 @@ Codex actions. It is the CLI precursor to a future MCP/native host bridge, not
 the final host bridge.
 
 `npm run mcp` is the local stdio MCP server. It exposes
-`get_host_handoff`, `get_canvax_summary`, `get_current_frame`,
-`get_spatial_workspace`,
+`get_host_handoff`, `create_task_pack`, `create_image_prompt_pack`,
+`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
 `get_design_kit`, `get_output_binding`, `get_project_link`, and
 `get_canvax_all` as MCP tools backed by the same inspection payloads. It also
 exposes `append_transcript`, `publish_codex_output`, and

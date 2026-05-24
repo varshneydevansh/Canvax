@@ -134,6 +134,7 @@ await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
 await validateCanvaxInspectDryRun();
 await validateCanvaxHostHandoffDryRun();
+await validateCanvaxTaskPackHandoffsDryRun();
 await validateCanvaxMcpSelfTest();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
@@ -1311,6 +1312,10 @@ async function validateCanvaxInspectDryRun() {
         payload.toolSurface?.status === "local-readonly-cli" &&
         payload.toolSurface?.futureMcpTools?.includes("get_current_frame") &&
         payload.toolSurface?.futureMcpTools?.includes("get_host_handoff") &&
+        payload.toolSurface?.futureMcpTools?.includes("create_task_pack") &&
+        payload.toolSurface?.futureMcpTools?.includes(
+          "create_image_prompt_pack",
+        ) &&
         payload.toolSurface?.futureMcpTools?.includes("get_spatial_workspace") &&
         payload.toolSurface?.futureMcpTools?.includes("get_design_kit") &&
         payload.toolSurface?.futureMcpTools?.includes("get_output_binding") &&
@@ -1379,6 +1384,60 @@ async function validateCanvaxHostHandoffDryRun() {
   }
 }
 
+async function validateCanvaxTaskPackHandoffsDryRun() {
+  try {
+    const taskPackPayload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/canvax-inspect.mjs",
+          "task-pack",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const imagePromptPayload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/canvax-inspect.mjs",
+          "image-prompt-pack",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const taskPack = taskPackPayload?.payload?.taskPackHandoff;
+    const imagePrompt = imagePromptPayload?.payload?.imagePromptHandoff;
+    const passed = Boolean(
+      taskPackPayload?.ok &&
+        imagePromptPayload?.ok &&
+        taskPack?.kind === "canvax-host-task-pack" &&
+        taskPack.requiresOpenAiApiKey === false &&
+        taskPack.sourceFiles?.taskPack?.path ===
+          "exports/canvax-task-pack-latest.json" &&
+        Array.isArray(taskPack.frames) &&
+        Array.isArray(taskPack.nextActions) &&
+        imagePrompt?.kind === "canvax-host-image-prompt-pack" &&
+        imagePrompt.requiresOpenAiApiKey === false &&
+        imagePrompt.sourceFiles?.imagePromptPack?.path ===
+          "exports/canvax-image-prompt-pack-latest.json" &&
+        Array.isArray(imagePrompt.frames) &&
+        Array.isArray(imagePrompt.nextActions),
+    );
+    results.push({
+      name: "Canvax task and image prompt host handoffs are valid",
+      passed,
+      detail: passed
+        ? `${taskPack.selectedFrameCount} task frames, ${imagePrompt.selectedFrameCount} image frames`
+        : "task/image prompt host handoffs did not include expected payloads",
+    });
+  } catch (error) {
+    results.push({
+      name: "Canvax task and image prompt host handoffs are valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function validateCanvaxMcpSelfTest() {
   try {
     const { stdout } = await runCommand("node", [
@@ -1390,9 +1449,11 @@ async function validateCanvaxMcpSelfTest() {
       payload?.ok &&
         payload?.kind === "canvax-mcp-self-test" &&
         payload.requiresOpenAiApiKey === false &&
-        payload.toolCount >= 11 &&
+        payload.toolCount >= 13 &&
         payload.summaryKind === "canvax-readonly-inspection" &&
         payload.hostKind === "canvax-host-handoff" &&
+        payload.taskPackKind === "canvax-host-task-pack" &&
+        payload.imagePromptKind === "canvax-host-image-prompt-pack" &&
         payload.transcriptMutation === "append-transcript" &&
         payload.publishMutation === "publish-codex-output" &&
         payload.attachKind === "canvax-image-results",
