@@ -15,6 +15,7 @@
     "review-artifact": "node scripts/review-artifact.mjs",
     "production-port-proof": "node scripts/production-port-proof.mjs",
     "inspect": "node scripts/canvax-inspect.mjs",
+    "host-handoff": "node scripts/canvax-inspect.mjs host-handoff",
     "mcp": "node scripts/canvax-mcp-server.mjs",
     "review-snapshot": "node scripts/review-visual-snapshot.mjs",
     "review-jury": "node scripts/review-design-jury.mjs",

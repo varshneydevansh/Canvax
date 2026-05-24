@@ -12,6 +12,12 @@ const defaultPaths = {
   taskPack: "exports/canvax-task-pack-latest.json",
   buildRequest: "exports/canvax-build-real-latest.json",
   rewriteRequest: "exports/canvax-rewrite-request-latest.json",
+  checkpoint: "exports/canvax-checkpoint-latest.json",
+  previewTweak: "exports/canvax-preview-tweak-latest.json",
+  imagePromptPack: "exports/canvax-image-prompt-pack-latest.json",
+  assetCandidates: "exports/canvax-asset-candidates-latest.json",
+  imageHostTask: "exports/canvax-image-host-task-latest.json",
+  imageResults: "exports/canvax-image-results-latest.json",
   projectLink: "exports/canvax-project-link-latest.json",
   outputManifest: "artifacts/canvax/codex-output.json",
 };
@@ -46,6 +52,22 @@ async function buildInspection(options) {
     rewriteRequest: await readJsonSource(
       options.rewriteRequest || defaultPaths.rewriteRequest,
     ),
+    checkpoint: await readJsonSource(options.checkpoint || defaultPaths.checkpoint),
+    previewTweak: await readJsonSource(
+      options.previewTweak || defaultPaths.previewTweak,
+    ),
+    imagePromptPack: await readJsonSource(
+      options.imagePromptPack || defaultPaths.imagePromptPack,
+    ),
+    assetCandidates: await readJsonSource(
+      options.assetCandidates || defaultPaths.assetCandidates,
+    ),
+    imageHostTask: await readJsonSource(
+      options.imageHostTask || defaultPaths.imageHostTask,
+    ),
+    imageResults: await readJsonSource(
+      options.imageResults || defaultPaths.imageResults,
+    ),
     projectLink: await readJsonSource(
       options.projectLink || defaultPaths.projectLink,
     ),
@@ -57,6 +79,12 @@ async function buildInspection(options) {
   const taskPack = sourceFiles.taskPack.value || {};
   const buildRequest = sourceFiles.buildRequest.value || {};
   const rewriteRequest = sourceFiles.rewriteRequest.value || {};
+  const checkpoint = sourceFiles.checkpoint.value || {};
+  const previewTweak = sourceFiles.previewTweak.value || {};
+  const imagePromptPack = sourceFiles.imagePromptPack.value || {};
+  const assetCandidates = sourceFiles.assetCandidates.value || {};
+  const imageHostTask = sourceFiles.imageHostTask.value || {};
+  const imageResults = sourceFiles.imageResults.value || {};
   const projectLink = sourceFiles.projectLink.value || {};
   const outputManifest = sourceFiles.outputManifest.value || {};
   const activeFrameId =
@@ -110,6 +138,12 @@ async function buildInspection(options) {
     taskPack,
     buildRequest,
     rewriteRequest,
+    checkpoint,
+    previewTweak,
+    imagePromptPack,
+    assetCandidates,
+    imageHostTask,
+    imageResults,
     projectLink,
     outputManifest,
   });
@@ -137,6 +171,7 @@ async function buildInspection(options) {
     toolSurface: {
       status: "local-readonly-cli",
       futureMcpTools: [
+        "get_host_handoff",
         "get_current_frame",
         "get_spatial_workspace",
         "get_design_kit",
@@ -162,6 +197,11 @@ async function buildInspection(options) {
 }
 
 function selectPayload(command, payloads) {
+  if (command === "host-handoff") {
+    return {
+      hostHandoff: buildHostHandoff(payloads),
+    };
+  }
   if (command === "current-frame") {
     return {
       currentFrame: payloads.activeFrame,
@@ -204,6 +244,128 @@ function selectPayload(command, payloads) {
     spatialWorkspace: payloads.spatialWorkspace.summary,
     outputBinding: summarizeOutputBinding(payloads.outputBinding),
     projectLink: summarizeProjectLink(payloads.projectLinkBinding),
+  };
+}
+
+function buildHostHandoff(payloads) {
+  const frameId = payloads.activeFrame?.id || "";
+  const voice = summarizeVoiceContext(
+    payloads.live.voice ||
+      payloads.taskPack.voice ||
+      payloads.rewriteRequest.voice ||
+      {},
+    frameId,
+  );
+  const rewriteQueue = collectFrameRewriteQueue(
+    [
+      payloads.live.rewriteQueue,
+      payloads.taskPack.rewriteQueue,
+      payloads.rewriteRequest.rewriteQueue,
+    ],
+    frameId,
+  );
+  const previewTweak = summarizePreviewTweak(payloads.previewTweak, frameId);
+  const sketch = summarizeFrameComposition(payloads.activeFrame?.composition);
+  const output = summarizeOutputBinding(payloads.outputBinding);
+  const projectLink = summarizeProjectLink(payloads.projectLinkBinding);
+  const designKit = summarizeDesignKit(payloads.designKit);
+  const assets = summarizeAssetHostContext({
+    imagePromptPack: payloads.imagePromptPack,
+    assetCandidates: payloads.assetCandidates,
+    imageHostTask: payloads.imageHostTask,
+    imageResults: payloads.imageResults,
+    sourceFiles: payloads.sourceFiles,
+  });
+  const nextActions = buildHostNextActions({
+    frameId,
+    taskPack: payloads.taskPack,
+    buildRequest: payloads.buildRequest,
+    rewriteQueue,
+    previewTweak,
+    output,
+    projectLink,
+    assets,
+  });
+  return {
+    kind: "canvax-host-handoff",
+    schemaVersion: 1,
+    generatedAt: new Date().toISOString(),
+    requiresOpenAiApiKey: false,
+    source: "scripts/canvax-inspect.mjs host-handoff",
+    transport:
+      payloads.live.transport || {
+        mode: "local-companion",
+        future: { mode: "app-server", status: "planned" },
+      },
+    project:
+      payloads.live.project ||
+      payloads.taskPack.project ||
+      payloads.buildRequest.project ||
+      payloads.rewriteRequest.project ||
+      null,
+    board: {
+      project:
+        payloads.live.board?.project ||
+        payloads.taskPack.board?.project ||
+        payloads.rewriteRequest.board?.project ||
+        "",
+      goal:
+        payloads.live.board?.goal ||
+        payloads.taskPack.board?.goal ||
+        payloads.rewriteRequest.board?.goal ||
+        "",
+      audience:
+        payloads.live.board?.audience ||
+        payloads.taskPack.board?.audience ||
+        "",
+      actionMode:
+        payloads.taskPack.actionMode ||
+        payloads.live.board?.actionMode ||
+        payloads.rewriteRequest.board?.actionMode ||
+        "",
+    },
+    frame: {
+      ...summarizeFrame(payloads.activeFrame),
+      snapshot: {
+        path: payloads.activeFrame?.snapshotPath || "",
+        thumbnailPath: payloads.activeFrame?.thumbnailPath || "",
+        captureCount: payloads.activeFrame?.captureCount || 0,
+      },
+    },
+    sketch,
+    voice,
+    rewrite: {
+      queue: rewriteQueue,
+      previewTweak,
+      requestPath: payloads.sourceFiles.rewriteRequest?.path || "",
+      requestExists: Boolean(payloads.sourceFiles.rewriteRequest?.exists),
+      instruction: payloads.rewriteRequest.instruction || "",
+      revisionGraphKind: payloads.rewriteRequest.revisionGraph?.kind || "",
+    },
+    checkpoint: summarizeCheckpoint(payloads.checkpoint, payloads.sourceFiles.checkpoint),
+    output,
+    projectLink,
+    designKit,
+    spatial: {
+      summary: payloads.spatialWorkspace.summary,
+      selectedObjectIds:
+        payloads.spatialWorkspace.summary?.selectedObjectIds || [],
+      selectedObjectId: payloads.spatialWorkspace.summary?.selectedObjectId || "",
+    },
+    assets,
+    sourceFiles: Object.fromEntries(
+      Object.entries(payloads.sourceFiles).map(([key, source]) => [
+        key,
+        {
+          path: source.path,
+          exists: source.exists,
+        },
+      ]),
+    ),
+    nextAction: nextActions[0] || null,
+    nextActions,
+    noApiBoundary:
+      "This host handoff is assembled from local Canvax files only. It does not call OpenAI, ChatGPT, image APIs, browser automation, or paid APIs.",
   };
 }
 
@@ -455,6 +617,290 @@ function summarizeProjectLink(link) {
   };
 }
 
+function summarizeFrameComposition(composition) {
+  const elements = Array.isArray(composition?.elements) ? composition.elements : [];
+  const labels = Array.isArray(composition?.labels) ? composition.labels : [];
+  const outputAnnotations = Array.isArray(composition?.outputAnnotations)
+    ? composition.outputAnnotations
+    : [];
+  return {
+    coordinateSystem: composition?.coordinateSystem || "normalized-frame",
+    viewport: composition?.viewport || null,
+    safeZones: composition?.safeZones || null,
+    elementCount: elements.length,
+    labelCount: labels.length,
+    outputAnnotationCount: outputAnnotations.length,
+    elementTypes: countBy(elements, (element) => element?.type || "unknown"),
+    elements: elements.slice(0, 40).map(summarizeCompositionElement),
+    labels: labels.slice(0, 24).map((label) => ({
+      id: label?.id || "",
+      text: label?.text || label?.label || "",
+      x: label?.x,
+      y: label?.y,
+      width: label?.width,
+      height: label?.height,
+    })),
+    outputAnnotations: outputAnnotations.slice(0, 24),
+  };
+}
+
+function summarizeCompositionElement(element) {
+  return {
+    id: element?.id || "",
+    type: element?.type || "",
+    label: element?.label || element?.text || "",
+    x: element?.x,
+    y: element?.y,
+    width: element?.width,
+    height: element?.height,
+    color: element?.color || "",
+    targetId: element?.targetId || element?.componentTargetId || "",
+  };
+}
+
+function summarizeVoiceContext(voice, frameId) {
+  const segments = Array.isArray(voice?.segments) ? voice.segments : [];
+  const frameGroups = Array.isArray(voice?.frameGroups) ? voice.frameGroups : [];
+  const directFrameSegments = segments.filter((segment) =>
+    segmentBelongsToFrame(segment, frameId),
+  );
+  const groupedFrameSegments = frameGroups
+    .filter((group) => !frameId || group?.frameId === frameId)
+    .flatMap((group) => (Array.isArray(group?.segments) ? group.segments : []));
+  const frameSegments = dedupeById([
+    ...directFrameSegments,
+    ...groupedFrameSegments,
+  ]);
+  const fallbackSegments = frameSegments.length ? frameSegments : segments.slice(0, 8);
+  const intentQueue = Array.isArray(voice?.intentQueue) ? voice.intentQueue : [];
+  const frameIntentQueue = intentQueue.filter((intent) =>
+    !frameId || !intent?.frameId || intent.frameId === frameId,
+  );
+  return {
+    activeScope: voice?.activeScope || "",
+    segmentCount: Number(voice?.segmentCount || segments.length || 0),
+    frameSegmentCount: frameSegments.length,
+    sessionSegmentCount: Number(voice?.sessionSegmentCount || 0),
+    intentCount: intentQueue.length,
+    frameIntentCount: frameIntentQueue.length,
+    segments: fallbackSegments.slice(0, 8).map(summarizeVoiceSegment),
+    intentQueue: frameIntentQueue.slice(0, 12).map((intent) => ({
+      id: intent?.id || "",
+      type: intent?.type || intent?.intent || "",
+      label: intent?.label || "",
+      text: intent?.text || intent?.summary || "",
+      frameId: intent?.frameId || "",
+    })),
+  };
+}
+
+function segmentBelongsToFrame(segment, frameId) {
+  if (!frameId) {
+    return true;
+  }
+  if (!segment || typeof segment !== "object") {
+    return false;
+  }
+  if (segment.frameId === frameId) {
+    return true;
+  }
+  if (Array.isArray(segment.frameIds) && segment.frameIds.includes(frameId)) {
+    return true;
+  }
+  return !segment.frameId && !Array.isArray(segment.frameIds);
+}
+
+function summarizeVoiceSegment(segment) {
+  return {
+    id: segment?.id || "",
+    scope: segment?.scope || "",
+    frameId: segment?.frameId || "",
+    provider: segment?.provider || segment?.source || "",
+    at: segment?.at || segment?.createdAt || "",
+    text: compactText(segment?.text || segment?.transcript || "", 220),
+  };
+}
+
+function collectFrameRewriteQueue(queueSources, frameId) {
+  return dedupeById(
+    queueSources
+      .flatMap((queue) => (Array.isArray(queue) ? queue : []))
+      .filter((item) => !frameId || !item?.frameId || item.frameId === frameId),
+  )
+    .slice(0, 12)
+    .map((item) => ({
+      id: item?.id || `${item?.frameId || "frame"}:${item?.reason || "rewrite"}`,
+      frameId: item?.frameId || "",
+      label: item?.label || "",
+      reason: item?.reason || "",
+      status: item?.status || "",
+      outputTargetId: item?.outputTargetId || "",
+      updatedAt: item?.updatedAt || item?.at || "",
+    }));
+}
+
+function summarizePreviewTweak(previewTweak, frameId) {
+  if (previewTweak?.kind !== "canvax-preview-tweak-request") {
+    return null;
+  }
+  if (frameId && previewTweak.frameId && previewTweak.frameId !== frameId) {
+    return null;
+  }
+  return {
+    id: previewTweak.id || "",
+    frameId: previewTweak.frameId || "",
+    note: previewTweak.note || previewTweak.prompt || "",
+    region: previewTweak.region || null,
+    createdAt: previewTweak.createdAt || previewTweak.savedAt || "",
+    source: previewTweak.source || "preview-tweak",
+  };
+}
+
+function summarizeAssetHostContext({
+  imagePromptPack,
+  assetCandidates,
+  imageHostTask,
+  imageResults,
+  sourceFiles,
+}) {
+  const candidates = Array.isArray(assetCandidates?.candidates)
+    ? assetCandidates.candidates
+    : [];
+  const tasks = Array.isArray(imageHostTask?.tasks) ? imageHostTask.tasks : [];
+  const results = Array.isArray(imageResults?.results) ? imageResults.results : [];
+  return {
+    imagePromptPackExists: imagePromptPack?.kind === "canvax-image-prompt-pack",
+    assetCandidateCount: candidates.length,
+    imageHostTaskCount: tasks.length,
+    imageResultCount: results.length,
+    promptPackPath: sourceFiles.imagePromptPack?.path || "",
+    assetCandidatesPath: sourceFiles.assetCandidates?.path || "",
+    imageHostTaskPath: sourceFiles.imageHostTask?.path || "",
+    imageResultsPath: sourceFiles.imageResults?.path || "",
+    openSlots: candidates
+      .flatMap((candidate) =>
+        (Array.isArray(candidate?.outputSlots) ? candidate.outputSlots : []).map(
+          (slot) => ({
+            candidateId: candidate.id || "",
+            slotId: slot?.id || "",
+            label: slot?.label || candidate.title || candidate.label || "",
+            accepted: Boolean(slot?.accepted),
+          }),
+        ),
+      )
+      .filter((slot) => !slot.accepted)
+      .slice(0, 12),
+  };
+}
+
+function summarizeCheckpoint(checkpoint, source) {
+  return {
+    exists: Boolean(source?.exists),
+    path: source?.path || "",
+    savedAt: checkpoint?.savedAt || "",
+    reason: checkpoint?.reason || "",
+    label: checkpoint?.label || "",
+    frameId: checkpoint?.frameId || checkpoint?.activeFrameId || "",
+    frameTitle: checkpoint?.frameTitle || checkpoint?.activeFrameTitle || "",
+    frameCount: Array.isArray(checkpoint?.frames) ? checkpoint.frames.length : 0,
+    voiceSegmentCount: Number(checkpoint?.summary?.voiceSegmentCount || 0),
+    artifactCount: Array.isArray(checkpoint?.summary?.artifacts)
+      ? checkpoint.summary.artifacts.length
+      : Number(checkpoint?.summary?.artifactCount || 0),
+  };
+}
+
+function buildHostNextActions({
+  frameId,
+  taskPack,
+  buildRequest,
+  rewriteQueue,
+  previewTweak,
+  output,
+  projectLink,
+  assets,
+}) {
+  const actions = [];
+  const hasOutput = Boolean(output?.recordCount || output?.hasOutputEditBinding);
+  const hasBuildRequest =
+    buildRequest?.kind === "canvax-build-real-request" ||
+    Boolean(buildRequest?.frames?.length);
+  if (previewTweak || rewriteQueue.length || hasOutput) {
+    actions.push({
+      id: "execute-rewrite",
+      label: "Refresh frame output",
+      command: "npm run execute-rewrite",
+      reason: previewTweak
+        ? "A Preview region tweak is waiting for the current frame."
+        : "The current frame has output context that can be refreshed from sketch and voice.",
+    });
+  }
+  if (!hasOutput && hasBuildRequest) {
+    actions.push({
+      id: "execute-build",
+      label: "Build first frame output",
+      command: "npm run execute-build",
+      reason: "The frame has a build request but no bound output record yet.",
+    });
+  }
+  if (projectLink?.exists && projectLink.linkedFileCount) {
+    actions.push({
+      id: "project-linked-patch",
+      label: "Apply generated patch to linked files",
+      command:
+        "npm run execute-patch -- --task artifacts/preview/codex-rewrite/frames/<frame-id>/codex-patch-task.json",
+      reason:
+        "The frame has allowlisted project files that can receive a frame-bound patch task.",
+    });
+  }
+  if (assets.imageHostTaskCount || taskPack?.actionMode === "image-prompt") {
+    actions.push({
+      id: "host-image-generation",
+      label: "Generate or return image asset",
+      command:
+        "npm run import-image-results -- --candidate <candidate-id> --slot <slot-id> --image <path-or-url>",
+      reason:
+        "The frame has image prompt or host-task context and open asset slots.",
+    });
+  }
+  actions.push({
+    id: "publish-output",
+    label: "Publish Codex output to Canvax",
+    command: `node scripts/write-codex-output.mjs --from-git-status${
+      frameId ? ` --frame ${frameId}` : ""
+    }`,
+    reason:
+      "After Codex edits real files or writes an artifact, publish the binding back to Canvax.",
+  });
+  return actions;
+}
+
+function dedupeById(values) {
+  const seen = new Set();
+  return values.filter((value, index) => {
+    const key =
+      value?.id ||
+      `${value?.frameId || "frame"}:${value?.reason || value?.text || index}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function compactText(value, maxLength) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (!maxLength || text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+}
+
+function cleanString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function countBy(values, getter) {
   return values.reduce((accumulator, value) => {
     const key = getter(value);
@@ -465,14 +911,36 @@ function countBy(values, getter) {
 
 async function saveInspection(inspection) {
   await mkdir(exportsRoot, { recursive: true });
-  const jsonPath = resolve(exportsRoot, "canvax-inspect-latest.json");
-  const markdownPath = resolve(exportsRoot, "canvax-inspect-latest.md");
+  const isHostHandoff =
+    inspection.command === "host-handoff" && inspection.payload?.hostHandoff;
+  const jsonPath = resolve(
+    exportsRoot,
+    isHostHandoff ? "canvax-host-handoff-latest.json" : "canvax-inspect-latest.json",
+  );
+  const markdownPath = resolve(
+    exportsRoot,
+    isHostHandoff ? "canvax-host-handoff-latest.md" : "canvax-inspect-latest.md",
+  );
   inspection.saved = {
     jsonPath: relativeProjectPath(jsonPath),
     markdownPath: relativeProjectPath(markdownPath),
   };
-  await writeFile(jsonPath, `${JSON.stringify(inspection, null, 2)}\n`, "utf8");
-  await writeFile(markdownPath, buildInspectionMarkdown(inspection), "utf8");
+  await writeFile(
+    jsonPath,
+    `${JSON.stringify(
+      isHostHandoff ? inspection.payload.hostHandoff : inspection,
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+  await writeFile(
+    markdownPath,
+    isHostHandoff
+      ? buildHostHandoffMarkdown(inspection.payload.hostHandoff)
+      : buildInspectionMarkdown(inspection),
+    "utf8",
+  );
 }
 
 function buildInspectionMarkdown(inspection) {
@@ -500,6 +968,39 @@ function buildInspectionMarkdown(inspection) {
       ([key, value]) =>
         `- ${key}: ${value.exists ? "found" : "missing"} (${value.path})`,
     ),
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+function buildHostHandoffMarkdown(handoff) {
+  const lines = [
+    "# Canvax Host Handoff",
+    "",
+    `- Frame: ${handoff.frame?.title || handoff.frame?.id || "n/a"}`,
+    `- Requires OpenAI API key: ${handoff.requiresOpenAiApiKey ? "yes" : "no"}`,
+    `- Transport: ${handoff.transport?.mode || "local-companion"}`,
+    `- Sketch elements: ${handoff.sketch?.elementCount || 0}`,
+    `- Voice segments: ${handoff.voice?.segmentCount || 0}`,
+    `- Rewrite queue: ${handoff.rewrite?.queue?.length || 0}`,
+    `- Output records: ${handoff.output?.recordCount || 0}`,
+    `- Project linked files: ${handoff.projectLink?.linkedFileCount || 0}`,
+    "",
+    "## Next Action",
+    "",
+    handoff.nextAction
+      ? `${handoff.nextAction.label}: \`${handoff.nextAction.command}\``
+      : "No next action selected.",
+    "",
+    "## Source Files",
+    "",
+    ...Object.entries(handoff.sourceFiles || {}).map(
+      ([key, value]) =>
+        `- ${key}: ${value.exists ? "found" : "missing"} (${value.path})`,
+    ),
+    "",
+    "## Boundary",
+    "",
+    handoff.noApiBoundary,
   ];
   return `${lines.join("\n")}\n`;
 }
@@ -540,11 +1041,18 @@ function parseArgs(argv) {
     taskPack: "",
     buildRequest: "",
     rewriteRequest: "",
+    checkpoint: "",
+    previewTweak: "",
+    imagePromptPack: "",
+    assetCandidates: "",
+    imageHostTask: "",
+    imageResults: "",
     outputManifest: "",
     projectLink: "",
   };
   const commands = new Set([
     "summary",
+    "host-handoff",
     "current-frame",
     "spatial-workspace",
     "design-kit",
@@ -574,6 +1082,18 @@ function parseArgs(argv) {
       options.buildRequest = argv[++index] || "";
     } else if (arg === "--rewrite-request") {
       options.rewriteRequest = argv[++index] || "";
+    } else if (arg === "--checkpoint") {
+      options.checkpoint = argv[++index] || "";
+    } else if (arg === "--preview-tweak") {
+      options.previewTweak = argv[++index] || "";
+    } else if (arg === "--image-prompt-pack") {
+      options.imagePromptPack = argv[++index] || "";
+    } else if (arg === "--asset-candidates") {
+      options.assetCandidates = argv[++index] || "";
+    } else if (arg === "--image-host-task") {
+      options.imageHostTask = argv[++index] || "";
+    } else if (arg === "--image-results") {
+      options.imageResults = argv[++index] || "";
     } else if (arg === "--manifest") {
       options.outputManifest = argv[++index] || "";
     } else if (arg === "--project-link") {
@@ -601,11 +1121,14 @@ function relativeProjectPath(value) {
 
 function printHelp() {
   console.log(`Usage:
-  node scripts/canvax-inspect.mjs [summary|current-frame|spatial-workspace|design-kit|output-binding|project-link|all] [--json] [--markdown] [--save] [--frame id] [--full]
+  node scripts/canvax-inspect.mjs [summary|host-handoff|current-frame|spatial-workspace|design-kit|output-binding|project-link|all] [--json] [--markdown] [--save] [--frame id] [--full]
 
 Reads local Canvax handoff files and returns a stable read-only inspection
 payload for Codex/agent use. This is the local CLI precursor to future MCP tools:
-get_current_frame, get_spatial_workspace, get_design_kit, get_output_binding,
-and get_project_link.
+get_host_handoff, get_current_frame, get_spatial_workspace, get_design_kit,
+get_output_binding, and get_project_link. The host-handoff command assembles
+the current frame, sketch composition, voice intent, rewrite queue, output
+binding, project-link, image host context, and next Codex action into one
+host-readable packet; with --save it writes exports/canvax-host-handoff-latest.*.
 It does not require OPENAI_API_KEY and does not call hosted models or image APIs.`);
 }

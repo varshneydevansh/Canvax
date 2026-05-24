@@ -444,6 +444,8 @@ const checks = [
         path: "scripts/canvax-inspect.mjs",
         includes: [
           "canvax-readonly-inspection",
+          "canvax-host-handoff",
+          "get_host_handoff",
           "get_current_frame",
           "get_spatial_workspace",
           "get_design_kit",
@@ -457,6 +459,7 @@ const checks = [
         includes: [
           "tools/list",
           "tools/call",
+          "get_host_handoff",
           "get_current_frame",
           "get_spatial_workspace",
           "get_design_kit",
@@ -482,6 +485,7 @@ const checks = [
           "project link dry-run and saved manifest are valid",
           "project-link-regression-tweak",
           "Canvax read-only inspection bridge is valid",
+          "Canvax host handoff packet is valid",
           "Canvax MCP server self-test is valid",
           "preview tweak endpoint writes no-API region request",
         ],
@@ -504,7 +508,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, Workbench output review gating, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, an allowlisted project-link patch proof, a local read-only inspection CLI, a local stdio MCP read bridge, and a narrow MCP image-result return tool are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary unlinked production patching, and evidence from Codex completing a real external/user project edit remain open.",
+      "Repository kit files, UI/CLI kit search, versioned kit-library packaging, current-frame/reference-image extraction, text/CSS/image/semantic token extraction, static artifact design review, local pixel-level screenshot review, local DOM layout review, local design-jury review, Workbench output review gating, local Preview region-tweak requests, Codex patch-task handoff, generated-bundle applied-patch proof, latest-pack UI import, local artifact token enforcement, manifest-listed production-file token enforcement, a production-like local port/patch proof, an allowlisted project-link patch proof, a local read-only inspection CLI, a consolidated no-API host handoff packet, a local stdio MCP read bridge, and a narrow MCP image-result return tool are proven, but hosted/team kit-library sharing, native Codex/ChatGPT host registration, hosted AI visual critique, automatically applied arbitrary unlinked production patching, and evidence from Codex completing a real external/user project edit remain open.",
   },
   {
     id: "live-sketch-voice-rewrite",
@@ -520,6 +524,16 @@ const checks = [
           "buildVoiceIntentQueue",
           "focus-voice-intents",
           "transcriptBridge",
+        ],
+      },
+      {
+        path: "scripts/canvax-inspect.mjs",
+        includes: [
+          "canvax-host-handoff",
+          "summarizeVoiceContext",
+          "buildHostNextActions",
+          "canvax-host-handoff-latest.json",
+          "requiresOpenAiApiKey: false",
         ],
       },
       {
@@ -571,6 +585,14 @@ const checks = [
           "rewritePatchTask",
           "appliedPatchResult",
           "--preview-tweak",
+        ],
+      },
+      {
+        path: "scripts/regression-check.mjs",
+        includes: [
+          "Canvax host handoff packet is valid",
+          "canvax-host-handoff",
+          "host handoff schema is valid",
         ],
       },
     ],

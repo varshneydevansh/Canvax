@@ -11,6 +11,13 @@ const protocolVersion = "2025-06-18";
 
 const toolDefinitions = [
   {
+    name: "get_host_handoff",
+    command: "host-handoff",
+    description:
+      "Read a single host-ready Canvax packet for the current or requested frame, including sketch composition, voice intent, rewrite queue, output binding, project-link, image host context, and next Codex actions.",
+    inputSchema: buildInputSchema(true),
+  },
+  {
     name: "get_canvax_summary",
     command: "summary",
     description:
@@ -140,7 +147,7 @@ async function handleMessage(request) {
           version: "0.1.0",
         },
         instructions:
-          "Use Canvax tools to read the local visual handoff, frame, spatial map, design kit, output bindings, and linked real-project files. Read tools are no-API inspection tools; attach_generated_asset is the only local write tool and only imports a supplied image path into Canvax image-result/candidate handoff files.",
+          "Use Canvax tools to read the local visual handoff, host packet, frame, spatial map, design kit, output bindings, and linked real-project files. Read tools are no-API inspection tools; attach_generated_asset is the only local write tool and only imports a supplied image path into Canvax image-result/candidate handoff files.",
       });
       return;
     }
@@ -285,11 +292,22 @@ async function runSelfTest() {
       },
     },
   };
+  const hostCall = {
+    jsonrpc: "2.0",
+    id: 4,
+    method: "tools/call",
+    params: {
+      name: "get_host_handoff",
+      arguments: {},
+    },
+  };
   const listResponse = await dispatchForSelfTest(list);
   const callResponse = await dispatchForSelfTest(call);
   const attachResponse = await dispatchForSelfTest(attachCall);
+  const hostResponse = await dispatchForSelfTest(hostCall);
   const passed = Boolean(
     Array.isArray(listResponse.result?.tools) &&
+      listResponse.result.tools.some((tool) => tool.name === "get_host_handoff") &&
       listResponse.result.tools.some((tool) => tool.name === "get_current_frame") &&
       listResponse.result.tools.some((tool) => tool.name === "get_project_link") &&
       listResponse.result.tools.some((tool) => tool.name === "attach_generated_asset") &&
@@ -299,6 +317,10 @@ async function runSelfTest() {
       attachResponse.result?.structuredContent?.imageResultPack?.kind ===
         "canvax-image-results" &&
       attachResponse.result?.structuredContent?.imageResultPack
+        ?.requiresOpenAiApiKey === false &&
+      hostResponse.result?.structuredContent?.inspection?.payload?.hostHandoff
+        ?.kind === "canvax-host-handoff" &&
+      hostResponse.result?.structuredContent?.inspection?.payload?.hostHandoff
         ?.requiresOpenAiApiKey === false,
   );
   if (!passed) {
@@ -310,6 +332,7 @@ async function runSelfTest() {
           listResponse,
           callResponse,
           attachResponse,
+          hostResponse,
         },
         null,
         2,
@@ -327,6 +350,8 @@ async function runSelfTest() {
         protocolVersion,
         toolCount: listResponse.result.tools.length,
         summaryKind: callResponse.result.structuredContent.inspection.kind,
+        hostKind:
+          hostResponse.result.structuredContent.inspection.payload.hostHandoff.kind,
         attachKind:
           attachResponse.result.structuredContent.imageResultPack.kind,
       },

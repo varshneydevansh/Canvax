@@ -321,12 +321,17 @@ the real project files. Use `--no-project-link` to disable that expansion.
 
 Use `npm run mcp` to launch the local stdio MCP server. It exposes the
 inspection commands as read tools for hosts that can register a local MCP command:
-`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
-`get_design_kit`, `get_output_binding`, `get_project_link`, and
-`get_canvax_all`. It also exposes `attach_generated_asset`, which writes only
-local no-API image-result/candidate handoff files through the same path as
-`npm run import-image-results`. Use `npm run mcp -- --self-test` in regression
-or host setup checks.
+`get_host_handoff`, `get_canvax_summary`, `get_current_frame`,
+`get_spatial_workspace`, `get_design_kit`, `get_output_binding`,
+`get_project_link`, and `get_canvax_all`. `get_host_handoff` is the preferred
+single-packet read for native-host work because it bundles the active frame,
+sketch composition, voice intent, rewrite queue, output binding, project-link,
+image host context, source files, and suggested Codex actions. The matching CLI
+is `npm run host-handoff -- --save`, which writes
+`exports/canvax-host-handoff-latest.{json,md}`. MCP also exposes
+`attach_generated_asset`, which writes only local no-API image-result/candidate
+handoff files through the same path as `npm run import-image-results`. Use
+`npm run mcp -- --self-test` in regression or host setup checks.
 
 The build request now includes `implementationContext`, which is intentionally smaller than the full live export. It carries Workbench mode/focus, action mode, generation recipe, selected Map prompts/custom properties, variant semantic recipe and style knobs, image style lock, and output-edit binding so Codex can code from designer intent instead of raw canvas geometry alone.
 

@@ -867,15 +867,20 @@ This gives Canvax a local no-API real-file patch proof while keeping arbitrary
 production edits outside the deterministic executor.
 
 `npm run inspect` is the read-only local bridge for Codex/agent inspection. It
-can return `summary`, `current-frame`, `spatial-workspace`, `design-kit`,
-`output-binding`, `project-link`, or `all` as JSON/Markdown from local Canvax
-files. This gives Codex a stable way to read the current frame, Map memory,
-design-system context, output manifest binding, and linked real project files
-without asking the user to paste raw exports. It is the CLI precursor to a
-future MCP/native host bridge, not the final host bridge.
+can return `summary`, `host-handoff`, `current-frame`, `spatial-workspace`,
+`design-kit`, `output-binding`, `project-link`, or `all` as JSON/Markdown from
+local Canvax files. This gives Codex a stable way to read the current frame, Map
+memory, design-system context, output manifest binding, and linked real project
+files without asking the user to paste raw exports. `npm run host-handoff -- --save`
+writes `exports/canvax-host-handoff-latest.{json,md}` as a single no-API host
+packet containing the active frame, sketch composition, voice intent, rewrite
+queue, output binding, project-link, image host context, source files, and next
+Codex actions. It is the CLI precursor to a future MCP/native host bridge, not
+the final host bridge.
 
 `npm run mcp` is the local stdio MCP server. It exposes
-`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`,
+`get_host_handoff`, `get_canvax_summary`, `get_current_frame`,
+`get_spatial_workspace`,
 `get_design_kit`, `get_output_binding`, `get_project_link`, and
 `get_canvax_all` as MCP tools backed by the same inspection payloads. It also
 exposes `attach_generated_asset` as a narrow local write tool for hosted image

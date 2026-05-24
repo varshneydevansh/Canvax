@@ -105,6 +105,11 @@ const projectLinkPath = resolve(
   "exports",
   "canvax-project-link-latest.json",
 );
+const hostHandoffPath = resolve(
+  projectRoot,
+  "exports",
+  "canvax-host-handoff-latest.json",
+);
 const curlBinary = "/usr/bin/curl";
 const upstreamProposalPath = resolve(
   projectRoot,
@@ -128,6 +133,7 @@ await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
 await validateCanvaxInspectDryRun();
+await validateCanvaxHostHandoffDryRun();
 await validateCanvaxMcpSelfTest();
 await validateRunningPreviewState();
 await validateAssetCandidatesEndpoint();
@@ -384,6 +390,22 @@ await validateOptionalJsonSchema(
     value.codexEditContract?.kind === "canvax-project-edit-contract" &&
     value.manifest?.source === "canvax-project-link",
   "project link schema is valid",
+);
+await validateOptionalJsonSchema(
+  hostHandoffPath,
+  (value) =>
+    value?.kind === "canvax-host-handoff" &&
+    value.requiresOpenAiApiKey === false &&
+    Number.isInteger(value?.schemaVersion) &&
+    value.schemaVersion >= 1 &&
+    value.frame?.id &&
+    value.sketch &&
+    value.voice &&
+    value.rewrite &&
+    value.output &&
+    value.projectLink &&
+    Array.isArray(value?.nextActions),
+  "host handoff schema is valid",
 );
 
 const failed = results.filter((entry) => !entry.passed);
@@ -1288,6 +1310,7 @@ async function validateCanvaxInspectDryRun() {
         payload.requiresOpenAiApiKey === false &&
         payload.toolSurface?.status === "local-readonly-cli" &&
         payload.toolSurface?.futureMcpTools?.includes("get_current_frame") &&
+        payload.toolSurface?.futureMcpTools?.includes("get_host_handoff") &&
         payload.toolSurface?.futureMcpTools?.includes("get_spatial_workspace") &&
         payload.toolSurface?.futureMcpTools?.includes("get_design_kit") &&
         payload.toolSurface?.futureMcpTools?.includes("get_output_binding") &&
@@ -1312,6 +1335,50 @@ async function validateCanvaxInspectDryRun() {
   }
 }
 
+async function validateCanvaxHostHandoffDryRun() {
+  try {
+    const { stdout } = await runCommand("node", [
+      "scripts/canvax-inspect.mjs",
+      "host-handoff",
+      "--json",
+      "--save",
+    ]);
+    const payload = JSON.parse(stdout);
+    const handoff = payload?.payload?.hostHandoff;
+    const savedHostHandoff = await readOptionalJson(hostHandoffPath);
+    const passed = Boolean(
+      payload?.ok &&
+        payload?.kind === "canvax-readonly-inspection" &&
+        handoff?.kind === "canvax-host-handoff" &&
+        handoff.requiresOpenAiApiKey === false &&
+        handoff.sourceFiles?.live?.path === "exports/canvax-live-latest.json" &&
+        handoff.frame?.id &&
+        handoff.sketch &&
+        handoff.voice &&
+        handoff.rewrite &&
+        handoff.output &&
+        handoff.projectLink &&
+        Array.isArray(handoff.nextActions) &&
+        handoff.nextActions.some((action) => action.id === "publish-output") &&
+        payload.saved?.jsonPath === "exports/canvax-host-handoff-latest.json" &&
+        savedHostHandoff?.kind === "canvax-host-handoff",
+    );
+    results.push({
+      name: "Canvax host handoff packet is valid",
+      passed,
+      detail: passed
+        ? `${handoff.frame.id}, ${handoff.nextActions.length} next actions`
+        : "host handoff did not include the expected sketch/voice/output packet",
+    });
+  } catch (error) {
+    results.push({
+      name: "Canvax host handoff packet is valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function validateCanvaxMcpSelfTest() {
   try {
     const { stdout } = await runCommand("node", [
@@ -1323,8 +1390,9 @@ async function validateCanvaxMcpSelfTest() {
       payload?.ok &&
         payload?.kind === "canvax-mcp-self-test" &&
         payload.requiresOpenAiApiKey === false &&
-        payload.toolCount >= 8 &&
+        payload.toolCount >= 9 &&
         payload.summaryKind === "canvax-readonly-inspection" &&
+        payload.hostKind === "canvax-host-handoff" &&
         payload.attachKind === "canvax-image-results",
     );
     results.push({

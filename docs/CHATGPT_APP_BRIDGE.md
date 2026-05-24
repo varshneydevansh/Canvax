@@ -96,12 +96,38 @@ flowchart TD
 These tools should be thin wrappers over the files and APIs Canvax already has.
 
 Local status: `npm run mcp` now exposes a stdio MCP server over the existing
-inspection bridge. The shipped read tools are `get_canvax_summary`,
-`get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
+inspection bridge. The shipped read tools are `get_host_handoff`,
+`get_canvax_summary`, `get_current_frame`, `get_spatial_workspace`, `get_design_kit`,
 `get_output_binding`, `get_project_link`, and `get_canvax_all`. The shipped
 write/return tool is `attach_generated_asset`, a no-API wrapper around
 `npm run import-image-results` for binding hosted image outputs back to Canvax
 candidate slots. Task creation and native host registration remain future work.
+
+`get_host_handoff` is the preferred current bridge read. It is backed by
+`npm run host-handoff -- --json` and can be saved to
+`exports/canvax-host-handoff-latest.{json,md}`. The packet combines the active
+frame, sketch composition, voice/transcript intent, rewrite queue, output
+binding, project-link, image host context, source file paths, and suggested
+Codex actions so a host does not have to guess across separate exports.
+
+### `get_host_handoff`
+
+Purpose: return one host-readable packet for the current design iteration.
+
+Inputs:
+
+- optional `frameId`
+- optional `full`
+
+Outputs:
+
+- active frame metadata and snapshot paths
+- normalized sketch composition and labels
+- frame/session voice segments and intent queue
+- rewrite queue and latest Preview tweak, when applicable
+- generated-output binding and linked project files
+- image prompt/host-task/result context
+- source files and recommended next Codex commands
 
 ### `get_latest_frame`
 

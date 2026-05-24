@@ -343,6 +343,7 @@ Behavior:
 - `./canvax --status` prints the current board URL and live export paths.
 - `./canvax --stop` stops the running service.
 - `./canvax --restart` restarts the service cleanly. Reopen the board through `/canvax` in Codex Browser Use / Atlas afterward.
+- `npm run host-handoff -- --save` writes one Codex/native-host packet with the active frame, sketch, voice intent, rewrite queue, output binding, project-link, image host context, source files, and suggested next actions.
 
 Canvax is intentionally single-service. If one board is already running, it is reused instead of spawning another port by default.
 
@@ -452,6 +453,9 @@ Checkpoint mode now adds:
 - `artifacts/canvax/checkpoints/` as durable saved checkpoint records
 - `exports/projects/<project-id>/canvax-checkpoint-latest.json` and `exports/projects/<project-id>/canvax-checkpoints.json` as the active project's recoverable checkpoint latest/index
 
+Host handoff mode writes `exports/canvax-host-handoff-latest.json` as the
+single local no-API packet for Codex/native-host sketch + voice + output handoff.
+
 ## Current Workflow
 
 1. Start Canvax with `./canvax`.
@@ -464,7 +468,7 @@ Checkpoint mode now adds:
 8. Switch to `Advanced` only when you need frames, flow links, captures, generation recipes, manifests, changed files, or debugging detail.
 9. In Advanced mode, use `Generate screen`, `Materialize`, `Push checkpoint`, or `Publish changes` for longer sessions.
 10. Ask Codex to use the current Canvax.
-11. Codex reads the latest live export or checkpoint and works from that visual handoff.
+11. Codex reads the latest live export, checkpoint, or `npm run host-handoff -- --json` packet and works from that visual handoff.
 
 ## Current Limits
 
