@@ -462,6 +462,7 @@ const dom = {
   workbenchComposerNote: document.querySelector("#workbench-composer-note"),
   workbenchComposerPin: document.querySelector("#workbench-composer-pin"),
   workbenchComposerMake: document.querySelector("#workbench-composer-make"),
+  workbenchComposerReply: document.querySelector("#workbench-composer-reply"),
   workbenchComposerApply: document.querySelector("#workbench-composer-apply"),
   workbenchAgentLog: document.querySelector("#workbench-agent-log"),
   workbenchAgentLogToggle: document.querySelector(
@@ -503,6 +504,7 @@ const dom = {
   focusUndo: document.querySelector("#focus-undo"),
   focusRedo: document.querySelector("#focus-redo"),
   focusGenerate: document.querySelector("#focus-generate"),
+  focusCanvasReply: document.querySelector("#focus-canvas-reply"),
   focusBuildReal: document.querySelector("#focus-build-real"),
   focusCreateVariants: document.querySelector("#focus-create-variants"),
   focusPromoteVariant: document.querySelector("#focus-promote-variant"),
@@ -581,6 +583,9 @@ const dom = {
   brushPreviewText: document.querySelector("#brush-preview-text"),
   labelEditor: document.querySelector("#label-editor"),
   labelEditorInput: document.querySelector("#label-editor-input"),
+  canvasReplyUnderlay: document.querySelector("#canvas-reply-underlay"),
+  canvasReplyFrame: document.querySelector("#canvas-reply-frame"),
+  canvasReplyBadge: document.querySelector("#canvas-reply-badge"),
   flowStatus: document.querySelector("#flow-status"),
   flowShell: document.querySelector("#flow-shell"),
   flowSurface: document.querySelector("#flow-surface"),
@@ -987,14 +992,33 @@ function bindEvents() {
     commitManualVoiceDraft("workbench-composer");
     void generateCurrentScreen();
   });
+  dom.workbenchComposerReply.addEventListener("click", () => {
+    commitManualVoiceDraft("workbench-composer");
+    void replyInCanvasFromCurrentSketch();
+  });
   dom.workbenchComposerApply.addEventListener("click", () => {
     commitManualVoiceDraft("workbench-composer");
     void applyFocusPadToCodex();
   });
-  dom.workbenchAgentLogToggle.addEventListener("click", () => {
-    state.workbenchAgentLogOpen = !state.workbenchAgentLogOpen;
-    persistState();
-    renderWorkbenchAgentLog();
+  dom.workbenchAgentLogToggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setWorkbenchAgentLogOpen(!state.workbenchAgentLogOpen);
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!state.workbenchAgentLogOpen) {
+      return;
+    }
+    if (dom.workbenchAgentLog?.contains(event.target)) {
+      return;
+    }
+    setWorkbenchAgentLogOpen(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.workbenchAgentLogOpen) {
+      setWorkbenchAgentLogOpen(false);
+      dom.workbenchAgentLogToggle?.focus();
+    }
   });
   dom.focusToolButtons.addEventListener("click", (event) => {
     const button = event.target.closest("[data-focus-tool]");
@@ -1035,6 +1059,9 @@ function bindEvents() {
   dom.focusRedo.addEventListener("click", redoDesignerAction);
   dom.focusGenerate.addEventListener("click", () => {
     void generateCurrentScreen();
+  });
+  dom.focusCanvasReply.addEventListener("click", () => {
+    void replyInCanvasFromCurrentSketch();
   });
   dom.focusBuildReal.addEventListener("click", () => {
     void buildRealScreenWithCodex();
@@ -2303,9 +2330,7 @@ function hydrateState() {
         : empty.workbenchFocus,
       designKitSearch: cleanString(migrated.designKitSearch),
       workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
-      workbenchAgentLogOpen: Boolean(
-        migrated.workbenchAgentLogOpen ?? empty.workbenchAgentLogOpen,
-      ),
+      workbenchAgentLogOpen: false,
       outputLaneCollapsed: Boolean(
         migrated.outputLaneCollapsed ?? empty.outputLaneCollapsed,
       ),
@@ -2355,6 +2380,7 @@ function hydrateState() {
       liveRewriteQueued: null,
       liveRewriteActiveSignature: "",
       lastAutoRewriteSignature: "",
+      canvasReplyInFlight: false,
       buildRealInFlight: false,
       designReviewInFlight: false,
       outputCheckpointInFlight: false,
@@ -2459,6 +2485,7 @@ function isLegacyBlankStoryboard(snapshot) {
 function frameHasCanvasContent(frame) {
   return Boolean(
     frame?.backgroundImage ||
+    frame?.canvasReply ||
     frame?.thumbnail ||
     (Array.isArray(frame?.elements) && frame.elements.length) ||
     (Array.isArray(frame?.outputAnnotations) &&
@@ -2874,6 +2901,7 @@ function createInitialState() {
     liveRewriteQueued: null,
     liveRewriteActiveSignature: "",
     lastAutoRewriteSignature: "",
+    canvasReplyInFlight: false,
     buildRealInFlight: false,
     designReviewInFlight: false,
     outputCheckpointInFlight: false,
@@ -3109,7 +3137,143 @@ function normalizeFrameVariant(value) {
   };
 }
 
+function normalizeCanvasReply(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const objectId = cleanString(source.objectId || source.id);
+  const href = cleanString(
+    source.href || source.resolvedUrl || source.url || source.previewUrl,
+  );
+  const previewPath = cleanString(source.previewPath || source.path);
+  const target = cleanString(
+    source.target || previewPath || href || source.targetUrl,
+  );
+  if (!objectId && !target && !href && !previewPath) {
+    return null;
+  }
+  const now = new Date().toISOString();
+  return {
+    kind: cleanString(source.kind) || "canvax-canvas-reply",
+    objectId,
+    label: cleanString(source.label) || "Canvas reply",
+    sourceKind: cleanString(source.sourceKind || source.type || source.source),
+    source: cleanString(source.source) || "canvax-canvas-reply",
+    type: cleanString(source.type || source.sourceKind) || "generated-screen-preview",
+    target,
+    href,
+    url: cleanString(source.url || source.resolvedUrl || source.href),
+    resolvedUrl: cleanString(source.resolvedUrl || source.url || source.href),
+    previewPath,
+    description: cleanString(source.description),
+    frameIds: normalizeStringArray(source.frameIds),
+    versionTag: cleanString(source.versionTag),
+    generatedAt: cleanString(source.generatedAt),
+    sourceFrameId: cleanString(source.sourceFrameId),
+    sourceFrameTitle: cleanString(source.sourceFrameTitle),
+    sourceFrameUpdatedAt: cleanString(source.sourceFrameUpdatedAt),
+    changeSummary: cleanString(source.changeSummary),
+    generationSummary: cleanString(source.generationSummary),
+    refinement: normalizeRefinementData(source.refinement),
+    createdAt: cleanString(source.createdAt) || now,
+    updatedAt: cleanString(source.updatedAt) || now,
+  };
+}
+
+function createCanvasReplyFromTarget(target, frame = currentFrame()) {
+  if (!target) {
+    return null;
+  }
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  return normalizeCanvasReply({
+    kind: "canvax-canvas-reply",
+    objectId: target.id || uid("canvas-reply"),
+    label: designerOutputTargetLabelFromItem(target, frame?.title) || "Canvas reply",
+    sourceKind: target.type || target.source || "generated-screen-preview",
+    source: target.source || "canvax-materialize",
+    type: target.type || "generated-screen-preview",
+    target:
+      target.previewPath ||
+      target.resolvedUrl ||
+      target.url ||
+      target.href ||
+      targetUrl,
+    href: targetUrl,
+    url: target.url || target.resolvedUrl || target.href || "",
+    resolvedUrl: target.resolvedUrl || target.url || target.href || "",
+    previewPath: target.previewPath || "",
+    description: target.description || "",
+    frameIds: Array.isArray(target.frameIds) && target.frameIds.length
+      ? target.frameIds
+      : [frame?.id].filter(Boolean),
+    versionTag: target.versionTag || "",
+    generatedAt: target.generatedAt || new Date().toISOString(),
+    sourceFrameId: target.sourceFrameId || frame?.id || "",
+    sourceFrameTitle: target.sourceFrameTitle || frame?.title || "",
+    sourceFrameUpdatedAt: target.sourceFrameUpdatedAt || frame?.updatedAt || "",
+    changeSummary: target.changeSummary || "",
+    generationSummary: target.generationSummary || "",
+    refinement: target.refinement || null,
+  });
+}
+
+function canvasReplyTargetForFrame(frame) {
+  const reply = normalizeCanvasReply(frame?.canvasReply);
+  if (!reply) {
+    return null;
+  }
+  const href = reply.href || reply.resolvedUrl || reply.url;
+  return {
+    id: reply.objectId || `canvas-reply-${frame?.id || "frame"}`,
+    label: reply.label || "Canvas reply",
+    source: reply.source || "canvax-canvas-reply",
+    type: reply.type || reply.sourceKind || "generated-screen-preview",
+    url: href,
+    resolvedUrl: href,
+    href,
+    previewPath: reply.previewPath || (!href ? reply.target : ""),
+    description:
+      reply.description ||
+      "Generated output is mounted under this canvas for sketch corrections.",
+    frameIds: reply.frameIds.length
+      ? reply.frameIds
+      : [frame?.id].filter(Boolean),
+    versionTag: reply.versionTag || "",
+    generatedAt: reply.generatedAt || "",
+    sourceFrameId: reply.sourceFrameId || frame?.id || "",
+    sourceFrameTitle: reply.sourceFrameTitle || frame?.title || "",
+    sourceFrameUpdatedAt: reply.sourceFrameUpdatedAt || frame?.updatedAt || "",
+    changeSummary: reply.changeSummary || "",
+    generationSummary: reply.generationSummary || "",
+    refinement: reply.refinement || normalizeRefinementData(null),
+    canvasReply: reply,
+  };
+}
+
 function frameOutputEditBinding(frame) {
+  const canvasReply = normalizeCanvasReply(frame?.canvasReply);
+  if (canvasReply) {
+    const sourceFrameId = cleanString(canvasReply.sourceFrameId || frame?.id);
+    const href =
+      cleanString(canvasReply.href || canvasReply.resolvedUrl || canvasReply.url) ||
+      (canvasReply.previewPath ? `/workspace/${canvasReply.previewPath}` : "");
+    return {
+      kind: "canvax-output-edit-binding",
+      objectId: cleanString(canvasReply.objectId),
+      sourceKind: cleanString(canvasReply.sourceKind || canvasReply.type),
+      target: cleanString(canvasReply.target || canvasReply.previewPath),
+      href,
+      sourceFrameId,
+      sourceFrameTitle:
+        cleanString(canvasReply.sourceFrameTitle) ||
+        (sourceFrameId ? frameTitleById(sourceFrameId) : ""),
+      branchFrameId: cleanString(frame?.id),
+      branchFrameTitle: cleanString(frame?.title),
+      branchLabel: cleanString(canvasReply.label) || "Canvas reply",
+      instruction:
+        "This frame is drawing over a generated output mounted under the canvas. Apply the sketch corrections and voice context to that output target instead of treating the frame as a new unrelated screen.",
+    };
+  }
+
   const variant =
     frame?.variant && typeof frame.variant === "object" ? frame.variant : null;
   if (!variant) {
@@ -3151,6 +3315,7 @@ function normalizeFrame(frame, index) {
     assets: frame.assets || "",
     mobile: frame.mobile || "",
     variant: normalizeFrameVariant(frame.variant),
+    canvasReply: normalizeCanvasReply(frame.canvasReply),
     backgroundImage: frame.backgroundImage || "",
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
     elements: Array.isArray(frame.elements)
@@ -3248,6 +3413,7 @@ function createFrame(overrides = {}) {
       assets: overrides.assets || "",
       mobile: overrides.mobile || "",
       variant: overrides.variant || null,
+      canvasReply: overrides.canvasReply || null,
       backgroundImage: overrides.backgroundImage || "",
       flowPosition: overrides.flowPosition || defaultFlowPosition(index),
       elements: overrides.elements || [],
@@ -3933,7 +4099,9 @@ function applyDesignerStartAction(action) {
   state.workbenchFocus = nextAction === "make" ? "split" : "sketch";
   state.viewMode = "frame";
   state.workbenchTrayCollapsed = nextAction === "sketch";
-  if (!["pen", "rect", "arrow", "erase"].includes(state.tool)) {
+  if (nextAction === "sketch") {
+    state.tool = "pen";
+  } else if (!["pen", "rect", "arrow", "erase"].includes(state.tool)) {
     state.tool = "pen";
   }
   persistState();
@@ -4378,6 +4546,12 @@ function renderFocusPad() {
   syncManualVoiceDraftControls();
   dom.focusApply.disabled = Boolean(state.focusApplyInFlight);
   dom.focusGenerate.disabled = Boolean(state.generationInFlight);
+  dom.focusCanvasReply.disabled = Boolean(
+    state.canvasReplyInFlight || state.generationInFlight,
+  );
+  dom.focusCanvasReply.textContent = state.canvasReplyInFlight
+    ? "Replying..."
+    : "Reply in canvas";
   dom.focusBuildReal.disabled = Boolean(state.buildRealInFlight);
   dom.workbenchReviewOutput.disabled = Boolean(state.designReviewInFlight);
   dom.workbenchOutputStageReview.disabled = Boolean(state.designReviewInFlight);
@@ -4407,6 +4581,12 @@ function renderFocusPad() {
     String(state.voice.status === "listening"),
   );
   dom.workbenchComposerMake.disabled = Boolean(state.generationInFlight);
+  dom.workbenchComposerReply.disabled = Boolean(
+    state.canvasReplyInFlight || state.generationInFlight,
+  );
+  dom.workbenchComposerReply.textContent = state.canvasReplyInFlight
+    ? "Replying..."
+    : "Reply";
   dom.workbenchComposerApply.disabled = Boolean(state.focusApplyInFlight);
   renderWorkbenchPromptChips();
 
@@ -8762,13 +8942,23 @@ function assetCandidatePathBasename(path) {
 
 function renderWorkbenchOutput() {
   const manifest = state.serverStatus.previewManifest || null;
-  const target = resolveManifestTargetEntry(manifest, state.activeFrameId);
   const frame = currentFrame();
+  const target = currentWorkbenchTarget();
   const annotationCount = frame.outputAnnotations?.length || 0;
-  const status = describeFrameOutputStatus(frame, {
-    includeGlobal: true,
-    manifest,
-  });
+  const status =
+    frame.canvasReply && target?.canvasReply
+      ? {
+          label: frame.elements.length ? "Reply marked" : "Canvas reply",
+          tone: frame.elements.length ? "warning" : "active",
+          detail: frame.elements.length
+            ? "Correction marks are on the canvas. Press Reply again to regenerate from them."
+            : "Generated output is mounted under this canvas. Draw directly over it to refine.",
+          target,
+        }
+      : describeFrameOutputStatus(frame, {
+          includeGlobal: true,
+          manifest,
+        });
   const targetUrl = resolveWorkbenchTargetUrl(target);
   const targetLabel = target
     ? designerOutputTargetLabelFromItem(target, frame.title)
@@ -8963,6 +9153,11 @@ function describeDesignJuryReview(review, target) {
 }
 
 function currentWorkbenchTarget() {
+  const frame = currentFrame();
+  const canvasReplyTarget = canvasReplyTargetForFrame(frame);
+  if (canvasReplyTarget) {
+    return canvasReplyTarget;
+  }
   const manifest = state.serverStatus.previewManifest || null;
   return resolveManifestTargetEntry(manifest, state.activeFrameId);
 }
@@ -9215,8 +9410,8 @@ function resolveWorkbenchTargetUrl(target) {
   if (!target) {
     return "";
   }
-  if (target.resolvedUrl || target.url) {
-    return target.resolvedUrl || target.url;
+  if (target.resolvedUrl || target.url || target.href) {
+    return target.resolvedUrl || target.url || target.href;
   }
   if (target.previewPath) {
     return `/workspace/${target.previewPath}`;
@@ -10446,6 +10641,14 @@ function renderWorkbenchAgentLog() {
       `,
     )
     .join("");
+}
+
+function setWorkbenchAgentLogOpen(open, { persist = true } = {}) {
+  state.workbenchAgentLogOpen = Boolean(open);
+  if (persist) {
+    persistState();
+  }
+  renderWorkbenchAgentLog();
 }
 
 function buildWorkbenchAgentLogItems() {
@@ -13737,6 +13940,8 @@ function renderCanvas() {
   const viewport = viewportPresets[frame.viewport];
   dom.canvas.style.width = `${Math.round(viewport.width * state.zoom)}px`;
   dom.canvas.style.height = `${Math.round(viewport.height * state.zoom)}px`;
+  const canvasReplyTarget = canvasReplyTargetForFrame(frame);
+  const canvasReplyVisible = renderCanvasReplyUnderlay(frame, canvasReplyTarget);
   const ctx = dom.canvas.getContext("2d");
   drawScene(
     ctx,
@@ -13745,26 +13950,68 @@ function renderCanvas() {
     dom.canvas.height,
     1,
     state.draftElement,
+    { transparentBase: canvasReplyVisible },
   );
 }
 
-function drawScene(ctx, frame, width, height, scale = 1, draftElement = null) {
+function renderCanvasReplyUnderlay(frame, target) {
+  if (!dom.canvasReplyUnderlay || !dom.canvasReplyFrame || !dom.deviceShell) {
+    return false;
+  }
+  const targetUrl =
+    state.viewMode === "frame" && frame ? resolveWorkbenchTargetUrl(target) : "";
+  const visible = Boolean(target && targetUrl);
+  dom.deviceShell.classList.toggle("has-canvas-reply", visible);
+  dom.canvasReplyUnderlay.hidden = !visible;
+  if (!visible) {
+    dom.canvasReplyFrame.removeAttribute("src");
+    return false;
+  }
+
+  const framedUrl = addTargetRevisionToUrl(targetUrl, target);
+  if (dom.canvasReplyFrame.getAttribute("src") !== framedUrl) {
+    dom.canvasReplyFrame.setAttribute("src", framedUrl);
+  }
+  if (dom.canvasReplyBadge) {
+    dom.canvasReplyBadge.textContent = compactDisplayText(
+      target.label || "Output reply",
+      34,
+    );
+  }
+  dom.canvasReplyUnderlay.style.left = `${dom.canvas.offsetLeft}px`;
+  dom.canvasReplyUnderlay.style.top = `${dom.canvas.offsetTop}px`;
+  dom.canvasReplyUnderlay.style.width = `${dom.canvas.offsetWidth}px`;
+  dom.canvasReplyUnderlay.style.height = `${dom.canvas.offsetHeight}px`;
+  return true;
+}
+
+function drawScene(
+  ctx,
+  frame,
+  width,
+  height,
+  scale = 1,
+  draftElement = null,
+  options = {},
+) {
   ctx.clearRect(0, 0, width, height);
 
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#f7efdf");
-  gradient.addColorStop(0.65, "#f3e6d2");
-  gradient.addColorStop(1, "#ead7c1");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  if (!options.transparentBase) {
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, "#f7efdf");
+    gradient.addColorStop(0.65, "#f3e6d2");
+    gradient.addColorStop(1, "#ead7c1");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
 
-  ctx.save();
-  ctx.globalAlpha = 0.18;
-  const bgImage = getCachedImage(frame.backgroundImage);
-  if (bgImage) {
-    drawCoverImage(ctx, bgImage, width, height);
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    const bgImage = getCachedImage(frame.backgroundImage);
+    if (bgImage) {
+      drawCoverImage(ctx, bgImage, width, height);
+    }
+    ctx.restore();
   }
-  ctx.restore();
 
   if (state.grid) {
     drawGrid(ctx, frame.viewport, width, height);
@@ -17217,6 +17464,7 @@ function duplicateFrame() {
     },
     elements: structuredClone(frame.elements),
     outputAnnotations: structuredClone(frame.outputAnnotations || []),
+    canvasReply: structuredClone(frame.canvasReply || null),
     thumbnail: frame.thumbnail,
     captures: structuredClone(frame.captures),
   });
@@ -17773,6 +18021,7 @@ function clearCurrentFrame() {
   const frame = currentFrame();
   pushHistory(frame.id);
   frame.elements = [];
+  frame.canvasReply = null;
   frame.outputAnnotations = [];
   frame.captures = [];
   frame.thumbnail = "";
@@ -18802,6 +19051,7 @@ async function buildExportPackage(frameSelection = state.frames) {
       assets: frame.assets,
       mobile: frame.mobile,
       variant: frame.variant,
+      canvasReply: frame.canvasReply,
       outputEditBinding: frameOutputEditBinding(frame),
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
@@ -18919,6 +19169,7 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       assets: frame.assets,
       mobile: frame.mobile,
       variant: frame.variant || null,
+      canvasReply: frame.canvasReply || null,
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       captureCount: frame.captureCount,
@@ -19992,6 +20243,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
       assets: frame.assets,
       variants: frame.mobile,
       variant: frame.variant,
+      canvasReply: frame.canvasReply,
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       snapshotPath: frame.snapshotPath || "",
@@ -21428,6 +21680,8 @@ function checkpointReasonLabel(reason) {
     "dictation-stop": "Dictation stop",
     "voice-note": "Voice note",
     "focus-apply": "Workbench apply",
+    "canvas-reply-source": "Canvas reply source",
+    "canvas-reply-ready": "Canvas reply",
     materialize: "Materialize",
     "generate-screen": "Generate screen",
     "publish-output": "Published output",
@@ -21448,6 +21702,8 @@ function summarizeFrameForCheckpoint(frame, index) {
     motion: frame.motion,
     assets: frame.assets,
     mobile: frame.mobile,
+    canvasReply: frame.canvasReply || null,
+    outputEditBinding: frameOutputEditBinding(frame),
     updatedAt: frame.updatedAt,
     captureCount: frame.captures.length,
     outputAnnotationCount: frame.outputAnnotations?.length || 0,
@@ -21756,6 +22012,8 @@ async function buildMaterializePayloadWithMode(
       assets: frame.assets,
       mobile: frame.mobile,
       variant: frame.variant,
+      canvasReply: frame.canvasReply,
+      outputEditBinding: frameOutputEditBinding(frame),
       updatedAt: frame.updatedAt,
       captureCount: frame.captures.length,
       backgroundImage: frame.backgroundImage || "",
@@ -21961,6 +22219,93 @@ async function generateCurrentScreen(options = {}) {
     ...options,
     mode: "generate-screen",
   });
+}
+
+async function replyInCanvasFromCurrentSketch() {
+  if (state.canvasReplyInFlight || state.generationInFlight) {
+    return null;
+  }
+  const frame = currentFrame();
+  if (!frame) {
+    return null;
+  }
+  commitManualVoiceDraft("canvas-reply");
+  if (!frameHasMeaningfulHandoff(frame)) {
+    dom.workspaceStatus.textContent =
+      "Draw a sketch, add a note, or start from an existing output before replying in canvas.";
+    renderStatus("Nothing to reply with yet");
+    return null;
+  }
+
+  state.canvasReplyInFlight = true;
+  renderFocusPad();
+  dom.workspaceStatus.textContent =
+    "Freezing the sketch, generating the output, then clearing the drawing layer...";
+  renderStatus("Preparing canvas reply");
+
+  try {
+    const sourceExport = await freezeFrame(true, {
+      awaitHandoff: true,
+      reason: "canvas-reply-source",
+      status: "Canvas reply source saved",
+    });
+    const generated = await generateCurrentScreen({
+      silent: true,
+      announce: false,
+      openPreview: false,
+      skipCheckpoint: true,
+      exportResult: sourceExport,
+    });
+    if (!generated) {
+      throw new Error("Canvas reply generation did not produce an output.");
+    }
+
+    const manifest = generated.previewManifest || state.serverStatus.previewManifest;
+    const target = resolveManifestTargetEntry(manifest, frame.id);
+    const canvasReply = createCanvasReplyFromTarget(target, frame);
+    if (!canvasReply) {
+      throw new Error("Generated output could not be mounted under the canvas.");
+    }
+
+    pushHistory(frame.id);
+    frame.canvasReply = canvasReply;
+    frame.elements = [];
+    frame.updatedAt = new Date().toISOString();
+    state.draftElement = null;
+    state.isDrawing = false;
+    state.viewMode = "frame";
+    state.workbenchFocus = "sketch";
+    state.tool = "pen";
+    clearElementSelection();
+    frameRenderCache.delete(frame.id);
+    persistState();
+    renderAll();
+    renderStatus("Canvas reply ready");
+    dom.workspaceStatus.textContent =
+      "Canvas reply is ready. Draw corrections directly over the generated output, then press Reply again.";
+    scheduleLivePreviewSync();
+
+    const exportResult = await saveExportToWorkspace({ silent: true });
+    void saveCheckpointToWorkspace("canvas-reply-ready", {
+      silent: true,
+      exportResult,
+      note: `Mounted ${canvasReply.label || "the generated output"} under ${frame.title} and cleared the sketch layer for corrections.`,
+    });
+    return {
+      generated,
+      target,
+      canvasReply,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Canvas reply failed.";
+    dom.workspaceStatus.textContent = message;
+    renderStatus("Canvas reply failed");
+    return null;
+  } finally {
+    state.canvasReplyInFlight = false;
+    renderFocusPad();
+  }
 }
 
 async function materializeCurrentFrame(options = {}) {
@@ -22302,6 +22647,8 @@ function buildLivePreviewPayload() {
           motion: frame.motion,
           assets: frame.assets,
           mobile: frame.mobile,
+          canvasReply: frame.canvasReply,
+          outputEditBinding: frameOutputEditBinding(frame),
           updatedAt: frame.updatedAt,
           captureCount: frame.captures.length,
           outputAnnotationCount: frame.outputAnnotations?.length || 0,
@@ -22853,6 +23200,7 @@ function frameHasMeaningfulHandoff(frame) {
     (Array.isArray(frame.elements) && frame.elements.length) ||
     (Array.isArray(frame.captures) && frame.captures.length) ||
     cleanString(frame.backgroundImage) ||
+    Boolean(frame.canvasReply) ||
     cleanString(frame.objective) ||
     cleanString(frame.layout) ||
     cleanString(frame.motion) ||
@@ -23347,16 +23695,83 @@ async function runSelfTest() {
           Boolean(dom.workbenchComposerNote) &&
           Boolean(dom.workbenchComposerPin) &&
           Boolean(dom.workbenchComposerMake) &&
+          Boolean(dom.workbenchComposerReply) &&
           Boolean(dom.workbenchComposerApply) &&
           Boolean(dom.focusAddImage) &&
           Boolean(dom.focusImageInput) &&
           Boolean(dom.focusAddContext) &&
+          Boolean(dom.focusCanvasReply) &&
+          Boolean(dom.canvasReplyUnderlay) &&
           Boolean(dom.workbenchReviewOutput) &&
           Boolean(dom.workbenchOutputStageReview) &&
           Boolean(dom.focusVoiceIntents) &&
           Boolean(dom.workbenchAgentLog) &&
-          Boolean(dom.workbenchAgentLogToggle),
-        "Workbench composer, context import, review controls, voice intent lane, and agent log render",
+          Boolean(dom.workbenchAgentLogToggle) &&
+          !document.querySelector("#codex-scratchpad-dock"),
+        "Workbench composer, canvas reply, context import, review controls, voice intent lane, and compact agent log render",
+      ),
+    );
+    const agentLogInitialOpen = state.workbenchAgentLogOpen;
+    setWorkbenchAgentLogOpen(true, { persist: false });
+    const agentLogOpened =
+      dom.workbenchAgentLogPanel.hidden === false &&
+      dom.workbenchAgentLogToggle.getAttribute("aria-expanded") === "true";
+    dom.workbenchAgentLogToggle.click();
+    const agentLogClosedByToggle =
+      dom.workbenchAgentLogPanel.hidden === true &&
+      dom.workbenchAgentLogToggle.getAttribute("aria-expanded") === "false";
+    setWorkbenchAgentLogOpen(true, { persist: false });
+    document.body.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true }),
+    );
+    const agentLogClosedByOutside = dom.workbenchAgentLogPanel.hidden === true;
+    setWorkbenchAgentLogOpen(true, { persist: false });
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    const agentLogClosedByEscape = dom.workbenchAgentLogPanel.hidden === true;
+    setWorkbenchAgentLogOpen(agentLogInitialOpen, { persist: false });
+    results.push(
+      assert(
+        agentLogOpened &&
+          agentLogClosedByToggle &&
+          agentLogClosedByOutside &&
+          agentLogClosedByEscape,
+        "Workbench agent log toggles closed, closes outside, and closes on Escape",
+      ),
+    );
+    const frameForCanvasReply = currentFrame();
+    const previousCanvasReply = structuredClone(
+      frameForCanvasReply.canvasReply || null,
+    );
+    const previousViewModeForReply = state.viewMode;
+    frameForCanvasReply.canvasReply = normalizeCanvasReply({
+      objectId: "self-test-canvas-reply",
+      label: "Self-test output",
+      previewPath: "artifacts/preview/self-test/index.html",
+      frameIds: [frameForCanvasReply.id],
+      sourceFrameId: frameForCanvasReply.id,
+      sourceFrameTitle: frameForCanvasReply.title,
+      versionTag: "self-test",
+    });
+    state.viewMode = "frame";
+    renderCanvas();
+    const canvasReplyRendered =
+      dom.deviceShell.classList.contains("has-canvas-reply") &&
+      dom.canvasReplyUnderlay.hidden === false &&
+      dom.canvasReplyFrame
+        .getAttribute("src")
+        ?.includes("/workspace/artifacts/preview/self-test/index.html");
+    const canvasReplyBinding = frameOutputEditBinding(frameForCanvasReply);
+    frameForCanvasReply.canvasReply = previousCanvasReply;
+    state.viewMode = previousViewModeForReply;
+    renderCanvas();
+    results.push(
+      assert(
+        canvasReplyRendered &&
+          canvasReplyBinding?.branchFrameId === frameForCanvasReply.id &&
+          canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html"),
+        "same-canvas reply underlay renders and exports output edit binding",
       ),
     );
     const previousPinState = {
@@ -27681,6 +28096,7 @@ async function createSelfTestImageFile() {
 function resetFrameForSelfTest() {
   const frame = currentFrame();
   state.viewMode = "frame";
+  state.zoom = 1;
   state.connections = [];
   state.selectedConnectionId = null;
   state.pendingConnectionFromFrameId = null;

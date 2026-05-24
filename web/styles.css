@@ -223,7 +223,8 @@ body[data-workspace-mode="simple"][data-workbench-tray="collapsed"]
 
 body[data-workspace-mode="simple"][data-workbench-tray="collapsed"] .stage-panel {
     min-height: calc(100dvh - 6rem);
-    margin-bottom: 9.8rem;
+    margin-right: min(24.5rem, 34vw);
+    margin-bottom: 1rem;
 }
 
 body[data-workspace-mode="simple"] .device-shell {
@@ -2664,18 +2665,19 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 
 .workbench-composer-chips {
     position: fixed;
-    right: 50%;
-    bottom: 9.45rem;
+    right: 1rem;
+    top: calc(clamp(5.2rem, 8vh, 6.5rem) + 26rem);
     z-index: 7;
-    display: flex;
-    width: min(68rem, calc(100vw - 1.6rem));
+    display: none;
+    width: min(23rem, calc(100vw - 2rem));
+    max-height: min(16rem, calc(100dvh - 34rem));
     gap: 0.45rem;
-    justify-content: center;
-    overflow-x: auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow-y: auto;
     padding: 0.15rem 0.2rem 0.25rem;
     scrollbar-width: none;
-    transform: translateX(50%);
-    animation: rail-reveal 260ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: scratchpad-dock-reveal 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .workbench-composer-chips::-webkit-scrollbar {
@@ -2707,16 +2709,19 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 
 .workbench-composer {
     position: fixed;
-    right: 50%;
-    bottom: 5.05rem;
+    top: clamp(5.2rem, 8vh, 6.5rem);
+    right: 1rem;
+    bottom: auto;
     z-index: 7;
     display: grid;
-    grid-template-columns: minmax(16rem, 1fr) repeat(5, auto);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
     gap: 0.45rem;
-    width: min(68rem, calc(100vw - 1.6rem));
-    padding: 0.45rem;
-    border-radius: 1.65rem;
+    width: min(23rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 7rem);
+    overflow-y: auto;
+    padding: 0.62rem;
+    border-radius: 1.35rem;
     border: 0.0625rem solid rgba(255, 248, 236, 0.16);
     background:
         linear-gradient(180deg, rgba(255, 248, 236, 0.1), transparent 58%),
@@ -2725,13 +2730,13 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
         inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.04),
         0 1.35rem 4.2rem rgba(0, 0, 0, 0.32);
     backdrop-filter: blur(1.35rem);
-    transform: translateX(50%);
-    animation: rail-reveal 260ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: scratchpad-dock-reveal 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .workbench-composer-input-wrap {
     display: grid;
     gap: 0.18rem;
+    grid-column: 1 / -1;
     min-width: 0;
     padding: 0.36rem 0.72rem;
     border-radius: 1.25rem;
@@ -2746,8 +2751,8 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 
 .workbench-composer-input-wrap textarea {
     width: 100%;
-    min-height: 2.35rem;
-    max-height: 7rem;
+    min-height: 7rem;
+    max-height: 14rem;
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -2768,8 +2773,8 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 }
 
 .composer-button {
-    min-width: 4.4rem;
-    min-height: 3.5rem;
+    min-width: 0;
+    min-height: 2.85rem;
     padding: 0.35rem 0.72rem;
     border-radius: 1.25rem;
     border-color: rgba(255, 248, 236, 0.12);
@@ -2825,6 +2830,7 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
     display: grid;
     gap: 0.55rem;
     width: min(22rem, calc(100vw - 2rem));
+    isolation: isolate;
     pointer-events: none;
 }
 
@@ -2833,6 +2839,8 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 }
 
 .workbench-agent-log-toggle {
+    position: relative;
+    z-index: 2;
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
@@ -2884,6 +2892,8 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 }
 
 .workbench-agent-log-panel {
+    position: relative;
+    z-index: 1;
     display: grid;
     gap: 0.65rem;
     max-height: min(28rem, calc(100vh - 10rem));
@@ -2899,6 +2909,10 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
         0 1.6rem 4rem rgba(0, 0, 0, 0.34);
     backdrop-filter: blur(1.3rem);
     animation: rail-reveal 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.workbench-agent-log-panel[hidden] {
+    display: none;
 }
 
 .workbench-agent-log-header {
@@ -3001,7 +3015,7 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 }
 
 body[data-workspace-mode="simple"][data-workbench-tray="collapsed"] .workbench-rail {
-    display: grid;
+    display: none;
     gap: 0.38rem;
     grid-auto-flow: column;
     grid-auto-columns: minmax(3.1rem, auto);
@@ -3126,6 +3140,26 @@ body[data-workspace-mode="simple"][data-workbench-tray="collapsed"] .workbench-r
     to {
         opacity: 1;
         transform: translate(50%, 0) scale(1);
+    }
+}
+
+@keyframes scratchpad-dock-reveal {
+    from {
+        opacity: 0;
+        transform: translateX(0.55rem) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .workbench-rail,
+    .workbench-composer,
+    .workbench-composer-chips {
+        animation: none;
+        transition: none;
     }
 }
 
@@ -3497,6 +3531,57 @@ input.color-hex-input[data-invalid="true"] {
     background: #f4ead8;
     touch-action: none;
     cursor: crosshair;
+}
+
+.device-shell.has-canvas-reply #board-canvas {
+    background: transparent;
+}
+
+.canvas-reply-underlay {
+    position: absolute;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: 1.35rem;
+    border: 0.0625rem solid rgba(35, 100, 170, 0.28);
+    background: #fffaf3;
+    box-shadow:
+        0 0.4rem 1rem rgba(0, 0, 0, 0.08),
+        0 1.5rem 4rem rgba(0, 0, 0, 0.12);
+    pointer-events: none;
+}
+
+.canvas-reply-underlay iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fffaf3;
+}
+
+.canvas-reply-badge {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    max-width: calc(100% - 1.5rem);
+    padding: 0.38rem 0.65rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 248, 236, 0.22);
+    color: #fff8ec;
+    background: rgba(35, 100, 170, 0.84);
+    box-shadow: 0 0.7rem 1.5rem rgba(0, 0, 0, 0.18);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.device-shell.has-canvas-reply::before {
+    content: "draw corrections over generated output";
+}
+
+.device-shell.has-canvas-reply #board-canvas {
+    position: relative;
+    z-index: 1;
 }
 
 .brush-preview {
@@ -6011,20 +6096,43 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
         scrollbar-width: none;
     }
 
+    body[data-workspace-mode="simple"][data-workbench-tray="collapsed"]
+        .workbench-rail {
+        display: grid;
+    }
+
     .workbench-rail::-webkit-scrollbar {
         display: none;
     }
 
     .workbench-composer {
+        top: auto;
+        right: 50%;
         bottom: 4.85rem;
         grid-template-columns: minmax(14rem, 1fr) repeat(2, auto);
+        width: min(68rem, calc(100vw - 1.4rem));
+        max-height: none;
+        overflow: visible;
+        padding: 0.45rem;
         border-radius: 1.35rem;
+        transform: translateX(50%);
+        animation: rail-reveal 260ms cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .workbench-composer-chips {
+        top: auto;
+        right: 50%;
         bottom: 9.05rem;
+        display: flex;
+        width: min(68rem, calc(100vw - 1.4rem));
+        max-height: none;
+        flex-direction: row;
         justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
         padding-inline: 0.35rem;
+        transform: translateX(50%);
+        animation: rail-reveal 260ms cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     body[data-workspace-mode="simple"][data-workbench-tray="collapsed"]
@@ -6050,6 +6158,11 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
 
     .workbench-composer-input-wrap {
         grid-column: 1 / -1;
+    }
+
+    .workbench-composer-input-wrap textarea {
+        min-height: 2.35rem;
+        max-height: 7rem;
     }
 
     .composer-button {

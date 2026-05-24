@@ -538,6 +538,13 @@
                             <button id="focus-generate" class="ghost-button">
                                 Make real
                             </button>
+                            <button
+                                id="focus-canvas-reply"
+                                class="ghost-button"
+                                title="Freeze this sketch, clear the drawing layer, and place the generated output under the same canvas for corrections"
+                            >
+                                Reply in canvas
+                            </button>
                             <button id="focus-build-real" class="ghost-button">
                                 Build code
                             </button>
@@ -754,6 +761,14 @@
                         title="Commit the instruction and generate a local screen"
                     >
                         Make
+                    </button>
+                    <button
+                        id="workbench-composer-reply"
+                        class="composer-button composer-button-strong"
+                        type="button"
+                        title="Commit the instruction, snapshot the sketch, clear the canvas, and reply with generated output in the same drawing surface"
+                    >
+                        Reply
                     </button>
                     <button
                         id="workbench-composer-apply"
@@ -1155,6 +1170,24 @@
                                         Enter to place, Shift+Enter for newline,
                                         Esc to cancel.
                                     </p>
+                                </div>
+                                <div
+                                    id="canvas-reply-underlay"
+                                    class="canvas-reply-underlay"
+                                    aria-hidden="true"
+                                    hidden
+                                >
+                                    <iframe
+                                        id="canvas-reply-frame"
+                                        title="Generated output underlay"
+                                        loading="lazy"
+                                    ></iframe>
+                                    <span
+                                        id="canvas-reply-badge"
+                                        class="canvas-reply-badge"
+                                    >
+                                        Output reply
+                                    </span>
                                 </div>
                                 <canvas id="board-canvas"></canvas>
                             </div>
