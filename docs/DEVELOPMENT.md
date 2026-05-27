@@ -52,7 +52,7 @@ Start or reuse the service:
 ./canvax
 ```
 
-For manual UI work, invoke `/canvax` so `http://localhost:3210` opens in Codex Browser Use / Atlas when available. Use `./canvax --open-external` or `./canvax --chrome` only when you intentionally want an external browser.
+For manual UI work, invoke `/canvax` so `http://localhost:3210/?host=codex-sidecar` targets the right-side Codex in-app browser when available. Use `http://localhost:3210` for the full board, and use `./canvax --open-external` or `./canvax --chrome` only when you intentionally want an external browser.
 
 Basic syntax check:
 
@@ -103,7 +103,7 @@ http://localhost:3210/?selftest=1
 
 The board self-test covers drawing tools, select/move/resize, eraser ink-layer behavior, Workbench dock brush sizing, Workbench action modes, Workbench Agent log rendering/activity/compact upward placement plus pointer, close-control, outside-click, and Escape dismissal, host/design-context handoff fields, flow link creation/deletion, task/image prompt packs, materialize, output activity, rewrite queue state, board-side rewrite execution, and large-session export consistency.
 
-The browser regression also includes deterministic `visualfixture=workbench-agent-log` and `visualfixture=advanced-map` routes. The Agent log fixture captures the compact open sheet on desktop and narrow screens and asserts it opens above the toggle, stays within the viewport, keeps a usable close target, and avoids horizontal overflow. The Advanced fixture seeds a dense Map session, switches into Advanced Flow view, captures desktop and tablet screenshots from a scrolled session state, and asserts that the Advanced deck has no backdrop blur, uses an opaque background, renders the Output shelf, renders the compact Map timeline, and does not show raw `generated-target` labels.
+The browser regression also includes deterministic `visualfixture=workbench-agent-log`, `host=codex-sidecar&visualfixture=codex-sidecar`, and `visualfixture=advanced-map` routes. The Agent log fixture captures the compact open sheet on desktop and narrow screens and asserts it opens above the toggle, stays within the viewport, keeps a usable close target, and avoids horizontal overflow. The Codex sidecar fixture captures the embedded narrow Workbench surface and asserts the canvas, composer, rail controls, and exported `workbench.hostSurface` stay usable without horizontal overflow. The Advanced fixture seeds a dense Map session, switches into Advanced Flow view, captures desktop and tablet screenshots from a scrolled session state, and asserts that the Advanced deck has no backdrop blur, uses an opaque background, renders the Output shelf, renders the compact Map timeline, and does not show raw `generated-target` labels.
 
 End-to-end no-API workflow proof:
 
@@ -578,7 +578,7 @@ Edit:
 After interaction changes, check these manually:
 
 - board opens at the expected local URL
-- board opens cleanly inside Codex Browser Use / Atlas
+- board opens cleanly inside the Codex in-app browser
 - tools still switch correctly
 - brush size updates correctly
 - labels can be placed and edited
@@ -603,7 +603,7 @@ After interaction changes, check these manually:
 - output-context digest changes create `Output update` checkpoints without forcing a fresh export write
 - Preview shows refinement summaries and changed-region overlays after rematerialize
 - `?selftest=1` now covers both the small interaction path and a synthetic large-session fixture
-- Preview and any generated app target can be inspected inside Codex Browser Use / Atlas
+- Preview and any generated app target can be inspected inside the Codex in-app browser
 
 ## Current Test Layers
 
@@ -637,7 +637,7 @@ The main next layers are:
 - richer live collaboration state
 - voice attached to canvas checkpoints
 - preview/artifact feedback loop
-- Codex Browser Use / Atlas first validation for board, Preview, and generated routes
+- Codex in-app browser first validation for board, Preview, and generated routes
 - better thread-to-canvas coordination with Codex
 
 ```text

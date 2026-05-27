@@ -29,14 +29,26 @@ const checks = [
           "workbench-review-output",
           "workbench-design-review-badge",
           "workbench-agent-log",
+          "workbench-composer",
         ],
       },
       {
         path: "web/app.js",
         includes: [
+          "hostSurfaceMode",
+          "codex-sidecar",
           "function buildWorkbenchAgentLogExport",
           "function buildWorkbenchExport",
+          "hostSurfaceUrl",
           "implementationContext.workbench?.agentLog",
+        ],
+      },
+      {
+        path: "scripts/browser-regression.mjs",
+        includes: [
+          "validateCodexSidecarSmoke",
+          "host=codex-sidecar&visualfixture=codex-sidecar",
+          "exportedWorkbench?.hostSurface",
         ],
       },
       {
@@ -53,7 +65,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Manual taste review for first-time-designer clarity is still required, but the default surface now has a four-step guided Start here path, an inline local output review gate, and a compact Workbench Agent log.",
+      "Manual taste review for first-time-designer clarity is still required, but the default surface now has a four-step guided Start here path, an inline local output review gate, a compact Workbench Agent log, and a local Codex sidecar scratchpad URL.",
   },
   {
     id: "local-project-switching",
@@ -109,7 +121,11 @@ const checks = [
       },
       {
         path: "scripts/browser-regression.mjs",
-        includes: ["visualfixture=advanced-map", "advanced map visual smoke"],
+        includes: [
+          "visualfixture=advanced-map",
+          "host=codex-sidecar",
+          "advanced map visual smoke",
+        ],
       },
       {
         path: "docs/CANVAX_PARITY_AUDIT.md",

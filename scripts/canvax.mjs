@@ -184,6 +184,16 @@ const wantsTranscriptBridge =
   args.includes("--note");
 let workspaceFollowCache = null;
 
+function buildCodexEditorUrl(baseUrl) {
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set("host", "codex-sidecar");
+    return url.toString();
+  } catch {
+    return `${String(baseUrl || "").replace(/\/$/, "")}/?host=codex-sidecar`;
+  }
+}
+
 function buildTransportDescriptor(overrides = {}) {
   const base = {
     id: "canvax-local-companion-v1",
@@ -780,6 +790,8 @@ async function runServer(port) {
           designContext: await readDesignContext(),
           designKitGallery: await readDesignKitGallery(),
           url: `http://localhost:${port}`,
+          codexEditorUrl: buildCodexEditorUrl(`http://localhost:${port}`),
+          codexSidecarUrl: buildCodexEditorUrl(`http://localhost:${port}`),
         });
       }
 
@@ -7266,10 +7278,13 @@ function isWithinRoot(filePath, rootPath) {
 
 function buildRuntime(port) {
   const url = `http://localhost:${port}`;
+  const codexEditorUrl = buildCodexEditorUrl(url);
   return {
     pid: process.pid,
     port,
     url,
+    codexEditorUrl,
+    codexSidecarUrl: codexEditorUrl,
     projectRoot,
     runtimePath,
     serverLogPath,
@@ -7398,11 +7413,16 @@ async function inspectPortForRuntime(port) {
 }
 
 function buildRecoveredRuntime(status, port) {
+  const url = status.url || `http://localhost:${port}`;
+  const codexEditorUrl =
+    status.codexEditorUrl || status.codexSidecarUrl || buildCodexEditorUrl(url);
   return {
     ...buildRuntime(port),
     pid: status.pid,
     port,
-    url: status.url || `http://localhost:${port}`,
+    url,
+    codexEditorUrl,
+    codexSidecarUrl: codexEditorUrl,
     projectRoot: status.projectRoot || projectRoot,
     runtimePath: status.runtimePath || runtimePath,
     serverLogPath: status.serverLogPath || serverLogPath,
@@ -7605,26 +7625,37 @@ async function runCommand(command, args, options = {}) {
 }
 
 function printCliOutput(asJson, payload, message) {
+  const outputPayload =
+    payload?.url && !payload.codexEditorUrl
+      ? {
+          ...payload,
+          codexEditorUrl: buildCodexEditorUrl(payload.url),
+          codexSidecarUrl: buildCodexEditorUrl(payload.url),
+        }
+      : payload;
   if (asJson) {
-    console.log(JSON.stringify(payload, null, 2));
+    console.log(JSON.stringify(outputPayload, null, 2));
     return;
   }
 
   console.log(message);
-  if (payload.url) {
-    console.log(`Board URL: ${payload.url}`);
+  if (outputPayload.url) {
+    const codexEditorUrl =
+      outputPayload.codexEditorUrl || buildCodexEditorUrl(outputPayload.url);
+    console.log(`Board URL: ${outputPayload.url}`);
+    console.log(`Codex right-side editor URL: ${codexEditorUrl}`);
     console.log(
-      `Preferred Codex path: invoke /canvax so Codex opens ${payload.url} in the in-app Browser Use/Atlas tab.`,
+      `Preferred Codex path: invoke /canvax so Codex targets ${codexEditorUrl} in the right-side in-app browser.`,
     );
     console.log(
       "External browser fallback: ./canvax --open-external or ./canvax --chrome.",
     );
   }
-  if (payload.openedExternalBrowser) {
+  if (outputPayload.openedExternalBrowser) {
     const browserLabel =
-      payload.externalBrowser === "chrome"
+      outputPayload.externalBrowser === "chrome"
         ? "Google Chrome"
-        : "macOS default browser";
+        : "default system browser";
     console.log(
       `Opened through ${browserLabel} because an external-open flag was explicitly provided.`,
     );
@@ -7670,9 +7701,9 @@ Usage:
 
 Behavior:
   - Running without arguments ensures exactly one Canvax service is active.
-  - Preferred Codex Desktop flow: invoke /canvax so Codex opens http://localhost:3210 in Browser Use/Atlas.
-  - --open-external and --open use macOS open/default browser.
-  - --chrome opens Google Chrome explicitly on macOS.
+  - Preferred Codex Desktop flow: invoke /canvax so Codex targets http://localhost:3210/?host=codex-sidecar in the right-side in-app browser.
+  - --open-external and --open use the system default browser.
+  - --chrome opens Google Chrome explicitly.
   - --transcript queues Codex chat dictation text into Canvax voice context.
   - Use --frame/--frame-id, --frame-title, --source, --provider, or --at when a host bridge needs explicit transcript metadata.
   - If Canvax is already running, the existing service is reused.

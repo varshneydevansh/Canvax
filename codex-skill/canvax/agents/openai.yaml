@@ -1,4 +1,4 @@
 interface:
   display_name: "Canvax"
-  short_description: "Attach this thread to the live Canvax board and use its latest sketch export"
-  default_prompt: "Attach this thread to Canvax, open or reuse the live board, and use the latest sketch export as the working visual source."
+  short_description: "Open the compact Canvax editor in Codex and use its live sketch, voice, and design handoff"
+  default_prompt: "Start or reuse Canvax, target http://localhost:3210/?host=codex-sidecar in Codex's right-side in-app browser, attach this thread to the live canvas, and use the latest sketch, voice, checkpoint, and output export as the working visual source."

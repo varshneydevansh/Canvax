@@ -9,7 +9,7 @@ preferred today
   ./canvax service
       |
       v
-  /canvax opens localhost:3210 in Codex Browser Use / Atlas
+  /canvax targets localhost:3210/?host=codex-sidecar in the right-side Codex in-app browser
       |
       +--> user sketches
       +--> Codex inspects board and Preview
@@ -19,13 +19,13 @@ preferred today
 
 ## Why This Is The Default
 
-Using Codex Browser Use / Atlas keeps the collaboration loop in one place:
+Using the Codex in-app browser keeps the collaboration loop in one place:
 
 - the user sketches in Canvax
 - Codex reads the live export
 - Codex can read the task pack or image prompt pack when the request is build/spec/image-placement work
 - Codex can forward chat microphone transcripts into Canvax voice notes with `./canvax --transcript "..." --scope frame`
-- Codex uses Browser Use to inspect the board, Preview, and generated app
+- Codex uses the in-app browser to inspect the board, Preview, and generated app
 - Codex changes real files in the workspace
 - Codex publishes output context back to Canvax
 - the user keeps sketching corrections
@@ -34,19 +34,19 @@ This is closer to the intended Canvax product than bouncing between Codex and a 
 
 ## Startup
 
-Start or reuse the local service:
+Invoke `/canvax` so the Canvax skill starts or reuses the local service and targets this URL in the right-side in-app browser. Use `$canvax` only as the explicit skill fallback if the slash entry is unavailable:
 
-```bash
-./canvax
+```text
+http://localhost:3210/?host=codex-sidecar
 ```
 
-Then invoke `/canvax` or `$canvax` so Codex opens this URL in Browser Use / Atlas:
+Use the full board only when you need more room:
 
 ```text
 http://localhost:3210
 ```
 
-Use these only when you explicitly want a separate macOS browser window:
+Use these only when you explicitly want a separate browser window:
 
 ```bash
 ./canvax --open-external
@@ -58,7 +58,7 @@ Use these only when you explicitly want a separate macOS browser window:
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant B as Codex Browser Use / Atlas
+    participant B as Codex in-app browser
     participant C as Codex
     participant S as Canvax service
     participant W as Workspace
@@ -74,7 +74,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A["Open board in Browser Use / Atlas"] --> B["Draw / label / voice"]
+    A["Open board in Codex in-app browser"] --> B["Draw / label / voice"]
     B --> C["Generate screen"]
     C --> D["Inspect generated route"]
     D --> E{"Needs change?"}
@@ -98,7 +98,7 @@ flowchart TD
 
 ## What Codex Should Inspect
 
-In Browser Use / Atlas, Codex should inspect:
+In the in-app browser, Codex should inspect:
 
 - the board at `http://localhost:3210`
 - the Preview window opened from the board
@@ -142,15 +142,16 @@ node scripts/write-codex-output.mjs --from-git-status --preview-path artifacts/p
 The current repo is a local command plus a skill:
 
 ```text
-./canvax  -> service
-/canvax   -> Codex skill behavior
+./canvax  -> local service
+/canvax   -> preferred command-style skill entry in Codex; targets ?host=codex-sidecar
+$canvax   -> explicit skill fallback; same handoff instructions
 ```
 
 The next packaging step should be a Canvax plugin that bundles:
 
 - the existing skill instructions
 - MCP-style tools for reading the current frame/checkpoint
-- a tool to open the board in Browser Use / Atlas
+- a tool to target the sidecar editor in the Codex in-app browser
 - a tool to create or read a `Build with Codex` real implementation request
 - a tool to publish output manifests after Codex changes files
 

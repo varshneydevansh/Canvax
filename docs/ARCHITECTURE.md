@@ -138,7 +138,7 @@ flowchart TD
 ## Runtime Flow
 
 1. `./canvax` starts or reuses the local service.
-2. `/canvax` or `$canvax` opens the board from that local service inside Codex Browser Use / Atlas at `http://localhost:3210`.
+2. `/canvax` or `$canvax` starts or reuses that local service and targets the Codex in-app browser at `http://localhost:3210/?host=codex-sidecar`.
 3. The user draws, annotates, or links frames.
 4. Canvax autosnaps after idle or stores a manual freeze.
 5. `web/app.js` sends the latest export package to `/api/save-export`.
@@ -152,7 +152,7 @@ flowchart TD
 13. When a frame is materialized again, the service computes a refinement delta, writes it into the materialize metadata, and exposes it through the preview manifest so Preview can show changed-region overlays.
 14. The board can now send a richer generation recipe into that same endpoint, which lets the local service produce a `generated-screen-preview` target instead of only the quicker materialized preview.
 15. The service exposes host capabilities and optional root `DESIGN.md` context through status and preview-state, so the board can describe what the current Codex/browser host can and cannot do.
-16. Codex Browser Use / Atlas is the preferred inspection surface for the board, Preview, and generated app routes while Codex edits and validates workspace files.
+16. Codex in-app browser is the preferred inspection surface for the board, Preview, and generated app routes while Codex edits and validates workspace files.
 
 ```mermaid
 sequenceDiagram
@@ -246,7 +246,7 @@ Current mechanism:
 
 Purpose:
 
-- tell the board whether it is running as a local no-API handoff, inside Codex Browser Use / Atlas, or a future richer host
+- tell the board whether it is running as a local no-API handoff, inside Codex in-app browser, or a future richer host
 - avoid implying direct ChatGPT image-generation or Codex microphone access when the local page does not have that bridge
 - include reusable design rules in task/image prompt packs without manually pasting them into every sketch
 - expose a local `Design kit` rule stack and preset selection so the board can export active design-system intent even when no root `DESIGN.md` exists
@@ -890,7 +890,7 @@ asset candidate pack
 
 ## Current Design Boundary
 
-Today, Canvax is a local browser companion for Codex. When Browser Use / Atlas is available, that local browser surface should be the Codex in-app browser. `./canvax --open-external`, `./canvax --open`, and `./canvax --chrome` are explicit escape hatches for users who want an external browser.
+Today, Canvax is a local browser companion for Codex. When Codex in-app browser is available, that local browser surface should be the Codex in-app browser. `./canvax --open-external`, `./canvax --open`, and `./canvax --chrome` are explicit escape hatches for users who want an external browser.
 
 It is not yet:
 
@@ -906,7 +906,7 @@ The clean migration path is:
 
 1. keep the board semantics, export schema, manifest schema, and rewrite queue logic
 2. replace file-path transport with thread/artifact/event transport
-3. replace Browser Use/local Preview wiring with a richer Codex client surface
+3. replace in-app browser/local Preview wiring with a richer Codex client surface
 4. preserve `Materialize`, checkpoints, and output binding semantics across the transport swap
 
 That is why the transport object exists now: the repo can describe what is transport-specific versus what is core Canvax behavior.

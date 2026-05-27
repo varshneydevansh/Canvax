@@ -39,23 +39,23 @@ connected sections, variants, image packs, and Live rewrite sit under
 `More actions` so the default surface stays closer to draw, talk, make, and
 apply.
 
-When Codex Desktop has Browser Use / Atlas available, open the board and Preview in the in-app browser. That is the lowest-friction mode because Codex can inspect the same visual surfaces you are using while it edits code, runs checks, and publishes output context back into Canvax.
+When Codex Desktop has the in-app browser available, `/canvax` should target the compact Canvax editor in the right-side browser at `http://localhost:3210/?host=codex-sidecar`. That is the lowest-friction mode because Codex can inspect the same visual surfaces you are using while it edits code, runs checks, and publishes output context back into Canvax.
 
 ```text
 Codex chat
    |
-   +--> Browser Use / Atlas: Canvax board at localhost:3210
+   +--> Codex in-app browser: Canvax editor at localhost:3210/?host=codex-sidecar
    |
-   +--> Browser Use / Atlas: Canvax Preview / generated app
+   +--> Codex in-app browser: Canvax Preview / generated app
    |
    `--> workspace edits + manifest publishing
 ```
 
 The intended open behavior is:
 
-- `/canvax` or `$canvax`: Codex-first path, open the board in the in-app browser.
+- `/canvax` or `$canvax`: Codex-first skill path, start or reuse Canvax and target `http://localhost:3210/?host=codex-sidecar` in the right-side in-app editor.
 - `./canvax`: local service only, no external browser.
-- `./canvax --open-external`: default macOS browser fallback.
+- `./canvax --open-external`: default system browser fallback.
 - `./canvax --chrome`: Google Chrome fallback.
 
 ## Local Projects
@@ -178,6 +178,17 @@ It hides advanced panels and keeps only:
 - eraser behavior that only removes drawn ink, not the paper/grid base, and does not export as black prompt/materialize geometry
 - `Open scratchpad` / `Show brief` for canvas-first designer focus
 - `Apply to Codex`
+
+For a host-embedded right-side scratchpad shape, open:
+
+```text
+http://localhost:3210/?host=codex-sidecar
+```
+
+That sidecar URL uses the same Canvax project, live exports, transcript bridge,
+task packs, and output manifests as the full board. It starts in focused
+Workbench mode with the brief tray hidden, the canvas visible, the composer
+docked at the bottom, and the tool rail sized for a narrow Codex panel.
 - `Preview`
 
 The mode guide under the Workbench/Advanced switch summarizes the current loop:

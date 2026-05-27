@@ -8,7 +8,7 @@ This project was created collaboratively with OpenAI Codex.
 
 ```text
 today
-  local board + Codex Browser Use / Atlas + preview tab + file handoff + skill
+  local board + Codex in-app browser + preview tab + file handoff + skill
 
 future
   thread-bound canvas + thread-bound preview + event transport
@@ -43,7 +43,7 @@ The current repo proves that this workflow is useful even without a native in-ch
 Canvax exists as a browser companion plus skill because that is the cleanest currently documented path:
 
 - a local command can launch the board
-- Codex Browser Use / Atlas can keep the board, Preview, and generated app inside the Codex visual loop
+- Codex in-app browser can keep the board, Preview, and generated app inside the Codex visual loop
 - a skill can attach the current thread to the latest handoff
 - a preview window can stay separate from the sketch surface
 - local files can preserve a durable collaboration record
@@ -65,7 +65,7 @@ The current prototype already demonstrates:
 - frame and flow modeling
 - voice notes attached to the board
 - live preview comparison
-- Codex Browser Use / Atlas inspection of the board, Preview, and generated app routes
+- Codex in-app browser inspection of the board, Preview, and generated app routes
 - output/activity history
 - rewrite queues that tell Codex what needs attention next
 - deterministic local materialization from sketch to styled surface
@@ -112,7 +112,7 @@ The upstream version can replace the local SVG with official product UI if OpenA
 If Codex later ships a first-party canvas surface or a richer App Server client path, the native version should replace:
 
 - browser-tab board startup friction
-- explicit Browser Use / Atlas coordination
+- explicit Codex in-app browser coordination
 - file-path handoff as the primary collaboration transport
 - manual preview-window coordination
 - manifest files as the main output-binding layer

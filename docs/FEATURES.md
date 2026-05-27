@@ -220,7 +220,7 @@ Runtime reuse is guarded by `/api/status`. The CLI only trusts an existing runti
 
 The intended daily loop is:
 
-1. run `./canvax`
+1. invoke `/canvax` or `$canvax` in Codex so the compact editor opens in the right-side in-app browser
 2. use `Workbench` for quick sketch + voice + generated-output work
 3. switch to `Advanced` only when you need frames, flow, captures, manifests, or generation controls
 4. ask Codex to use the current Canvax
@@ -235,7 +235,7 @@ There are two implementation paths:
 - `Review`: local no-API design-jury check for the connected generated output
 - `Codex implementation`: actual code, specs, artifacts, and changed files in the workspace
 
-When Codex Browser Use / Atlas is available, `/canvax` should open `http://localhost:3210` there and keep both the board and Preview inside Codex. That lets Codex inspect the same UI surfaces the user is steering. External browsers are fallback surfaces, not the primary Canvax experience.
+When the Codex in-app browser is available, `/canvax` should start or reuse the local service, target `http://localhost:3210/?host=codex-sidecar` in the right-side editor, and keep both the scratchpad and Preview inside Codex. Use `http://localhost:3210` for the larger full-board surface. That lets Codex inspect the same UI surfaces the user is steering. External browsers are fallback surfaces, not the primary Canvax experience.
 
 ```mermaid
 sequenceDiagram
@@ -278,13 +278,14 @@ Behavior:
 - exposes `Add image` as the primary Workbench file-picker path for editable references, generated candidates, book/storyboard art, and UI assets
 - shows the connected generated output inside the Workbench tray when one exists
 - shows `Review` beside the connected generated output, running the local no-API design jury and showing `Ready`, `Needs review`, `Blocked`, or `Review stale` directly in Workbench
+- exposes `?host=codex-sidecar` as a local host-embedded Workbench surface for Codex-style right panels. It reuses the same board state and exports, hides the brief tray/chrome, keeps the canvas visible, and docks the voice/text composer plus tool rail inside a narrow viewport.
 - shows a compact, dismissible `Agent log` in the lower-left Workbench surface. Its sheet opens upward from the toggle instead of covering the bottom canvas controls, summarizes the latest Make/Apply/Review/rewrite/output/checkpoint/voice events, and closes from the toggle, the close control, outside click, or Escape. The same activity exports through `workbench.agentLog` in the live handoff and through `implementationContext.workbench.agentLog` in Build-with-Codex requests.
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
 - exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
 - accepts direct file/image drops onto `Map`, placing the reference card at the drop point instead of forcing designers through a side-panel picker
 - accepts direct text paste/drop onto `Map`, turning raw ideas, copied notes, prompt fragments, transcript snippets, URLs, or critique into movable spatial notes
 - provides `Tidy map` to reflow frame cards plus generated-output and checkpoint shelf objects into compact readable lanes when a long session starts to sprawl
-- exposes `visualfixture=workbench-map`, `visualfixture=workbench-agent-log`, and `visualfixture=advanced-map` browser-regression fixtures so both the designer-first Workbench and dense Advanced Map states can be verified with screenshots; the checks cover the map timeline, output shelf, generated-output labels, compact `Made` rail badges, Agent log open-sheet placement/dismissal affordances, scrolled Advanced command deck opacity, and document-level horizontal overflow so narrow Workbench clipping is caught
+- exposes `visualfixture=workbench-map`, `visualfixture=workbench-agent-log`, `host=codex-sidecar&visualfixture=codex-sidecar`, and `visualfixture=advanced-map` browser-regression fixtures so both the designer-first Workbench and dense Advanced Map states can be verified with screenshots; the checks cover the map timeline, output shelf, generated-output labels, compact `Made` rail badges, Agent log open-sheet placement/dismissal affordances, sidecar canvas/composer/rail layout, scrolled Advanced command deck opacity, and document-level horizontal overflow so narrow Workbench clipping is caught
 - styles generated variant cards as branch objects with lineage chips and primary-variant state, so generated directions do not look like ordinary duplicate frames
 - adds `Use variant` directly to variant cards and matching variant Map objects, so a designer can promote a generated direction as primary without leaving the spatial workbench
 - exports editable generated variant branches through `spatialWorkspace.variantBranches` and `spatialWorkspace.objects`, including source frame, target frame, direction, connection, editable state, primary-promotion state, and object-level context

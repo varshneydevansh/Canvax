@@ -54,6 +54,9 @@ const PREVIEW_WINDOW_NAME = "canvax-preview-window";
 const urlParams = new URLSearchParams(window.location.search);
 const shouldRunSelfTest = urlParams.get("selftest") === "1";
 const visualFixtureMode = cleanString(urlParams.get("visualfixture"));
+const hostSurfaceMode = normalizeHostSurfaceMode(
+  urlParams.get("host") || urlParams.get("surface") || urlParams.get("embed"),
+);
 
 if (shouldRunSelfTest) {
   window.__canvaxSelfTestProgress = "booting";
@@ -766,6 +769,7 @@ function init() {
   populateViewportSelect();
   bindEvents();
   bindInteractionFeedback();
+  applyHostSurfaceMode();
   if (visualFixtureMode) {
     applyVisualFixture(visualFixtureMode);
   } else {
@@ -773,6 +777,7 @@ function init() {
     refreshPreviewStateFromServer();
     syncSpatialObjectsFromHandoffs();
   }
+  applyHostSurfaceMode();
   renderAll();
   if (visualFixtureMode === "project-browser") {
     openProjectBrowser();
@@ -794,6 +799,41 @@ function init() {
   }
 }
 
+function normalizeHostSurfaceMode(value) {
+  const mode = cleanString(value).toLowerCase();
+  if (["codex-sidecar", "sidecar", "codex", "embed"].includes(mode)) {
+    return "codex-sidecar";
+  }
+  return "";
+}
+
+function isCodexSidecarSurface() {
+  return hostSurfaceMode === "codex-sidecar";
+}
+
+function applyHostSurfaceMode() {
+  if (!hostSurfaceMode) {
+    delete document.body.dataset.hostSurface;
+    return;
+  }
+
+  document.body.dataset.hostSurface = hostSurfaceMode;
+
+  if (!isCodexSidecarSurface()) {
+    return;
+  }
+
+  state.workspaceMode = "simple";
+  state.workbenchFocus = "sketch";
+  state.viewMode = "frame";
+  state.workbenchTrayCollapsed = true;
+  state.workbenchAgentLogOpen = false;
+  state.voice.scope = "frame";
+  if (!["select", "pen", "rect", "arrow", "erase"].includes(state.tool)) {
+    state.tool = "pen";
+  }
+}
+
 function applyVisualFixture(mode) {
   if (
     ![
@@ -801,6 +841,7 @@ function applyVisualFixture(mode) {
       "workbench-map",
       "project-browser",
       "workbench-agent-log",
+      "codex-sidecar",
     ].includes(mode)
   ) {
     return;
@@ -830,10 +871,15 @@ function applyVisualFixture(mode) {
   state.mapObjectFilter = "all";
   state.mapObjectSearch = "";
   state.flowZoom = 0.8;
-  state.viewMode = mode === "workbench-agent-log" ? "frame" : "flow";
-  state.workbenchFocus = mode === "workbench-agent-log" ? "sketch" : "map";
+  state.viewMode =
+    mode === "workbench-agent-log" || mode === "codex-sidecar"
+      ? "frame"
+      : "flow";
+  state.workbenchFocus =
+    mode === "workbench-agent-log" || mode === "codex-sidecar" ? "sketch" : "map";
   state.workspaceMode = mode === "advanced-map" ? "advanced" : "simple";
-  state.workbenchTrayCollapsed = mode === "workbench-agent-log";
+  state.workbenchTrayCollapsed =
+    mode === "workbench-agent-log" || mode === "codex-sidecar";
   state.workbenchAgentLogOpen = mode === "workbench-agent-log";
   state.serverStatus = {
     ...state.serverStatus,
@@ -11129,6 +11175,13 @@ function buildWorkbenchExport(options = {}) {
   const actionMode = currentActionMode();
   return {
     kind: "canvax-workbench-state",
+    hostSurface: hostSurfaceMode || "full-board",
+    hostSurfaceLabel: isCodexSidecarSurface()
+      ? "Codex sidecar scratchpad"
+      : "Full Canvax board",
+    hostSurfaceUrl: isCodexSidecarSurface()
+      ? `${window.location.origin}${window.location.pathname}?host=codex-sidecar`
+      : "",
     workspaceMode: state.workspaceMode,
     workspaceModeLabel: workspaceMode.label,
     viewMode: state.viewMode,
@@ -23772,6 +23825,7 @@ function exposeDebugHelpers() {
     redoFrame,
     freezeFrame,
     saveExportToWorkspace,
+    buildWorkbenchExport,
     upsertConnection,
     setCurrentFrameAsEntry,
     autoLayoutFlow,

@@ -6,77 +6,39 @@
 clone repo
    |
    v
-run ./canvax
-   |
-   +--> starts or reuses local service
-   `--> serves board at localhost:3210
-   |
-   v
 run node scripts/install-canvax-skill.mjs
    |
    v
 restart Codex once
    |
    v
-use /canvax or $canvax
+use /canvax
+   |
+   +--> starts or reuses local service
+   `--> targets compact editor in Codex right-side in-app browser
 ```
 
 ```mermaid
 flowchart TD
-    A[Project root] --> B[./canvax]
-    B --> C[Local service on localhost:3210]
-    C --> D[Open board in Codex Browser Use / Atlas]
-    A --> E[node scripts/install-canvax-skill.mjs]
-    E --> F[Symlink into ~/.codex/skills/canvax]
-    F --> G[Restart Codex]
-    G --> H[/canvax or $canvax]
+    A[Project root] --> B[node scripts/install-canvax-skill.mjs]
+    B --> C[Symlink into ~/.codex/skills/canvax]
+    C --> D[Restart Codex]
+    D --> E[/canvax preferred, $canvax fallback]
+    E --> F[Start or reuse local service]
+    F --> G[Target compact editor in Codex right-side in-app browser]
 ```
 
 ## Prerequisites
 
-- macOS as the primary supported platform
 - Node.js installed
 - Codex desktop app or Codex CLI already working
+- Codex Desktop in-app browser for the editor workflow
 
 Canvax does not require a separate OpenAI API key for the core sketch-to-Codex workflow.
 
-## Local Setup
-
-From the project root:
-
-```bash
-./canvax
-```
-
-This starts or reuses the local Canvax service.
-
-By default the board runs at:
-
-```text
-http://localhost:3210
-```
-
-### Preferred Codex Desktop Setup
-
-If Codex Desktop has the Browser Use / Atlas tab available, invoke `/canvax` or `$canvax` and keep `http://localhost:3210` inside the Codex in-app browser.
-
-That is the preferred mode because:
-
-- the sketch board stays next to the Codex chat
-- Codex can inspect the board, Preview, and generated app with Browser Use / Atlas
-- the workflow avoids bouncing between Codex and a separate macOS browser
-- the local service and export files still work exactly the same
-
-Use these only when you explicitly want the board outside Codex:
-
-```bash
-./canvax --open-external
-./canvax --chrome
-```
-
 ## Install the Codex Skill
 
-Run:
+From the project root:
 
 ```bash
 node scripts/install-canvax-skill.mjs
@@ -96,6 +58,44 @@ to:
 
 If Codex is already open, restart it once after installing the skill.
 
+## Open From Codex
+
+Invoke `/canvax` in Codex. It is the preferred command-style skill entry for designers. It starts or reuses the local Canvax service and should navigate Codex's right-side in-app browser to the compact editor. Use `$canvax` only as the explicit skill fallback when the slash entry is unavailable.
+
+The intended `/canvax` editor URL is:
+
+```text
+http://localhost:3210/?host=codex-sidecar
+```
+
+The larger full-board URL remains available when you need more canvas space:
+
+```text
+http://localhost:3210
+```
+
+The in-app path is preferred because:
+
+- the sketch board stays next to the Codex chat
+- Codex can inspect the board, Preview, and generated app in the in-app browser
+- the workflow avoids bouncing between Codex and a separate browser
+- the local service and export files still work exactly the same
+
+## Local Setup Fallback
+
+Run the service manually when you want to start or inspect it outside slash-command flow:
+
+```bash
+./canvax
+```
+
+Use these only when you explicitly want the board outside Codex:
+
+```bash
+./canvax --open-external
+./canvax --chrome
+```
+
 ## Verify the Install
 
 Check service status:
@@ -112,24 +112,24 @@ You should see:
 
 Then open Codex and check that one of these works:
 
-- `/canvax`
-- `$canvax`
+- `/canvax` from the slash list
+- `$canvax` as the explicit skill fallback
 
 ## Command vs Skill
 
 This is the most important distinction:
 
 - `./canvax` is the local command that runs the board service.
-- `/canvax` is the skill-backed slash entry inside Codex and should open the board in Browser Use / Atlas.
-- `$canvax` is the direct skill invocation form.
+- `/canvax` is the preferred command-style skill entry inside Codex and should navigate the right-side in-app browser to `http://localhost:3210/?host=codex-sidecar`.
+- `$canvax` is the direct skill invocation fallback for the same handoff.
 
 So Canvax is not only a browser app and not only a skill. It is both.
 
 ```mermaid
 flowchart LR
     Cmd["./canvax command"] --> Service["Local service"]
-    Service --> Browser["Codex Browser Use / Atlas"]
-    Skill["/canvax or $canvax skill"] --> Handoff["Latest handoff files"]
+    Service --> Browser["Codex in-app browser"]
+    Skill["/canvax slash entry or $canvax skill"] --> Handoff["Latest handoff files"]
     Browser --> Handoff
     Handoff --> Codex["Codex work in chat"]
 
@@ -150,32 +150,28 @@ flowchart LR
 
 Typical startup flow:
 
-```bash
-./canvax
-```
-
-Then in Codex:
-
 ```text
 /canvax
 ```
 
-or:
+Fallback:
 
 ```text
 $canvax
 ```
 
-Then use `/canvax` or `$canvax` so Codex opens `http://localhost:3210` with Browser Use / Atlas when available. Draw in the board and continue the same Codex thread.
+Then use `/canvax` so Codex targets `http://localhost:3210/?host=codex-sidecar` in the in-app browser when available. Draw in the right-side editor and continue the same Codex thread. Use `$canvax` only when the slash entry is unavailable.
+
+Run `./canvax` manually only when you want to inspect or manage the service outside the slash-command flow.
 
 ## Startup Model
 
 ```text
 terminal                Codex browser           Codex
    |                       |                      |
-   | ./canvax              |                      |
-   |---------------------->| service boots        |
-   |                       | board loads          |
+   | optional ./canvax     |                      |
+   |---------------------->| service boots/reuses |
+   |                       | sidecar editor loads |
    |                       |                      |
    |                       | draw and freeze      |
    |                       |--------------------->| /canvax
@@ -191,7 +187,7 @@ sequenceDiagram
     T->>S: ./canvax
     S->>B: serve board
     B->>S: save live export
-    C->>S: /canvax skill reads latest handoff
+    C->>S: /canvax slash entry reads latest handoff
 ```
 
 ## Service Management
@@ -210,7 +206,7 @@ Notes:
 - Canvax uses one running service at a time by default.
 - If Canvax is already running, it reuses the existing board instead of starting another copy.
 - `--restart` is the explicit way to move or recover the service.
-- `--open-external` opens the default macOS browser.
+- `--open-external` opens the default system browser.
 - `--chrome` opens Google Chrome explicitly.
 - `--open` is kept as a legacy alias for `--open-external`.
 
@@ -224,7 +220,7 @@ Notes:
 ### The board is not opening
 
 - run `./canvax --status`
-- confirm `http://localhost:3210` is reachable in Codex Browser Use / Atlas or your browser
+- confirm `http://localhost:3210/?host=codex-sidecar` is reachable in the Codex in-app browser, or `http://localhost:3210` is reachable in a regular browser
 - if needed, run `./canvax --restart`
 - use `./canvax --open-external` or `./canvax --chrome` only if you want an external browser opened automatically
 

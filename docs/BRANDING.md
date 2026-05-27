@@ -2,7 +2,7 @@
 
 Canvax now has an original mark for the local Codex canvas companion.
 
-![Canvax logo](assets/canvax-logo.svg)
+![Canvax wordmark](assets/canvax-logo-wordmark.svg)
 
 ## Identity Rule
 
@@ -54,6 +54,7 @@ flowchart LR
 ```text
 web/assets/canvax-logo.svg   -> app and Preview UI
 docs/assets/canvax-logo.svg  -> documentation rendering
+docs/assets/canvax-logo-wordmark.svg -> README and brand/header rendering
 ```
 
 Use the SVG directly when possible. If a raster icon is needed later, export from the SVG rather than redrawing it.

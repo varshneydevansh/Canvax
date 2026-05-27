@@ -11,7 +11,7 @@ show board
   -> draw rough frames
   -> add voice or notes
   -> freeze
-  -> open Preview in Codex Browser Use / Atlas
+  -> open Preview in Codex in-app browser
   -> materialize
   -> inspect manifests/checkpoints
 ```
@@ -43,7 +43,7 @@ Run:
 ./canvax
 ```
 
-Then invoke `/canvax` so `http://localhost:3210` opens in Codex Browser Use / Atlas when available. Use `./canvax --open-external` or `./canvax --chrome` only when demonstrating the external-browser fallback.
+Then invoke `/canvax` so `http://localhost:3210/?host=codex-sidecar` targets the right-side Codex in-app browser editor when available. Use `./canvax --open-external` or `./canvax --chrome` only when demonstrating the external-browser fallback.
 
 Optional validation:
 
@@ -89,7 +89,7 @@ user input
    Point out that the live handoff is written under `exports/`.
 
 5. Open Preview.
-   Show the sketch side and the output side in Codex Browser Use / Atlas.
+   Show the sketch side and the output side in Codex in-app browser.
 
 6. Materialize one frame.
    Explain that this is a deterministic local “make it feel real” pass, not a paid API feature.
@@ -135,8 +135,8 @@ flowchart LR
 ## Talking Points
 
 - `./canvax` is the local command.
-- `/canvax` and `$canvax` are the skill-backed Codex entry points.
-- Codex Browser Use / Atlas is the preferred visual surface for the board, Preview, and generated app.
+- `/canvax` is the preferred command-style Codex entry point; `$canvax` is the explicit skill fallback.
+- Codex in-app browser is the preferred visual surface for the board, Preview, and generated app.
 - Current transport is local companion mode: files, manifests, and browser mirroring.
 - Future richer-client mode is explicitly planned as an App Server path, not hidden magic.
 - The Preview window is separate on purpose so the sketch surface stays uncluttered.

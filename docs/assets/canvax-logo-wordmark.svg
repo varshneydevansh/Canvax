@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="600" viewBox="0 0 1800 600" role="img" aria-label="Canvax brush logo wordmark">
+  <defs>
+    <linearGradient id="blobGrad" x1="86" y1="476" x2="476" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#321BFF"/><stop offset="0.45" stop-color="#6A72FF"/><stop offset="0.72" stop-color="#A869FF"/><stop offset="1" stop-color="#FF55CA"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="610" y1="130" x2="1370" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2B1DFF"/><stop offset="0.55" stop-color="#7B5DFF"/><stop offset="1" stop-color="#F54EC9"/>
+    </linearGradient>
+    <filter id="blobShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#321BFF" flood-opacity="0.25"/></filter>
+    <filter id="glyphShadow" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#2D15D9" flood-opacity="0.24"/></filter>
+  </defs>
+  <g transform="translate(82 62)" filter="url(#blobShadow)">
+    <path d="M130 135C144 82 196 55 254 62C296 67 327 84 352 115C394 103 436 127 448 169C459 205 447 232 431 250C464 272 470 320 445 354C426 379 395 393 362 393C351 438 308 462 262 452C232 480 186 476 159 445C110 457 64 433 52 389C44 360 50 335 60 315C26 292 20 240 47 200C66 173 93 153 122 146C125 142 127 138 130 135Z" fill="url(#blobGrad)"/>
+    <path d="M130 135C144 82 196 55 254 62C296 67 327 84 352 115C394 103 436 127 448 169" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-opacity="0.5" stroke-linecap="round"/>
+    <g filter="url(#glyphShadow)">
+      <g transform="rotate(-33 190 264)">
+        <rect x="172" y="151" width="36" height="120" rx="18" fill="#FFFFFF"/>
+        <rect x="168" y="256" width="44" height="35" rx="10" fill="#E7EDFF"/>
+        <path d="M169 282C172 306 179 326 190 352C202 326 210 306 212 282C199 289 181 289 169 282Z" fill="#FFFFFF"/>
+        <path d="M190 352C186 338 185 323 189 306" stroke="#D7E1FF" stroke-width="6" stroke-linecap="round" fill="none"/>
+      </g>
+      <path d="M275 304H360" stroke="#FFFFFF" stroke-width="39" stroke-linecap="round" fill="none"/>
+    </g>
+  </g>
+  <text x="610" y="328" font-family="Inter, SF Pro Display, Segoe UI, Helvetica, Arial, sans-serif" font-size="185" font-weight="760" letter-spacing="-8" fill="url(#textGrad)">Canvax</text>
+  <text x="620" y="408" font-family="Inter, SF Pro Display, Segoe UI, Helvetica, Arial, sans-serif" font-size="36" font-weight="560" letter-spacing="1.5" fill="#635A83">visual design companion</text>
+</svg>

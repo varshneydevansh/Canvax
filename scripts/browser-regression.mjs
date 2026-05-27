@@ -47,6 +47,10 @@ const responsiveSmokeViewports = [
   { label: "tablet", width: 768, height: 900 },
   { label: "narrow", width: 430, height: 840 },
 ];
+const codexSidecarViewports = [
+  { label: "sidecar", width: 390, height: 900 },
+  { label: "sidecar-wide", width: 520, height: 900 },
+];
 
 if (!liveUrl) {
   results.push({
@@ -91,6 +95,11 @@ if (!liveUrl) {
       timeoutMs: responsiveSmokeTimeoutMs,
     });
     await validateWorkbenchAgentLogSmoke({
+      chromePath,
+      liveUrl,
+      timeoutMs: responsiveSmokeTimeoutMs,
+    });
+    await validateCodexSidecarSmoke({
       chromePath,
       liveUrl,
       timeoutMs: responsiveSmokeTimeoutMs,
@@ -237,6 +246,20 @@ async function validateWorkbenchAgentLogSmoke({ chromePath, liveUrl, timeoutMs }
   }
 }
 
+async function validateCodexSidecarSmoke({ chromePath, liveUrl, timeoutMs }) {
+  for (const viewport of codexSidecarViewports) {
+    await validateResponsiveSmoke({
+      name: `Codex sidecar visual smoke passes at ${viewport.label}`,
+      surface: "board-codex-sidecar",
+      chromePath,
+      url: `${liveUrl}/?responsivecheck=1&host=codex-sidecar&visualfixture=codex-sidecar`,
+      viewport,
+      timeoutMs,
+      expression: buildCodexSidecarSmokeExpression(),
+    });
+  }
+}
+
 async function validateAdvancedMapSmoke({ chromePath, liveUrl, timeoutMs }) {
   const viewports = responsiveSmokeViewports.filter((viewport) =>
     ["desktop", "tablet"].includes(viewport.label),
@@ -370,6 +393,72 @@ function buildWorkbenchAgentLogSmokeExpression() {
       itemCount: items.length,
       panel,
       toggle,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  })()`;
+}
+
+function buildCodexSidecarSmokeExpression() {
+  return `(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const style = getComputedStyle(node);
+      const box = node.getBoundingClientRect();
+      return {
+        width: box.width,
+        height: box.height,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        display: style.display,
+        visible: box.width > 0 && box.height > 0 && style.display !== "none"
+      };
+    };
+    const failures = [];
+    const shell = rect(".shell");
+    const toolbar = rect(".toolbar");
+    const focusPad = rect("#focus-pad");
+    const stage = rect(".stage-panel");
+    const canvas = rect("#board-canvas");
+    const composer = rect("#workbench-composer");
+    const rail = rect("#workbench-rail");
+    const textarea = rect("#workbench-composer-input");
+    const firstComposerButton = rect("#workbench-composer-talk");
+    const firstRailButton = rect("#workbench-rail button");
+    const exportedWorkbench = window.__canvaxDebug?.buildWorkbenchExport?.();
+    if (document.readyState !== "complete") failures.push("document not complete");
+    if (document.body?.dataset?.hostSurface !== "codex-sidecar") failures.push("host surface flag missing");
+    if (document.body?.dataset?.workspaceMode !== "simple") failures.push("workbench mode not active");
+    if (document.body?.dataset?.workbenchTray !== "collapsed") failures.push("scratchpad tray is not active");
+    if (document.body?.dataset?.viewMode !== "frame") failures.push("frame mode not active");
+    if (toolbar?.visible) failures.push("sidecar toolbar should be hidden");
+    if (focusPad?.visible) failures.push("sidecar brief tray should be hidden");
+    if (!shell?.visible || !stage?.visible || !canvas?.visible) failures.push("sidecar canvas surface missing");
+    if (!composer?.visible || !rail?.visible || !textarea?.visible) failures.push("sidecar composer or rail missing");
+    if (shell && shell.width > window.innerWidth + 2) failures.push("sidecar shell wider than viewport");
+    if (document.documentElement.scrollWidth > window.innerWidth + 12) failures.push("document has horizontal overflow");
+    if (composer && composer.bottom > window.innerHeight + 2) failures.push("composer clips below viewport");
+    if (rail && rail.bottom > window.innerHeight + 2) failures.push("rail clips below viewport");
+    if (composer && rail && composer.bottom > rail.top - 2) failures.push("composer overlaps the tool rail");
+    if (canvas && canvas.height < Math.min(300, window.innerHeight * 0.34)) failures.push("canvas too short for sketching");
+    if (firstComposerButton && firstComposerButton.height < 40) failures.push("composer touch target too small");
+    if (firstRailButton && firstRailButton.height < 40) failures.push("rail touch target too small");
+    if (exportedWorkbench?.hostSurface !== "codex-sidecar") failures.push("workbench export missing host surface");
+    return {
+      passed: failures.length === 0,
+      failures,
+      hostSurface: document.body?.dataset?.hostSurface || "",
+      mode: document.body?.dataset?.workspaceMode || "",
+      focus: document.body?.dataset?.workbenchFocus || "",
+      workbenchExportSurface: exportedWorkbench?.hostSurface || "",
+      shell,
+      stage,
+      composer,
+      rail,
       width: window.innerWidth,
       height: window.innerHeight
     };

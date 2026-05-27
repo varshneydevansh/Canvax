@@ -1,26 +1,27 @@
 ---
 name: canvax
-description: Use when the user wants to open the Canvax sketch board, attach the current thread to the live canvas, turn the latest live Canvax export into a spec or prompt, or build code from sketch-driven visual input. This skill launches or reuses the local Canvax app (`./canvax`), reads the latest saved exports from `exports/`, and converts sketch frames into implementation work.
+description: Use when the user wants to open the compact Canvax editor inside Codex's right-side in-app browser, attach the current thread to the live canvas, turn the latest Canvax export into a spec, image prompt, book/page layout, UI, or implementation task, or build/rewrite output from sketch-driven visual input. This skill launches or reuses the local Canvax service (`./canvax`), targets the `?host=codex-sidecar` editor in Codex when available, reads the latest saved exports from `exports/`, and converts sketch frames into Codex work.
 ---
 
 # Canvax
 
-Use this skill when the user wants to collaborate visually instead of describing the design only with text.
+Use this skill when the user wants to collaborate visually instead of describing the design only with text. Canvax is for UI/UX, product flows, book spreads, storyboards, comic pages, posters, image composition, visual assets, and other sketch-driven design tasks.
 
 This skill is the Codex-side wrapper for the local Canvax board. In practice:
 
 - `./canvax` is the local command that runs the board
-- `/canvax` is the slash entry Codex may show for this skill
-- `$canvax` is the direct skill invocation form
+- `/canvax` is the preferred command-style slash entry inside Codex. It should target the compact Canvax editor inside the Codex app's right-side in-app browser when available.
+- `$canvax` is the direct skill invocation fallback. Use it when the slash entry is not available; it should follow the same handoff.
 
 ## Open the board
 
 From the repo root:
 
-- Run `./canvax` when the user invokes `/canvax` and the board should be available at `http://localhost:3210`.
-- Treat Codex Browser Use / Atlas as the first-class viewer. When Browser Use is available, navigate the in-app browser to the board URL after the local service is running.
+- Run `./canvax` when the user invokes `/canvax`; it starts or reuses the local service and the full board should be available at `http://localhost:3210`.
+- Treat the Codex in-app browser as the first-class viewer. When it is available, navigate the right-side editor to `http://localhost:3210/?host=codex-sidecar` after the local service is running.
+- The `?host=codex-sidecar` surface uses the same live board state and exports, but starts in a compact Workbench surface with canvas, voice/text composer, and rail controls sized for an embedded Codex panel.
 - Do not run an external browser command by default. The shell launcher cannot directly control Codex's in-app browser; this skill is the Codex-side instruction that makes `/canvax` open the board inside Codex.
-- Run `./canvax --open-external` or `./canvax --open` only when the user explicitly wants the board opened in the default macOS browser.
+- Run `./canvax --open-external` or `./canvax --open` only when the user explicitly wants the board opened in the default system browser.
 - Run `./canvax --chrome` only when the user explicitly wants Google Chrome.
 - Run `./canvax --status` to reuse the existing board URL instead of starting another port.
 
@@ -30,12 +31,12 @@ Treat `./canvax` as an attach command, not a fresh launch every time:
 - If a service already exists, reuse it.
 - If a different port is requested while one is already running, do not create a second server. Reuse the current one unless the user explicitly wants `--restart`.
 
-After `/canvax` is invoked in a thread, assume that thread is attached to the live canvas and use the latest Canvax export automatically until the user switches context.
+After `/canvax` or `$canvax` is invoked in a thread, assume that thread is attached to the live canvas and use the latest Canvax export automatically until the user switches context. Prefer `/canvax` in user-facing docs because it is the command-like entry point users expect in Codex.
 
 If the user says "open Canvax", "use /canvax", or "make Canvax available here", the expected behavior is:
 
 1. start or reuse the service with `./canvax`
-2. open `http://localhost:3210` in Codex Browser Use / Atlas
+2. navigate the right-side Codex in-app browser to `http://localhost:3210/?host=codex-sidecar`
 3. keep reading `exports/canvax-checkpoint-latest.json` and `exports/canvax-live-latest.json` for that thread
 
 If the user says "open in Chrome", "external browser", or "outside Codex", use the explicit external flags instead.
@@ -153,9 +154,9 @@ For a quick smoke demo of that path from the repo root:
 npm run demo:hero
 ```
 
-When Browser Use / Atlas is available, use it as the preferred visual inspection path:
+When the Codex in-app browser is available, use it as the preferred visual inspection path:
 
-- open the board at `http://localhost:3210`
+- open the compact editor at `http://localhost:3210/?host=codex-sidecar`, or the full board at `http://localhost:3210` when more space is needed
 - open Preview from the board or at the preview route exposed by the service
 - inspect any generated local app preview Codex binds through the output manifest
 - fix visible layout issues in code, then publish output back with `write-codex-output.mjs`

@@ -17,6 +17,9 @@ try {
     const resolvedLink = resolve(dirname(target), linkedTarget);
     if (resolvedLink === source) {
       console.log(`Canvax skill already installed at ${target}`);
+      console.log(
+        "Use /canvax as the preferred Codex slash-listed skill entry; use $canvax as the explicit skill fallback.",
+      );
       process.exit(0);
     }
   }
@@ -26,5 +29,8 @@ try {
 } catch {
   await symlink(source, target, "dir");
   console.log(`Installed Canvax skill at ${target}`);
+  console.log(
+    "Use /canvax as the preferred Codex slash-listed skill entry; use $canvax as the explicit skill fallback.",
+  );
   console.log("Restart Codex if it is already running.");
 }

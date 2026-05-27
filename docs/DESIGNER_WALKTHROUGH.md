@@ -55,7 +55,7 @@ Run:
 Preferred viewing path:
 
 ```text
-Codex app -> in-app Browser / Atlas -> http://localhost:3210
+Codex app -> in-app browser -> http://localhost:3210
 ```
 
 Use an external browser only when you explicitly want it:

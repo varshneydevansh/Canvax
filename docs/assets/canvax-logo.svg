@@ -1,32 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
-  <title id="title">Canvax logo</title>
-  <desc id="desc">An original browser canvas mark with a pen stroke, code brackets, and a central C.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Canvax app icon: violet-pink creative cloud with paintbrush prompt and cursor underscore">
   <defs>
-    <linearGradient id="bg" x1="72" y1="54" x2="440" y2="458" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#111827"/>
-      <stop offset="0.52" stop-color="#10192a"/>
-      <stop offset="1" stop-color="#ff5d3a"/>
+    <linearGradient id="bgGrad" x1="96" y1="64" x2="928" y2="976" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f7f3ff"/>
     </linearGradient>
-    <linearGradient id="stroke" x1="118" y1="330" x2="402" y2="158" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff5d3a"/>
-      <stop offset="0.52" stop-color="#f0a202"/>
-      <stop offset="1" stop-color="#0c8d7b"/>
+    <linearGradient id="blobGrad" x1="171" y1="812" x2="857" y2="164" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#321BFF"/>
+      <stop offset="0.42" stop-color="#6A72FF"/>
+      <stop offset="0.73" stop-color="#A869FF"/>
+      <stop offset="1" stop-color="#FF55CA"/>
     </linearGradient>
-    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#18110e" flood-opacity="0.28"/>
+    <radialGradient id="blobGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(459 260) rotate(62) scale(536 485)">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.48"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="strokeGrad" x1="302" y1="315" x2="712" y2="705" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.58" stop-color="#EEF3FF"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="26" stdDeviation="34" flood-color="#160B42" flood-opacity="0.13"/>
+    </filter>
+    <filter id="blobShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="22" stdDeviation="22" flood-color="#3B22FF" flood-opacity="0.25"/>
+    </filter>
+    <filter id="glyphShadow" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#2610D9" flood-opacity="0.23"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#ffffff" flood-opacity="0.30"/>
     </filter>
   </defs>
-  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
-  <g filter="url(#softShadow)">
-    <rect x="74" y="96" width="364" height="286" rx="46" fill="#fffaf3" fill-opacity="0.92"/>
-    <path d="M74 152h364" stroke="#18110e" stroke-opacity="0.13" stroke-width="8"/>
-    <circle cx="118" cy="124" r="11" fill="#ff5d3a"/>
-    <circle cx="153" cy="124" r="11" fill="#f0a202"/>
-    <circle cx="188" cy="124" r="11" fill="#0c8d7b"/>
+  <rect x="30" y="30" width="964" height="964" rx="218" fill="url(#bgGrad)" filter="url(#cardShadow)"/>
+  <g filter="url(#blobShadow)">
+    <path d="M287 291C315 184 420 130 535 143C619 153 682 188 732 249C816 225 899 274 923 357C944 429 920 483 889 520C954 564 967 658 916 727C879 776 818 804 752 804C731 895 646 943 554 923C493 978 401 970 348 909C251 933 159 885 135 797C119 739 132 690 151 651C83 604 72 500 127 421C165 366 218 326 277 312C280 305 283 298 287 291Z" fill="url(#blobGrad)"/>
+    <path d="M287 291C315 184 420 130 535 143C619 153 682 188 732 249C816 225 899 274 923 357C944 429 920 483 889 520C954 564 967 658 916 727C879 776 818 804 752 804C731 895 646 943 554 923C493 978 401 970 348 909C251 933 159 885 135 797C119 739 132 690 151 651C83 604 72 500 127 421C165 366 218 326 277 312C280 305 283 298 287 291Z" fill="url(#blobGlow)" opacity="0.85"/>
+    <path d="M299 287C329 194 425 151 533 164C604 172 672 206 716 261C795 238 869 284 895 355" fill="none" stroke="#FFFFFF" stroke-opacity="0.52" stroke-width="10" stroke-linecap="round"/>
   </g>
-  <path d="M185 236l-48 40 48 40" fill="none" stroke="#10192a" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M327 236l48 40-48 40" fill="none" stroke="#10192a" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M312 198c-30-20-76-18-110 8-42 31-51 95-18 134 34 40 98 42 137 8" fill="none" stroke="#10192a" stroke-width="30" stroke-linecap="round"/>
-  <path d="M132 350c48-70 112-118 192-144 27-9 42-5 47 7 6 16-12 35-56 58-46 25-84 51-114 80" fill="none" stroke="url(#stroke)" stroke-width="22" stroke-linecap="round"/>
-  <path d="M366 204l35-18-10 38z" fill="#0c8d7b"/>
+
+  <g filter="url(#glyphShadow)">
+    <!-- Explicit brush mark replacing the angle bracket. -->
+    <g transform="rotate(-33 386 528)">
+      <rect x="352" y="319" width="68" height="220" rx="34" fill="url(#strokeGrad)"/>
+      <rect x="346" y="510" width="80" height="64" rx="17" fill="#E7EDFF"/>
+      <path d="M349 560C354 604 366 641 386 688C407 641 421 604 425 560C403 572 372 572 349 560Z" fill="url(#strokeGrad)"/>
+      <path d="M386 688C378 662 377 635 383 604" stroke="#D7E1FF" stroke-width="11" stroke-linecap="round" fill="none"/>
+    </g>
+    <path d="M535 619H699" stroke="url(#strokeGrad)" stroke-width="62" stroke-linecap="round" fill="none"/>
+  </g>
 </svg>

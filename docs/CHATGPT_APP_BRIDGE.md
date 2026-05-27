@@ -11,8 +11,8 @@ Canvax core workflow must not require an OpenAI API key.
 The current repo already works as a local Codex companion through:
 
 - `./canvax` local service
-- Codex Browser / Atlas at `http://localhost:3210`
-- `/canvax` or `$canvax` skill handoff
+- `/canvax` command-style skill entry that targets the Codex in-app browser at `http://localhost:3210/?host=codex-sidecar`
+- `$canvax` explicit skill fallback for the same handoff
 - files under `exports/` and `artifacts/`
 
 The bridge described here is the next host-integration path, not a replacement for the local workflow.
@@ -54,10 +54,10 @@ Current unavailable paths:
 L0: Local companion
     Canvax service + browser board + file exports
 
-L1: Codex skill
-    /canvax tells Codex which local files and URLs to read
+L1: Codex slash/skill handoff
+    /canvax targets the sidecar editor and tells Codex which local files and URLs to read
 
-L2: Codex Browser / Atlas
+L2: Codex in-app browser
     Board, Preview, and generated artifacts stay inside Codex visual inspection
 
 L3: MCP/App bridge
@@ -105,6 +105,13 @@ write/return tools are `append_transcript`, `publish_codex_output`, and
 `scripts/write-codex-output.mjs`, and `npm run import-image-results`
 respectively. Hosted image invocation, embedded UI, and native host registration
 remain future work.
+
+Local embedded UI status: `http://localhost:3210/?host=codex-sidecar` now
+renders the existing Workbench as a narrow host-sidecar surface for the Codex
+in-app browser or a future native panel. It keeps the same local board state and
+exports, hides the full-board chrome, and exposes `workbench.hostSurface:
+codex-sidecar` in the live/export payload. This is still a localhost surface,
+not native first-party host registration.
 
 `get_host_handoff` is the preferred current bridge read. It is backed by
 `npm run host-handoff -- --json` and can be saved to
@@ -308,7 +315,7 @@ mobile rough sketch / voice
 Until a first-party bridge exists, the reliable desktop path is still:
 
 ```text
-Codex app -> in-app Browser / Atlas -> http://localhost:3210
+Codex app -> in-app browser -> http://localhost:3210
 ```
 
 ## Implementation Sequence
