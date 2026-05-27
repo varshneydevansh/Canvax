@@ -11,7 +11,7 @@ Canvax core workflow must not require an OpenAI API key.
 The current repo already works as a local Codex companion through:
 
 - `./canvax` local service
-- `/canvax` command-style skill entry that targets the Codex in-app browser at `http://localhost:3210/?host=codex-sidecar`
+- `/canvax` command-style skill entry that uses `./canvax --open-codex` when available to target the Codex in-app browser at `http://localhost:3210/`
 - `$canvax` explicit skill fallback for the same handoff
 - files under `exports/` and `artifacts/`
 
@@ -55,7 +55,7 @@ L0: Local companion
     Canvax service + browser board + file exports
 
 L1: Codex slash/skill handoff
-    /canvax targets the sidecar editor and tells Codex which local files and URLs to read
+    /canvax runs the local open-codex helper when possible and tells Codex which local files and URLs to read
 
 L2: Codex in-app browser
     Board, Preview, and generated artifacts stay inside Codex visual inspection
@@ -106,7 +106,7 @@ write/return tools are `append_transcript`, `publish_codex_output`, and
 respectively. Hosted image invocation, embedded UI, and native host registration
 remain future work.
 
-Local embedded UI status: `http://localhost:3210/?host=codex-sidecar` now
+Local embedded UI status: `http://localhost:3210/` now
 renders the existing Workbench as a narrow host-sidecar surface for the Codex
 in-app browser or a future native panel. It keeps the same local board state and
 exports, hides the full-board chrome, and exposes `workbench.hostSurface:

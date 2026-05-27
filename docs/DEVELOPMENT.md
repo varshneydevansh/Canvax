@@ -52,7 +52,7 @@ Start or reuse the service:
 ./canvax
 ```
 
-For manual UI work, invoke `/canvax` so `http://localhost:3210/?host=codex-sidecar` targets the right-side Codex in-app browser when available. Use `http://localhost:3210` for the full board, and use `./canvax --open-external` or `./canvax --chrome` only when you intentionally want an external browser.
+For manual UI work, invoke `/canvax` or run `./canvax --open-codex` so `http://localhost:3210/` targets the Codex in-app browser when available. Use `http://localhost:3210/?host=codex-sidecar` only when explicitly testing the compact sidecar, `./canvax --close-codex` to toggle the panel closed, and `./canvax --open-external` or `./canvax --chrome` only when you intentionally want an external browser.
 
 Basic syntax check:
 

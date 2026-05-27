@@ -20,6 +20,9 @@ try {
       console.log(
         "Use /canvax as the preferred Codex slash-listed skill entry; use $canvax as the explicit skill fallback.",
       );
+      console.log(
+        "The slash skill should run ./canvax --open-codex; use ./canvax --close-codex to hide the Codex browser panel.",
+      );
       process.exit(0);
     }
   }
@@ -31,6 +34,9 @@ try {
   console.log(`Installed Canvax skill at ${target}`);
   console.log(
     "Use /canvax as the preferred Codex slash-listed skill entry; use $canvax as the explicit skill fallback.",
+  );
+  console.log(
+    "The slash skill should run ./canvax --open-codex; use ./canvax --close-codex to hide the Codex browser panel.",
   );
   console.log("Restart Codex if it is already running.");
 }

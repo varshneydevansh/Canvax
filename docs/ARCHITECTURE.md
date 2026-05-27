@@ -138,7 +138,7 @@ flowchart TD
 ## Runtime Flow
 
 1. `./canvax` starts or reuses the local service.
-2. `/canvax` or `$canvax` starts or reuses that local service and targets the Codex in-app browser at `http://localhost:3210/?host=codex-sidecar`.
+2. `/canvax` or `$canvax` starts or reuses that local service and uses `./canvax --open-codex` when available to target the Codex in-app browser at `http://localhost:3210/`.
 3. The user draws, annotates, or links frames.
 4. Canvax autosnaps after idle or stores a manual freeze.
 5. `web/app.js` sends the latest export package to `/api/save-export`.

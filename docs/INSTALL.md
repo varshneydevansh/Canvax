@@ -15,7 +15,7 @@ restart Codex once
 use /canvax
    |
    +--> starts or reuses local service
-   `--> targets compact editor in Codex right-side in-app browser
+   `--> targets full board in Codex in-app browser
 ```
 
 ```mermaid
@@ -25,7 +25,7 @@ flowchart TD
     C --> D[Restart Codex]
     D --> E[/canvax preferred, $canvax fallback]
     E --> F[Start or reuse local service]
-    F --> G[Target compact editor in Codex right-side in-app browser]
+    F --> G[Target full board in Codex in-app browser]
 ```
 
 ## Prerequisites
@@ -60,13 +60,29 @@ If Codex is already open, restart it once after installing the skill.
 
 ## Open From Codex
 
-Invoke `/canvax` in Codex. It is the preferred command-style skill entry for designers. It starts or reuses the local Canvax service and should navigate Codex's right-side in-app browser to the compact editor. Use `$canvax` only as the explicit skill fallback when the slash entry is unavailable.
+Invoke `/canvax` in Codex. It is the preferred command-style skill entry for designers. It starts or reuses the local Canvax service and should navigate Codex's in-app browser to the full board. Use `$canvax` only as the explicit skill fallback when the slash entry is unavailable.
 
 The intended `/canvax` editor URL is:
 
 ```text
-http://localhost:3210/?host=codex-sidecar
+http://localhost:3210/
 ```
+
+The local helper that does the Codex Desktop opening is:
+
+```bash
+./canvax --open-codex
+```
+
+On macOS this starts or reuses the service, activates Codex, runs `View > Open Browser Tab`, focuses its address bar, and loads the board URL. It requires Accessibility permission for the app/terminal process that runs it. If that permission is blocked, use `View > Open Browser Tab` and paste the board URL manually.
+
+To close the Codex browser panel:
+
+```bash
+./canvax --close-codex
+```
+
+This uses Codex's browser-panel toggle shortcut, so it closes the panel when it is open.
 
 The larger full-board URL remains available when you need more canvas space:
 
@@ -120,7 +136,7 @@ Then open Codex and check that one of these works:
 This is the most important distinction:
 
 - `./canvax` is the local command that runs the board service.
-- `/canvax` is the preferred command-style skill entry inside Codex and should navigate the right-side in-app browser to `http://localhost:3210/?host=codex-sidecar`.
+- `/canvax` is the preferred command-style skill entry inside Codex and should use `./canvax --open-codex` to navigate the in-app browser to `http://localhost:3210/`.
 - `$canvax` is the direct skill invocation fallback for the same handoff.
 
 So Canvax is not only a browser app and not only a skill. It is both.
@@ -160,7 +176,7 @@ Fallback:
 $canvax
 ```
 
-Then use `/canvax` so Codex targets `http://localhost:3210/?host=codex-sidecar` in the in-app browser when available. Draw in the right-side editor and continue the same Codex thread. Use `$canvax` only when the slash entry is unavailable.
+Then use `/canvax` so Codex targets `http://localhost:3210/` in the in-app browser when available. Draw in the editor and continue the same Codex thread. Use `$canvax` only when the slash entry is unavailable.
 
 Run `./canvax` manually only when you want to inspect or manage the service outside the slash-command flow.
 
@@ -171,7 +187,7 @@ terminal                Codex browser           Codex
    |                       |                      |
    | optional ./canvax     |                      |
    |---------------------->| service boots/reuses |
-   |                       | sidecar editor loads |
+   |                       | board editor loads   |
    |                       |                      |
    |                       | draw and freeze      |
    |                       |--------------------->| /canvax
@@ -194,6 +210,8 @@ sequenceDiagram
 
 ```bash
 ./canvax
+./canvax --open-codex
+./canvax --close-codex
 ./canvax --open-external
 ./canvax --chrome
 ./canvax --status
@@ -205,6 +223,8 @@ Notes:
 
 - Canvax uses one running service at a time by default.
 - If Canvax is already running, it reuses the existing board instead of starting another copy.
+- `--open-codex` is the best-effort Codex Desktop automation path.
+- `--close-codex` toggles the Codex browser panel closed when it is open.
 - `--restart` is the explicit way to move or recover the service.
 - `--open-external` opens the default system browser.
 - `--chrome` opens Google Chrome explicitly.
@@ -220,7 +240,7 @@ Notes:
 ### The board is not opening
 
 - run `./canvax --status`
-- confirm `http://localhost:3210/?host=codex-sidecar` is reachable in the Codex in-app browser, or `http://localhost:3210` is reachable in a regular browser
+- confirm `http://localhost:3210/` is reachable in the Codex in-app browser
 - if needed, run `./canvax --restart`
 - use `./canvax --open-external` or `./canvax --chrome` only if you want an external browser opened automatically
 

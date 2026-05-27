@@ -220,7 +220,7 @@ Runtime reuse is guarded by `/api/status`. The CLI only trusts an existing runti
 
 The intended daily loop is:
 
-1. invoke `/canvax` or `$canvax` in Codex so the compact editor opens in the right-side in-app browser
+1. invoke `/canvax` or `$canvax` in Codex so the `./canvax --open-codex` helper can open the full board in the in-app browser
 2. use `Workbench` for quick sketch + voice + generated-output work
 3. switch to `Advanced` only when you need frames, flow, captures, manifests, or generation controls
 4. ask Codex to use the current Canvax
@@ -235,7 +235,7 @@ There are two implementation paths:
 - `Review`: local no-API design-jury check for the connected generated output
 - `Codex implementation`: actual code, specs, artifacts, and changed files in the workspace
 
-When the Codex in-app browser is available, `/canvax` should start or reuse the local service, target `http://localhost:3210/?host=codex-sidecar` in the right-side editor, and keep both the scratchpad and Preview inside Codex. Use `http://localhost:3210` for the larger full-board surface. That lets Codex inspect the same UI surfaces the user is steering. External browsers are fallback surfaces, not the primary Canvax experience.
+When the Codex in-app browser is available, `/canvax` should start or reuse the local service, target `http://localhost:3210/`, and keep both the scratchpad and Preview inside Codex. Use `http://localhost:3210/?host=codex-sidecar` only when explicitly testing the compact embedded surface. That lets Codex inspect the same UI surfaces the user is steering. External browsers are fallback surfaces, not the primary Canvax experience.
 
 ```mermaid
 sequenceDiagram

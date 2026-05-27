@@ -172,6 +172,15 @@ const args = process.argv.slice(2);
 const requestedPort = readPort(args) ?? defaultPort;
 const externalOpenTarget = readExternalOpenTarget(args);
 const shouldOpenExternal = Boolean(externalOpenTarget);
+const wantsOpenCodex =
+  args.includes("--open-codex") ||
+  args.includes("--open-in-codex") ||
+  args.includes("--codex");
+const wantsCloseCodex =
+  args.includes("--close-codex") ||
+  args.includes("--close-in-codex") ||
+  args.includes("--hide-codex") ||
+  args.includes("--toggle-codex-browser");
 const wantsStop = args.includes("--stop");
 const wantsStatus = args.includes("--status");
 const wantsJson = args.includes("--json");
@@ -185,6 +194,17 @@ const wantsTranscriptBridge =
 let workspaceFollowCache = null;
 
 function buildCodexEditorUrl(baseUrl) {
+  try {
+    const url = new URL(baseUrl);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return `${String(baseUrl || "").replace(/\/$/, "")}/`;
+  }
+}
+
+function buildCodexSidecarUrl(baseUrl) {
   try {
     const url = new URL(baseUrl);
     url.searchParams.set("host", "codex-sidecar");
@@ -466,6 +486,32 @@ async function runCli() {
     return handleTranscriptBridgeCli();
   }
 
+  if (wantsCloseCodex && !wantsOpenCodex && !wantsStop && !wantsStatus) {
+    const runtime =
+      (await getRunningRuntime()) ||
+      (await inspectPortForRuntime(requestedPort)).runtime;
+    const codexAutomation = await runCodexDesktopAutomation({
+      action: "toggle-browser-panel",
+    });
+    return printCliOutput(
+      wantsJson,
+      {
+        running: Boolean(runtime),
+        closedCodexApp: codexAutomation.succeeded,
+        codexAutomation,
+        ...(runtime || {
+          defaultPort,
+          liveJsonPath,
+          liveMarkdownPath,
+          liveVoiceMarkdownPath,
+        }),
+      },
+      codexAutomation.succeeded
+        ? "Requested Codex browser panel toggle."
+        : "Could not control Codex browser panel.",
+    );
+  }
+
   if (wantsStop) {
     let runtime = await getRunningRuntime();
     if (!runtime) {
@@ -511,11 +557,16 @@ async function runCli() {
     }
 
     await stopRuntime(runtime);
+    const codexAutomation = wantsCloseCodex
+      ? await runCodexDesktopAutomation({ action: "toggle-browser-panel" })
+      : null;
     return printCliOutput(
       wantsJson,
       {
         running: false,
         stopped: true,
+        closedCodexApp: Boolean(codexAutomation?.succeeded),
+        codexAutomation,
         pid: runtime.pid,
         port: runtime.port,
         url: runtime.url,
@@ -638,6 +689,12 @@ async function runCli() {
       if (shouldOpenExternal) {
         openUrl(runtime.url, externalOpenTarget);
       }
+      const codexAutomation = wantsOpenCodex
+        ? await runCodexDesktopAutomation({
+            action: "open-board",
+            url: runtime.url,
+          })
+        : null;
       return printCliOutput(
         wantsJson,
         {
@@ -646,6 +703,8 @@ async function runCli() {
           requestedPort,
           portMismatch: true,
           openedExternalBrowser: shouldOpenExternal,
+          openedCodexApp: Boolean(codexAutomation?.succeeded),
+          codexAutomation,
           externalBrowser: externalOpenTarget,
           ...runtime,
         },
@@ -656,6 +715,12 @@ async function runCli() {
     if (shouldOpenExternal) {
       openUrl(runtime.url, externalOpenTarget);
     }
+    const codexAutomation = wantsOpenCodex
+      ? await runCodexDesktopAutomation({
+          action: "open-board",
+          url: runtime.url,
+        })
+      : null;
 
     return printCliOutput(
       wantsJson,
@@ -663,6 +728,8 @@ async function runCli() {
         running: true,
         reused: true,
         openedExternalBrowser: shouldOpenExternal,
+        openedCodexApp: Boolean(codexAutomation?.succeeded),
+        codexAutomation,
         externalBrowser: externalOpenTarget,
         ...runtime,
       },
@@ -686,6 +753,12 @@ async function runCli() {
   if (shouldOpenExternal) {
     openUrl(runtime.url, externalOpenTarget);
   }
+  const codexAutomation = wantsOpenCodex
+    ? await runCodexDesktopAutomation({
+        action: "open-board",
+        url: runtime.url,
+      })
+    : null;
 
   return printCliOutput(
     wantsJson,
@@ -693,6 +766,8 @@ async function runCli() {
       running: true,
       started: true,
       openedExternalBrowser: shouldOpenExternal,
+      openedCodexApp: Boolean(codexAutomation?.succeeded),
+      codexAutomation,
       externalBrowser: externalOpenTarget,
       ...runtime,
     },
@@ -791,7 +866,7 @@ async function runServer(port) {
           designKitGallery: await readDesignKitGallery(),
           url: `http://localhost:${port}`,
           codexEditorUrl: buildCodexEditorUrl(`http://localhost:${port}`),
-          codexSidecarUrl: buildCodexEditorUrl(`http://localhost:${port}`),
+          codexSidecarUrl: buildCodexSidecarUrl(`http://localhost:${port}`),
         });
       }
 
@@ -7284,7 +7359,7 @@ function buildRuntime(port) {
     port,
     url,
     codexEditorUrl,
-    codexSidecarUrl: codexEditorUrl,
+    codexSidecarUrl: buildCodexSidecarUrl(url),
     projectRoot,
     runtimePath,
     serverLogPath,
@@ -7380,7 +7455,11 @@ async function getRunningRuntime(options = {}) {
     }
   }
 
-  return runtime;
+  return {
+    ...runtime,
+    codexEditorUrl: buildCodexEditorUrl(runtime.url),
+    codexSidecarUrl: runtime.codexSidecarUrl || buildCodexSidecarUrl(runtime.url),
+  };
 }
 
 async function inspectPortForRuntime(port) {
@@ -7414,15 +7493,14 @@ async function inspectPortForRuntime(port) {
 
 function buildRecoveredRuntime(status, port) {
   const url = status.url || `http://localhost:${port}`;
-  const codexEditorUrl =
-    status.codexEditorUrl || status.codexSidecarUrl || buildCodexEditorUrl(url);
+  const codexEditorUrl = buildCodexEditorUrl(url);
   return {
     ...buildRuntime(port),
     pid: status.pid,
     port,
     url,
     codexEditorUrl,
-    codexSidecarUrl: codexEditorUrl,
+    codexSidecarUrl: status.codexSidecarUrl || buildCodexSidecarUrl(url),
     projectRoot: status.projectRoot || projectRoot,
     runtimePath: status.runtimePath || runtimePath,
     serverLogPath: status.serverLogPath || serverLogPath,
@@ -7582,6 +7660,118 @@ function openUrl(url, target = "default") {
   }).unref();
 }
 
+async function runCodexDesktopAutomation({ action, url = "" }) {
+  const payload = {
+    requested: true,
+    succeeded: false,
+    action,
+    method: "macos-system-events",
+    url,
+  };
+
+  if (process.platform !== "darwin") {
+    return {
+      ...payload,
+      error:
+        "Codex app browser automation is currently implemented only for macOS.",
+    };
+  }
+
+  try {
+    if (action === "open-board" || action === "open-sidecar") {
+      await runAppleScript(buildOpenCodexSidecarScript(url));
+    } else if (action === "toggle-browser-panel") {
+      await runAppleScript(buildToggleCodexBrowserPanelScript());
+    } else {
+      throw new Error(`Unknown Codex automation action: ${action}`);
+    }
+    return {
+      ...payload,
+      succeeded: true,
+      error: "",
+    };
+  } catch (error) {
+    return {
+      ...payload,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Codex app browser automation failed.",
+    };
+  }
+}
+
+async function runAppleScript(script) {
+  const result = await runCommand("osascript", ["-e", script], {
+    allowFailure: true,
+  });
+  if (result.code !== 0 && !result.stderr.trim()) {
+    throw new Error("osascript exited without a diagnostic message.");
+  }
+  if (result.stderr.trim()) {
+    throw new Error(result.stderr.trim());
+  }
+}
+
+function buildOpenCodexSidecarScript(url) {
+  const targetUrl = toAppleScriptString(url);
+  return `
+set targetUrl to ${targetUrl}
+set previousClipboard to the clipboard
+try
+  set the clipboard to targetUrl
+  tell application "Codex" to activate
+  delay 0.25
+  tell application "System Events"
+    if not (exists process "Codex") then error "Codex process is not running."
+    tell process "Codex"
+      try
+        click menu item "Open Browser Tab" of menu 1 of menu bar item "View" of menu bar 1
+      on error
+        key code 17 using {command down}
+      end try
+    end tell
+    delay 0.5
+    key code 37 using {command down}
+    delay 0.12
+    key code 9 using {command down}
+    delay 0.12
+    key code 36
+  end tell
+  delay 0.1
+  set the clipboard to previousClipboard
+on error errMsg number errNum
+  try
+    set the clipboard to previousClipboard
+  end try
+  error errMsg number errNum
+end try
+`.trim();
+}
+
+function buildToggleCodexBrowserPanelScript() {
+  return `
+tell application "Codex" to activate
+delay 0.2
+tell application "System Events"
+  if not (exists process "Codex") then error "Codex process is not running."
+  tell process "Codex"
+    try
+      click menu item "Toggle Side Panel" of menu 1 of menu bar item "View" of menu bar 1
+    on error
+      key code 11 using {command down, shift down}
+    end try
+  end tell
+end tell
+`.trim();
+}
+
+function toAppleScriptString(value) {
+  return `"${String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')}"`;
+}
+
 async function readLogTail() {
   try {
     const log = await readFile(serverLogPath, "utf8");
@@ -7611,7 +7801,7 @@ async function runCommand(command, args, options = {}) {
     });
     child.on("close", (code) => {
       if (code === 0 || options.allowFailure) {
-        resolvePromise({ stdout, stderr });
+        resolvePromise({ stdout, stderr, code });
         return;
       }
       reject(
@@ -7630,7 +7820,7 @@ function printCliOutput(asJson, payload, message) {
       ? {
           ...payload,
           codexEditorUrl: buildCodexEditorUrl(payload.url),
-          codexSidecarUrl: buildCodexEditorUrl(payload.url),
+          codexSidecarUrl: buildCodexSidecarUrl(payload.url),
         }
       : payload;
   if (asJson) {
@@ -7643,9 +7833,9 @@ function printCliOutput(asJson, payload, message) {
     const codexEditorUrl =
       outputPayload.codexEditorUrl || buildCodexEditorUrl(outputPayload.url);
     console.log(`Board URL: ${outputPayload.url}`);
-    console.log(`Codex right-side editor URL: ${codexEditorUrl}`);
+    console.log(`Codex in-app browser URL: ${codexEditorUrl}`);
     console.log(
-      `Preferred Codex path: invoke /canvax so Codex targets ${codexEditorUrl} in the right-side in-app browser.`,
+      `Preferred Codex path: invoke /canvax, or run ./canvax --open-codex to load ${codexEditorUrl} in the in-app browser.`,
     );
     console.log(
       "External browser fallback: ./canvax --open-external or ./canvax --chrome.",
@@ -7659,6 +7849,24 @@ function printCliOutput(asJson, payload, message) {
     console.log(
       `Opened through ${browserLabel} because an external-open flag was explicitly provided.`,
     );
+  }
+  if (outputPayload.codexAutomation?.requested) {
+    const actionLabel =
+      ["open-board", "open-sidecar"].includes(
+        outputPayload.codexAutomation.action,
+      )
+        ? "open Codex board"
+        : "toggle Codex browser panel";
+    if (outputPayload.codexAutomation.succeeded) {
+      console.log(`Codex Desktop automation: ${actionLabel} requested.`);
+    } else {
+      console.log(
+        `Codex Desktop automation failed: ${outputPayload.codexAutomation.error}`,
+      );
+      console.log(
+        "Grant Accessibility permission to the terminal/Codex host, or open a Codex browser tab manually from View > Open Browser Tab.",
+      );
+    }
   }
   console.log(`Live export: ${liveJsonPath}`);
   console.log(`Live markdown: ${liveMarkdownPath}`);
@@ -7695,13 +7903,17 @@ Usage:
   ./canvax --status [--json]
   ./canvax --stop
   ./canvax --restart [--port 3210]
+  ./canvax --open-codex
+  ./canvax --close-codex
   ./canvax --open-external
   ./canvax --chrome
   ./canvax --transcript "spoken Codex text" [--scope frame|session] [--frame frame-id]
 
 Behavior:
   - Running without arguments ensures exactly one Canvax service is active.
-  - Preferred Codex Desktop flow: invoke /canvax so Codex targets http://localhost:3210/?host=codex-sidecar in the right-side in-app browser.
+  - Preferred Codex Desktop flow: invoke /canvax so Codex targets http://localhost:3210/ in the in-app browser.
+  - --open-codex uses macOS UI automation to open Codex, run View > Open Browser Tab, focus its address bar, and load the board URL.
+  - --close-codex toggles the Codex browser panel. It is a best-effort close helper because Codex exposes a toggle shortcut, not a documented close API.
   - --open-external and --open use the system default browser.
   - --chrome opens Google Chrome explicitly.
   - --transcript queues Codex chat dictation text into Canvax voice context.

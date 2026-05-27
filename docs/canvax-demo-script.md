@@ -43,7 +43,7 @@ Run:
 ./canvax
 ```
 
-Then invoke `/canvax` so `http://localhost:3210/?host=codex-sidecar` targets the right-side Codex in-app browser editor when available. Use `./canvax --open-external` or `./canvax --chrome` only when demonstrating the external-browser fallback.
+Then invoke `/canvax` or run `./canvax --open-codex` so `http://localhost:3210/` targets the Codex in-app browser editor when available. Use `./canvax --close-codex` to hide the browser panel, and use `./canvax --open-external` or `./canvax --chrome` only when demonstrating the external-browser fallback.
 
 Optional validation:
 

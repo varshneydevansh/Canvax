@@ -9,7 +9,7 @@ preferred today
   ./canvax service
       |
       v
-  /canvax targets localhost:3210/?host=codex-sidecar in the right-side Codex in-app browser
+  /canvax runs ./canvax --open-codex to load localhost:3210/ in the Codex in-app browser
       |
       +--> user sketches
       +--> Codex inspects board and Preview
@@ -34,11 +34,19 @@ This is closer to the intended Canvax product than bouncing between Codex and a 
 
 ## Startup
 
-Invoke `/canvax` so the Canvax skill starts or reuses the local service and targets this URL in the right-side in-app browser. Use `$canvax` only as the explicit skill fallback if the slash entry is unavailable:
+Invoke `/canvax` so the Canvax skill starts or reuses the local service and targets this URL in the in-app browser. The local helper behind that behavior is `./canvax --open-codex`: on macOS it activates Codex Desktop, runs `View > Open Browser Tab`, focuses the address bar, and loads the board URL. Use `$canvax` only as the explicit skill fallback if the slash entry is unavailable:
 
 ```text
-http://localhost:3210/?host=codex-sidecar
+http://localhost:3210/
 ```
+
+Close the sidecar with:
+
+```bash
+./canvax --close-codex
+```
+
+This is a browser-panel toggle helper. It closes the panel when it is open, but if the panel is already closed the same Codex shortcut can reopen it.
 
 Use the full board only when you need more room:
 
@@ -143,7 +151,7 @@ The current repo is a local command plus a skill:
 
 ```text
 ./canvax  -> local service
-/canvax   -> preferred command-style skill entry in Codex; targets ?host=codex-sidecar
+/canvax   -> preferred command-style skill entry in Codex; runs ./canvax --open-codex when possible
 $canvax   -> explicit skill fallback; same handoff instructions
 ```
 
@@ -151,7 +159,7 @@ The next packaging step should be a Canvax plugin that bundles:
 
 - the existing skill instructions
 - MCP-style tools for reading the current frame/checkpoint
-- a tool to target the sidecar editor in the Codex in-app browser
+- a tool to target or close the Canvax editor in the Codex in-app browser without relying on macOS UI automation
 - a tool to create or read a `Build with Codex` real implementation request
 - a tool to publish output manifests after Codex changes files
 

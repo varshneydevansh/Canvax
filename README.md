@@ -11,12 +11,12 @@ This project was created collaboratively with OpenAI Codex.
 Canvax has three entry points:
 
 - `./canvax`: the local command that starts or reuses the browser canvas service.
-- `/canvax`: the preferred slash-listed skill entry inside Codex. It should attach the thread to Canvax and navigate the in-app browser to the compact sidecar editor.
+- `/canvax`: the preferred slash-listed skill entry inside Codex. It should attach the thread to Canvax and navigate the in-app browser to the full board.
 - `$canvax`: the explicit skill invocation fallback. It uses the same handoff instructions when the slash entry is not available.
 
 That means Canvax is **a local service plus a Codex skill surfaced as a slash entry**. It is not currently a native first-party built-in Codex command.
 
-When the Codex app has the in-app browser available, `/canvax` is the preferred entry point: the skill starts or reuses the local service and instructs Codex to navigate the right-side editor to `http://localhost:3210/?host=codex-sidecar` instead of sending the designer to a separate browser. That surface reuses the same board state and exports while presenting a narrow scratchpad with canvas, voice/text composer, and rail controls. The full board at `http://localhost:3210` stays available when you want more space.
+When the Codex app has the in-app browser available, `/canvax` is the preferred entry point: the skill starts or reuses the local service and instructs Codex to navigate the in-app browser to `http://localhost:3210/` instead of sending the designer to a separate browser. That full board is the stable default while the narrower `?host=codex-sidecar` scratchpad remains an optional embedded surface.
 
 The copy for the skill directory lives in [docs/SKILL_LISTING.md](docs/SKILL_LISTING.md).
 
@@ -72,10 +72,12 @@ What the code controls today:
 
 - `node scripts/install-canvax-skill.mjs` installs or refreshes the skill wrapper.
 - `./canvax` starts or reuses the local service.
-- `./canvax --status --json` reports both `url` and `codexEditorUrl`.
-- `codexEditorUrl` points to `http://localhost:3210/?host=codex-sidecar`, the compact right-side editor surface for the Codex in-app browser.
+- `./canvax --open-codex` starts or reuses the service, then uses macOS UI automation to activate Codex Desktop, run `View > Open Browser Tab`, focus the browser address bar, and load the board URL.
+- `./canvax --close-codex` toggles the Codex browser panel closed when it is open. This is best-effort because Codex exposes a browser-panel toggle shortcut, not a documented close-browser API for skills.
+- `./canvax --status --json` reports `url`, `codexEditorUrl`, and `codexSidecarUrl`.
+- `codexEditorUrl` points to `http://localhost:3210/`, the stable default Codex in-app browser target. `codexSidecarUrl` points to `http://localhost:3210/?host=codex-sidecar` for the optional compact surface.
 
-So the honest contract is: `/canvax` invokes the Canvax skill, the skill starts or reuses `./canvax`, and Codex should navigate its in-app browser to the reported sidecar URL. `$canvax` remains the explicit skill invocation fallback when the slash-list entry is unavailable.
+So the honest contract is: `/canvax` invokes the Canvax skill, the skill runs `./canvax --open-codex` when local macOS UI automation is available, and Codex should land on the reported board URL in the in-app browser. `$canvax` remains the explicit skill invocation fallback when the slash-list entry is unavailable. If macOS Accessibility permission blocks automation, use `View > Open Browser Tab` and paste the reported URL.
 
 ## Why It Ships This Way
 
@@ -107,7 +109,7 @@ In Codex:
 - invoke `/canvax` from the slash list
 - use `$canvax` only as the explicit skill fallback
 
-The skill starts or reuses the local service and should navigate Codex's right-side in-app browser to `http://localhost:3210/?host=codex-sidecar`. Use `http://localhost:3210` when you want the larger full-board surface.
+The skill starts or reuses the local service through `./canvax --open-codex`. On macOS, that helper drives Codex Desktop through `View > Open Browser Tab` and loads `http://localhost:3210/`.
 
 Then sketch in the board opened through the Codex in-app browser, and continue the same chat with prompts like:
 
@@ -197,6 +199,8 @@ Canvax/
 
 ```bash
 ./canvax
+./canvax --open-codex
+./canvax --close-codex
 ./canvax --open-external
 ./canvax --chrome
 ./canvax --status
@@ -207,7 +211,9 @@ Canvax/
 Behavior:
 
 - `./canvax` starts or reuses the existing service.
-- `/canvax` is the Codex-first command-style skill path: it attaches the thread and should navigate Codex's right-side in-app browser to `http://localhost:3210/?host=codex-sidecar`.
+- `./canvax --open-codex` starts or reuses the service, activates Codex Desktop, runs `View > Open Browser Tab`, and loads `http://localhost:3210/` with macOS UI automation.
+- `./canvax --close-codex` toggles the Codex in-app browser panel, which closes the sidecar when it is open.
+- `/canvax` is the Codex-first command-style skill path: it attaches the thread and should use the `--open-codex` helper when local UI automation is available.
 - `$canvax` is the explicit skill fallback for the same handoff.
 - `./canvax --open-external` starts or reuses the service and opens the board in the default system browser.
 - `./canvax --chrome` starts or reuses the service and opens the board in Google Chrome.
@@ -215,7 +221,7 @@ Behavior:
 - `./canvax --transcript "..." --scope frame --frame <id>` queues Codex chat dictation text into Canvax voice notes.
 - `./canvax --status` prints the current board URL and live export paths.
 - `./canvax --stop` stops the running service.
-- `./canvax --restart` restarts the service cleanly. Reopen the right-side editor through `/canvax` in the Codex in-app browser afterward.
+- `./canvax --restart` restarts the service cleanly. Reopen the board through `/canvax` in the Codex in-app browser afterward.
 - `npm run host-handoff -- --save` writes one Codex/native-host packet with the active frame, sketch, voice intent, rewrite queue, output binding, project-link, image host context, source files, and suggested next actions.
 
 Canvax is intentionally single-service. If one board is already running, it is reused instead of spawning another port by default.
@@ -348,7 +354,7 @@ single local no-API packet for Codex/native-host sketch + voice + output handoff
 
 1. Install the skill once with `node scripts/install-canvax-skill.mjs`.
 2. Invoke `/canvax` in Codex, or `$canvax` if the slash entry is unavailable.
-3. Sketch in the right-side Workbench editor, then add voice/text intent.
+3. Sketch in the Codex in-app browser Workbench, then add voice/text intent.
 4. Pick the current action: build UI, refine UI, write spec, image prompt, or variations.
 5. Use `Apply to Codex`, `Make real`, `Build code`, or `Preview` depending on the handoff you need.
 6. Codex reads the latest live export, checkpoint, or `npm run host-handoff -- --json` packet and works from that visual handoff.

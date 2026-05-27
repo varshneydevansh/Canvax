@@ -10185,6 +10185,28 @@ function supportsBrowserVoiceRecognition() {
   return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
+function focusVoiceFallbackInput(message) {
+  const fallbackMessage =
+    message ||
+    "Browser voice is unavailable here. Dictate in this box, or speak in Codex chat and I can bridge the transcript into Canvax.";
+  state.workspaceMode = "simple";
+  state.workbenchFocus = "sketch";
+  state.viewMode = "frame";
+  state.voice.scope = "frame";
+  state.voice.error = fallbackMessage;
+  renderWorkspaceMode();
+  renderVoicePanel();
+  renderFocusPad();
+  renderStatus(fallbackMessage);
+  window.setTimeout(() => {
+    const target =
+      state.workspaceMode === "simple"
+        ? dom.workbenchComposerInput || dom.focusManualInput
+        : dom.voiceManualInput;
+    target?.focus({ preventScroll: false });
+  }, 0);
+}
+
 function voiceScopeLabel(scope = state.voice.scope, frame = currentFrame()) {
   if (scope === "session") {
     return "the whole board";
@@ -10225,10 +10247,9 @@ function startVoiceDictation() {
     window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) {
     state.voice.status = "unsupported";
-    state.voice.error =
-      "Browser speech recognition is unavailable here. Use Manual voice note with macOS dictation or pasted spoken notes.";
-    renderVoicePanel();
-    renderStatus("Browser dictation unavailable");
+    focusVoiceFallbackInput(
+      "Browser speech recognition is unavailable here. Dictate in this box, or speak in Codex chat and I can bridge the transcript into Canvax.",
+    );
     return;
   }
 
@@ -10277,8 +10298,7 @@ function startVoiceDictation() {
           : "error";
       state.voice.error = humanizeVoiceError(event.error);
       state.voice.interimText = "";
-      renderVoicePanel();
-      renderStatus("Dictation unavailable");
+      focusVoiceFallbackInput(state.voice.error);
     };
 
     voiceRecognition.onend = () => {
@@ -10297,8 +10317,7 @@ function startVoiceDictation() {
       error instanceof Error
         ? error.message
         : "Dictation could not start in this browser.";
-    renderVoicePanel();
-    renderStatus("Dictation failed to start");
+    focusVoiceFallbackInput(state.voice.error);
   }
 }
 
@@ -24056,6 +24075,66 @@ async function runSelfTest() {
         "Workbench composer, canvas reply, context import, review controls, voice intent lane, and compact agent log render",
       ),
     );
+    const previousVoiceFallbackState = {
+      workspaceMode: state.workspaceMode,
+      workbenchFocus: state.workbenchFocus,
+      viewMode: state.viewMode,
+      voice: structuredClone(state.voice),
+      statusText: state.statusText,
+    };
+    const speechRecognitionDescriptor = Object.getOwnPropertyDescriptor(
+      window,
+      "SpeechRecognition",
+    );
+    const webkitSpeechRecognitionDescriptor = Object.getOwnPropertyDescriptor(
+      window,
+      "webkitSpeechRecognition",
+    );
+    try {
+      Object.defineProperty(window, "SpeechRecognition", {
+        value: undefined,
+        configurable: true,
+      });
+      Object.defineProperty(window, "webkitSpeechRecognition", {
+        value: undefined,
+        configurable: true,
+      });
+      startVoiceDictation();
+      results.push(
+        assert(
+          state.voice.status === "unsupported" &&
+            state.workspaceMode === "simple" &&
+            state.workbenchFocus === "sketch" &&
+            dom.statusPill.textContent.includes("Codex chat"),
+          "Talk explains the Codex transcript bridge when browser speech is unavailable",
+        ),
+      );
+    } finally {
+      if (speechRecognitionDescriptor) {
+        Object.defineProperty(
+          window,
+          "SpeechRecognition",
+          speechRecognitionDescriptor,
+        );
+      } else {
+        delete window.SpeechRecognition;
+      }
+      if (webkitSpeechRecognitionDescriptor) {
+        Object.defineProperty(
+          window,
+          "webkitSpeechRecognition",
+          webkitSpeechRecognitionDescriptor,
+        );
+      } else {
+        delete window.webkitSpeechRecognition;
+      }
+      state.workspaceMode = previousVoiceFallbackState.workspaceMode;
+      state.workbenchFocus = previousVoiceFallbackState.workbenchFocus;
+      state.viewMode = previousVoiceFallbackState.viewMode;
+      state.voice = previousVoiceFallbackState.voice;
+      renderStatus(previousVoiceFallbackState.statusText);
+      renderAll();
+    }
     const agentLogInitialOpen = state.workbenchAgentLogOpen;
     setWorkbenchAgentLogOpen(true, { persist: false });
     const agentLogOpened =
