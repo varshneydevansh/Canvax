@@ -394,7 +394,12 @@ function buildCodexPatchTask({
   previewPath,
   contextPath,
 }) {
-  const suggestedFiles = collectPatchTaskFiles(frameCodeMap, portTask);
+  const suggestedFiles = collectPatchTaskFiles(
+    frameCodeMap,
+    portTask,
+    acceptedLiveEdit,
+    affectedComponents,
+  );
   return {
     kind: "canvax-codex-patch-task",
     schemaVersion: 1,
@@ -414,6 +419,13 @@ function buildCodexPatchTask({
       type: component.type || "",
       selector: component.selector || "",
       suggestedComponentName: component.suggestedComponentName || "",
+      sourceFile: component.sourceFile || "",
+      sourcePath: component.sourcePath || "",
+      sourceSymbol: component.sourceSymbol || "",
+      sourceLine: component.sourceLine || "",
+      sourceComponent: component.sourceComponent || "",
+      taskFile: component.taskFile || "",
+      taskId: component.taskId || "",
       bounds: component.bounds || null,
     })),
     affectedRegions: affectedRegions.map((region) => ({
@@ -426,6 +438,7 @@ function buildCodexPatchTask({
       liveEditVariant: region.liveEditVariant || null,
       liveEditPins: region.liveEditPins || [],
       liveEditCanvasMarks: region.liveEditCanvasMarks || [],
+      targetSourceHint: region.liveEditTarget?.targetSourceHint || null,
     })),
     designContract: buildContract?.path || "",
     portTask: portTask?.path || "",
@@ -464,7 +477,12 @@ function buildCodexPatchTask({
   };
 }
 
-function collectPatchTaskFiles(frameCodeMap, portTask) {
+function collectPatchTaskFiles(
+  frameCodeMap,
+  portTask,
+  acceptedLiveEdit = null,
+  affectedComponents = [],
+) {
   const files = [];
   const frameRoot = frameCodeMap?.path ? dirname(dirname(frameCodeMap.path)) : "";
   const ownershipFiles = Array.isArray(frameCodeMap?.map?.ownership?.files)
@@ -497,6 +515,9 @@ function collectPatchTaskFiles(frameCodeMap, portTask) {
       }
     },
   );
+  collectLiveEditSourceHintFiles(acceptedLiveEdit, affectedComponents).forEach(
+    (file) => files.push(file),
+  );
   const seen = new Set();
   return files.filter((file) => {
     if (seen.has(file.path)) {
@@ -505,6 +526,56 @@ function collectPatchTaskFiles(frameCodeMap, portTask) {
     seen.add(file.path);
     return true;
   });
+}
+
+function collectLiveEditSourceHintFiles(acceptedLiveEdit, affectedComponents = []) {
+  const files = [];
+  const addFile = (path, role, source) => {
+    const cleanPath = cleanString(path);
+    if (!cleanPath) {
+      return;
+    }
+    files.push({
+      path: cleanPath,
+      role: cleanString(role) || "live edit source hint",
+      source: cleanString(source) || "live-edit-source-hint",
+    });
+  };
+  const target = acceptedLiveEdit?.target || {};
+  addFile(
+    target.targetSourceFile || target.targetSourcePath,
+    target.targetSourceComponent ||
+      target.targetSourceSymbol ||
+      "picked target source",
+    "accepted-live-edit-target",
+  );
+  addFile(target.targetTaskFile, "picked target task", "accepted-live-edit-task");
+  if (target.targetSourceHint && typeof target.targetSourceHint === "object") {
+    addFile(
+      target.targetSourceHint.file || target.targetSourceHint.path,
+      target.targetSourceHint.component ||
+        target.targetSourceHint.symbol ||
+        "picked target source hint",
+      "accepted-live-edit-source-hint",
+    );
+    addFile(
+      target.targetSourceHint.taskFile,
+      "picked target task hint",
+      "accepted-live-edit-source-hint",
+    );
+  }
+  affectedComponents.forEach((component) => {
+    addFile(
+      component.sourceFile || component.sourcePath || component.suggestedFile,
+      component.sourceComponent ||
+        component.suggestedComponentName ||
+        component.label ||
+        "component source hint",
+      "component-target-source-hint",
+    );
+    addFile(component.taskFile, "component task hint", "component-target-source-hint");
+  });
+  return files;
 }
 
 function flattenPatchTaskDestinations(value) {
@@ -749,6 +820,13 @@ function matchingFrameCodeRegions(
       type: cleanString(region.type),
       selector: cleanString(region.implementationSelector),
       suggestedComponentName: cleanString(region.suggestedComponentName),
+      sourceFile: cleanString(region.sourceFile || region.file),
+      sourcePath: cleanString(region.sourcePath || region.path),
+      sourceSymbol: cleanString(region.sourceSymbol || region.symbol),
+      sourceLine: cleanString(region.sourceLine || region.line),
+      sourceComponent: cleanString(region.sourceComponent || region.component),
+      taskFile: cleanString(region.taskFile),
+      taskId: cleanString(region.taskId),
       bounds: normalizeFrameCodeBounds(region.bounds),
     }));
   if (mapped.length || !exactTargetId || liveEditTarget?.targetType === "generated-output") {
@@ -763,7 +841,16 @@ function matchingFrameCodeRegions(
         ? cleanString(liveEditTarget.targetSelector) ||
           `[data-canvax-node-id="${cssAttributeEscape(exactTargetId)}"]`
         : "",
-      suggestedComponentName: "",
+      suggestedComponentName:
+        cleanString(liveEditTarget.targetSourceComponent) ||
+        cleanString(liveEditTarget.targetSourceSymbol),
+      sourceFile: cleanString(liveEditTarget.targetSourceFile),
+      sourcePath: cleanString(liveEditTarget.targetSourcePath),
+      sourceSymbol: cleanString(liveEditTarget.targetSourceSymbol),
+      sourceLine: cleanString(liveEditTarget.targetSourceLine),
+      sourceComponent: cleanString(liveEditTarget.targetSourceComponent),
+      taskFile: cleanString(liveEditTarget.targetTaskFile),
+      taskId: cleanString(liveEditTarget.targetTaskId),
       bounds: normalizedBounds,
     },
   ];
@@ -903,6 +990,7 @@ function buildAcceptedLiveEditPatchNote(context) {
   const designMoves = Array.isArray(variant?.designMoves)
     ? variant.designMoves.map(cleanString).filter(Boolean).slice(0, 5)
     : [];
+  const sourceHint = formatLiveEditSourceHint(target);
   return [
     variant
       ? `Accepted Live Edit variant ${variant.index}: ${variant.label} (${variant.role}).`
@@ -917,10 +1005,31 @@ function buildAcceptedLiveEditPatchNote(context) {
       ? `Comment pins: ${pins.map((pin) => pin.text).filter(Boolean).join("; ")}.`
       : "",
     strokeLabels.length ? `Stroke intent: ${strokeLabels.join("; ")}.` : "",
+    sourceHint ? `Source hint: ${sourceHint}.` : "",
     "Apply this to the selected target first and preserve the surrounding surface.",
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function formatLiveEditSourceHint(target) {
+  const file = cleanString(target.targetSourceFile || target.targetSourcePath);
+  const symbol = cleanString(
+    target.targetSourceComponent || target.targetSourceSymbol,
+  );
+  const line = cleanString(target.targetSourceLine);
+  const task = cleanString(target.targetTaskId || target.targetTaskFile);
+  const parts = [];
+  if (file) {
+    parts.push(line ? `${file}:${line}` : file);
+  }
+  if (symbol) {
+    parts.push(symbol);
+  }
+  if (task) {
+    parts.push(`task ${task}`);
+  }
+  return parts.join(" / ");
 }
 
 function normalizeLiveEditTarget(value) {
@@ -937,6 +1046,7 @@ function normalizeLiveEditTarget(value) {
   if (!bounds || (!targetId && !targetHref && !targetPath && !sourceFrameId)) {
     return null;
   }
+  const sourceHint = normalizeLiveEditSourceHint(value);
   return {
     kind: "canvax-live-edit-target",
     id: cleanString(value.id),
@@ -953,6 +1063,19 @@ function normalizeLiveEditTarget(value) {
     ),
     targetTag: cleanString(value.targetTag || value.tagName),
     targetText: cleanString(value.targetText || value.textContent),
+    ...(sourceHint || {}),
+    targetSourceHint: sourceHint
+      ? {
+          file: sourceHint.targetSourceFile,
+          path: sourceHint.targetSourcePath,
+          symbol: sourceHint.targetSourceSymbol,
+          line: sourceHint.targetSourceLine,
+          component: sourceHint.targetSourceComponent,
+          taskFile: sourceHint.targetTaskFile,
+          taskId: sourceHint.targetTaskId,
+          source: sourceHint.targetSourceBinding,
+        }
+      : null,
     targetHref,
     targetPath,
     targetVersionTag: cleanString(value.targetVersionTag),
@@ -967,6 +1090,95 @@ function normalizeLiveEditTarget(value) {
     acceptedVariantLabel: cleanString(value.acceptedVariantLabel),
     acceptedVariantRole: cleanString(value.acceptedVariantRole),
     updatedAt: cleanString(value.updatedAt),
+  };
+}
+
+function normalizeLiveEditSourceHint(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const hint =
+    source.targetSourceHint &&
+    typeof source.targetSourceHint === "object" &&
+    !Array.isArray(source.targetSourceHint)
+      ? source.targetSourceHint
+      : source.sourceHint &&
+          typeof source.sourceHint === "object" &&
+          !Array.isArray(source.sourceHint)
+        ? source.sourceHint
+        : {};
+  const targetSourceFile = cleanString(
+    source.targetSourceFile ||
+      source.sourceFile ||
+      hint.targetSourceFile ||
+      hint.sourceFile ||
+      hint.file,
+  );
+  const targetSourcePath = cleanString(
+    source.targetSourcePath ||
+      source.sourcePath ||
+      hint.targetSourcePath ||
+      hint.sourcePath ||
+      hint.path,
+  );
+  const targetSourceSymbol = cleanString(
+    source.targetSourceSymbol ||
+      source.sourceSymbol ||
+      hint.targetSourceSymbol ||
+      hint.sourceSymbol ||
+      hint.symbol,
+  );
+  const targetSourceLine = cleanString(
+    source.targetSourceLine ||
+      source.sourceLine ||
+      hint.targetSourceLine ||
+      hint.sourceLine ||
+      hint.line,
+  );
+  const targetSourceComponent = cleanString(
+    source.targetSourceComponent ||
+      source.sourceComponent ||
+      source.component ||
+      hint.targetSourceComponent ||
+      hint.sourceComponent ||
+      hint.component,
+  );
+  const targetTaskFile = cleanString(
+    source.targetTaskFile ||
+      source.taskFile ||
+      hint.targetTaskFile ||
+      hint.taskFile,
+  );
+  const targetTaskId = cleanString(
+    source.targetTaskId || source.taskId || hint.targetTaskId || hint.taskId,
+  );
+  const targetSourceBinding = cleanString(
+    source.targetSourceBinding ||
+      source.sourceBinding ||
+      hint.targetSourceBinding ||
+      hint.sourceBinding ||
+      hint.source,
+  );
+  if (
+    !targetSourceFile &&
+    !targetSourcePath &&
+    !targetSourceSymbol &&
+    !targetSourceLine &&
+    !targetSourceComponent &&
+    !targetTaskFile &&
+    !targetTaskId &&
+    !targetSourceBinding
+  ) {
+    return null;
+  }
+  return {
+    targetSourceFile,
+    targetSourcePath,
+    targetSourceSymbol,
+    targetSourceLine,
+    targetSourceComponent,
+    targetTaskFile,
+    targetTaskId,
+    targetSourceBinding,
   };
 }
 

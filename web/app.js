@@ -3415,6 +3415,95 @@ function normalizeLiveEditBounds(bounds) {
   };
 }
 
+function normalizeLiveEditSourceHint(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const hint =
+    source.targetSourceHint &&
+    typeof source.targetSourceHint === "object" &&
+    !Array.isArray(source.targetSourceHint)
+      ? source.targetSourceHint
+      : source.sourceHint &&
+          typeof source.sourceHint === "object" &&
+          !Array.isArray(source.sourceHint)
+        ? source.sourceHint
+        : {};
+  const targetSourceFile = cleanString(
+    source.targetSourceFile ||
+      source.sourceFile ||
+      hint.targetSourceFile ||
+      hint.sourceFile ||
+      hint.file,
+  );
+  const targetSourcePath = cleanString(
+    source.targetSourcePath ||
+      source.sourcePath ||
+      hint.targetSourcePath ||
+      hint.sourcePath ||
+      hint.path,
+  );
+  const targetSourceSymbol = cleanString(
+    source.targetSourceSymbol ||
+      source.sourceSymbol ||
+      hint.targetSourceSymbol ||
+      hint.sourceSymbol ||
+      hint.symbol,
+  );
+  const targetSourceLine = cleanString(
+    source.targetSourceLine ||
+      source.sourceLine ||
+      hint.targetSourceLine ||
+      hint.sourceLine ||
+      hint.line,
+  );
+  const targetSourceComponent = cleanString(
+    source.targetSourceComponent ||
+      source.sourceComponent ||
+      source.component ||
+      hint.targetSourceComponent ||
+      hint.sourceComponent ||
+      hint.component,
+  );
+  const targetTaskFile = cleanString(
+    source.targetTaskFile ||
+      source.taskFile ||
+      hint.targetTaskFile ||
+      hint.taskFile,
+  );
+  const targetTaskId = cleanString(
+    source.targetTaskId || source.taskId || hint.targetTaskId || hint.taskId,
+  );
+  const targetSourceBinding = cleanString(
+    source.targetSourceBinding ||
+      source.sourceBinding ||
+      hint.targetSourceBinding ||
+      hint.sourceBinding ||
+      hint.source,
+  );
+  if (
+    !targetSourceFile &&
+    !targetSourcePath &&
+    !targetSourceSymbol &&
+    !targetSourceLine &&
+    !targetSourceComponent &&
+    !targetTaskFile &&
+    !targetTaskId &&
+    !targetSourceBinding
+  ) {
+    return null;
+  }
+  return {
+    targetSourceFile,
+    targetSourcePath,
+    targetSourceSymbol,
+    targetSourceLine,
+    targetSourceComponent,
+    targetTaskFile,
+    targetTaskId,
+    targetSourceBinding,
+  };
+}
+
 function normalizeLiveEditTarget(value, index = 0) {
   const source =
     value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -3430,6 +3519,7 @@ function normalizeLiveEditTarget(value, index = 0) {
   }
   const now = new Date().toISOString();
   const status = cleanString(source.status);
+  const sourceHint = normalizeLiveEditSourceHint(source);
   return {
     kind: "canvax-live-edit-target",
     id: cleanString(source.id) || `live-edit-${index + 1}`,
@@ -3449,6 +3539,19 @@ function normalizeLiveEditTarget(value, index = 0) {
       cleanString(source.targetText || source.textContent),
       160,
     ),
+    ...(sourceHint || {}),
+    targetSourceHint: sourceHint
+      ? {
+          file: sourceHint.targetSourceFile,
+          path: sourceHint.targetSourcePath,
+          symbol: sourceHint.targetSourceSymbol,
+          line: sourceHint.targetSourceLine,
+          component: sourceHint.targetSourceComponent,
+          taskFile: sourceHint.targetTaskFile,
+          taskId: sourceHint.targetTaskId,
+          source: sourceHint.targetSourceBinding,
+        }
+      : null,
     targetHref,
     targetPath,
     targetVersionTag: cleanString(source.targetVersionTag),
@@ -10189,6 +10292,7 @@ function createLiveEditTargetFromPoint(target, frame, point, event = null) {
   const outputTargetId = cleanString(target.id);
   const domNodeId = cleanString(domTarget?.nodeId);
   const selector = cleanString(domTarget?.selector);
+  const domSourceHint = normalizeLiveEditSourceHint(domTarget || {});
   return normalizeLiveEditTarget({
     id: uid("live-edit"),
     sourceFrameId: frame.id,
@@ -10203,6 +10307,7 @@ function createLiveEditTargetFromPoint(target, frame, point, event = null) {
     targetSelector: selector,
     targetTag: domTarget?.tag || "",
     targetText: domTarget?.text || "",
+    ...(domSourceHint || {}),
     targetHref: targetUrl,
     targetPath: target.previewPath || target.path || "",
     targetVersionTag: target.versionTag || "",
@@ -10286,6 +10391,7 @@ function inspectWorkbenchOutputDomTargetFromEvent(event) {
   const tag = cleanString(element.tagName).toLowerCase();
   const role = cleanString(element.getAttribute("role"));
   const ariaLabel = cleanString(element.getAttribute("aria-label"));
+  const sourceHint = previewElementSourceHint(element);
   const label = compactDisplayText(
     [
       nodeId || selector || tag,
@@ -10303,7 +10409,146 @@ function inspectWorkbenchOutputDomTargetFromEvent(event) {
     selector,
     tag,
     text,
+    ...(sourceHint || {}),
+    sourceHint,
   };
+}
+
+function previewElementSourceHint(element) {
+  if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+    return null;
+  }
+  const sourceBinding = previewAttributeValue(element, [
+    "data-canvax-source",
+    "data-source",
+  ]);
+  const parsedSource = parsePreviewSourceHint(sourceBinding);
+  const sourceFile =
+    previewAttributeValue(element, [
+      "data-canvax-source-file",
+      "data-canvax-file",
+      "data-source-file",
+      "data-file",
+    ]) ||
+    cleanString(
+      parsedSource.file ||
+        parsedSource.sourceFile ||
+        parsedSource.targetSourceFile,
+    ) ||
+    (parsedSource.isPlainSource ? sourceBinding : "");
+  const sourcePath =
+    previewAttributeValue(element, [
+      "data-canvax-source-path",
+      "data-canvax-path",
+      "data-source-path",
+      "data-path",
+    ]) ||
+    cleanString(
+      parsedSource.path ||
+        parsedSource.sourcePath ||
+        parsedSource.targetSourcePath,
+    );
+  const sourceSymbol =
+    previewAttributeValue(element, [
+      "data-canvax-source-symbol",
+      "data-canvax-symbol",
+      "data-source-symbol",
+      "data-symbol",
+    ]) ||
+    cleanString(
+      parsedSource.symbol ||
+        parsedSource.sourceSymbol ||
+        parsedSource.targetSourceSymbol,
+    );
+  const sourceLine =
+    previewAttributeValue(element, [
+      "data-canvax-source-line",
+      "data-canvax-line",
+      "data-source-line",
+      "data-line",
+    ]) ||
+    cleanString(
+      parsedSource.line ||
+        parsedSource.sourceLine ||
+        parsedSource.targetSourceLine,
+    );
+  const sourceComponent =
+    previewAttributeValue(element, [
+      "data-canvax-component",
+      "data-canvax-source-component",
+      "data-component",
+      "data-source-component",
+    ]) ||
+    cleanString(
+      parsedSource.component ||
+        parsedSource.sourceComponent ||
+        parsedSource.targetSourceComponent,
+    );
+  const taskFile =
+    previewAttributeValue(element, [
+      "data-canvax-task-file",
+      "data-task-file",
+    ]) ||
+    cleanString(parsedSource.taskFile || parsedSource.targetTaskFile);
+  const taskId =
+    previewAttributeValue(element, ["data-canvax-task-id", "data-task-id"]) ||
+    cleanString(parsedSource.taskId || parsedSource.targetTaskId);
+  const sourceHint = normalizeLiveEditSourceHint({
+    targetSourceFile: sourceFile,
+    targetSourcePath: sourcePath,
+    targetSourceSymbol: sourceSymbol,
+    targetSourceLine: sourceLine,
+    targetSourceComponent: sourceComponent,
+    targetTaskFile: taskFile,
+    targetTaskId: taskId,
+    targetSourceBinding:
+      cleanString(
+        parsedSource.source ||
+          parsedSource.sourceBinding ||
+          parsedSource.targetSourceBinding,
+      ) || (parsedSource.isPlainSource ? sourceBinding : ""),
+  });
+  return sourceHint;
+}
+
+function parsePreviewSourceHint(value) {
+  const raw = cleanString(value);
+  if (!raw) {
+    return {};
+  }
+  if (raw.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? parsed
+        : {};
+    } catch {
+      return { isPlainSource: true };
+    }
+  }
+  return { isPlainSource: true };
+}
+
+function previewAttributeValue(element, names) {
+  const match = previewAttributeFromAncestors(element, names);
+  return cleanString(match?.value);
+}
+
+function previewAttributeFromAncestors(element, names) {
+  let current = element;
+  while (current && current.nodeType === Node.ELEMENT_NODE) {
+    for (const name of names) {
+      if (current.hasAttribute(name)) {
+        return {
+          value: current.getAttribute(name),
+          attribute: name,
+          element: current,
+        };
+      }
+    }
+    current = current.parentElement;
+  }
+  return null;
 }
 
 function closestInspectablePreviewElement(element) {
@@ -26979,6 +27224,12 @@ async function runSelfTest() {
           <body style="margin:0">
             <button
               data-canvax-node-id="self-dom-cta"
+              data-canvax-source-file="src/screens/Home.jsx"
+              data-canvax-source-symbol="HeroCTA"
+              data-canvax-source-line="42"
+              data-canvax-component="PrimaryBookingButton"
+              data-canvax-task-file="TASKS.md"
+              data-canvax-task-id="task-hero-cta"
               style="position:absolute;left:80px;top:50px;width:160px;height:80px"
             >Book now</button>
           </body>
@@ -27005,6 +27256,12 @@ async function runSelfTest() {
       domCapturedTarget.targetObjectId === "self-test-canvas-reply" &&
       domCapturedTarget.targetSelector ===
         '[data-canvax-node-id="self-dom-cta"]' &&
+      domCapturedTarget.targetSourceFile === "src/screens/Home.jsx" &&
+      domCapturedTarget.targetSourceSymbol === "HeroCTA" &&
+      domCapturedTarget.targetSourceLine === "42" &&
+      domCapturedTarget.targetSourceComponent === "PrimaryBookingButton" &&
+      domCapturedTarget.targetTaskFile === "TASKS.md" &&
+      domCapturedTarget.targetTaskId === "task-hero-cta" &&
       domCapturedTarget.bounds.x === 0.2 &&
       domCapturedTarget.bounds.w === 0.4 &&
       domCapturedTarget.targetText.includes("Book now");
