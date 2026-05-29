@@ -883,7 +883,14 @@ function buildAcceptedLiveEditPatchNote(context) {
     : [];
   const outputAnnotationLabels = Array.isArray(context.outputAnnotations)
     ? context.outputAnnotations
-        .map((annotation) => cleanString(annotation?.text || annotation?.label))
+        .map((annotation) =>
+          cleanString(
+            annotation?.semantics?.label ||
+              annotation?.semantics?.intent ||
+              annotation?.text ||
+              annotation?.label,
+          ),
+        )
         .filter(Boolean)
         .slice(0, 4)
     : [];
@@ -1085,6 +1092,22 @@ function normalizeLiveEditCanvasMarks(value) {
                     confidence: Number(mark.semantics.confidence) || 0,
                     rule: cleanString(mark.semantics.rule),
                     vector: mark.semantics.vector || null,
+                    group:
+                      mark.semantics.group &&
+                      typeof mark.semantics.group === "object"
+                        ? {
+                            id: cleanString(mark.semantics.group.id),
+                            type: cleanString(mark.semantics.group.type),
+                            memberIds: Array.isArray(
+                              mark.semantics.group.memberIds,
+                            )
+                              ? mark.semantics.group.memberIds
+                                  .map(cleanString)
+                                  .filter(Boolean)
+                                  .slice(0, 8)
+                              : [],
+                          }
+                        : null,
                   }
                 : null,
           };

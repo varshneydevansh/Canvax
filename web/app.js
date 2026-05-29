@@ -3108,6 +3108,8 @@ function createInitialState() {
     outputCheckpointInFlight: false,
     outputAnnotationDraft: null,
     liveEditPickActive: false,
+    liveEditPinPlacement: null,
+    liveEditPinDrag: null,
     lastActionScope: "",
     draftElement: null,
     isDrawing: false,
@@ -11130,7 +11132,7 @@ function liveEditTargetCanvasMarks(frame, liveTarget) {
     targetBounds,
     Math.max(80, Math.max(targetBounds.width, targetBounds.height) * 0.16),
   );
-  return (frame.elements || [])
+  const marks = (frame.elements || [])
     .filter(
       (element) =>
         element.id !== target.targetId &&
@@ -11144,12 +11146,12 @@ function liveEditTargetCanvasMarks(frame, liveTarget) {
     })
     .filter(Boolean)
     .slice(-8);
+  return applyMultiStrokeSemantics(marks);
 }
 
 function liveEditTargetStrokeSignals(frame, liveTarget) {
   const target = normalizeLiveEditTarget(liveTarget);
-  const outputSignals = (frame?.outputAnnotations || [])
-    .map(summarizeOutputAnnotation)
+  const outputSignals = summarizeOutputAnnotations(frame?.outputAnnotations)
     .filter(
       (annotation) =>
         !target?.targetId ||
@@ -21568,9 +21570,7 @@ async function buildExportPackage(frameSelection = state.frames) {
       updatedAt: frame.updatedAt,
       captureCount: frame.captures.length,
       outputAnnotationCount: frame.outputAnnotations?.length || 0,
-      outputAnnotations: (frame.outputAnnotations || []).map(
-        summarizeOutputAnnotation,
-      ),
+      outputAnnotations: summarizeOutputAnnotations(frame.outputAnnotations),
       composition: buildFrameComposition(frame),
       snapshotDataUrl: renderFrameToDataUrl(frame, {
         maxWidth: 1400,
@@ -23152,9 +23152,7 @@ function buildFrameComposition(frame) {
     acceptedLiveEditVariant: normalizeLiveEditVariant(
       frame.acceptedLiveEditVariant,
     ),
-    outputAnnotations: (frame.outputAnnotations || []).map(
-      summarizeOutputAnnotation,
-    ),
+    outputAnnotations: summarizeOutputAnnotations(frame.outputAnnotations),
   };
 }
 
@@ -24328,6 +24326,16 @@ function classifyOutputAnnotationSemantics(annotation) {
     return sum + Math.hypot(point.x - previous.x, point.y - previous.y);
   }, 0);
   const diagonal = Math.max(0.001, Math.hypot(width, height));
+  const aspectRatio = height ? width / height : 1;
+  const closedLoop =
+    closeDistance < Math.max(0.035, diagonal * 0.28) &&
+    totalLength / diagonal > 1.85 &&
+    width > 0.045 &&
+    height > 0.045;
+  const circleLike =
+    closedLoop &&
+    aspectRatio >= 0.55 &&
+    aspectRatio <= 1.85;
   const directionChanges = points.slice(2).reduce((sum, point, index) => {
     const a = points[index];
     const b = points[index + 1];
@@ -24338,10 +24346,18 @@ function classifyOutputAnnotationSemantics(annotation) {
     return sum + (mag && dot / mag < -0.28 ? 1 : 0);
   }, 0);
 
-  if (closeDistance < 0.07 && width > 0.08 && height > 0.06) {
+  if (circleLike && width < 0.44 && height < 0.38) {
     return {
-      intent: "preserve-or-improve-target",
-      label: "Closed loop: preserve/focus or improve this component",
+      intent: "improve-component",
+      label: "Circle: improve this component",
+      confidence: 0.84,
+      rule: "component-circle",
+    };
+  }
+  if (closedLoop || (closeDistance < 0.07 && width > 0.08 && height > 0.06)) {
+    return {
+      intent: "preserve-or-focus-area",
+      label: "Closed loop: preserve/focus this area",
       confidence: 0.78,
       rule: "closed-loop",
     };
@@ -24382,6 +24398,13 @@ function classifyOutputAnnotationSemantics(annotation) {
   };
 }
 
+function summarizeOutputAnnotations(annotations) {
+  const summaries = Array.isArray(annotations)
+    ? annotations.map(summarizeOutputAnnotation).filter(Boolean)
+    : [];
+  return applyMultiStrokeSemantics(summaries);
+}
+
 function summarizeOutputAnnotation(annotation) {
   const bounds =
     annotation.normalizedBounds ||
@@ -24407,6 +24430,217 @@ function summarizeOutputAnnotation(annotation) {
     targetLabel: annotation.targetLabel || "",
     targetVersionTag: annotation.targetVersionTag || "",
     createdAt: annotation.createdAt || "",
+  };
+}
+
+function applyMultiStrokeSemantics(marks) {
+  const summaries = Array.isArray(marks)
+    ? marks
+        .filter(Boolean)
+        .map((mark) => ({
+          ...mark,
+          semantics:
+            mark.semantics && typeof mark.semantics === "object"
+              ? { ...mark.semantics }
+              : null,
+        }))
+    : [];
+  const assigned = new Set();
+  for (let index = 0; index < summaries.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < summaries.length; nextIndex += 1) {
+      const first = summaries[index];
+      const second = summaries[nextIndex];
+      if (!strokeTargetsCompatible(first, second)) {
+        continue;
+      }
+      if (strokeLinesCross(first, second)) {
+        const group = buildStrokeSemanticGroup("multi-stroke-cross", [
+          first,
+          second,
+        ]);
+        applyGroupedStrokeSemantics(first, {
+          intent: "remove-or-reduce",
+          label: "Cross: remove or reduce this component",
+          confidence: 0.86,
+          rule: "multi-stroke-cross",
+          group,
+        });
+        applyGroupedStrokeSemantics(second, {
+          intent: "remove-or-reduce",
+          label: "Cross: remove or reduce this component",
+          confidence: 0.86,
+          rule: "multi-stroke-cross",
+          group,
+        });
+        assigned.add(first.id);
+        assigned.add(second.id);
+      }
+    }
+  }
+  for (let index = 0; index < summaries.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < summaries.length; nextIndex += 1) {
+      const first = summaries[index];
+      const second = summaries[nextIndex];
+      if (
+        assigned.has(first.id) ||
+        assigned.has(second.id) ||
+        !strokeTargetsCompatible(first, second) ||
+        !strokesAreRepeatedUnderlines(first, second)
+      ) {
+        continue;
+      }
+      const group = buildStrokeSemanticGroup("multi-stroke-underline", [
+        first,
+        second,
+      ]);
+      applyGroupedStrokeSemantics(first, {
+        intent: "emphasize",
+        label: "Repeated underline: emphasize this area",
+        confidence: 0.84,
+        rule: "multi-stroke-underline",
+        group,
+      });
+      applyGroupedStrokeSemantics(second, {
+        intent: "emphasize",
+        label: "Repeated underline: emphasize this area",
+        confidence: 0.84,
+        rule: "multi-stroke-underline",
+        group,
+      });
+    }
+  }
+  return summaries;
+}
+
+function strokeTargetsCompatible(first, second) {
+  const firstTarget = cleanString(first?.targetId);
+  const secondTarget = cleanString(second?.targetId);
+  return !firstTarget || !secondTarget || firstTarget === secondTarget;
+}
+
+function strokeLinesCross(first, second) {
+  const a = strokeEndpointVector(first);
+  const b = strokeEndpointVector(second);
+  if (!a || !b || a.length < 0.11 || b.length < 0.11) {
+    return false;
+  }
+  const angleCosine = Math.abs((a.dx * b.dx + a.dy * b.dy) / (a.length * b.length));
+  if (angleCosine > 0.78) {
+    return false;
+  }
+  const firstBounds = expandNormalizedBounds(first.normalizedBounds || first.bounds, 0.018);
+  const secondBounds = expandNormalizedBounds(second.normalizedBounds || second.bounds, 0.018);
+  if (!rectsOverlap(firstBounds, secondBounds)) {
+    return false;
+  }
+  return (
+    lineSegmentsIntersect(a.start, a.end, b.start, b.end) ||
+    Math.hypot(a.center.x - b.center.x, a.center.y - b.center.y) < 0.09
+  );
+}
+
+function strokesAreRepeatedUnderlines(first, second) {
+  if (
+    first?.semantics?.rule !== "underline" ||
+    second?.semantics?.rule !== "underline"
+  ) {
+    return false;
+  }
+  const firstBounds = normalizeLiveEditBounds(first.normalizedBounds || first.bounds);
+  const secondBounds = normalizeLiveEditBounds(second.normalizedBounds || second.bounds);
+  if (!firstBounds || !secondBounds) {
+    return false;
+  }
+  const yDistance = Math.abs(firstBounds.centerY - secondBounds.centerY);
+  const xOverlap =
+    Math.min(firstBounds.right, secondBounds.right) -
+    Math.max(firstBounds.left, secondBounds.left);
+  const minWidth = Math.max(0.001, Math.min(firstBounds.width, secondBounds.width));
+  return yDistance < 0.055 && xOverlap / minWidth > 0.42;
+}
+
+function strokeEndpointVector(mark) {
+  const points = Array.isArray(mark?.points) ? mark.points : [];
+  if (points.length < 2) {
+    return null;
+  }
+  const start = points[0];
+  const end = points.at(-1);
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  return {
+    start,
+    end,
+    dx,
+    dy,
+    length,
+    center: {
+      x: (start.x + end.x) / 2,
+      y: (start.y + end.y) / 2,
+    },
+  };
+}
+
+function lineSegmentsIntersect(a, b, c, d) {
+  const orientation = (p, q, r) =>
+    Math.sign((q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y));
+  const onSegment = (p, q, r) =>
+    q.x <= Math.max(p.x, r.x) + 0.001 &&
+    q.x >= Math.min(p.x, r.x) - 0.001 &&
+    q.y <= Math.max(p.y, r.y) + 0.001 &&
+    q.y >= Math.min(p.y, r.y) - 0.001;
+  const o1 = orientation(a, b, c);
+  const o2 = orientation(a, b, d);
+  const o3 = orientation(c, d, a);
+  const o4 = orientation(c, d, b);
+  if (o1 !== o2 && o3 !== o4) {
+    return true;
+  }
+  return (
+    (o1 === 0 && onSegment(a, c, b)) ||
+    (o2 === 0 && onSegment(a, d, b)) ||
+    (o3 === 0 && onSegment(c, a, d)) ||
+    (o4 === 0 && onSegment(c, b, d))
+  );
+}
+
+function expandNormalizedBounds(bounds, padding = 0.015) {
+  const normalized = normalizeLiveEditBounds(bounds);
+  if (!normalized) {
+    return null;
+  }
+  const left = clamp(normalized.left - padding, 0, 1);
+  const top = clamp(normalized.top - padding, 0, 1);
+  const right = clamp(normalized.right + padding, 0, 1);
+  const bottom = clamp(normalized.bottom + padding, 0, 1);
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    right,
+    bottom,
+    w: right - left,
+    h: bottom - top,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+function buildStrokeSemanticGroup(type, members) {
+  const memberIds = members.map((member) => member.id).filter(Boolean);
+  return {
+    id: `${type}-${memberIds.join("-") || uid("stroke-group")}`,
+    type,
+    memberIds,
+  };
+}
+
+function applyGroupedStrokeSemantics(mark, semantics) {
+  mark.semantics = {
+    ...(mark.semantics || {}),
+    ...semantics,
   };
 }
 
@@ -25372,9 +25606,7 @@ function buildLivePreviewPayload() {
           updatedAt: frame.updatedAt,
           captureCount: frame.captures.length,
           outputAnnotationCount: frame.outputAnnotations?.length || 0,
-          outputAnnotations: (frame.outputAnnotations || []).map(
-            summarizeOutputAnnotation,
-          ),
+          outputAnnotations: summarizeOutputAnnotations(frame.outputAnnotations),
           liveThumbnailDataUrl: frameThumbnailDataUrl(frame, {
             maxWidth: 320,
             mime: "image/jpeg",
@@ -27229,6 +27461,7 @@ async function runSelfTest() {
     results.push(assertEraserPreservesPaperLayer());
     results.push(assertEraserRemovesInk());
     results.push(assertOutputAnnotationEraserRemovesMarks());
+    results.push(assertOutputAnnotationSemanticGestures());
     const extractedTokens = await extractDesignTokensFromCurrentFrame({
       capture: false,
       silent: true,
@@ -28349,6 +28582,87 @@ function assertOutputAnnotationEraserRemovesMarks() {
   return assert(
     passed,
     "output eraser deletes correction marks instead of exporting erase strokes",
+  );
+}
+
+function assertOutputAnnotationSemanticGestures() {
+  const circlePoints = Array.from({ length: 13 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 12;
+    return {
+      x: roundNumber(0.34 + Math.cos(angle) * 0.07),
+      y: roundNumber(0.32 + Math.sin(angle) * 0.055),
+    };
+  });
+  const annotations = [
+    normalizeOutputAnnotation({
+      id: "semantic-circle-component",
+      points: circlePoints,
+      color: palette[0],
+      size: 8,
+      targetId: "semantic-target",
+    }),
+    normalizeOutputAnnotation({
+      id: "semantic-cross-a",
+      points: [
+        { x: 0.18, y: 0.18 },
+        { x: 0.35, y: 0.36 },
+      ],
+      color: palette[0],
+      size: 8,
+      targetId: "semantic-target",
+    }),
+    normalizeOutputAnnotation({
+      id: "semantic-cross-b",
+      points: [
+        { x: 0.35, y: 0.18 },
+        { x: 0.18, y: 0.36 },
+      ],
+      color: palette[0],
+      size: 8,
+      targetId: "semantic-target",
+    }),
+    normalizeOutputAnnotation({
+      id: "semantic-underline-a",
+      points: [
+        { x: 0.48, y: 0.62 },
+        { x: 0.72, y: 0.624 },
+      ],
+      color: palette[0],
+      size: 8,
+      targetId: "semantic-target",
+    }),
+    normalizeOutputAnnotation({
+      id: "semantic-underline-b",
+      points: [
+        { x: 0.49, y: 0.655 },
+        { x: 0.73, y: 0.658 },
+      ],
+      color: palette[0],
+      size: 8,
+      targetId: "semantic-target",
+    }),
+  ].filter(Boolean);
+  const summaries = summarizeOutputAnnotations(annotations);
+  const byId = new Map(summaries.map((summary) => [summary.id, summary]));
+  const circle = byId.get("semantic-circle-component");
+  const crossA = byId.get("semantic-cross-a");
+  const crossB = byId.get("semantic-cross-b");
+  const underlineA = byId.get("semantic-underline-a");
+  const underlineB = byId.get("semantic-underline-b");
+  return assert(
+    circle?.semantics?.intent === "improve-component" &&
+      crossA?.semantics?.rule === "multi-stroke-cross" &&
+      crossB?.semantics?.group?.memberIds?.includes("semantic-cross-a") &&
+      underlineA?.semantics?.rule === "multi-stroke-underline" &&
+      underlineB?.semantics?.group?.memberIds?.includes("semantic-underline-a"),
+    "output correction semantics classify component circles and multi-stroke gestures",
+    JSON.stringify({
+      circle: circle?.semantics || null,
+      crossA: crossA?.semantics || null,
+      crossB: crossB?.semantics || null,
+      underlineA: underlineA?.semantics || null,
+      underlineB: underlineB?.semantics || null,
+    }),
   );
 }
 
