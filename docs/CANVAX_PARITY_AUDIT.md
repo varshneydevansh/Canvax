@@ -46,6 +46,9 @@ Writeback status distinguishes that state as `source-discovered`, not
 visible on the picked output surface and in the Workbench Agent log, so the
 designer can see whether Accept patched source, found candidates, searched
 without a candidate, or only wrote a task without opening the manifest JSON.
+Local-only canvas, asset-candidate, and Map-object accepts also repaint their
+surface with an `Accepted locally` outcome so the visible artifact confirms the
+binding even when there is no external source file to patch.
 
 ## Prompt-To-Artifact Checklist
 

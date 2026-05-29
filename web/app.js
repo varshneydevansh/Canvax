@@ -13035,6 +13035,9 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
   if (!frame || !liveTarget) {
     return null;
   }
+  const acceptedVariant = normalizeLiveEditVariant(frame.acceptedLiveEditVariant);
+  const label =
+    acceptedVariant?.label || liveTarget.acceptedVariantLabel || "target";
   const hasExternalTarget = Boolean(liveTarget.targetPath || liveTarget.targetHref);
   if (!hasExternalTarget) {
     const reason =
@@ -13049,14 +13052,23 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
     state.serverStatus = {
       ...state.serverStatus,
       liveEditWriteback: {
-        executed: false,
+        executed: true,
+        status: "local-bound",
         skipped: true,
         reason,
         targetId: liveTarget.targetId,
         targetLabel: liveTarget.targetLabel,
+        variantLabel: label,
         updatedAt: new Date().toISOString(),
       },
     };
+    renderServerStatus();
+    renderWorkbenchAgentLog();
+    renderWorkbenchOutput();
+    renderAssetCandidateTray();
+    renderCanvas();
+    renderFlowBoard();
+    scheduleLivePreviewSync();
     renderStatus(
       liveEditTargetIsSpatialMapObject(liveTarget)
         ? "Live edit accepted on the Map object"
@@ -13067,8 +13079,6 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
     return state.serverStatus.liveEditWriteback;
   }
 
-  const acceptedVariant = normalizeLiveEditVariant(frame.acceptedLiveEditVariant);
-  const label = acceptedVariant?.label || liveTarget.acceptedVariantLabel || "target";
   state.serverStatus = {
     ...state.serverStatus,
     liveEditWriteback: {
@@ -17555,6 +17565,12 @@ function renderSpatialObjectLiveEditMarkup(object, liveTarget, liveVariant, fram
   const operations = normalizeLiveEditSurfaceOperations(
     liveVariant?.surfaceOperations,
   ).slice(0, 3);
+  const outcome =
+    target.status === "accepted"
+      ? describeLiveEditWritebackOutcome(
+          liveEditWritebackForTarget(frame, target),
+        )
+      : null;
   return `
     <div class="spatial-object-live-edit-layer" aria-hidden="true">
       ${
@@ -17591,6 +17607,14 @@ function renderSpatialObjectLiveEditMarkup(object, liveTarget, liveVariant, fram
                 ? `<small>${operations.map((operation) => escapeHtml(operation.label)).join(" / ")}</small>`
                 : ""
             }
+          </div>`
+        : ""
+    }
+    ${
+      outcome
+        ? `<div class="spatial-object-live-edit-outcome" data-tone="${escapeHtml(outcome.tone)}">
+            <strong>${escapeHtml(outcome.label)}</strong>
+            <small>${escapeHtml(compactDisplayText(outcome.detail, 96))}</small>
           </div>`
         : ""
     }
@@ -20051,6 +20075,12 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   const label =
     variant?.label ||
     (liveTarget.status === "accepted" ? "Accepted target" : "Picked target");
+  const outcome =
+    liveTarget.status === "accepted"
+      ? describeLiveEditWritebackOutcome(
+          liveEditWritebackForTarget(frame, liveTarget),
+        )
+      : null;
 
   ctx.save();
   ctx.lineWidth = Math.max(2, 2.5 * scale);
@@ -20080,6 +20110,9 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   );
   ctx.stroke();
   drawCanvasLiveEditBadge(ctx, label, bounds, scale);
+  if (outcome) {
+    drawCanvasLiveEditOutcomeBadge(ctx, outcome, bounds, width, height, scale);
+  }
   pins.forEach((pin, index) =>
     drawCanvasLiveEditPin(ctx, pin, index, width, height, scale),
   );
@@ -20185,6 +20218,98 @@ function drawCanvasLiveEditVariantCard(
     2,
   );
   ctx.restore();
+}
+
+function drawCanvasLiveEditOutcomeBadge(
+  ctx,
+  outcome,
+  bounds,
+  canvasWidth,
+  canvasHeight,
+  scale = 1,
+) {
+  if (!outcome || !bounds) {
+    return;
+  }
+  const tone = liveEditOutcomeToneColors(outcome.tone);
+  const title = compactDisplayText(outcome.label, 26).toUpperCase();
+  const detail = compactDisplayText(outcome.detail, 72);
+  const fontTitle = `900 ${Math.max(9, 10 * scale)}px "Avenir Next", sans-serif`;
+  const fontDetail = `700 ${Math.max(9, 10 * scale)}px "Avenir Next", sans-serif`;
+  ctx.save();
+  ctx.font = fontTitle;
+  const titleWidth = ctx.measureText(title).width;
+  ctx.font = fontDetail;
+  const detailWidth = ctx.measureText(detail).width;
+  const chipWidth = Math.min(
+    Math.max(154 * scale, Math.max(titleWidth, detailWidth) + 24 * scale),
+    Math.max(160 * scale, canvasWidth * scale - 16 * scale),
+  );
+  const chipHeight = detail ? 44 * scale : 28 * scale;
+  const preferredX = bounds.left * scale + 10 * scale;
+  const preferredY = (bounds.bottom + 8) * scale;
+  const x = clamp(preferredX, 8, Math.max(8, canvasWidth * scale - chipWidth - 8));
+  const y = clamp(
+    preferredY,
+    8,
+    Math.max(8, canvasHeight * scale - chipHeight - 8),
+  );
+  ctx.fillStyle = tone.background;
+  ctx.strokeStyle = tone.border;
+  ctx.lineWidth = Math.max(1, 1 * scale);
+  roundRect(ctx, x, y, chipWidth, chipHeight, 10 * scale);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = tone.foreground;
+  ctx.font = fontTitle;
+  ctx.fillText(title, x + 12 * scale, y + 17 * scale);
+  if (detail) {
+    ctx.fillStyle = tone.muted;
+    ctx.font = fontDetail;
+    drawCanvasWrappedText(
+      ctx,
+      detail,
+      x + 12 * scale,
+      y + 33 * scale,
+      chipWidth - 24 * scale,
+      12 * scale,
+      1,
+    );
+  }
+  ctx.restore();
+}
+
+function liveEditOutcomeToneColors(tone) {
+  if (tone === "warning") {
+    return {
+      background: "rgba(82, 57, 12, 0.9)",
+      border: "rgba(245, 185, 56, 0.7)",
+      foreground: "#fff7db",
+      muted: "rgba(255, 247, 219, 0.72)",
+    };
+  }
+  if (tone === "danger") {
+    return {
+      background: "rgba(86, 32, 22, 0.92)",
+      border: "rgba(255, 93, 58, 0.78)",
+      foreground: "#fff0eb",
+      muted: "rgba(255, 240, 235, 0.72)",
+    };
+  }
+  if (tone === "active") {
+    return {
+      background: "rgba(86, 32, 22, 0.88)",
+      border: "rgba(255, 93, 58, 0.58)",
+      foreground: "#faf6f0",
+      muted: "rgba(250, 246, 240, 0.72)",
+    };
+  }
+  return {
+    background: "rgba(7, 75, 66, 0.9)",
+    border: "rgba(12, 141, 123, 0.68)",
+    foreground: "#eaf7f5",
+    muted: "rgba(234, 247, 245, 0.72)",
+  };
 }
 
 function drawCanvasWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
@@ -31473,6 +31598,9 @@ async function runSelfTest() {
       viewMode: state.viewMode,
       tool: state.tool,
       previewManifest: structuredClone(state.serverStatus.previewManifest),
+      liveEditWriteback: structuredClone(
+        state.serverStatus.liveEditWriteback || null,
+      ),
     };
     const canvasLiveEditRect = {
       id: "selftest-live-canvas-object",
@@ -31587,6 +31715,13 @@ async function runSelfTest() {
       canvasLiveEditBounds,
     );
     await acceptLiveEditTarget();
+    renderCanvas();
+    const canvasObjectLocalOutcome = describeLiveEditWritebackOutcome(
+      state.serverStatus.liveEditWriteback,
+    );
+    const canvasObjectLocalOutcomeRendered =
+      canvasRegionHasAcceptedOutcomePixel(dom.canvas, canvasLiveEditBounds);
+    const canvasObjectAgentLog = buildWorkbenchAgentLogItems();
     const canvasObjectComposition = buildFrameComposition(frameForCanvasReply);
     const canvasObjectElement = frameForCanvasReply.elements.find(
       (element) => element.id === canvasLiveEditRect.id,
@@ -31601,6 +31736,14 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditVariantIndex === 2 &&
       canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
       canvasObjectElement?.liveEdit?.request?.status === "accepted" &&
+      state.serverStatus.liveEditWriteback?.status === "local-bound" &&
+      canvasObjectLocalOutcome?.label === "Accepted locally" &&
+      canvasObjectLocalOutcomeRendered &&
+      canvasObjectAgentLog.some(
+        (item) =>
+          item.kind === "Live Edit" &&
+          item.title.includes("Accepted locally"),
+      ) &&
       canvasObjectDirectPicked &&
       canvasRegionDragPicked &&
       canvasRegionDirectPickAccepted &&
@@ -31647,6 +31790,8 @@ async function runSelfTest() {
     state.tool = previousCanvasObjectLiveEditState.tool;
     state.serverStatus.previewManifest =
       previousCanvasObjectLiveEditState.previewManifest;
+    state.serverStatus.liveEditWriteback =
+      previousCanvasObjectLiveEditState.liveEditWriteback;
     renderAll();
     results.push(
       assert(
@@ -34004,6 +34149,7 @@ async function assertWorkbenchSpatialMap() {
     dom.flowBoard.querySelector(".spatial-object-live-edit-swap"),
   );
   await acceptLiveEditTarget();
+  renderFlowBoard();
   const liveEditedSpatialObject = spatialObjectById("spatial-selftest-asset");
   const liveEditedSpatialExport = buildSpatialWorkspaceExport().objects.find(
     (object) => object.id === "spatial-selftest-asset",
@@ -34011,6 +34157,15 @@ async function assertWorkbenchSpatialMap() {
   const mapLiveEditBinding = normalizeElementLiveEditBinding(
     liveEditedSpatialObject?.liveEdit,
   );
+  const mapLocalOutcome = describeLiveEditWritebackOutcome(
+    state.serverStatus.liveEditWriteback,
+  );
+  const mapLiveOutcomeRendered = Boolean(
+    dom.flowBoard.querySelector(
+      "[data-spatial-object-id='spatial-selftest-asset'] .spatial-object-live-edit-outcome",
+    ),
+  );
+  const mapLiveAgentLog = buildWorkbenchAgentLogItems();
   const mapLiveEditBound =
     mapLivePickButtonRendered &&
     mapLiveEditStarted &&
@@ -34038,6 +34193,15 @@ async function assertWorkbenchSpatialMap() {
     mapLiveFrame.liveEditRequest?.status === "accepted" &&
     mapLiveEditBinding?.status === "accepted" &&
     mapLiveEditBinding?.target?.targetType === "spatial-map-object" &&
+    state.serverStatus.liveEditWriteback?.status === "local-bound" &&
+    mapLocalOutcome?.label === "Accepted locally" &&
+    mapLiveOutcomeRendered &&
+    mapLiveAgentLog.some(
+      (item) =>
+        item.kind === "Live Edit" &&
+        item.title.includes("Accepted locally") &&
+        item.detail.includes("Map object"),
+    ) &&
     liveEditedSpatialObject?.meta?.liveEditStatus === "accepted" &&
     liveEditedSpatialExport?.liveEdit?.status === "accepted" &&
     liveEditedSpatialExport?.contextMarkdown.includes("## Live Edit Binding");
@@ -34077,6 +34241,7 @@ async function assertWorkbenchSpatialMap() {
     mapLivePinRendered,
     mapLiveStrokeRendered,
     mapLiveVariantRendered,
+    mapLiveOutcomeRendered,
     mapLiveEditBound,
     expectedMapCreateFramePosition,
     expectedDropPosition,
@@ -36355,6 +36520,9 @@ async function assertAssetCandidateTrayPlacement() {
   const previousLiveEditOriginalSnapshot = structuredClone(
     frame.liveEditOriginalSnapshot || null,
   );
+  const previousLiveEditWriteback = structuredClone(
+    state.serverStatus.liveEditWriteback || null,
+  );
   const previousLiveEditNote = dom.workbenchLiveEditNote?.value || "";
   const previousWorkspaceMode = state.workspaceMode;
   const previousWorkbenchFocus = state.workbenchFocus;
@@ -36490,10 +36658,17 @@ async function assertAssetCandidateTrayPlacement() {
   const assetLiveVariants = createLiveEditVariants();
   cycleLiveEditVariant(1);
   await acceptLiveEditTarget();
+  renderCanvas();
   const liveEditedCandidate = assetCandidateById(candidateId);
   const assetLiveEditBinding = normalizeElementLiveEditBinding(
     liveEditedCandidate?.liveEdit,
   );
+  const assetLocalOutcome = describeLiveEditWritebackOutcome(
+    state.serverStatus.liveEditWriteback,
+  );
+  const assetLiveEditOutcomeRendered =
+    canvasRegionHasAcceptedOutcomePixel(dom.canvas, assetLiveOverlayBounds);
+  const assetLiveAgentLog = buildWorkbenchAgentLogItems();
   const assetLiveVariantOperationKinds = new Set(
     assetLiveVariants.flatMap((variant) =>
       normalizeLiveEditSurfaceOperations(variant.surfaceOperations).map(
@@ -36514,6 +36689,15 @@ async function assertAssetCandidateTrayPlacement() {
     assetLiveEditOverlayRendered &&
     assetLivePin?.targetId === candidateId &&
     assetLiveVariants.length === 3 &&
+    state.serverStatus.liveEditWriteback?.status === "local-bound" &&
+    assetLocalOutcome?.label === "Accepted locally" &&
+    assetLiveEditOutcomeRendered &&
+    assetLiveAgentLog.some(
+      (item) =>
+        item.kind === "Live Edit" &&
+        item.title.includes("Accepted locally") &&
+        item.detail.includes("asset"),
+    ) &&
     assetLiveVariants.every(
       (variant) =>
         variant.targetMedium === "image/composition region" &&
@@ -36618,6 +36802,7 @@ async function assertAssetCandidateTrayPlacement() {
   frame.acceptedLiveEditVariant = previousAcceptedLiveEditVariant;
   frame.liveEditRequest = previousLiveEditRequest;
   frame.liveEditOriginalSnapshot = previousLiveEditOriginalSnapshot;
+  state.serverStatus.liveEditWriteback = previousLiveEditWriteback;
   history.past = previousHistory.past;
   history.future = previousHistory.future;
   state.assetCandidatePack = previousAssetCandidatePack;
@@ -37355,6 +37540,35 @@ function canvasRegionHasGoldPixel(canvas, bounds) {
     const blue = pixels[index + 2];
     const alpha = pixels[index + 3];
     if (red > 210 && green > 140 && green < 220 && blue < 120 && alpha > 120) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function canvasRegionHasAcceptedOutcomePixel(canvas, bounds) {
+  if (!canvas || !bounds) {
+    return false;
+  }
+  const ctx = canvas.getContext("2d");
+  const left = Math.max(0, Math.floor(bounds.left - 12));
+  const top = Math.max(0, Math.floor(bounds.bottom));
+  const right = Math.min(canvas.width, Math.ceil(bounds.right + 180));
+  const bottom = Math.min(canvas.height, Math.ceil(bounds.bottom + 64));
+  const width = Math.max(1, right - left);
+  const height = Math.max(1, bottom - top);
+  let pixels = null;
+  try {
+    pixels = ctx.getImageData(left, top, width, height).data;
+  } catch {
+    return false;
+  }
+  for (let index = 0; index < pixels.length; index += 4) {
+    const red = pixels[index];
+    const green = pixels[index + 1];
+    const blue = pixels[index + 2];
+    const alpha = pixels[index + 3];
+    if (red < 95 && green > 55 && green < 130 && blue > 40 && blue < 130 && alpha > 170) {
       return true;
     }
   }

@@ -6199,6 +6199,61 @@ select,
     line-height: 1.3;
 }
 
+.spatial-object-live-edit-outcome {
+    display: grid;
+    gap: 0.12rem;
+    margin-top: 0.36rem;
+    padding: 0.42rem 0.52rem;
+    border: 0.0625rem solid rgba(12, 141, 123, 0.34);
+    border-radius: 0.62rem;
+    color: #eaf7f5;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+        rgba(7, 75, 66, 0.88);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.1);
+}
+
+.spatial-object-live-edit-outcome strong {
+    color: currentColor;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.18;
+    text-transform: uppercase;
+}
+
+.spatial-object-live-edit-outcome small {
+    color: rgba(234, 247, 245, 0.76);
+    font-size: 0.66rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.spatial-object-live-edit-outcome[data-tone="warning"] {
+    border-color: rgba(240, 162, 2, 0.42);
+    color: #7b350f;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent),
+        rgba(255, 246, 214, 0.94);
+}
+
+.spatial-object-live-edit-outcome[data-tone="warning"] small {
+    color: rgba(71, 43, 3, 0.74);
+}
+
+.spatial-object-live-edit-outcome[data-tone="danger"] {
+    border-color: rgba(255, 93, 58, 0.42);
+    color: #fff0eb;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+        rgba(86, 32, 22, 0.9);
+}
+
+.spatial-object-live-edit-outcome[data-tone="danger"] small {
+    color: rgba(255, 240, 235, 0.72);
+}
+
 .spatial-object-actions {
     display: flex;
     flex-wrap: wrap;
