@@ -432,6 +432,7 @@ function buildCodexPatchTask({
       sourceSearchHints,
     }),
     sourceSearchHints,
+    liveEditOriginalSnapshot: acceptedLiveEdit?.originalSnapshot || null,
     componentTargets: affectedComponents.map((component) => ({
       id: component.id || "",
       label: component.label || "",
@@ -456,6 +457,10 @@ function buildCodexPatchTask({
       liveEditTarget: region.liveEditTarget || null,
       liveEditVariant: region.liveEditVariant || null,
       liveEditRequest: region.liveEditRequest || null,
+      liveEditOriginalSnapshot:
+        region.liveEditOriginalSnapshot ||
+        region.liveEditRequest?.originalSnapshot ||
+        null,
       liveEditSurfaceOperations: region.liveEditSurfaceOperations || [],
       liveEditPins: region.liveEditPins || [],
       liveEditCanvasMarks: region.liveEditCanvasMarks || [],
@@ -847,6 +852,7 @@ function buildAffectedRegions(
           liveEditTarget: acceptedLiveEdit.target,
           liveEditVariant: acceptedLiveEdit.variant,
           liveEditRequest: acceptedLiveEdit.liveEditRequest,
+          liveEditOriginalSnapshot: acceptedLiveEdit.originalSnapshot,
           liveEditSurfaceOperations: acceptedLiveEdit.surfaceOperations,
           liveEditPins: acceptedLiveEdit.pins,
           liveEditCanvasMarks: acceptedLiveEdit.canvasMarks,
@@ -1082,6 +1088,7 @@ function buildPatchTaskTrigger({ acceptedLiveEdit, previewTweak }) {
       target: acceptedLiveEdit.target,
       variant: acceptedLiveEdit.variant,
       request: acceptedLiveEdit.liveEditRequest,
+      originalSnapshot: acceptedLiveEdit.originalSnapshot,
       surfaceOperations: acceptedLiveEdit.surfaceOperations,
       pins: acceptedLiveEdit.pins,
       canvasMarks: acceptedLiveEdit.canvasMarks,
@@ -1179,6 +1186,12 @@ function buildAcceptedLiveEditContext(selected) {
     outputAnnotations: outputAnnotations.slice(0, 12),
     outputEditBinding,
     liveEditRequest,
+    originalSnapshot:
+      normalizeLiveEditOriginalSnapshot(liveEditRequest?.originalSnapshot) ||
+      normalizeLiveEditOriginalSnapshot(variant?.originalSnapshot) ||
+      normalizeLiveEditOriginalSnapshot(requestFrame.liveEditOriginalSnapshot) ||
+      normalizeLiveEditOriginalSnapshot(taskFrame.liveEditOriginalSnapshot) ||
+      normalizeLiveEditOriginalSnapshot(outputEditBinding?.liveEditOriginalSnapshot),
     voiceIntents: normalizeLiveEditVoiceIntents(liveEditRequest?.voiceIntents),
     surfaceOperations: normalizeLiveEditSurfaceOperations(
       liveEditRequest?.surfaceOperations || variant?.surfaceOperations,
@@ -1244,6 +1257,19 @@ function buildAcceptedLiveEditPatchNote(context) {
         .join("; ")}.`
     : "";
   const sourceHint = formatLiveEditSourceHint(target);
+  const originalSnapshot = normalizeLiveEditOriginalSnapshot(
+    context.originalSnapshot || context.liveEditRequest?.originalSnapshot,
+  );
+  const originalText = originalSnapshot
+    ? [
+        originalSnapshot.targetLabel || originalSnapshot.target?.targetLabel,
+        originalSnapshot.outputTarget?.label,
+        originalSnapshot.outputTarget?.path ||
+          originalSnapshot.outputTarget?.href,
+      ]
+        .filter(Boolean)
+        .join(" / ")
+    : "";
   return [
     variant
       ? `Accepted Live Edit variant ${variant.index}: ${variant.label} (${variant.role}).`
@@ -1265,6 +1291,9 @@ function buildAcceptedLiveEditPatchNote(context) {
       : "",
     strokeLabels.length ? `Stroke intent: ${strokeLabels.join("; ")}.` : "",
     sourceHint ? `Source hint: ${sourceHint}.` : "",
+    originalText
+      ? `Original snapshot to restore/discard against: ${originalText}.`
+      : "",
     "Apply this to the selected target first and preserve the surrounding surface.",
   ]
     .filter(Boolean)
@@ -1349,6 +1378,56 @@ function normalizeLiveEditTarget(value) {
     acceptedVariantLabel: cleanString(value.acceptedVariantLabel),
     acceptedVariantRole: cleanString(value.acceptedVariantRole),
     updatedAt: cleanString(value.updatedAt),
+  };
+}
+
+function normalizeLiveEditOriginalSnapshot(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target = normalizeLiveEditTarget(value.target || value.liveEditTarget);
+  const output =
+    value.outputTarget &&
+    typeof value.outputTarget === "object" &&
+    !Array.isArray(value.outputTarget)
+      ? value.outputTarget
+      : {};
+  const normalizedBounds = normalizeLiveEditBounds(
+    value.normalizedBounds || value.bounds || target?.bounds,
+  );
+  const outputTarget = {
+    id: cleanString(output.id || value.outputTargetId),
+    label: cleanString(output.label || value.outputTargetLabel),
+    type: cleanString(output.type || output.kind || value.outputTargetType),
+    source: cleanString(output.source || value.outputTargetSource),
+    path: cleanString(output.path || output.previewPath || value.outputTargetPath),
+    href: cleanString(output.href || output.url || value.outputTargetHref),
+    versionTag: cleanString(output.versionTag || value.outputTargetVersionTag),
+    sourceFrameId: cleanString(
+      output.sourceFrameId || value.sourceFrameId || target?.sourceFrameId,
+    ),
+    sourceFrameTitle: cleanString(
+      output.sourceFrameTitle ||
+        value.sourceFrameTitle ||
+        target?.sourceFrameTitle,
+    ),
+  };
+  const hasOutputTarget = Object.values(outputTarget).some(Boolean);
+  if (!target && !normalizedBounds && !hasOutputTarget) {
+    return null;
+  }
+  return {
+    kind: "canvax-live-edit-original-snapshot",
+    target,
+    normalizedBounds,
+    outputTarget: hasOutputTarget ? outputTarget : null,
+    targetLabel: cleanString(value.targetLabel || target?.targetLabel),
+    targetText: compactText(cleanString(value.targetText || target?.targetText), 180),
+    surface: cleanString(value.surface || target?.surface),
+    restoreInstruction:
+      cleanString(value.restoreInstruction) ||
+      "Close or Escape removes temporary variants and leaves the original target/output binding unchanged.",
+    capturedAt: cleanString(value.capturedAt),
   };
 }
 
@@ -1504,6 +1583,9 @@ function normalizeLiveEditVariant(value, fallbackTarget = null, index = 0) {
     note: cleanString(value.note),
     targetMedium: cleanString(value.targetMedium),
     actionIntent: normalizeLiveEditActionIntent(value.actionIntent),
+    originalSnapshot: normalizeLiveEditOriginalSnapshot(
+      value.originalSnapshot || value.sourceSnapshot,
+    ),
     style: value.style && typeof value.style === "object" ? value.style : {},
     surfaceOperations: normalizeLiveEditSurfaceOperations(
       value.surfaceOperations || value.operations,
@@ -1688,6 +1770,12 @@ function normalizeAcceptedLiveEditRequest(value, fallbackTarget = null) {
       !Array.isArray(value.currentOutputBinding)
         ? value.currentOutputBinding
         : null,
+    originalSnapshot: normalizeLiveEditOriginalSnapshot(
+      value.originalSnapshot ||
+        value.sourceSnapshot ||
+        acceptedVariant?.originalSnapshot ||
+        activeVariant?.originalSnapshot,
+    ),
     variants,
     variantIndex,
     activeVariant,

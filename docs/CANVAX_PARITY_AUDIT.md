@@ -29,6 +29,11 @@ real implementation.
 | Tests proving rough sketch to real output, no paid API keys | Strong for local workflow | `npm run check`, `npm run regression`, `npm run e2e-workflow`, `npm run goal-audit`, browser self-tests, service lifecycle tests, responsive snapshots. | Tests prove the local no-API pipeline and deterministic executors, not a hosted first-party ChatGPT image/Codex live surface. |
 | No paid API key requirement | Strong | Export packs include `requiresOpenAiApiKey: false`; docs state host-driven/no-API boundary; tests validate no-API task/image/build/rewrite paths. | Future host image generation must remain optional and must not introduce an API-key dependency. |
 
+Live Edit restore update: variants and accepted rewrite/patch requests now carry
+`liveEditOriginalSnapshot`, the hot-swapped surface renders an `Original locked`
+affordance, and Close/Escape clears the temporary snapshot with the picker state
+so discard has an explicit restore anchor instead of only hiding the overlay.
+
 ## Prompt-To-Artifact Checklist
 
 This checklist maps each explicit goal phrase to concrete repo artifacts and

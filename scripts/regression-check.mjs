@@ -1236,6 +1236,27 @@ async function validateLiveEditUnhintedSourceSearchDryRun() {
     status: "accepted",
     acceptedAt: now,
   };
+  const originalSnapshot = {
+    kind: "canvax-live-edit-original-snapshot",
+    target: { ...liveEditTarget, status: "picked", acceptedAt: "" },
+    normalizedBounds: liveEditTarget.bounds,
+    outputTarget: {
+      id: "hero-preview",
+      label: "Hotel hero preview",
+      type: "generated-screen-preview",
+      source: "canvax-regression",
+      path: "artifacts/preview/unhinted/index.html",
+      href: "/workspace/artifacts/preview/unhinted/index.html",
+      sourceFrameId: frameId,
+      sourceFrameTitle: "Unhinted preview pick",
+    },
+    targetLabel: "Hero CTA - Reserve suite",
+    targetText: "Reserve suite",
+    surface: "generated-output",
+    restoreInstruction:
+      "Close or Escape removes temporary variants and leaves the original target/output binding unchanged.",
+    capturedAt: now,
+  };
   const acceptedVariant = {
     kind: "canvax-live-edit-variant",
     id: "live-edit-unhinted-clarity",
@@ -1246,6 +1267,7 @@ async function validateLiveEditUnhintedSourceSearchDryRun() {
     body: "Improve the picked button copy, spacing, and contrast without changing surrounding layout.",
     summary: "Direct clarity pass for the Reserve suite CTA.",
     target: liveEditTarget,
+    originalSnapshot,
     acceptedAt: now,
   };
   const frame = {
@@ -1259,6 +1281,7 @@ async function validateLiveEditUnhintedSourceSearchDryRun() {
     liveEditVariants: [acceptedVariant],
     liveEditVariantIndex: 0,
     acceptedLiveEditVariant: acceptedVariant,
+    liveEditOriginalSnapshot: originalSnapshot,
     liveEditPins: [
       {
         id: "pin-unhinted-cta",
@@ -1356,8 +1379,11 @@ async function validateLiveEditUnhintedSourceSearchDryRun() {
         patchTask.affectedRegions?.some(
           (region) =>
             region.source === "live-edit-accepted-variant" &&
+            region.liveEditOriginalSnapshot?.targetLabel?.includes("Hero CTA") &&
             region.sourceSearchHints?.length >= 2,
         ) &&
+        patchTask.liveEditOriginalSnapshot?.outputTarget?.path ===
+          "artifacts/preview/unhinted/index.html" &&
         context.codexPatchTask?.sourceDiscovery?.status === "needs-source-search",
     );
     results.push({

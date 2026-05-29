@@ -2850,19 +2850,52 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
 .workbench-live-edit-variant-swap p,
 .workbench-live-edit-variant-swap em,
 .workbench-live-edit-variant-swap small,
+.workbench-live-edit-original-snapshot,
 .workbench-live-edit-operations,
 .workbench-live-edit-operation {
     position: relative;
     z-index: 1;
 }
 
-.workbench-live-edit-variant-swap span {
+.workbench-live-edit-variant-swap > span {
     color: var(--live-variant-accent, #0c8d7b);
     font-family: var(--font-mono);
     font-size: 0.66rem;
     font-weight: 900;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.workbench-live-edit-original-snapshot {
+    display: grid;
+    gap: 0.12rem;
+    width: min(100%, 22rem);
+    padding: 0.42rem 0.52rem;
+    border: 0.0625rem solid
+        color-mix(in srgb, var(--live-variant-accent, #0c8d7b) 42%, transparent);
+    border-radius: 0.5rem;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent),
+        color-mix(in srgb, var(--live-variant-bg, #fff7e6) 76%, #ffffff);
+}
+
+.workbench-live-edit-original-snapshot b {
+    color: var(--live-variant-accent, #0c8d7b);
+    font-family: var(--font-mono);
+    font-size: 0.56rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.workbench-live-edit-original-snapshot span {
+    color: color-mix(
+        in srgb,
+        var(--live-variant-fg, #18110e) 72%,
+        transparent
+    );
+    font-size: 0.66rem;
+    font-weight: 800;
+    line-height: 1.22;
 }
 
 .workbench-live-edit-variant-swap strong {
