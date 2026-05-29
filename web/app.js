@@ -467,6 +467,7 @@ const dom = {
   workbenchComposerPin: document.querySelector("#workbench-composer-pin"),
   workbenchComposerMake: document.querySelector("#workbench-composer-make"),
   workbenchComposerReply: document.querySelector("#workbench-composer-reply"),
+  workbenchComposerPick: document.querySelector("#workbench-composer-pick"),
   workbenchComposerApply: document.querySelector("#workbench-composer-apply"),
   workbenchAgentLog: document.querySelector("#workbench-agent-log"),
   workbenchAgentLogToggle: document.querySelector(
@@ -510,6 +511,7 @@ const dom = {
   focusRedo: document.querySelector("#focus-redo"),
   focusGenerate: document.querySelector("#focus-generate"),
   focusCanvasReply: document.querySelector("#focus-canvas-reply"),
+  focusLivePick: document.querySelector("#focus-live-pick"),
   focusBuildReal: document.querySelector("#focus-build-real"),
   focusCreateVariants: document.querySelector("#focus-create-variants"),
   focusPromoteVariant: document.querySelector("#focus-promote-variant"),
@@ -528,11 +530,26 @@ const dom = {
   workbenchOutputSurface: document.querySelector("#workbench-output-surface"),
   workbenchOutputMeta: document.querySelector("#workbench-output-meta"),
   workbenchOpenOutput: document.querySelector("#workbench-open-output"),
+  workbenchLivePickOutput: document.querySelector("#workbench-live-pick-output"),
   workbenchReviewOutput: document.querySelector("#workbench-review-output"),
   workbenchDesignReviewBadge: document.querySelector(
     "#workbench-design-review-badge",
   ),
   workbenchClearMarks: document.querySelector("#workbench-clear-marks"),
+  workbenchLiveEditBar: document.querySelector("#workbench-live-edit-bar"),
+  workbenchLiveEditTitle: document.querySelector("#workbench-live-edit-title"),
+  workbenchLiveEditDetail: document.querySelector("#workbench-live-edit-detail"),
+  workbenchLiveEditAction: document.querySelector("#workbench-live-edit-action"),
+  workbenchLiveEditCounter: document.querySelector(
+    "#workbench-live-edit-counter",
+  ),
+  workbenchLiveEditNote: document.querySelector("#workbench-live-edit-note"),
+  workbenchLiveEditPin: document.querySelector("#workbench-live-edit-pin"),
+  workbenchLiveEditVariants: document.querySelector(
+    "#workbench-live-edit-variants",
+  ),
+  workbenchLiveEditAccept: document.querySelector("#workbench-live-edit-accept"),
+  workbenchLiveEditClose: document.querySelector("#workbench-live-edit-close"),
   workbenchOutputStage: document.querySelector("#workbench-output-stage"),
   workbenchOutputStageBadge: document.querySelector(
     "#workbench-output-stage-badge",
@@ -545,6 +562,9 @@ const dom = {
   ),
   workbenchOutputStageOpen: document.querySelector(
     "#workbench-output-stage-open",
+  ),
+  workbenchOutputStageLivePick: document.querySelector(
+    "#workbench-output-stage-live-pick",
   ),
   workbenchOutputStageReview: document.querySelector(
     "#workbench-output-stage-review",
@@ -1071,6 +1091,10 @@ function bindEvents() {
     commitManualVoiceDraft("workbench-composer");
     void replyInCanvasFromCurrentSketch();
   });
+  dom.workbenchComposerPick.addEventListener("click", () => {
+    commitManualVoiceDraft("workbench-composer");
+    toggleLiveEditPickMode();
+  });
   dom.workbenchComposerApply.addEventListener("click", () => {
     commitManualVoiceDraft("workbench-composer");
     void applyFocusPadToCodex();
@@ -1119,6 +1143,15 @@ function bindEvents() {
     setWorkbenchAgentLogOpen(false);
   });
   document.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Escape" &&
+      (state.liveEditPickActive ||
+        normalizeLiveEditTarget(currentFrame()?.liveEditTarget)?.status ===
+          "picked")
+    ) {
+      closeLiveEditTarget();
+      return;
+    }
     if (event.key === "Escape" && state.workbenchAgentLogOpen) {
       setWorkbenchAgentLogOpen(false);
       dom.workbenchAgentLogToggle?.focus();
@@ -1167,6 +1200,7 @@ function bindEvents() {
   dom.focusCanvasReply.addEventListener("click", () => {
     void replyInCanvasFromCurrentSketch();
   });
+  dom.focusLivePick.addEventListener("click", toggleLiveEditPickMode);
   dom.focusBuildReal.addEventListener("click", () => {
     void buildRealScreenWithCodex();
   });
@@ -1202,7 +1236,23 @@ function bindEvents() {
   dom.workbenchOutputStageReview.addEventListener("click", () => {
     void runWorkbenchDesignReview();
   });
+  dom.workbenchLivePickOutput.addEventListener("click", toggleLiveEditPickMode);
+  dom.workbenchOutputStageLivePick.addEventListener(
+    "click",
+    toggleLiveEditPickMode,
+  );
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
+  dom.workbenchLiveEditNote.addEventListener("input", () => {
+    updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
+  });
+  dom.workbenchLiveEditPin.addEventListener("click", addLiveEditCommentPin);
+  dom.workbenchLiveEditVariants.addEventListener("click", () => {
+    createLiveEditVariants();
+  });
+  dom.workbenchLiveEditAccept.addEventListener("click", () => {
+    void acceptLiveEditTarget();
+  });
+  dom.workbenchLiveEditClose.addEventListener("click", closeLiveEditTarget);
   dom.focusPromptChips.addEventListener("click", (event) => {
     const button = event.target.closest("[data-workbench-prompt]");
     if (!button) {
@@ -2489,6 +2539,7 @@ function hydrateState() {
       designReviewInFlight: false,
       outputCheckpointInFlight: false,
       outputAnnotationDraft: null,
+      liveEditPickActive: false,
       lastActionScope: "",
       draftElement: null,
       isDrawing: false,
@@ -2590,6 +2641,7 @@ function frameHasCanvasContent(frame) {
   return Boolean(
     frame?.backgroundImage ||
     frame?.canvasReply ||
+    frame?.liveEditTarget ||
     frame?.thumbnail ||
     (Array.isArray(frame?.elements) && frame.elements.length) ||
     (Array.isArray(frame?.outputAnnotations) &&
@@ -3011,6 +3063,7 @@ function createInitialState() {
     designReviewInFlight: false,
     outputCheckpointInFlight: false,
     outputAnnotationDraft: null,
+    liveEditPickActive: false,
     lastActionScope: "",
     draftElement: null,
     isDrawing: false,
@@ -3284,6 +3337,108 @@ function normalizeCanvasReply(value) {
   };
 }
 
+function normalizeLiveEditBounds(bounds) {
+  const source =
+    bounds && typeof bounds === "object" && !Array.isArray(bounds) ? bounds : {};
+  const x = Number(source.x ?? source.left);
+  const y = Number(source.y ?? source.top);
+  const w = Number(source.w ?? source.width);
+  const h = Number(source.h ?? source.height);
+  if (![x, y, w, h].every(Number.isFinite)) {
+    return null;
+  }
+  const left = clamp(x, 0, 0.98);
+  const top = clamp(y, 0, 0.98);
+  const width = clamp(Math.max(0.02, w), 0.02, 1 - left);
+  const height = clamp(Math.max(0.02, h), 0.02, 1 - top);
+  const right = clamp(left + width, 0, 1);
+  const bottom = clamp(top + height, 0, 1);
+  return {
+    x: roundNumber(left),
+    y: roundNumber(top),
+    w: roundNumber(Math.max(0.02, right - left)),
+    h: roundNumber(Math.max(0.02, bottom - top)),
+    left: roundNumber(left),
+    top: roundNumber(top),
+    right: roundNumber(right),
+    bottom: roundNumber(bottom),
+    width: roundNumber(Math.max(0.02, right - left)),
+    height: roundNumber(Math.max(0.02, bottom - top)),
+    centerX: roundNumber(left + Math.max(0.02, right - left) / 2),
+    centerY: roundNumber(top + Math.max(0.02, bottom - top) / 2),
+  };
+}
+
+function normalizeLiveEditTarget(value, index = 0) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const bounds = normalizeLiveEditBounds(source.bounds || source.region);
+  const targetId = cleanString(source.targetId || source.outputObjectId);
+  const targetHref = cleanString(
+    source.targetHref || source.href || source.url || source.resolvedUrl,
+  );
+  const targetPath = cleanString(source.targetPath || source.previewPath);
+  const sourceFrameId = cleanString(source.sourceFrameId);
+  if (!bounds || (!targetId && !targetHref && !targetPath && !sourceFrameId)) {
+    return null;
+  }
+  const now = new Date().toISOString();
+  const status = cleanString(source.status);
+  return {
+    kind: "canvax-live-edit-target",
+    id: cleanString(source.id) || `live-edit-${index + 1}`,
+    sourceFrameId,
+    sourceFrameTitle: cleanString(source.sourceFrameTitle),
+    targetId,
+    targetLabel: cleanString(source.targetLabel) || "Picked output region",
+    targetType: cleanString(source.targetType),
+    targetSource: cleanString(source.targetSource),
+    targetHref,
+    targetPath,
+    targetVersionTag: cleanString(source.targetVersionTag),
+    surface: cleanString(source.surface) || "generated-output",
+    bounds,
+    note: cleanString(source.note),
+    status: status === "accepted" ? "accepted" : "picked",
+    instruction:
+      cleanString(source.instruction) ||
+      "Treat this as a direct live-edit selection inside the connected output. Apply sketch, voice, and note changes to this picked region first, then preserve the surrounding surface.",
+    pickedAt: cleanString(source.pickedAt) || now,
+    acceptedAt: cleanString(source.acceptedAt),
+    updatedAt: cleanString(source.updatedAt) || now,
+  };
+}
+
+function normalizeLiveEditPin(value, index = 0) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const point = normalizeOutputAnnotationPoint(source.point || source);
+  const text = cleanString(source.text || source.note || source.comment);
+  if (!point || !text) {
+    return null;
+  }
+  const now = new Date().toISOString();
+  return {
+    id: cleanString(source.id) || `live-edit-pin-${index + 1}`,
+    kind: "canvax-live-edit-comment-pin",
+    text,
+    point,
+    targetId: cleanString(source.targetId),
+    targetLabel: cleanString(source.targetLabel),
+    createdAt: cleanString(source.createdAt) || now,
+    updatedAt: cleanString(source.updatedAt) || now,
+  };
+}
+
+function normalizeLiveEditPins(value) {
+  return Array.isArray(value)
+    ? value
+        .map((pin, index) => normalizeLiveEditPin(pin, index))
+        .filter(Boolean)
+        .slice(-40)
+    : [];
+}
+
 function createCanvasReplyFromTarget(target, frame = currentFrame()) {
   if (!target) {
     return null;
@@ -3507,6 +3662,7 @@ function canvasReplyTargetForFrame(frame) {
 
 function frameOutputEditBinding(frame) {
   const canvasReply = normalizeCanvasReply(frame?.canvasReply);
+  const liveEditTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
   if (canvasReply) {
     const sourceFrameId = cleanString(canvasReply.sourceFrameId || frame?.id);
     const href =
@@ -3525,8 +3681,30 @@ function frameOutputEditBinding(frame) {
       branchFrameId: cleanString(frame?.id),
       branchFrameTitle: cleanString(frame?.title),
       branchLabel: cleanString(canvasReply.label) || "Canvas reply",
+      liveEditTarget,
       instruction:
-        "This frame is drawing over a generated output mounted under the canvas. Apply the sketch corrections and voice context to that output target instead of treating the frame as a new unrelated screen.",
+        liveEditTarget
+          ? "This frame has a picked live edit region inside the generated output. Apply sketch, voice, pins, and correction marks to that selected target first, then preserve the surrounding output."
+          : "This frame is drawing over a generated output mounted under the canvas. Apply the sketch corrections and voice context to that output target instead of treating the frame as a new unrelated screen.",
+    };
+  }
+
+  if (liveEditTarget) {
+    return {
+      kind: "canvax-output-edit-binding",
+      objectId: liveEditTarget.targetId,
+      sourceKind: liveEditTarget.targetType,
+      target: liveEditTarget.targetPath,
+      href: liveEditTarget.targetHref,
+      sourceFrameId: liveEditTarget.sourceFrameId || cleanString(frame?.id),
+      sourceFrameTitle:
+        liveEditTarget.sourceFrameTitle || cleanString(frame?.title),
+      branchFrameId: cleanString(frame?.id),
+      branchFrameTitle: cleanString(frame?.title),
+      branchLabel: liveEditTarget.targetLabel || "Live edit target",
+      liveEditTarget,
+      instruction:
+        "This frame is a live edit branch over a picked artifact target. Apply sketch, voice, pins, and output marks to the selected bounds, not to a new unrelated screen.",
     };
   }
 
@@ -3555,8 +3733,11 @@ function frameOutputEditBinding(frame) {
     branchFrameId: cleanString(frame?.id),
     branchFrameTitle: cleanString(frame?.title),
     branchLabel: cleanString(variant.label) || "Output edit",
+    liveEditTarget,
     instruction:
-      "This frame is an editable correction branch over the referenced generated output. Apply sketch, voice, and output marks to that output target instead of treating the frame as a new unrelated screen.",
+      liveEditTarget
+        ? "This frame is an editable live edit branch over the referenced generated output. Apply sketch, voice, and output marks to the picked target bounds first."
+        : "This frame is an editable correction branch over the referenced generated output. Apply sketch, voice, and output marks to that output target instead of treating the frame as a new unrelated screen.",
   };
 }
 
@@ -3572,6 +3753,8 @@ function normalizeFrame(frame, index) {
     mobile: frame.mobile || "",
     variant: normalizeFrameVariant(frame.variant),
     canvasReply: normalizeCanvasReply(frame.canvasReply),
+    liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+    liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
     backgroundImage: frame.backgroundImage || "",
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
     elements: Array.isArray(frame.elements)
@@ -3670,6 +3853,8 @@ function createFrame(overrides = {}) {
       mobile: overrides.mobile || "",
       variant: overrides.variant || null,
       canvasReply: overrides.canvasReply || null,
+      liveEditTarget: overrides.liveEditTarget || null,
+      liveEditPins: overrides.liveEditPins || [],
       backgroundImage: overrides.backgroundImage || "",
       flowPosition: overrides.flowPosition || defaultFlowPosition(index),
       elements: overrides.elements || [],
@@ -4504,6 +4689,10 @@ function handleWorkbenchRailAction(action) {
   }
   if (action === "create-variants") {
     createVariantFramesFromCurrent();
+    return;
+  }
+  if (action === "live-pick") {
+    toggleLiveEditPickMode();
     return;
   }
   if (action === "image-import") {
@@ -9266,6 +9455,8 @@ function renderWorkbenchOutput() {
   dom.workbenchOpenOutput.href = targetUrl || "#";
   dom.workbenchOutputStageOpen.hidden = !targetUrl;
   dom.workbenchOutputStageOpen.href = targetUrl || "#";
+  dom.workbenchLivePickOutput.hidden = !targetUrl;
+  dom.workbenchOutputStageLivePick.hidden = !targetUrl;
   renderDesignReviewControls(target);
   dom.workbenchClearMarks.hidden = annotationCount === 0;
 
@@ -9289,6 +9480,7 @@ function renderWorkbenchOutput() {
       compact: false,
     },
   );
+  renderLiveEditControls({ frame, target, targetUrl });
   window.requestAnimationFrame(renderWorkbenchOutputAnnotations);
 }
 
@@ -9323,8 +9515,27 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
   const framedUrl = addTargetRevisionToUrl(targetUrl, target);
   const freshness = describeManifestFreshness(target, frame);
   const refinement = describeTargetRefinement(target);
+  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  const showLiveTarget = liveEditTargetMatchesOutput(
+    liveTarget,
+    target,
+    targetUrl,
+  );
+  const liveTargetStyle = showLiveTarget
+    ? liveEditTargetStyle(liveTarget.bounds)
+    : "";
+  const livePins = showLiveTarget
+    ? normalizeLiveEditPins(frame.liveEditPins).filter(
+        (pin) =>
+          !liveTarget.targetId ||
+          !pin.targetId ||
+          pin.targetId === liveTarget.targetId,
+      )
+    : [];
   surface.className = `workbench-output-surface${stageClass} ${
     annotationCount ? "has-annotations" : ""
+  } ${state.liveEditPickActive ? "live-pick-active" : ""} ${
+    showLiveTarget ? "has-live-edit-target" : ""
   }`;
   surface.innerHTML = `
     <iframe
@@ -9336,8 +9547,21 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
       class="workbench-output-overlay"
       aria-label="Draw correction marks over the generated output"
     ></canvas>
+    ${
+      showLiveTarget
+        ? `<span class="workbench-live-edit-outline" style="${liveTargetStyle}"><span>${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Picked target")}</span></span>`
+        : ""
+    }
+    ${livePins
+      .map(
+        (pin, index) =>
+          `<span class="workbench-live-edit-pin" style="left:${(pin.point.x * 100).toFixed(3)}%; top:${(pin.point.y * 100).toFixed(3)}%;" title="${escapeHtml(pin.text)}">${index + 1}</span>`,
+      )
+      .join("")}
     <span class="workbench-output-draw-hint">${
-      annotationCount
+      state.liveEditPickActive
+        ? "Click to pick target"
+        : annotationCount
         ? `${annotationCount} correction mark${annotationCount === 1 ? "" : "s"}`
         : "Draw corrections here"
     }</span>
@@ -9349,7 +9573,97 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
     `${targetKind} output is connected to this frame.`;
   metaNode.textContent = annotationCount
     ? `${baseMeta} ${annotationCount} correction mark(s) are attached to this output.`
-    : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
+    : showLiveTarget
+      ? `${baseMeta} Live edit target is bound to the next rewrite. Sketch, speak, or create variants from that region.`
+      : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
+}
+
+function renderLiveEditControls({ frame, target, targetUrl }) {
+  const hasOutput = Boolean(target && targetUrl);
+  const hasCanvasSelection = Boolean(selectedCanvasLiveEditElement(frame));
+  const canPick = hasOutput || hasCanvasSelection;
+  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  const showBar = Boolean(
+    state.liveEditPickActive || (liveTarget && liveTarget.status !== "accepted"),
+  );
+  dom.focusLivePick.disabled = !canPick;
+  dom.focusLivePick.classList.toggle("active", state.liveEditPickActive);
+  dom.focusLivePick.setAttribute("aria-pressed", String(state.liveEditPickActive));
+  dom.focusLivePick.textContent = state.liveEditPickActive ? "Picking..." : "Pick target";
+  dom.workbenchComposerPick.disabled = !canPick;
+  dom.workbenchComposerPick.classList.toggle("active", state.liveEditPickActive);
+  dom.workbenchComposerPick.setAttribute(
+    "aria-pressed",
+    String(state.liveEditPickActive),
+  );
+  dom.workbenchLivePickOutput.disabled = !canPick;
+  dom.workbenchOutputStageLivePick.disabled = !canPick;
+  dom.workbenchLivePickOutput.classList.toggle(
+    "active",
+    state.liveEditPickActive,
+  );
+  dom.workbenchOutputStageLivePick.classList.toggle(
+    "active",
+    state.liveEditPickActive,
+  );
+  dom.workbenchLivePickOutput.textContent = state.liveEditPickActive
+    ? "Picking..."
+    : liveTarget
+      ? "Retarget"
+      : "Pick target";
+  dom.workbenchOutputStageLivePick.textContent = state.liveEditPickActive
+    ? "Picking..."
+    : liveTarget
+      ? "Retarget"
+      : "Pick target";
+  dom.workbenchRail
+    .querySelectorAll("[data-rail-action='live-pick']")
+    .forEach((button) => {
+      button.disabled = !canPick;
+      button.classList.toggle("active", state.liveEditPickActive);
+      button.setAttribute("aria-pressed", String(state.liveEditPickActive));
+      button.textContent = state.liveEditPickActive
+        ? "Picking"
+        : liveTarget
+          ? "Retarget"
+          : "Pick";
+    });
+
+  dom.workbenchLiveEditBar.hidden = !showBar;
+  if (!showBar) {
+    return;
+  }
+  const label =
+    liveTarget?.targetLabel ||
+    (target ? designerOutputTargetLabelFromItem(target, frame.title) : "") ||
+    "Generated output";
+  dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
+    ? "Pick a target in the output"
+    : `${liveTarget?.status === "accepted" ? "Accepted" : "Picked"}: ${label}`;
+  const detail = liveTarget
+    ? `Region ${Math.round(liveTarget.bounds.x * 100)}%, ${Math.round(
+        liveTarget.bounds.y * 100,
+      )}% · ${Math.round(liveTarget.bounds.w * 100)}×${Math.round(
+        liveTarget.bounds.h * 100,
+      )}%`
+    : "Click the generated output to bind the next rewrite to a concrete region.";
+  dom.workbenchLiveEditDetail.textContent = detail;
+  dom.workbenchLiveEditAction.textContent = currentActionMode().label;
+  dom.workbenchLiveEditCounter.textContent = liveTarget
+    ? liveTarget.status === "accepted"
+      ? "accepted"
+      : `${normalizeLiveEditPins(frame.liveEditPins).length} comment${normalizeLiveEditPins(frame.liveEditPins).length === 1 ? "" : "s"}`
+    : "pick first";
+  if (document.activeElement !== dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value = liveTarget?.note || "";
+  }
+  dom.workbenchLiveEditNote.disabled = !liveTarget;
+  dom.workbenchLiveEditPin.disabled = !liveTarget;
+  dom.workbenchLiveEditVariants.disabled = !liveTarget;
+  dom.workbenchLiveEditVariants.textContent = liveTarget
+    ? "Go"
+    : "Pick first";
+  dom.workbenchLiveEditAccept.disabled = !liveTarget;
 }
 
 function renderDesignReviewControls(target) {
@@ -9447,6 +9761,389 @@ function currentWorkbenchTarget() {
   return resolveManifestTargetEntry(manifest, state.activeFrameId);
 }
 
+function liveEditTargetMatchesOutput(liveTarget, target, targetUrl = "") {
+  const normalized = normalizeLiveEditTarget(liveTarget);
+  if (!normalized || !target) {
+    return false;
+  }
+  const url = targetUrl || resolveWorkbenchTargetUrl(target);
+  return Boolean(
+    (normalized.targetId && normalized.targetId === target.id) ||
+      (normalized.targetPath &&
+        normalized.targetPath === cleanString(target.previewPath || target.path)) ||
+      (normalized.targetHref && normalized.targetHref === url) ||
+      (normalized.sourceFrameId && normalized.sourceFrameId === state.activeFrameId),
+  );
+}
+
+function selectedCanvasLiveEditElement(frame = currentFrame()) {
+  if (!frame?.elements?.length) {
+    return null;
+  }
+  const selectedIds = [
+    ...(Array.isArray(state.selectedElementIds) ? state.selectedElementIds : []),
+    state.selectedElementId,
+  ].filter(Boolean);
+  const selected = frame.elements.find((element) =>
+    selectedIds.includes(element.id),
+  );
+  if (selected && !isEraserElement(selected)) {
+    return selected;
+  }
+  return null;
+}
+
+function createLiveEditTargetFromCanvasElement(element, frame = currentFrame()) {
+  const viewport = viewportPresets[frame?.viewport] || viewportPresets.desktop;
+  const elementBounds = getElementBounds(element, frame);
+  const bounds = elementBounds ? normalizeBounds(elementBounds, viewport) : null;
+  if (!frame || !element || !bounds) {
+    return null;
+  }
+  const targetType = element.type === "image" ? "image-region" : "canvas-object";
+  return normalizeLiveEditTarget({
+    id: uid("live-edit"),
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    targetId: element.id || "",
+    targetLabel:
+      element.type === "label"
+        ? `Label: ${compactDisplayText(element.text || element.id, 42)}`
+        : element.type === "image"
+          ? `Image region: ${compactDisplayText(element.sourceName || element.id, 42)}`
+          : `${element.type || "Canvas object"} ${element.id || ""}`.trim(),
+    targetType,
+    targetSource: "canvax-canvas",
+    surface: targetType,
+    bounds,
+    note: cleanString(dom.workbenchLiveEditNote?.value),
+    status: "picked",
+    pickedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function liveEditTargetStyle(bounds) {
+  const normalized = normalizeLiveEditBounds(bounds);
+  if (!normalized) {
+    return "";
+  }
+  return [
+    `left:${(normalized.x * 100).toFixed(3)}%`,
+    `top:${(normalized.y * 100).toFixed(3)}%`,
+    `width:${(normalized.w * 100).toFixed(3)}%`,
+    `height:${(normalized.h * 100).toFixed(3)}%`,
+  ].join(";");
+}
+
+function selectionBoundsFromPoint(point) {
+  if (!point) {
+    return null;
+  }
+  const width = 0.28;
+  const height = 0.2;
+  const left = clamp(point.x - width / 2, 0, 1 - width);
+  const top = clamp(point.y - height / 2, 0, 1 - height);
+  return normalizeLiveEditBounds({
+    x: left,
+    y: top,
+    w: width,
+    h: height,
+  });
+}
+
+function createLiveEditTargetFromPoint(target, frame, point) {
+  const bounds = selectionBoundsFromPoint(point);
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  if (!target || !frame || !bounds) {
+    return null;
+  }
+  return normalizeLiveEditTarget({
+    id: uid("live-edit"),
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    targetId: target.id || "",
+    targetLabel: designerOutputTargetLabelFromItem(target, frame.title),
+    targetType: target.type || "",
+    targetSource: target.source || "",
+    targetHref: targetUrl,
+    targetPath: target.previewPath || target.path || "",
+    targetVersionTag: target.versionTag || "",
+    surface: target.canvasReply ? "same-canvas-reply" : "generated-output",
+    bounds,
+    note: cleanString(dom.workbenchLiveEditNote?.value),
+    status: "picked",
+    pickedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function toggleLiveEditPickMode() {
+  setLiveEditPickMode(!state.liveEditPickActive);
+}
+
+function setLiveEditPickMode(active) {
+  const target = currentWorkbenchTarget();
+  const frame = currentFrame();
+  const selectedElement = selectedCanvasLiveEditElement(frame);
+  if (active && !resolveWorkbenchTargetUrl(target) && selectedElement) {
+    frame.liveEditTarget = createLiveEditTargetFromCanvasElement(
+      selectedElement,
+      frame,
+    );
+    frame.liveEditPins = [];
+    state.liveEditPickActive = false;
+    touchFrame(frame, {
+      capture: false,
+      status: "Selected canvas object is ready for Live Edit",
+    });
+    return;
+  }
+  if (active && !resolveWorkbenchTargetUrl(target)) {
+    state.liveEditPickActive = false;
+    renderFocusPad();
+    renderStatus(
+      "Make or attach an output, or select a canvas object before picking a live edit target",
+    );
+    return;
+  }
+  state.liveEditPickActive = Boolean(active);
+  if (state.liveEditPickActive) {
+    state.workbenchFocus = "output";
+    renderStatus("Pick a region inside the generated output");
+  } else {
+    renderStatus("Live edit picker closed");
+  }
+  persistState();
+  renderAll();
+}
+
+function pickLiveEditTargetFromEvent(event) {
+  const frame = currentFrame();
+  const target = currentWorkbenchTarget();
+  const point = outputAnnotationPointFromEvent(event);
+  const liveTarget = createLiveEditTargetFromPoint(target, frame, point);
+  if (!liveTarget) {
+    renderStatus("Could not bind that output region");
+    return false;
+  }
+  event.preventDefault();
+  frame.liveEditTarget = liveTarget;
+  frame.liveEditPins = [];
+  state.liveEditPickActive = false;
+  touchFrame(frame, {
+    capture: false,
+    status: `Picked live edit target in ${liveTarget.targetLabel}`,
+  });
+  return true;
+}
+
+function updateLiveEditTargetNote(value) {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  if (!liveTarget) {
+    return;
+  }
+  frame.liveEditTarget = {
+    ...liveTarget,
+    note: cleanString(value),
+    updatedAt: new Date().toISOString(),
+  };
+  frame.updatedAt = new Date().toISOString();
+  persistState();
+  scheduleLivePreviewSync();
+}
+
+function liveEditPinPointForTarget(liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target?.bounds) {
+    return null;
+  }
+  return {
+    x: clamp(target.bounds.x + Math.min(target.bounds.w * 0.18, 0.08), 0, 1),
+    y: clamp(target.bounds.y + Math.min(target.bounds.h * 0.22, 0.08), 0, 1),
+  };
+}
+
+function addLiveEditCommentPin() {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  if (!liveTarget) {
+    renderStatus("Pick a live edit target before adding a comment pin");
+    return null;
+  }
+  const text = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  if (!text) {
+    renderStatus("Type the comment before pinning it to this target");
+    dom.workbenchLiveEditNote?.focus();
+    return null;
+  }
+  const point = liveEditPinPointForTarget(liveTarget);
+  const pin = normalizeLiveEditPin({
+    id: uid("live-pin"),
+    text,
+    point,
+    targetId: liveTarget.targetId,
+    targetLabel: liveTarget.targetLabel,
+    createdAt: new Date().toISOString(),
+  });
+  if (!pin) {
+    return null;
+  }
+  frame.liveEditPins = [...normalizeLiveEditPins(frame.liveEditPins), pin].slice(
+    -40,
+  );
+  frame.liveEditTarget = {
+    ...liveTarget,
+    note: text,
+    updatedAt: new Date().toISOString(),
+  };
+  touchFrame(frame, {
+    capture: false,
+    status: "Pinned comment to live edit target",
+  });
+  return pin;
+}
+
+async function acceptLiveEditTarget() {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  if (!liveTarget) {
+    renderStatus("Pick a live edit target first");
+    return;
+  }
+  const note = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  frame.liveEditTarget = {
+    ...liveTarget,
+    note,
+    status: "accepted",
+    acceptedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  frame.liveEditPins = normalizeLiveEditPins(frame.liveEditPins);
+  state.liveEditPickActive = false;
+  if (note) {
+    addVoiceSegment(`Live edit target: ${note}`, {
+      provider: "workbench-live-edit",
+    });
+  }
+  touchFrame(frame, {
+    capture: false,
+    status: "Live edit target accepted for the next Codex rewrite",
+  });
+  await saveLiveEditTargetToPreviewManifest(frame, frame.liveEditTarget);
+  await saveCheckpointToWorkspace("live-edit-target", {
+    silent: true,
+    note: `Accepted live edit target for ${frame.title}.`,
+  });
+}
+
+async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target || (!target.targetHref && !target.targetPath)) {
+    return null;
+  }
+  const pinText = normalizeLiveEditPins(frame.liveEditPins)
+    .map((pin) => pin.text)
+    .join("; ");
+  try {
+    const response = await fetch("/api/save-preview-manifest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: target.targetId || `live-edit-target-${frame.id}`,
+        label: target.targetLabel || `${frame.title} live edit target`,
+        source: target.targetSource || "canvax-live-edit",
+        type: target.targetType || "live-edit-target",
+        url: target.targetHref,
+        previewPath: target.targetPath,
+        frameIds: [frame.id],
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
+        sourceFrameUpdatedAt: frame.updatedAt,
+        versionTag: target.targetVersionTag || target.updatedAt,
+        notes: `Live edit target accepted for ${frame.title}: ${[target.note || target.instruction, pinText ? `Pins: ${pinText}` : ""].filter(Boolean).join(" ")}`,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "Preview manifest save failed");
+    }
+    state.serverStatus.previewManifest =
+      data.manifest || state.serverStatus.previewManifest;
+    return data;
+  } catch (error) {
+    console.warn("Live edit preview manifest save failed", error);
+    return null;
+  }
+}
+
+function closeLiveEditTarget() {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (frame && liveTarget?.status !== "accepted") {
+    frame.liveEditTarget = null;
+    frame.liveEditPins = [];
+    frame.updatedAt = new Date().toISOString();
+  }
+  state.liveEditPickActive = false;
+  persistState();
+  renderAll();
+  renderStatus(
+    liveTarget?.status === "accepted"
+      ? "Live edit picker closed"
+      : "Live edit target discarded",
+  );
+}
+
+function createLiveEditVariants() {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  if (!liveTarget) {
+    renderStatus("Pick a live edit target before creating targeted variants");
+    return [];
+  }
+  const note = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  frame.liveEditTarget = {
+    ...liveTarget,
+    note,
+    updatedAt: new Date().toISOString(),
+  };
+  if (note) {
+    addVoiceSegment(`Live edit variant direction: ${note}`, {
+      provider: "workbench-live-edit",
+    });
+  }
+  const variants = createVariantFramesFromCurrent({ silent: true, sync: false });
+  variants.forEach((variant) => {
+    variant.liveEditTarget = structuredClone(frame.liveEditTarget);
+    variant.liveEditPins = structuredClone(frame.liveEditPins || []);
+    variant.canvasReply = structuredClone(frame.canvasReply || null);
+    variant.outputAnnotations = structuredClone(frame.outputAnnotations || []);
+    if (variant.variant) {
+      variant.variant.outputObjectId = liveTarget.targetId;
+      variant.variant.outputSourceKind = liveTarget.targetType;
+      variant.variant.outputTarget = liveTarget.targetPath;
+      variant.variant.outputHref = liveTarget.targetHref;
+    }
+  });
+  if (!variants.length) {
+    return [];
+  }
+  if (dom.workbenchLiveEditCounter) {
+    dom.workbenchLiveEditCounter.textContent = `1 / ${variants.length} variants`;
+  }
+  persistState();
+  renderAll();
+  renderStatus(`Created ${variants.length} targeted live edit variants`);
+  void saveExportToWorkspace({ silent: true });
+  void saveCheckpointToWorkspace("live-edit-variants", {
+    silent: true,
+    note: `Created targeted variants from live edit region in ${frame.title}.`,
+  });
+  return variants;
+}
+
 function workbenchOutputToolCanDraw() {
   return state.tool === "pen" || state.tool === "marker" || state.tool === "erase";
 }
@@ -9475,6 +10172,14 @@ function outputAnnotationPointFromEvent(event) {
 }
 
 function onWorkbenchOutputPointerDown(event) {
+  if (
+    state.workspaceMode === "simple" &&
+    state.liveEditPickActive &&
+    event.button <= 0
+  ) {
+    pickLiveEditTargetFromEvent(event);
+    return;
+  }
   if (
     state.workspaceMode !== "simple" ||
     !workbenchOutputToolCanDraw() ||
@@ -17778,6 +18483,8 @@ function duplicateFrame() {
     elements: structuredClone(frame.elements),
     outputAnnotations: structuredClone(frame.outputAnnotations || []),
     canvasReply: structuredClone(frame.canvasReply || null),
+    liveEditTarget: structuredClone(frame.liveEditTarget || null),
+    liveEditPins: structuredClone(frame.liveEditPins || []),
     thumbnail: frame.thumbnail,
     captures: structuredClone(frame.captures),
   });
@@ -18269,6 +18976,8 @@ function deleteFrame() {
     const only = currentFrame();
     only.elements = [];
     only.outputAnnotations = [];
+    only.liveEditTarget = null;
+    only.liveEditPins = [];
     only.captures = [];
     only.thumbnail = "";
     only.backgroundImage = "";
@@ -18336,6 +19045,8 @@ function clearCurrentFrame() {
   frame.elements = [];
   frame.canvasReply = null;
   frame.outputAnnotations = [];
+  frame.liveEditTarget = null;
+  frame.liveEditPins = [];
   frame.captures = [];
   frame.thumbnail = "";
   clearElementSelection();
@@ -19106,6 +19817,21 @@ function buildPromptMarkdown() {
         `- Generated-output correction marks: ${frame.outputAnnotations.length} overlay stroke(s) on the connected output preview. Treat these as direct visual tweak instructions for this frame.`,
       );
     }
+    const liveEditTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+    if (liveEditTarget) {
+      lines.push(
+        `- Live edit target: ${liveEditTarget.targetType || liveEditTarget.surface} ${liveEditTarget.targetLabel || liveEditTarget.targetId} at ${liveEditTarget.bounds.x}, ${liveEditTarget.bounds.y}, ${liveEditTarget.bounds.w}, ${liveEditTarget.bounds.h}. Apply this frame's next rewrite to that selected artifact region first.`,
+      );
+      if (liveEditTarget.note) {
+        lines.push(`- Live edit note: ${liveEditTarget.note}`);
+      }
+      const livePins = normalizeLiveEditPins(frame.liveEditPins);
+      if (livePins.length) {
+        lines.push(
+          `- Live edit comment pins: ${livePins.map((pin) => `${pin.text} at ${pin.point.x}, ${pin.point.y}`).join("; ")}`,
+        );
+      }
+    }
 
     const outgoingConnections = state.connections.filter(
       (connection) => connection.fromFrameId === frame.id,
@@ -19378,6 +20104,8 @@ async function buildExportPackage(frameSelection = state.frames) {
       mobile: frame.mobile,
       variant: frame.variant,
       canvasReply: frame.canvasReply,
+      liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+      liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       outputEditBinding: frameOutputEditBinding(frame),
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
@@ -19496,6 +20224,8 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       mobile: frame.mobile,
       variant: frame.variant || null,
       canvasReply: frame.canvasReply || null,
+      liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+      liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       captureCount: frame.captureCount,
@@ -19542,6 +20272,8 @@ function buildOutputRevisionGraph(frames, manifest, rewriteQueue = []) {
       outputAnnotationCount: frame.outputAnnotationCount || 0,
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
+      liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+      liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       status: status?.label || (relatedTargets.length ? "Output bound" : "No output"),
       stale: status?.label === "Output stale",
       queueReasons: queueItems.map((item) => item.reason),
@@ -20570,6 +21302,8 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
       variants: frame.mobile,
       variant: frame.variant,
       canvasReply: frame.canvasReply,
+      liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+      liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       snapshotPath: frame.snapshotPath || "",
@@ -20935,6 +21669,8 @@ function buildFrameComposition(frame) {
     safeZones: buildSafeZones(viewport),
     elements,
     labels: elements.filter((element) => element.type === "label"),
+    liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+    liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
     outputAnnotations: (frame.outputAnnotations || []).map(
       summarizeOutputAnnotation,
     ),
@@ -21144,7 +21880,15 @@ function buildTaskPackMarkdown(taskPack) {
     const outputEditSuffix = frame.outputEditBinding
       ? ` [output edit target: ${frame.outputEditBinding.target || frame.outputEditBinding.href || frame.outputEditBinding.objectId}]`
       : "";
-    lines.push(`- ${frame.index}. ${frame.title}${variantSuffix}${outputEditSuffix}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
+    const liveEditSuffix = frame.liveEditTarget
+      ? ` [live edit: ${frame.liveEditTarget.targetLabel || frame.liveEditTarget.targetId}]`
+      : "";
+    lines.push(`- ${frame.index}. ${frame.title}${variantSuffix}${outputEditSuffix}${liveEditSuffix}: ${frame.intent || "No intent specified"} (${frame.composition.elements.length} composition elements)`);
+    if (frame.liveEditPins?.length) {
+      lines.push(
+        `  - Live edit pins: ${frame.liveEditPins.map((pin) => pin.text).join("; ")}`,
+      );
+    }
   });
   return lines.join("\n");
 }
@@ -21191,6 +21935,19 @@ function buildRewriteRequestMarkdown(request) {
       lines.push(
         `  - Output edit target: ${frame.outputEditBinding.target || frame.outputEditBinding.href || frame.outputEditBinding.objectId}`,
       );
+    }
+    if (frame.liveEditTarget) {
+      lines.push(
+        `  - Live edit target: ${frame.liveEditTarget.targetLabel || frame.liveEditTarget.targetId} at ${frame.liveEditTarget.bounds.x}, ${frame.liveEditTarget.bounds.y}, ${frame.liveEditTarget.bounds.w}, ${frame.liveEditTarget.bounds.h}`,
+      );
+      if (frame.liveEditTarget.note) {
+        lines.push(`  - Live edit note: ${frame.liveEditTarget.note}`);
+      }
+      if (frame.liveEditPins?.length) {
+        lines.push(
+          `  - Live edit pins: ${frame.liveEditPins.map((pin) => pin.text).join("; ")}`,
+        );
+      }
     }
   });
   return lines.join("\n");
@@ -22012,6 +22769,8 @@ function checkpointReasonLabel(reason) {
     "generate-screen": "Generate screen",
     "publish-output": "Published output",
     "output-update": "Output update",
+    "live-edit-target": "Live edit target",
+    "live-edit-variants": "Live edit variants",
     "checkpoint-replay": "Checkpoint replay",
   };
   return labels[reason] || "Checkpoint";
@@ -22029,11 +22788,91 @@ function summarizeFrameForCheckpoint(frame, index) {
     assets: frame.assets,
     mobile: frame.mobile,
     canvasReply: frame.canvasReply || null,
+    liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+    liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
     outputEditBinding: frameOutputEditBinding(frame),
     updatedAt: frame.updatedAt,
     captureCount: frame.captures.length,
     outputAnnotationCount: frame.outputAnnotations?.length || 0,
     latestCaptureAt: frame.captures[0]?.at || "",
+  };
+}
+
+function classifyOutputAnnotationSemantics(annotation) {
+  const points = Array.isArray(annotation?.points) ? annotation.points : [];
+  const bounds =
+    annotation?.normalizedBounds ||
+    annotation?.bounds ||
+    outputAnnotationBounds(annotation);
+  if (!points.length || !bounds) {
+    return {
+      intent: "mark",
+      label: "Correction mark",
+      confidence: 0.2,
+      rule: "fallback",
+    };
+  }
+  const first = points[0];
+  const last = points.at(-1) || first;
+  const width = bounds.w || bounds.width || 0;
+  const height = bounds.h || bounds.height || 0;
+  const closeDistance = Math.hypot(last.x - first.x, last.y - first.y);
+  const totalLength = points.slice(1).reduce((sum, point, index) => {
+    const previous = points[index];
+    return sum + Math.hypot(point.x - previous.x, point.y - previous.y);
+  }, 0);
+  const diagonal = Math.max(0.001, Math.hypot(width, height));
+  const directionChanges = points.slice(2).reduce((sum, point, index) => {
+    const a = points[index];
+    const b = points[index + 1];
+    const v1 = { x: b.x - a.x, y: b.y - a.y };
+    const v2 = { x: point.x - b.x, y: point.y - b.y };
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const mag = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
+    return sum + (mag && dot / mag < -0.28 ? 1 : 0);
+  }, 0);
+
+  if (closeDistance < 0.07 && width > 0.08 && height > 0.06) {
+    return {
+      intent: "preserve-or-improve-target",
+      label: "Closed loop: preserve/focus or improve this component",
+      confidence: 0.78,
+      rule: "closed-loop",
+    };
+  }
+  if (height < 0.055 && width > 0.16) {
+    return {
+      intent: "emphasize",
+      label: "Underline: emphasize this area",
+      confidence: 0.72,
+      rule: "underline",
+    };
+  }
+  if (directionChanges >= 2 || totalLength / diagonal > 4.8) {
+    return {
+      intent: "remove-or-reduce",
+      label: "Scratch/cross: remove or reduce this area",
+      confidence: 0.68,
+      rule: "scratch",
+    };
+  }
+  if (Math.hypot(last.x - first.x, last.y - first.y) > 0.16) {
+    return {
+      intent: "move-or-flow",
+      label: "Arrow/drag: move or follow this direction",
+      confidence: 0.58,
+      rule: "directional-stroke",
+      vector: {
+        x: roundNumber(last.x - first.x),
+        y: roundNumber(last.y - first.y),
+      },
+    };
+  }
+  return {
+    intent: "mark",
+    label: "Correction mark",
+    confidence: 0.32,
+    rule: "generic-mark",
   };
 }
 
@@ -22055,6 +22894,7 @@ function summarizeOutputAnnotation(annotation) {
     size: annotation.size || 8,
     alpha: annotation.alpha ?? 1,
     composite: annotation.composite || "source-over",
+    semantics: classifyOutputAnnotationSemantics(annotation),
     bounds,
     normalizedBounds: bounds,
     targetId: annotation.targetId || "",
@@ -23574,6 +24414,7 @@ function frameHasMeaningfulHandoff(frame) {
     (Array.isArray(frame.captures) && frame.captures.length) ||
     cleanString(frame.backgroundImage) ||
     Boolean(frame.canvasReply) ||
+    Boolean(frame.liveEditTarget) ||
     cleanString(frame.objective) ||
     cleanString(frame.layout) ||
     cleanString(frame.motion) ||
@@ -23620,6 +24461,20 @@ function buildRewriteQueue(
       const freshness = specificTarget
         ? describeManifestFreshness(specificTarget, frame)
         : "";
+      const liveEditTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+
+      if (liveEditTarget) {
+        return {
+          id: `${frame.id}-live-edit`,
+          frameId: frame.id,
+          title: frame.title,
+          label: "Live edit target",
+          reason: "live-edit-target",
+          priority: 0,
+          updatedAt: frame.updatedAt,
+          detail: `Apply the next rewrite to ${liveEditTarget.targetLabel || liveEditTarget.targetId || "the picked region"} at ${liveEditTarget.bounds.x}, ${liveEditTarget.bounds.y}, ${liveEditTarget.bounds.w}, ${liveEditTarget.bounds.h}.`,
+        };
+      }
 
       if (specificTarget && freshness.startsWith("Current sketch is newer")) {
         return {
@@ -24072,12 +24927,19 @@ async function runSelfTest() {
           Boolean(dom.workbenchComposerPin) &&
           Boolean(dom.workbenchComposerMake) &&
           Boolean(dom.workbenchComposerReply) &&
+          Boolean(dom.workbenchComposerPick) &&
           Boolean(dom.workbenchComposerApply) &&
           Boolean(dom.focusAddImage) &&
           Boolean(dom.focusImageInput) &&
           Boolean(dom.focusAddContext) &&
           Boolean(dom.focusCanvasReply) &&
+          Boolean(dom.focusLivePick) &&
           Boolean(dom.canvasReplyUnderlay) &&
+          Boolean(dom.workbenchLiveEditBar) &&
+          Boolean(dom.workbenchLiveEditNote) &&
+          Boolean(dom.workbenchLiveEditPin) &&
+          Boolean(dom.workbenchLivePickOutput) &&
+          Boolean(dom.workbenchOutputStageLivePick) &&
           Boolean(dom.workbenchReviewOutput) &&
           Boolean(dom.workbenchOutputStageReview) &&
           Boolean(dom.focusVoiceIntents) &&
@@ -24253,6 +25115,43 @@ async function runSelfTest() {
         .getAttribute("src")
         ?.includes("/workspace/artifacts/preview/self-test/index.html");
     const canvasReplyBinding = frameOutputEditBinding(frameForCanvasReply);
+    const previousLiveEditTarget = structuredClone(
+      frameForCanvasReply.liveEditTarget || null,
+    );
+    const previousLiveEditPins = structuredClone(
+      frameForCanvasReply.liveEditPins || [],
+    );
+    const previousWorkspaceModeForLiveEdit = state.workspaceMode;
+    state.workspaceMode = "simple";
+    frameForCanvasReply.liveEditTarget = createLiveEditTargetFromPoint(
+      canvasReplyTargetForFrame(frameForCanvasReply),
+      frameForCanvasReply,
+      { x: 0.42, y: 0.36 },
+    );
+    dom.workbenchLiveEditNote.value = "Pin this generated CTA";
+    addLiveEditCommentPin();
+    renderWorkbenchOutput();
+    const liveEditOutputRendered =
+      dom.workbenchOutputSurface.classList.contains("has-live-edit-target") &&
+      Boolean(
+        dom.workbenchOutputSurface.querySelector(
+          ".workbench-live-edit-outline",
+        ),
+      ) &&
+      Boolean(
+        dom.workbenchOutputSurface.querySelector(".workbench-live-edit-pin"),
+      ) &&
+      dom.workbenchLiveEditBar.hidden === false &&
+      normalizeLiveEditPins(frameForCanvasReply.liveEditPins)[0]?.text.includes(
+        "generated CTA",
+      ) &&
+      frameOutputEditBinding(frameForCanvasReply)?.liveEditTarget?.targetId ===
+        "self-test-canvas-reply";
+    closeLiveEditTarget();
+    const liveEditDiscarded = frameForCanvasReply.liveEditTarget === null;
+    frameForCanvasReply.liveEditTarget = previousLiveEditTarget;
+    frameForCanvasReply.liveEditPins = previousLiveEditPins;
+    state.workspaceMode = previousWorkspaceModeForLiveEdit;
     frameForCanvasReply.canvasReply = previousCanvasReply;
     state.viewMode = previousViewModeForReply;
     renderCanvas();
@@ -24260,8 +25159,10 @@ async function runSelfTest() {
       assert(
         canvasReplyRendered &&
           canvasReplyBinding?.branchFrameId === frameForCanvasReply.id &&
-          canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html"),
-        "same-canvas reply underlay renders and exports output edit binding",
+          canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html") &&
+          liveEditOutputRendered &&
+          liveEditDiscarded,
+        "same-canvas reply underlay renders output edit binding and live edit target outline",
       ),
     );
     const previousCanvasReplyRefreshState = {
@@ -26756,6 +27657,42 @@ function assertSpatialObjectsFromOutputManifest() {
         object.sourceKind === "variant-branch" &&
         object.meta?.outputObjectId === generatedTargetObject.id,
     );
+  if (editableOutputFrame && generatedTargetObject) {
+    editableOutputFrame.liveEditTarget = normalizeLiveEditTarget({
+      id: "selftest-live-edit-target",
+      sourceFrameId: editableOutputFrame.id,
+      sourceFrameTitle: editableOutputFrame.title,
+      targetId: generatedTargetObject.id,
+      targetLabel: "Self-test live edit target",
+      targetType: "generated-output",
+      targetSource: "self-test",
+      targetPath: generatedTargetObject.meta?.previewPath,
+      targetHref: `/workspace/${generatedTargetObject.meta?.previewPath}`,
+      bounds: { x: 0.2, y: 0.16, w: 0.32, h: 0.22 },
+      note: "Make the selected hero panel clearer",
+      status: "accepted",
+    });
+    editableOutputFrame.liveEditPins = normalizeLiveEditPins([
+      {
+        id: "selftest-live-edit-pin",
+        text: "Tighten this CTA copy",
+        point: { x: 0.26, y: 0.22 },
+        targetId: generatedTargetObject.id,
+      },
+    ]);
+    editableOutputFrame.outputAnnotations = [
+      normalizeOutputAnnotation({
+        id: "selftest-live-edit-underline",
+        points: [
+          { x: 0.24, y: 0.42 },
+          { x: 0.58, y: 0.43 },
+        ],
+        color: palette[0],
+        size: 8,
+        targetId: generatedTargetObject.id,
+      }),
+    ].filter(Boolean);
+  }
   const editableOutputBranchExported = buildSpatialWorkspaceExport().variantBranches.some(
     (branch) =>
       branch.frameId === editableOutputFrame?.id &&
@@ -26778,6 +27715,8 @@ function assertSpatialObjectsFromOutputManifest() {
         assets: editableOutputFrame.assets,
         mobile: editableOutputFrame.mobile,
         variant: editableOutputFrame.variant,
+        liveEditTarget: editableOutputFrame.liveEditTarget,
+        liveEditPins: editableOutputFrame.liveEditPins,
         updatedAt: editableOutputFrame.updatedAt,
         captureCount: editableOutputFrame.captures.length,
         outputAnnotationCount: editableOutputFrame.outputAnnotations.length,
@@ -26793,6 +27732,13 @@ function assertSpatialObjectsFromOutputManifest() {
   const editableOutputTaskPack = editableOutputExportFrame
     ? buildTaskPack([editableOutputExportFrame], [])
     : null;
+  const editableOutputLiveQueue = editableOutputFrame
+    ? buildRewriteQueue(
+        [editableOutputFrame],
+        state.serverStatus.previewManifest,
+        editableOutputFrame.id,
+      )
+    : [];
   const editableOutputBuildRequest =
     editableOutputFrame && editableOutputTaskPack
       ? buildBuildRealRequest(
@@ -26813,6 +27759,24 @@ function assertSpatialObjectsFromOutputManifest() {
       ?.target === generatedTargetObject.meta?.previewPath &&
     editableOutputTaskPack?.frames?.[0]?.outputEditBinding?.href ===
       `/workspace/${generatedTargetObject.meta?.previewPath}` &&
+    editableOutputTaskPack?.frames?.[0]?.liveEditTarget?.bounds?.w === 0.32 &&
+    editableOutputTaskPack?.frames?.[0]?.liveEditPins?.[0]?.text.includes(
+      "CTA copy",
+    ) &&
+    editableOutputTaskPack?.frames?.[0]?.composition?.liveEditTarget?.note?.includes(
+      "hero panel",
+    ) &&
+    editableOutputTaskPack?.frames?.[0]?.composition?.liveEditPins?.[0]?.point
+      ?.x === 0.26 &&
+    editableOutputRewriteRequest?.frames?.[0]?.liveEditTarget?.targetId ===
+      generatedTargetObject.id &&
+    editableOutputRewriteRequest?.frames?.[0]?.liveEditPins?.[0]?.targetId ===
+      generatedTargetObject.id &&
+    editableOutputRewriteRequest?.frames?.[0]?.outputAnnotations?.[0]?.semantics
+      ?.intent === "emphasize" &&
+    editableOutputRewriteRequest?.revisionGraph?.frames?.[0]?.liveEditTarget
+      ?.targetId === generatedTargetObject.id &&
+    editableOutputLiveQueue[0]?.reason === "live-edit-target" &&
     editableOutputBuildRequest?.outputEditBinding?.objectId ===
       generatedTargetObject.id &&
     editableOutputBuildRequest?.outputContract?.outputEditBinding?.target ===

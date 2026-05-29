@@ -560,6 +560,13 @@
                             >
                                 Reply in canvas
                             </button>
+                            <button
+                                id="focus-live-pick"
+                                class="ghost-button"
+                                title="Pick a region inside the connected output, then sketch or speak the rewrite for that exact target"
+                            >
+                                Pick target
+                            </button>
                             <button id="focus-build-real" class="ghost-button">
                                 Build code
                             </button>
@@ -643,6 +650,69 @@
                             <strong>Make real</strong>. Output appears here for
                             correction marks.
                         </div>
+                        <div
+                            id="workbench-live-edit-bar"
+                            class="workbench-live-edit-bar"
+                            hidden
+                        >
+                            <div class="workbench-live-edit-copy">
+                                <p class="eyebrow">Live edit</p>
+                                <strong id="workbench-live-edit-title"
+                                    >Pick a target</strong
+                                >
+                                <span id="workbench-live-edit-detail"
+                                    >Click the generated output to bind the next
+                                    rewrite to a region.</span
+                                >
+                                <div class="workbench-live-edit-chips">
+                                    <span>Pick</span>
+                                    <span id="workbench-live-edit-action"
+                                        >Build UI</span
+                                    >
+                                    <span id="workbench-live-edit-counter"
+                                        >0 / 3 variants</span
+                                    >
+                                </div>
+                            </div>
+                            <label class="workbench-live-edit-note">
+                                <span>Rewrite note</span>
+                                <textarea
+                                    id="workbench-live-edit-note"
+                                    rows="2"
+                                    placeholder="What should Codex change in this picked region?"
+                                ></textarea>
+                            </label>
+                            <div class="workbench-live-edit-actions">
+                                <button
+                                    id="workbench-live-edit-pin"
+                                    class="ghost-button compact"
+                                    type="button"
+                                >
+                                    + Comment
+                                </button>
+                                <button
+                                    id="workbench-live-edit-variants"
+                                    class="ghost-button compact"
+                                    type="button"
+                                >
+                                    Go
+                                </button>
+                                <button
+                                    id="workbench-live-edit-accept"
+                                    class="ghost-button compact"
+                                    type="button"
+                                >
+                                    Accept
+                                </button>
+                                <button
+                                    id="workbench-live-edit-close"
+                                    class="ghost-button compact"
+                                    type="button"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
                         <div class="workbench-output-footer">
                             <p
                                 id="workbench-output-meta"
@@ -660,6 +730,14 @@
                                 hidden
                                 >Open output</a
                             >
+                            <button
+                                id="workbench-live-pick-output"
+                                class="ghost-button compact"
+                                type="button"
+                                hidden
+                            >
+                                Pick target
+                            </button>
                             <button
                                 id="workbench-review-output"
                                 class="ghost-button compact"
@@ -790,6 +868,14 @@
                         title="Commit the instruction, snapshot the sketch, clear the canvas, and reply with generated output in the same drawing surface"
                     >
                         Reply
+                    </button>
+                    <button
+                        id="workbench-composer-pick"
+                        class="composer-button"
+                        type="button"
+                        title="Pick a generated-output region for the next rewrite"
+                    >
+                        Pick
                     </button>
                     <button
                         id="workbench-composer-apply"
@@ -939,6 +1025,14 @@
                         title="Create editable variant frames from this sketch"
                     >
                         Variants
+                    </button>
+                    <button
+                        class="rail-button"
+                        data-rail-action="live-pick"
+                        type="button"
+                        title="Pick a region inside the generated output for live edit"
+                    >
+                        Pick
                     </button>
                     <button
                         class="rail-button rail-button-strong"
@@ -1405,6 +1499,14 @@
                                         hidden
                                         >Open output</a
                                     >
+                                    <button
+                                        id="workbench-output-stage-live-pick"
+                                        class="ghost-button compact"
+                                        type="button"
+                                        hidden
+                                    >
+                                        Pick target
+                                    </button>
                                     <button
                                         id="workbench-output-stage-review"
                                         class="ghost-button compact"
