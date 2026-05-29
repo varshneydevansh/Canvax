@@ -13012,6 +13012,7 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         patchApplied: Boolean(patchResult?.executed),
         patchError: patchResult?.error || "",
         sourceHintExpansion: patchResult?.sourceHintExpansion || null,
+        sourceDiscovery: patchResult?.sourceDiscovery || null,
         projectLinkExpansion: patchResult?.projectLinkExpansion || null,
       },
     };
@@ -13401,6 +13402,7 @@ function normalizeLiveEditManifestWriteback(value) {
     patchApplied: Boolean(value.patchApplied),
     patchError: cleanString(value.patchError || value.error),
     sourceHintExpansion: value.sourceHintExpansion || null,
+    sourceDiscovery: value.sourceDiscovery || null,
     projectLinkExpansion: value.projectLinkExpansion || null,
   };
 }
@@ -28378,6 +28380,7 @@ function summarizePatchExecutionStatus(value) {
     published: Boolean(value.published),
     projectLinkExpansion: value.projectLinkExpansion || null,
     sourceHintExpansion: value.sourceHintExpansion || null,
+    sourceDiscovery: value.sourceDiscovery || null,
     error: cleanString(value.error),
   };
 }
@@ -28404,6 +28407,7 @@ function summarizeLiveEditWritebackStatus(value) {
     error: cleanString(value.error),
     projectLinkExpansion: value.projectLinkExpansion || null,
     sourceHintExpansion: value.sourceHintExpansion || null,
+    sourceDiscovery: value.sourceDiscovery || null,
   };
 }
 

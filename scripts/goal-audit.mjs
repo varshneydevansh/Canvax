@@ -670,6 +670,9 @@ const checks = [
           "source-hinted-task-note",
           "buildProjectLinkExpansion",
           "sourceHintExpansion",
+          "discoverLiveEditSourceCandidates",
+          "canvax-live-edit-source-discovery-result",
+          "sourceDiscovery",
           "data-canvax-patch-state",
           "codex-build",
           "requiresOpenAiApiKey: false",
@@ -680,9 +683,11 @@ const checks = [
         includes: [
           "Live Edit source-hinted patch task targets local source files",
           "Live Edit unhinted picks emit source-search hints",
+          "Live Edit source discovery finds unhinted local targets",
           "Live Edit preview manifest binding preserves accept metadata",
           "accepted-live-edit-target",
           "unhinted-live-edit-source-search",
+          "canvax-live-edit-source-discovery-result",
           "canvax-live-edit-manifest-binding",
           "liveEditOriginalSnapshot",
           "source-hinted files patched",
@@ -736,7 +741,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local voice intent cards, Preview region-tweak requests, and accepted Live Edit variants now feed the handoff/rewrite path, emit Codex patch tasks, and can apply deterministic edits to Canvax-generated implementation bundles or explicit project-linked files, but arbitrary unlinked production app patches still require Codex judgment.",
+      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local voice intent cards, Preview region-tweak requests, and accepted Live Edit variants now feed the handoff/rewrite path, emit Codex patch tasks, discover local source candidates for unhinted picks, and can apply deterministic edits to Canvax-generated implementation bundles or explicit project-linked files, but arbitrary unlinked production app patches still require Codex judgment before mutation.",
   },
   {
     id: "image-asset-handoff",

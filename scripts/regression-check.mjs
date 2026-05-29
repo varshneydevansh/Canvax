@@ -131,6 +131,7 @@ await validateDesignKitLibraryPackageDryRun();
 await validateProjectLinkDryRun();
 await validateLiveEditSourceHintPatchDryRun();
 await validateLiveEditUnhintedSourceSearchDryRun();
+await validateLiveEditSourceDiscoveryDryRun();
 await validateLiveEditPreviewManifestBindingDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
@@ -1397,6 +1398,141 @@ async function validateLiveEditUnhintedSourceSearchDryRun() {
   } catch (error) {
     results.push({
       name: "Live Edit unhinted picks emit source-search hints",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLiveEditSourceDiscoveryDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "source-discovery-fixture");
+  const sourcePath = resolve(fixtureRoot, "src", "HotelCta.jsx");
+  const patchTaskPath = resolve(fixtureRoot, "codex-patch-task.json");
+  const resultRoot = ".canvax/source-discovery-fixture/result";
+  const targetId = "source-discovery-live-edit-cta";
+  try {
+    await mkdir(dirname(sourcePath), { recursive: true });
+    await writeFile(
+      sourcePath,
+      `export function HotelCta(){return <button data-testid="${targetId}" data-canvax-node-id="${targetId}">Reserve suite source discovery target</button>}`,
+    );
+    await writeFile(
+      patchTaskPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-codex-patch-task",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          frameId: "frame-source-discovery",
+          frameTitle: "Source discovery Live Edit fixture",
+          trigger: {
+            kind: "canvax-live-edit-accepted-variant",
+            id: "source-discovery-live-edit",
+            note:
+              "Clarify the source discovery CTA from the accepted Live Edit.",
+          },
+          liveEdit: {
+            target: {
+              targetId,
+              targetNodeId: targetId,
+              targetLabel: "Source discovery CTA",
+              targetType: "preview-dom-element",
+              targetSelector: `[data-testid="${targetId}"]`,
+              targetText: "Reserve suite source discovery target",
+            },
+          },
+          componentTargets: [
+            {
+              id: targetId,
+              type: "button",
+              label: "Source discovery CTA",
+              selector: `[data-testid="${targetId}"]`,
+            },
+          ],
+          affectedRegions: [
+            {
+              source: "live-edit-accepted-variant",
+              note:
+                "Clarify the source discovery CTA from the accepted Live Edit.",
+              componentTargetIds: [targetId],
+            },
+          ],
+          suggestedFiles: [],
+          sourceDiscovery: {
+            kind: "canvax-live-edit-source-discovery",
+            status: "needs-source-search",
+            targetId,
+            targetType: "preview-dom-element",
+          },
+          sourceSearchHints: [
+            {
+              kind: "unhinted-live-edit-source-search",
+              searchType: "selector",
+              query: `[data-testid="${targetId}"]`,
+              confidence: "high",
+              targetId,
+            },
+            {
+              kind: "unhinted-live-edit-source-search",
+              searchType: "node-id",
+              query: targetId,
+              confidence: "high",
+              targetId,
+            },
+            {
+              kind: "unhinted-live-edit-source-search",
+              searchType: "visible-text",
+              query: "Reserve suite source discovery target",
+              confidence: "medium",
+              targetId,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const payload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-patch-task.mjs",
+          "--task",
+          ".canvax/source-discovery-fixture/codex-patch-task.json",
+          "--result-root",
+          resultRoot,
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const result = JSON.parse(
+      await readFile(resolve(projectRoot, resultRoot, "result.json"), "utf8"),
+    );
+    const candidates = payload.sourceDiscovery?.candidates || [];
+    const passed = Boolean(
+      payload?.ok === true &&
+        payload.changedFileCount === 0 &&
+        payload.sourceDiscovery?.kind ===
+          "canvax-live-edit-source-discovery-result" &&
+        payload.sourceDiscovery?.status === "candidates-found" &&
+        candidates.some(
+          (candidate) =>
+            candidate.path.endsWith("src/HotelCta.jsx") &&
+            candidate.matches?.some((match) => match.searchType === "selector"),
+        ) &&
+        result.sourceDiscovery?.candidateCount >= 1 &&
+        result.sourceDiscovery?.nextAction?.includes("explicit source hints"),
+    );
+    results.push({
+      name: "Live Edit source discovery finds unhinted local targets",
+      passed,
+      detail: passed
+        ? `${payload.sourceDiscovery.candidateCount} candidates from ${payload.sourceDiscovery.hintCount} hints`
+        : "source discovery did not identify the fixture target",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit source discovery finds unhinted local targets",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,7 +42,7 @@ if (task?.kind !== "canvax-codex-patch-task") {
   fail(`Expected canvax-codex-patch-task at ${taskPath}`);
 }
 
-const plan = buildPatchPlan(task, taskPath, projectLink);
+const plan = await buildPatchPlan(task, taskPath, projectLink);
 const changes = [];
 
 for (const file of plan.files) {
@@ -89,6 +89,7 @@ const result = {
   motion: plan.motion,
   projectLinkExpansion: plan.projectLinkExpansion,
   sourceHintExpansion: plan.sourceHintExpansion,
+  sourceDiscovery: plan.sourceDiscovery,
   changedFiles: changedFiles.map((change) => ({
     path: change.path,
     kind: change.kind,
@@ -126,6 +127,7 @@ const output = {
   changedFiles: result.changedFiles,
   projectLinkExpansion: result.projectLinkExpansion,
   sourceHintExpansion: result.sourceHintExpansion,
+  sourceDiscovery: result.sourceDiscovery,
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
 };
@@ -143,7 +145,7 @@ if (wantsJson) {
   }
 }
 
-function buildPatchPlan(task, absoluteTaskPath, projectLink) {
+async function buildPatchPlan(task, absoluteTaskPath, projectLink) {
   const note = cleanString(task.trigger?.note || task.affectedRegions?.[0]?.note);
   const targetIds = selectPatchTargetIds(task, note);
   const motion = inferMotion(note);
@@ -157,9 +159,24 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
   );
   if (!files.length) {
     if (Array.isArray(task.sourceSearchHints) && task.sourceSearchHints.length) {
-      fail(
-        `Patch task needs source discovery before deterministic patching: ${toProjectRelative(absoluteTaskPath)} (${task.sourceSearchHints.length} source search hints)`,
+      const sourceDiscovery = await discoverLiveEditSourceCandidates(
+        task,
+        absoluteTaskPath,
       );
+      return {
+        task,
+        note,
+        targetIds,
+        motion,
+        files,
+        projectLinkExpansion,
+        sourceHintExpansion,
+        sourceDiscovery,
+        patchState: "source-discovery",
+        patchNote:
+          note ||
+          "Discovered likely source candidates for an unhinted Live Edit target.",
+      };
     }
     fail(
       `Patch task has no local Canvax-generated, production-proof, source-hinted, or project-linked implementation files: ${toProjectRelative(absoluteTaskPath)}`,
@@ -176,6 +193,7 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
     files,
     projectLinkExpansion,
     sourceHintExpansion,
+    sourceDiscovery: null,
     patchState: "applied",
     patchNote: note || "Applied Canvax patch task.",
   };
@@ -374,6 +392,229 @@ function classifyLiveEditSourceHintFile(candidate) {
     return { path, kind: "source-hinted-task-note" };
   }
   return null;
+}
+
+async function discoverLiveEditSourceCandidates(task, absoluteTaskPath) {
+  const hints = normalizeSourceSearchHints(task.sourceSearchHints);
+  const sourceFiles = await collectSearchableSourceFiles(projectRoot);
+  const candidates = [];
+  for (const file of sourceFiles) {
+    const matches = await matchSourceSearchHintsInFile(file, hints);
+    if (!matches.length) {
+      continue;
+    }
+    const score = matches.reduce((sum, match) => sum + match.score, 0);
+    candidates.push({
+      path: toProjectRelative(file.absolutePath),
+      kind: file.kind,
+      score,
+      confidence: score >= 14 ? "high" : score >= 8 ? "medium" : "low",
+      matchCount: matches.length,
+      matches: matches.slice(0, 12),
+    });
+  }
+  candidates.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+  return {
+    kind: "canvax-live-edit-source-discovery-result",
+    schemaVersion: 1,
+    requiresOpenAiApiKey: false,
+    createdAt: new Date().toISOString(),
+    status: candidates.length ? "candidates-found" : "no-candidates-found",
+    taskPath: toProjectRelative(absoluteTaskPath),
+    targetId: cleanString(task.liveEdit?.target?.targetId || task.trigger?.id),
+    targetLabel: cleanString(task.liveEdit?.target?.targetLabel),
+    hintCount: hints.length,
+    searchedFileCount: sourceFiles.length,
+    candidateCount: candidates.length,
+    candidates: candidates.slice(0, 12),
+    nextAction: candidates.length
+      ? "Review these files as likely source/task targets for the accepted Live Edit pick, then add explicit source hints or project-link bindings before applying deterministic patches."
+      : "No local source candidates were found from the Live Edit search hints; Codex should inspect the project manually before editing.",
+    noApiBoundary:
+      "This source discovery scans local workspace text files only. It does not call paid APIs, browser automation, ChatGPT, or image generation.",
+  };
+}
+
+function normalizeSourceSearchHints(value) {
+  const hints = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  return hints
+    .flatMap((hint, index) => {
+      const query = cleanString(hint?.query);
+      if (!query) {
+        return [];
+      }
+      const base = {
+        kind: cleanString(hint.kind) || "live-edit-source-search",
+        searchType: cleanString(hint.searchType) || `hint-${index + 1}`,
+        confidence: cleanString(hint.confidence) || "medium",
+        targetId: cleanString(hint.targetId),
+        targetNodeId: cleanString(hint.targetNodeId),
+        targetSelector: cleanString(hint.targetSelector),
+        targetLabel: cleanString(hint.targetLabel),
+      };
+      return buildSourceSearchTerms(query).map((term) => ({
+        ...base,
+        ...term,
+      }));
+    })
+    .filter((hint) => {
+      const key = `${hint.searchType}:${hint.matchType}:${hint.term.toLowerCase()}`;
+      if (!hint.term || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 40);
+}
+
+function buildSourceSearchTerms(query) {
+  const terms = [
+    {
+      term: query,
+      matchType: "exact-query",
+      score: selectorLike(query) ? 10 : 5,
+    },
+  ];
+  const attributeMatches = [...query.matchAll(/\[?([A-Za-z_:][-A-Za-z0-9_:.]*)=["']([^"']+)["']\]?/g)];
+  attributeMatches.forEach((match) => {
+    terms.push({
+      term: `${match[1]}="${match[2]}"`,
+      matchType: "attribute-pair",
+      score: 9,
+    });
+    terms.push({
+      term: match[2],
+      matchType: "attribute-value",
+      score: 7,
+    });
+  });
+  if (!attributeMatches.length && /^[#.][A-Za-z0-9_-]+$/.test(query)) {
+    terms.push({
+      term: query.slice(1),
+      matchType: "selector-token",
+      score: 6,
+    });
+  }
+  return terms;
+}
+
+function selectorLike(value) {
+  return /[[\].#=]/.test(cleanString(value));
+}
+
+async function collectSearchableSourceFiles(root) {
+  const files = [];
+  async function visit(directory) {
+    let entries = [];
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const absolutePath = resolve(directory, entry.name);
+      const relativePath = toProjectRelative(absolutePath);
+      if (entry.isDirectory()) {
+        if (shouldSkipSourceSearchDirectory(relativePath, entry.name)) {
+          continue;
+        }
+        await visit(absolutePath);
+        continue;
+      }
+      if (!entry.isFile() || !isSearchableSourceFile(relativePath)) {
+        continue;
+      }
+      try {
+        const info = await stat(absolutePath);
+        if (info.size > 500_000) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      files.push({
+        absolutePath,
+        kind: sourceFileKind(relativePath),
+      });
+      if (files.length >= 3000) {
+        return;
+      }
+    }
+  }
+  await visit(root);
+  return files;
+}
+
+function shouldSkipSourceSearchDirectory(relativePath, name) {
+  const lower = relativePath.toLowerCase();
+  return (
+    name === "node_modules" ||
+    name === ".git" ||
+    lower === "exports" ||
+    lower.startsWith("exports/") ||
+    lower === "artifacts" ||
+    lower.startsWith("artifacts/preview/") ||
+    lower.startsWith("artifacts/canvax/applied-patches/")
+  );
+}
+
+function isSearchableSourceFile(relativePath) {
+  const lower = relativePath.toLowerCase();
+  return (
+    lower.endsWith(".html") ||
+    lower.endsWith(".jsx") ||
+    lower.endsWith(".tsx") ||
+    lower.endsWith(".js") ||
+    lower.endsWith(".ts") ||
+    lower.endsWith(".css") ||
+    lower.endsWith(".md") ||
+    lower.endsWith(".mdx") ||
+    lower.endsWith(".txt")
+  );
+}
+
+function sourceFileKind(relativePath) {
+  const lower = relativePath.toLowerCase();
+  if (lower.endsWith(".html")) {
+    return "html";
+  }
+  if (lower.endsWith(".css")) {
+    return "css";
+  }
+  if (lower.endsWith(".md") || lower.endsWith(".mdx") || lower.endsWith(".txt")) {
+    return "task-note";
+  }
+  return "component";
+}
+
+async function matchSourceSearchHintsInFile(file, hints) {
+  let raw = "";
+  try {
+    raw = await readFile(file.absolutePath, "utf8");
+  } catch {
+    return [];
+  }
+  const lines = raw.split(/\r?\n/);
+  const matches = [];
+  hints.forEach((hint) => {
+    lines.forEach((line, index) => {
+      if (!line.includes(hint.term)) {
+        return;
+      }
+      matches.push({
+        line: index + 1,
+        searchType: hint.searchType,
+        matchType: hint.matchType,
+        query: hint.term,
+        score: hint.score,
+        confidence: hint.confidence,
+        excerpt: compactText(line.trim(), 180),
+      });
+    });
+  });
+  return matches;
 }
 
 function isLiveEditSourceHintCandidate(candidate) {
@@ -889,6 +1130,27 @@ function buildMarkdown(result) {
       "",
     );
   }
+  if (result.sourceDiscovery) {
+    lines.push(
+      "## Live Edit Source Discovery",
+      "",
+      `Status: ${result.sourceDiscovery.status}`,
+      `Hints: ${result.sourceDiscovery.hintCount}`,
+      `Searched files: ${result.sourceDiscovery.searchedFileCount}`,
+      "",
+    );
+    if (result.sourceDiscovery.candidates?.length) {
+      result.sourceDiscovery.candidates.slice(0, 8).forEach((candidate) => {
+        lines.push(
+          `- ${candidate.path} (${candidate.confidence}, score ${candidate.score})`,
+        );
+      });
+      lines.push("");
+    } else {
+      lines.push("- No source candidates found.", "");
+    }
+    lines.push(result.sourceDiscovery.nextAction || "", "");
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -915,6 +1177,14 @@ async function readOptionalJson(filePath) {
 
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function compactText(value, maxLength = 120) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 1).trim()}...`;
 }
 
 function resolveMaybeProjectPath(path) {

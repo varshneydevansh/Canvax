@@ -37,6 +37,10 @@ Accepted output-backed Live Edit targets also persist a first-class
 `canvax-live-edit-manifest-binding` into the preview manifest, carrying the
 accepted variant, restore snapshot, pins, action intent, source-binding or
 source-search status, and writeback result as machine-readable metadata.
+Unhinted output-backed picks now also get a local `execute-patch` source
+discovery pass: `sourceSearchHints` produce concrete candidate files, line
+matches, confidence, and next-action guidance before any arbitrary production
+mutation is attempted.
 
 ## Prompt-To-Artifact Checklist
 
