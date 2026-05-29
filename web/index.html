@@ -7,6 +7,9 @@
             content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
         <title>Canvax</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
         <link rel="stylesheet" href="/styles.css" />
     </head>
     <body>
@@ -1186,6 +1189,135 @@
 
                     <div class="stage-body">
                         <div id="frame-workspace" class="workspace-panel">
+                            <!-- Chronological workflow onboarding guide -->
+                            <div class="canvax-onboarding-card" id="canvax-onboarding-card" aria-label="Design Workflow Onboarding Guide">
+                                <div class="onboarding-header">
+                                    <div class="onboarding-header-title">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                        </svg>
+                                        <h4>Design Workflow</h4>
+                                    </div>
+                                    <button class="onboarding-minimize-btn" id="onboarding-minimize-btn" type="button" title="Toggle guide collapse">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="18 15 12 9 6 15"></polyline>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="onboarding-body" id="onboarding-body">
+                                    <p class="onboarding-subtitle">Follow these steps to create your UI:</p>
+                                    <ul class="onboarding-steps">
+                                        <li class="onboarding-step" id="step-sketch">
+                                            <span class="step-checkbox"></span>
+                                            <span class="step-text"><strong>Step 1:</strong> Sketch layout on canvas</span>
+                                        </li>
+                                        <li class="onboarding-step" id="step-prompt">
+                                            <span class="step-checkbox"></span>
+                                            <span class="step-text"><strong>Step 2:</strong> Describe design in words</span>
+                                        </li>
+                                        <li class="onboarding-step" id="step-make">
+                                            <span class="step-checkbox"></span>
+                                            <span class="step-text"><strong>Step 3:</strong> Click <strong>Make real</strong></span>
+                                        </li>
+                                        <li class="onboarding-step" id="step-apply">
+                                            <span class="step-checkbox"></span>
+                                            <span class="step-text"><strong>Step 4:</strong> Click <strong>Apply to Codex</strong></span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Procreate-style canvas integrated toolbar -->
+                            <div class="procreate-canvas-toolbar" id="procreate-canvas-toolbar" aria-label="Procreate canvas controls">
+                                <!-- Top floating toolbar -->
+                                <div class="procreate-top-bar">
+                                    <button class="procreate-tool-btn" data-procreate-tool="pen" type="button" title="Pen (Brush sketch)">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M12 20h9"></path>
+                                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="procreate-tool-btn" data-procreate-tool="marker" type="button" title="Marker (Soft translucent stroke)">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m14 3-4.9 4.9"></path>
+                                            <path d="m8.5 10.5-2.79 2.79c-.78.78-.78 2.05 0 2.83l3.17 3.17c.78.78 2.05.78 2.83 0l2.79-2.79"></path>
+                                            <path d="m18 8 3 3-9 9H9v-3Z"></path>
+                                        </svg>
+                                    </button>
+                                    <button class="procreate-tool-btn" data-procreate-tool="rect" type="button" title="Rectangle (Shape element)">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        </svg>
+                                    </button>
+                                    <button class="procreate-tool-btn" data-procreate-tool="arrow" type="button" title="Arrow (Flow direction)">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            <polyline points="12 5 19 12 12 19"></polyline>
+                                        </svg>
+                                    </button>
+                                    <button class="procreate-tool-btn" data-procreate-tool="label" type="button" title="Text label">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="4 7 4 4 20 4 20 7"></polyline>
+                                            <line x1="9" y1="20" x2="15" y2="20"></line>
+                                            <line x1="12" y1="4" x2="12" y2="20"></line>
+                                        </svg>
+                                    </button>
+                                    <button class="procreate-tool-btn" data-procreate-tool="erase" type="button" title="Eraser">
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21Z"></path>
+                                            <path d="M22 21H7"></path>
+                                            <path d="m5 11 9 9"></path>
+                                        </svg>
+                                    </button>
+                                    <div class="procreate-divider"></div>
+                                    <div class="procreate-color-dot-container" style="position: relative; display: flex; align-items: center;">
+                                        <button class="procreate-color-dot" id="procreate-color-dot" type="button" title="Active color palette selector">
+                                            <span class="color-dot-inner" id="procreate-color-dot-inner"></span>
+                                        </button>
+                                        <!-- Floating color quick palette -->
+                                        <div class="procreate-color-palette" id="procreate-color-palette" hidden>
+                                            <p class="procreate-palette-title">Palette</p>
+                                            <div class="procreate-palette-grid" id="procreate-palette-grid"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Side tactile controls -->
+                                <div class="procreate-side-dock">
+                                    <div class="procreate-slider-group" id="procreate-size-slider-group" title="Brush stroke size selection">
+                                        <div class="procreate-slider-track">
+                                            <div class="procreate-slider-fill" id="procreate-size-fill"></div>
+                                            <input type="range" min="4" max="48" value="14" class="procreate-range-input" id="procreate-size-range" aria-label="Brush size slider">
+                                        </div>
+                                        <span class="procreate-slider-value" id="procreate-size-label">14px</span>
+                                    </div>
+
+                                    <div class="procreate-slider-group" id="procreate-opacity-slider-group" title="Brush opacity and marker translucency selector">
+                                        <div class="procreate-slider-track">
+                                            <div class="procreate-slider-fill" id="procreate-opacity-fill"></div>
+                                            <input type="range" min="10" max="100" value="100" class="procreate-range-input" id="procreate-opacity-range" aria-label="Brush opacity slider">
+                                        </div>
+                                        <span class="procreate-slider-value" id="procreate-opacity-label">100%</span>
+                                    </div>
+
+                                    <div class="procreate-side-actions">
+                                        <button class="procreate-side-btn" id="procreate-undo" type="button" title="Undo visual canvas action">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M3 7v6h6"></path>
+                                                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+                                            </svg>
+                                        </button>
+                                        <button class="procreate-side-btn" id="procreate-redo" type="button" title="Redo visual canvas action">
+                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M21 7v6h-6"></path>
+                                                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div id="device-shell" class="device-shell">
                                 <div
                                     id="brush-preview"

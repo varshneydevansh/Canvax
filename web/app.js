@@ -779,6 +779,7 @@ function init() {
   }
   applyHostSurfaceMode();
   renderAll();
+  initProcreateAndOnboarding();
   if (visualFixtureMode === "project-browser") {
     openProjectBrowser();
   }
@@ -2951,6 +2952,7 @@ function createInitialState() {
     tool: "pen",
     color: palette[0],
     size: 14,
+    brushOpacity: 1,
     grid: true,
     autoSnap: true,
     autoRewrite: false,
@@ -4523,6 +4525,7 @@ function updateBrushSize(nextSize) {
   renderColors();
   renderBrushPreview();
   renderFocusPad();
+  syncProcreateActiveStates();
   renderStatus(`Brush size ${state.size}px`);
 }
 
@@ -4657,6 +4660,7 @@ function setActiveTool(toolId) {
   renderColors();
   renderBrushPreview();
   renderCanvas();
+  syncProcreateActiveStates();
 }
 
 function renderBoardFields() {
@@ -5574,6 +5578,7 @@ function syncSpatialObjectsFromHandoffs() {
   });
 
   state.spatialObjects = nextObjects;
+  tidySpatialLaneObjects();
   setSelectedSpatialObjects(
     currentSelectedSpatialObjectIds().filter((id) =>
       nextObjects.some((object) => object.id === id),
@@ -9492,7 +9497,7 @@ function onWorkbenchOutputPointerDown(event) {
     points: [point],
     color: state.tool === "erase" ? ERASER_COLOR : normalizeColor(state.color),
     size: state.size,
-    alpha: state.tool === "marker" ? 0.42 : 1,
+    alpha: state.tool === "erase" ? 1 : (state.tool === "marker" ? 0.42 * (state.brushOpacity || 1) : (state.brushOpacity || 1)),
     composite: state.tool === "erase" ? "destination-out" : "source-over",
     targetId: target.id || "",
     targetLabel: target.label || "",
@@ -10380,6 +10385,7 @@ async function applyFocusPadToCodex() {
   renderStatus("Saving Workbench handoff...");
 
   try {
+    markOnboardingStepCompleted("step-apply");
     if (!frame.objective.trim()) {
       frame.objective =
         "Use this Workbench sketch and voice context to adjust the current design.";
@@ -15283,7 +15289,7 @@ function onPointerDown(event) {
       points: [point],
       color: state.tool === "erase" ? ERASER_COLOR : state.color,
       size: state.size,
-      alpha: state.tool === "marker" ? 0.42 : 1,
+      alpha: state.tool === "erase" ? 1 : (state.tool === "marker" ? 0.42 * (state.brushOpacity || 1) : (state.brushOpacity || 1)),
       composite: state.tool === "erase" ? "destination-out" : "source-over",
     };
   } else {
@@ -18852,6 +18858,12 @@ async function refreshPreviewStateFromServer() {
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || "Preview state unavailable.");
+    }
+    const serverActiveId = data.projectRegistry?.activeProjectId || "";
+    const localActiveId = state.projectRegistry?.activeProjectId || "";
+    if (localActiveId && serverActiveId && localActiveId !== serverActiveId) {
+      console.log(`Local active project (${localActiveId}) is out of sync with server active project (${serverActiveId}). Syncing...`);
+      void saveExportToWorkspace({ silent: true });
     }
     const previousOutputDigest = state.serverStatus.outputDigest || null;
     const nextOutputDigest = data.outputDigest || null;
@@ -22710,6 +22722,7 @@ async function materializeCurrentFrame(options = {}) {
   const originalFocusGenerateLabel = dom.focusGenerate.textContent;
   state.generationInFlight = true;
   renderBusyState();
+  markOnboardingStepCompleted("step-make");
   try {
     dom.generateScreen.disabled = true;
     dom.materializeFrame.disabled = true;
@@ -29379,4 +29392,272 @@ function clamp(value, min, max) {
 
 function uid(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/* ==========================================================================
+   PROCREATE-STYLE CANVAS CONTROLS & GUIDED ONBOARDING BEHAVIOR
+   ========================================================================== */
+
+function initProcreateAndOnboarding() {
+  state.brushOpacity = state.brushOpacity || 1;
+
+  // 1. Onboarding Checklist toggle
+  const onboardingCard = document.getElementById("canvax-onboarding-card");
+  const onboardingBody = document.getElementById("onboarding-body");
+  const minimizeBtn = document.getElementById("onboarding-minimize-btn");
+
+  if (minimizeBtn && onboardingCard) {
+    // Restore collapsed state
+    const isMinimized = window.localStorage.getItem("canvax-onboarding-minimized") === "true";
+    if (isMinimized) {
+      onboardingCard.classList.add("minimized");
+    }
+
+    minimizeBtn.addEventListener("click", () => {
+      onboardingCard.classList.toggle("minimized");
+      const activeMinimized = onboardingCard.classList.contains("minimized");
+      window.localStorage.setItem("canvax-onboarding-minimized", activeMinimized ? "true" : "false");
+    });
+  }
+
+  // 2. Procreate Floating Toolbar Tool buttons
+  const toolbarContainer = document.getElementById("procreate-canvas-toolbar");
+  if (toolbarContainer) {
+    toolbarContainer.querySelectorAll("[data-procreate-tool]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tool = btn.getAttribute("data-procreate-tool");
+        setActiveTool(tool);
+
+        // Log event for chronological step 1
+        markOnboardingStepCompleted("step-sketch");
+      });
+    });
+  }
+
+  // 3. Size range slider input
+  const sizeRange = document.getElementById("procreate-size-range");
+  const sizeFill = document.getElementById("procreate-size-fill");
+  const sizeLabel = document.getElementById("procreate-size-label");
+
+  if (sizeRange) {
+    // Set initial values
+    sizeRange.value = state.size || 14;
+    updateSizeSliderLayout(sizeRange.value);
+
+    sizeRange.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value);
+      updateSizeSliderLayout(val);
+      setActiveSize(val);
+    });
+  }
+
+  function updateSizeSliderLayout(val) {
+    if (sizeLabel) sizeLabel.textContent = `${val}px`;
+    if (sizeFill && sizeRange) {
+      const pct = ((val - sizeRange.min) / (sizeRange.max - sizeRange.min)) * 100;
+      sizeFill.style.height = `${pct}%`;
+    }
+  }
+
+  // 4. Opacity range slider input
+  const opacityRange = document.getElementById("procreate-opacity-range");
+  const opacityFill = document.getElementById("procreate-opacity-fill");
+  const opacityLabel = document.getElementById("procreate-opacity-label");
+
+  if (opacityRange) {
+    opacityRange.value = Math.round(state.brushOpacity * 100);
+    updateOpacitySliderLayout(opacityRange.value);
+
+    opacityRange.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value);
+      updateOpacitySliderLayout(val);
+      state.brushOpacity = val / 100;
+      persistState();
+      renderBrushPreview();
+    });
+  }
+
+  function updateOpacitySliderLayout(val) {
+    if (opacityLabel) opacityLabel.textContent = `${val}%`;
+    if (opacityFill && opacityRange) {
+      const pct = ((val - opacityRange.min) / (opacityRange.max - opacityRange.min)) * 100;
+      opacityFill.style.height = `${pct}%`;
+    }
+  }
+
+  // 5. Undo & Redo Canvas actions
+  const procreateUndo = document.getElementById("procreate-undo");
+  const procreateRedo = document.getElementById("procreate-redo");
+  if (procreateUndo) {
+    procreateUndo.addEventListener("click", () => {
+      undoDesignerAction();
+    });
+  }
+  if (procreateRedo) {
+    procreateRedo.addEventListener("click", () => {
+      redoDesignerAction();
+    });
+  }
+
+  // 6. Dynamic Color Swatch Selector and Palette Dropdown
+  const colorDot = document.getElementById("procreate-color-dot");
+  const paletteMenu = document.getElementById("procreate-color-palette");
+  const paletteGrid = document.getElementById("procreate-palette-grid");
+
+  if (colorDot && paletteMenu && paletteGrid) {
+    colorDot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      paletteMenu.hidden = !paletteMenu.hidden;
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!paletteMenu.contains(e.target) && e.target !== colorDot) {
+        paletteMenu.hidden = true;
+      }
+    });
+
+    // Populate palette grid
+    paletteGrid.innerHTML = palette
+      .map(
+        (hex) =>
+          `<button class="procreate-color-option ${hex === state.color ? "active" : ""}" type="button" data-procreate-hex="${hex}" style="background-color: ${hex};" title="Select color ${hex}"></button>`,
+      )
+      .join("");
+
+    paletteGrid.addEventListener("click", (e) => {
+      const option = e.target.closest("[data-procreate-hex]");
+      if (!option) return;
+      e.stopPropagation();
+      const hex = option.getAttribute("data-procreate-hex");
+      state.color = hex;
+      persistState();
+      renderColors();
+      renderBrushPreview();
+      syncProcreateColors();
+      paletteMenu.hidden = true;
+    });
+  }
+
+  // Dynamic Prompt tracking
+  const composerInput = document.getElementById("workbench-composer-input");
+  if (composerInput) {
+    composerInput.addEventListener("input", () => {
+      if (composerInput.value.trim().length > 0) {
+        markOnboardingStepCompleted("step-prompt");
+      }
+    });
+  }
+  const focusInput = document.getElementById("focus-manual-input");
+  if (focusInput) {
+    focusInput.addEventListener("input", () => {
+      if (focusInput.value.trim().length > 0) {
+        markOnboardingStepCompleted("step-prompt");
+      }
+    });
+  }
+
+  // Initial Sync
+  syncProcreateActiveStates();
+  updateOnboardingGuideFromState();
+}
+
+function syncProcreateColors() {
+  const innerDot = document.getElementById("procreate-color-dot-inner");
+  if (innerDot) {
+    innerDot.style.backgroundColor = state.color;
+  }
+  const grid = document.getElementById("procreate-palette-grid");
+  if (grid) {
+    grid.querySelectorAll("[data-procreate-hex]").forEach((btn) => {
+      if (btn.getAttribute("data-procreate-hex") === state.color) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+  }
+}
+
+function syncProcreateActiveStates() {
+  const container = document.getElementById("procreate-canvas-toolbar");
+  if (container) {
+    container.querySelectorAll("[data-procreate-tool]").forEach((btn) => {
+      if (btn.getAttribute("data-procreate-tool") === state.tool) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+  }
+  // Sync sliders
+  const sizeRange = document.getElementById("procreate-size-range");
+  if (sizeRange) {
+    sizeRange.value = state.size || 14;
+    const label = document.getElementById("procreate-size-label");
+    const fill = document.getElementById("procreate-size-fill");
+    if (label) label.textContent = `${state.size}px`;
+    if (fill) {
+      const pct = ((state.size - sizeRange.min) / (sizeRange.max - sizeRange.min)) * 100;
+      fill.style.height = `${pct}%`;
+    }
+  }
+  syncProcreateColors();
+}
+
+// 7. Guided Onboarding Chronological logic
+function markOnboardingStepCompleted(stepId) {
+  const step = document.getElementById(stepId);
+  if (step) {
+    step.classList.add("completed");
+    step.classList.remove("active");
+
+    // Auto-activate the next step
+    if (stepId === "step-sketch") {
+      const nextStep = document.getElementById("step-prompt");
+      if (nextStep && !nextStep.classList.contains("completed")) {
+        nextStep.classList.add("active");
+      }
+    } else if (stepId === "step-prompt") {
+      const nextStep = document.getElementById("step-make");
+      if (nextStep && !nextStep.classList.contains("completed")) {
+        nextStep.classList.add("active");
+      }
+    } else if (stepId === "step-make") {
+      const nextStep = document.getElementById("step-apply");
+      if (nextStep && !nextStep.classList.contains("completed")) {
+        nextStep.classList.add("active");
+      }
+    }
+  }
+}
+
+function updateOnboardingGuideFromState() {
+  const frame = currentFrame();
+  const stepSketch = document.getElementById("step-sketch");
+  const stepPrompt = document.getElementById("step-prompt");
+  const stepMake = document.getElementById("step-make");
+  const stepApply = document.getElementById("step-apply");
+
+  if (!stepSketch) return;
+
+  // Set default initial active step
+  stepSketch.classList.add("active");
+
+  // Step 1: Check if frame has visual elements drawn
+  if (frame && frame.elements && frame.elements.length > 0) {
+    markOnboardingStepCompleted("step-sketch");
+  }
+
+  // Step 2: Check if there is an active prompt draft or note
+  const composerInput = document.getElementById("workbench-composer-input") || document.getElementById("focus-manual-input");
+  if ((composerInput && composerInput.value.trim().length > 0) || (state.voice && state.voice.segments && state.voice.segments.length > 0)) {
+    markOnboardingStepCompleted("step-prompt");
+  }
+
+  // Step 3: Check if screen generated outputs exist
+  if (state.serverStatus && state.serverStatus.previewManifest && state.serverStatus.previewManifest.length > 0) {
+    markOnboardingStepCompleted("step-sketch");
+    markOnboardingStepCompleted("step-prompt");
+    markOnboardingStepCompleted("step-make");
+  }
 }

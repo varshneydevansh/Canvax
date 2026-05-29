@@ -3366,8 +3366,12 @@ async function handlePublishWorkspaceOutput(request, response) {
   const clear = Boolean(payload?.clear);
   const existingCodexManifest = await readOptionalJson(codexOutputManifestPath);
   const manualPreviewManifest = await readOptionalJson(previewManifestPath);
+
+  const isDifferentProject = project && existingCodexManifest?.project && existingCodexManifest.project.id !== project.id;
+  const activeCodexManifest = isDifferentProject ? null : existingCodexManifest;
+
   const existingManifest = normalizePreviewManifest(
-    existingCodexManifest || {},
+    activeCodexManifest || {},
   );
   const liveProjectStub = {
     project,
