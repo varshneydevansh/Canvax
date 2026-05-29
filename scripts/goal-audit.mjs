@@ -567,6 +567,8 @@ const checks = [
           "startLiveEditFromAssetCandidate",
           "createLiveEditTargetFromAssetCandidate",
           "applyAcceptedLiveEditVariantToAssetCandidate",
+          "activateLiveEditDrawMode",
+          "workbench-live-edit-draw",
           "generated-asset-candidate",
           "liveEditRequest",
           "canvax-live-edit-request",

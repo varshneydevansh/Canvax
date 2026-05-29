@@ -547,6 +547,7 @@ const dom = {
   workbenchLiveEditPrev: document.querySelector("#workbench-live-edit-prev"),
   workbenchLiveEditNext: document.querySelector("#workbench-live-edit-next"),
   workbenchLiveEditPin: document.querySelector("#workbench-live-edit-pin"),
+  workbenchLiveEditDraw: document.querySelector("#workbench-live-edit-draw"),
   workbenchLiveEditVariants: document.querySelector(
     "#workbench-live-edit-variants",
   ),
@@ -1284,6 +1285,7 @@ function bindEvents() {
     "click",
     beginLiveEditCommentPinPlacement,
   );
+  dom.workbenchLiveEditDraw.addEventListener("click", activateLiveEditDrawMode);
   dom.workbenchLiveEditVariants.addEventListener("click", () => {
     createLiveEditVariants();
   });
@@ -10142,6 +10144,18 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   const variantIndex = currentLiveEditVariantIndex(frame);
   const selectedVariant = variants[variantIndex] || null;
   const placingLivePin = liveEditPinPlacementMatchesTarget(liveTarget);
+  const drawOnOutput = liveEditTargetDrawsOnOutput(
+    liveTarget,
+    target,
+    targetUrl,
+  );
+  const drawingToolActive = ["pen", "marker", "erase"].includes(state.tool);
+  const drawModeActive = Boolean(
+    liveTarget &&
+      drawingToolActive &&
+      ((drawOnOutput && state.workbenchFocus === "output") ||
+        (!drawOnOutput && state.workbenchFocus === "sketch")),
+  );
   const showBar = Boolean(
     state.liveEditPickActive ||
       (liveTarget && liveTarget.status !== "accepted") ||
@@ -10242,6 +10256,14 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.workbenchLiveEditPin.textContent = placingLivePin
     ? "Click target"
     : "+ Comment";
+  dom.workbenchLiveEditDraw.disabled = !liveTarget;
+  dom.workbenchLiveEditDraw.classList.toggle("active", drawModeActive);
+  dom.workbenchLiveEditDraw.setAttribute(
+    "aria-pressed",
+    String(drawModeActive),
+  );
+  dom.workbenchLiveEditDraw.textContent =
+    state.tool === "erase" && drawModeActive ? "Erase" : "Draw";
   dom.workbenchLiveEditVariants.disabled = !liveTarget;
   dom.workbenchLiveEditVariants.textContent = liveTarget
     ? variants.length
@@ -11221,6 +11243,55 @@ function addLiveEditCommentPin(point = null, options = {}) {
         : "Pinned comment to live edit target",
   });
   return pin;
+}
+
+function liveEditTargetDrawsOnOutput(liveTarget, target, targetUrl = "") {
+  const normalized = normalizeLiveEditTarget(liveTarget);
+  if (!normalized || !target || !targetUrl) {
+    return false;
+  }
+  const targetPath = cleanString(target.previewPath || target.path);
+  return Boolean(
+    (normalized.targetHref && normalized.targetHref === targetUrl) ||
+      (normalized.targetPath && normalized.targetPath === targetPath) ||
+      (normalized.targetObjectId && normalized.targetObjectId === target.id) ||
+      (normalized.targetId && normalized.targetId === target.id) ||
+      ["generated-output", "same-canvas-reply"].includes(normalized.surface) ||
+      normalized.targetType === "preview-dom-element",
+  );
+}
+
+function activateLiveEditDrawMode() {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (!liveTarget) {
+    renderStatus("Pick a live edit target before drawing correction marks");
+    return false;
+  }
+  const target = currentWorkbenchTarget();
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  const drawOnOutput = liveEditTargetDrawsOnOutput(
+    liveTarget,
+    target,
+    targetUrl,
+  );
+  state.liveEditPickActive = false;
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
+  state.workspaceMode = "simple";
+  state.workbenchFocus = drawOnOutput ? "output" : "sketch";
+  state.viewMode = "frame";
+  if (!workbenchOutputToolCanDraw()) {
+    state.tool = "pen";
+  }
+  persistState();
+  renderAll();
+  renderStatus(
+    drawOnOutput
+      ? "Draw correction strokes directly on the picked output target"
+      : "Draw correction strokes around the picked canvas target",
+  );
+  return true;
 }
 
 function placeLiveEditCommentPinFromEvent(event) {
@@ -28125,6 +28196,7 @@ async function runSelfTest() {
           Boolean(dom.workbenchLiveEditBar) &&
           Boolean(dom.workbenchLiveEditNote) &&
           Boolean(dom.workbenchLiveEditPin) &&
+          Boolean(dom.workbenchLiveEditDraw) &&
           Boolean(dom.workbenchLivePickOutput) &&
           Boolean(dom.workbenchOutputStageLivePick) &&
           Boolean(dom.workbenchReviewOutput) &&
@@ -28611,6 +28683,11 @@ async function runSelfTest() {
     state.tool = "select";
     setSelectedElements([canvasLiveEditRect.id], canvasLiveEditRect.id);
     setLiveEditPickMode(true);
+    const canvasLiveEditDrawModeArmed =
+      activateLiveEditDrawMode() &&
+      state.workbenchFocus === "sketch" &&
+      state.tool === "pen" &&
+      dom.workbenchLiveEditDraw?.classList.contains("active");
     dom.workbenchLiveEditNote.value = "Make this canvas card read like a book-page hero callout";
     addLiveEditCommentPin();
     const canvasObjectVariants = createLiveEditVariants();
@@ -28632,6 +28709,7 @@ async function runSelfTest() {
       );
     const canvasObjectLiveEditExported =
       canvasObjectVariants.length === 3 &&
+      canvasLiveEditDrawModeArmed &&
       frameForCanvasReply.liveEditVariantIndex === 2 &&
       canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
       canvasObjectElement?.liveEdit?.request?.status === "accepted" &&
