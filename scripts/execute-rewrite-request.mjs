@@ -73,18 +73,21 @@ const frameCodeMap = await loadFrameCodeMap(request, frameId);
 const buildContract = await loadBuildContract(request, frameId);
 const portTask = await loadPortTask(request, frameId);
 const previewTweak = await loadPreviewTweak(previewTweakPath, frameId);
+const acceptedLiveEdit = buildAcceptedLiveEditContext(selected);
 const visualDirection = buildRewriteVisualDirection(buildContract);
 const affectedRegions = buildAffectedRegions(
   selected,
   request,
   frameCodeMap,
   previewTweak,
+  acceptedLiveEdit,
 );
 const affectedComponents = affectedComponentsFromRegions(affectedRegions);
 const codexPatchTask = buildCodexPatchTask({
   frameId,
   frameTitle,
   previewTweak,
+  acceptedLiveEdit,
   affectedRegions,
   affectedComponents,
   frameCodeMap,
@@ -128,6 +131,7 @@ await writeFile(
       portTask,
       visualDirection,
       previewTweak,
+      acceptedLiveEdit,
       codexPatchTask,
       previewPath: relativeHtmlPath,
       patchTaskPath: relativePatchTaskPath,
@@ -167,6 +171,7 @@ const result = {
   affectedRegionCount: affectedRegions.length,
   componentTargetCount: affectedComponents.length,
   previewTweakIncluded: Boolean(previewTweak),
+  acceptedLiveEditIncluded: Boolean(acceptedLiveEdit),
   patchTaskPath: relativePatchTaskPath,
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
@@ -243,6 +248,7 @@ async function publishCodexOutput({
         affectedRegions,
         affectedComponents,
         previewTweak,
+        acceptedLiveEdit,
       ),
       "--frame",
       frameId,
@@ -305,6 +311,7 @@ function buildContextPayload({
   portTask,
   visualDirection,
   previewTweak,
+  acceptedLiveEdit,
   codexPatchTask,
   previewPath,
   patchTaskPath,
@@ -325,6 +332,7 @@ function buildContextPayload({
       null,
     affectedRegions,
     affectedComponents,
+    acceptedLiveEdit,
     previewTweak: previewTweak
       ? {
           kind: previewTweak.kind || "canvax-preview-tweak-request",
@@ -377,6 +385,7 @@ function buildCodexPatchTask({
   frameId,
   frameTitle,
   previewTweak,
+  acceptedLiveEdit,
   affectedRegions,
   affectedComponents,
   frameCodeMap,
@@ -394,19 +403,8 @@ function buildCodexPatchTask({
     source: "scripts/execute-rewrite-request.mjs",
     frameId,
     frameTitle,
-    trigger: previewTweak
-      ? {
-          kind: previewTweak.kind || "canvax-preview-tweak-request",
-          id: previewTweak.id || "",
-          path: previewTweak.path || "",
-          note: previewTweak.note || "",
-          target: previewTweak.target || null,
-          region: previewTweak.region || null,
-        }
-      : {
-          kind: "canvax-rewrite-request",
-          note: "No Preview tweak matched this frame; use rewrite request context.",
-        },
+    trigger: buildPatchTaskTrigger({ acceptedLiveEdit, previewTweak }),
+    liveEdit: acceptedLiveEdit,
     previewPath,
     contextPath,
     suggestedFiles,
@@ -424,16 +422,29 @@ function buildCodexPatchTask({
       note: region.note || "",
       normalizedBounds: region.normalizedBounds || null,
       componentTargetIds: region.componentTargetIds || [],
+      liveEditTarget: region.liveEditTarget || null,
+      liveEditVariant: region.liveEditVariant || null,
+      liveEditPins: region.liveEditPins || [],
+      liveEditCanvasMarks: region.liveEditCanvasMarks || [],
     })),
     designContract: buildContract?.path || "",
     portTask: portTask?.path || "",
     instructions: [
       "Use this file as the narrow production-edit target for the current Canvax Preview tweak or rewrite request.",
+      acceptedLiveEdit
+        ? "This task came from an accepted Canvax Live Edit variant. Apply the selected variant to the outlined target first, using pins and strokes as direct editing intent."
+        : "",
       "Prefer the component selectors and suggested files before making broad layout changes.",
       "Preserve unrelated generated output regions unless the Canvax note, sketch, or voice context explicitly asks for broader changes.",
       "After editing real app files, publish the result with scripts/write-codex-output.mjs so Canvax Preview can bind the update.",
-    ],
+    ].filter(Boolean),
     acceptanceCriteria: [
+      ...(acceptedLiveEdit
+        ? [
+            "The accepted Live Edit variant is reflected in the selected target, not treated as a whole-page redesign.",
+            "The picked target binding, normalized bounds, and component ownership remain traceable after the edit.",
+          ]
+        : []),
       "The selected Preview/output region changes according to the tweak note.",
       "Frame-bound data-canvax selectors or equivalent component ownership remain traceable.",
       "No OpenAI API key or paid API call is required by this local patch task.",
@@ -547,9 +558,37 @@ function buildAffectedRegions(
   request,
   frameCodeMap = null,
   previewTweak = null,
+  acceptedLiveEdit = null,
 ) {
   const regions = [];
   const viewport = frameViewport(selected);
+  if (acceptedLiveEdit?.target?.bounds) {
+    const bounds = acceptedLiveEdit.target.bounds;
+    regions.push(
+      withComponentTargets(
+        {
+          source: "live-edit-accepted-variant",
+          label: acceptedLiveEdit.variant
+            ? `Live Edit ${acceptedLiveEdit.variant.index}: ${acceptedLiveEdit.variant.label}`
+            : "Accepted Live Edit",
+          note: acceptedLiveEdit.patchNote,
+          target: acceptedLiveEdit.target,
+          liveEditTarget: acceptedLiveEdit.target,
+          liveEditVariant: acceptedLiveEdit.variant,
+          liveEditPins: acceptedLiveEdit.pins,
+          liveEditCanvasMarks: acceptedLiveEdit.canvasMarks,
+          left: denormalize(bounds.x, viewport.width, 96),
+          top: denormalize(bounds.y, viewport.height, 96),
+          width: Math.max(28, denormalize(bounds.w, viewport.width, 180)),
+          height: Math.max(28, denormalize(bounds.h, viewport.height, 100)),
+        },
+        frameCodeMap,
+        viewport,
+        acceptedLiveEdit.target,
+      ),
+    );
+  }
+
   if (previewTweak?.region?.normalized) {
     const bounds = previewTweak.region.normalized;
     regions.push(
@@ -653,9 +692,13 @@ function frameViewport(selected) {
   };
 }
 
-function withComponentTargets(region, frameCodeMap, viewport) {
+function withComponentTargets(region, frameCodeMap, viewport, liveEditTarget = null) {
   const normalizedBounds = normalizeRegionBounds(region, viewport);
-  const components = matchingFrameCodeRegions(frameCodeMap, normalizedBounds);
+  const components = matchingFrameCodeRegions(
+    frameCodeMap,
+    normalizedBounds,
+    liveEditTarget,
+  );
   return {
     ...region,
     normalizedBounds,
@@ -673,14 +716,32 @@ function normalizeRegionBounds(region, viewport) {
   };
 }
 
-function matchingFrameCodeRegions(frameCodeMap, normalizedBounds) {
+function matchingFrameCodeRegions(
+  frameCodeMap,
+  normalizedBounds,
+  liveEditTarget = null,
+) {
   const regions = Array.isArray(frameCodeMap?.map?.regions)
     ? frameCodeMap.map.regions
     : [];
-  return regions
-    .filter((region) =>
-      boundsIntersect(normalizedBounds, normalizeFrameCodeBounds(region.bounds)),
-    )
+  const exactTargetId = cleanString(liveEditTarget?.targetId);
+  const exactMatches = exactTargetId
+    ? regions.filter((region) => cleanString(region.id) === exactTargetId)
+    : [];
+  const spatialMatches = regions.filter((region) =>
+    boundsIntersect(normalizedBounds, normalizeFrameCodeBounds(region.bounds)),
+  );
+  const combined = [...exactMatches, ...spatialMatches];
+  const seen = new Set();
+  const mapped = combined
+    .filter((region) => {
+      const id = cleanString(region.id);
+      if (!id || seen.has(id)) {
+        return false;
+      }
+      seen.add(id);
+      return true;
+    })
     .slice(0, 6)
     .map((region) => ({
       id: cleanString(region.id),
@@ -690,6 +751,21 @@ function matchingFrameCodeRegions(frameCodeMap, normalizedBounds) {
       suggestedComponentName: cleanString(region.suggestedComponentName),
       bounds: normalizeFrameCodeBounds(region.bounds),
     }));
+  if (mapped.length || !exactTargetId || liveEditTarget?.targetType === "generated-output") {
+    return mapped;
+  }
+  return [
+    {
+      id: exactTargetId,
+      label: cleanString(liveEditTarget.targetLabel) || "Live edit target",
+      type: cleanString(liveEditTarget.targetType) || "live-edit-target",
+      selector: exactTargetId
+        ? `[data-canvax-node-id="${cssAttributeEscape(exactTargetId)}"]`
+        : "",
+      suggestedComponentName: "",
+      bounds: normalizedBounds,
+    },
+  ];
 }
 
 function affectedComponentsFromRegions(regions) {
@@ -702,6 +778,310 @@ function affectedComponentsFromRegions(regions) {
     });
   });
   return [...components.values()];
+}
+
+function buildPatchTaskTrigger({ acceptedLiveEdit, previewTweak }) {
+  if (acceptedLiveEdit) {
+    return {
+      kind: "canvax-live-edit-accepted-variant",
+      id:
+        acceptedLiveEdit.variant?.id ||
+        acceptedLiveEdit.target?.id ||
+        "accepted-live-edit",
+      note: acceptedLiveEdit.patchNote,
+      target: acceptedLiveEdit.target,
+      variant: acceptedLiveEdit.variant,
+      pins: acceptedLiveEdit.pins,
+      canvasMarks: acceptedLiveEdit.canvasMarks,
+      outputEditBinding: acceptedLiveEdit.outputEditBinding,
+    };
+  }
+  if (previewTweak) {
+    return {
+      kind: previewTweak.kind || "canvax-preview-tweak-request",
+      id: previewTweak.id || "",
+      path: previewTweak.path || "",
+      note: previewTweak.note || "",
+      target: previewTweak.target || null,
+      region: previewTweak.region || null,
+    };
+  }
+  return {
+    kind: "canvax-rewrite-request",
+    note: "No Preview tweak or accepted Live Edit matched this frame; use rewrite request context.",
+  };
+}
+
+function buildAcceptedLiveEditContext(selected) {
+  const requestFrame = selected.requestFrame || {};
+  const taskFrame = selected.frame || {};
+  const outputEditBinding =
+    requestFrame.outputEditBinding || taskFrame.outputEditBinding || null;
+  const target = normalizeLiveEditTarget(
+    requestFrame.liveEditTarget ||
+      taskFrame.liveEditTarget ||
+      outputEditBinding?.liveEditTarget,
+  );
+  const variants = normalizeLiveEditVariants(
+    requestFrame.liveEditVariants || taskFrame.liveEditVariants,
+  );
+  const variantIndex = Math.max(
+    0,
+    Number(requestFrame.liveEditVariantIndex ?? taskFrame.liveEditVariantIndex) ||
+      0,
+  );
+  const variant =
+    normalizeLiveEditVariant(
+      requestFrame.acceptedLiveEditVariant ||
+        taskFrame.acceptedLiveEditVariant ||
+        outputEditBinding?.liveEditVariant,
+      target,
+      variantIndex,
+    ) || normalizeLiveEditVariant(variants[variantIndex], target, variantIndex);
+  const accepted =
+    target?.status === "accepted" ||
+    Boolean(target?.acceptedAt) ||
+    Boolean(target?.acceptedVariantId) ||
+    Boolean(variant?.acceptedAt) ||
+    Boolean(requestFrame.acceptedLiveEditVariant) ||
+    Boolean(taskFrame.acceptedLiveEditVariant);
+  if (!target || !accepted) {
+    return null;
+  }
+  const pins = normalizeLiveEditPins(
+    requestFrame.liveEditPins || taskFrame.liveEditPins,
+  );
+  const canvasMarks = normalizeLiveEditCanvasMarks(
+    requestFrame.composition?.liveEditCanvasMarks ||
+      taskFrame.composition?.liveEditCanvasMarks,
+  );
+  const outputAnnotations = Array.isArray(requestFrame.outputAnnotations)
+    ? requestFrame.outputAnnotations
+    : Array.isArray(taskFrame.outputAnnotations)
+      ? taskFrame.outputAnnotations
+      : [];
+  const context = {
+    kind: "canvax-accepted-live-edit",
+    target,
+    variant,
+    pins,
+    canvasMarks,
+    outputAnnotations: outputAnnotations.slice(0, 12),
+    outputEditBinding,
+  };
+  context.patchNote = buildAcceptedLiveEditPatchNote(context);
+  return context;
+}
+
+function buildAcceptedLiveEditPatchNote(context) {
+  const target = context.target || {};
+  const variant = context.variant || null;
+  const pins = Array.isArray(context.pins) ? context.pins : [];
+  const canvasMarks = Array.isArray(context.canvasMarks)
+    ? context.canvasMarks
+    : [];
+  const outputAnnotationLabels = Array.isArray(context.outputAnnotations)
+    ? context.outputAnnotations
+        .map((annotation) => cleanString(annotation?.text || annotation?.label))
+        .filter(Boolean)
+        .slice(0, 4)
+    : [];
+  const strokeLabels = [
+    ...canvasMarks
+      .map((mark) => cleanString(mark?.semantics?.label || mark?.semantics?.intent))
+      .filter(Boolean),
+    ...outputAnnotationLabels,
+  ].slice(0, 6);
+  const designMoves = Array.isArray(variant?.designMoves)
+    ? variant.designMoves.map(cleanString).filter(Boolean).slice(0, 5)
+    : [];
+  return [
+    variant
+      ? `Accepted Live Edit variant ${variant.index}: ${variant.label} (${variant.role}).`
+      : "Accepted Live Edit target.",
+    `Target: ${target.targetLabel || target.targetId || "picked artifact region"}.`,
+    target.note ? `User note: ${target.note}.` : "",
+    variant?.summary || variant?.body
+      ? `Variant direction: ${variant.summary || variant.body}.`
+      : "",
+    designMoves.length ? `Design moves: ${designMoves.join("; ")}.` : "",
+    pins.length
+      ? `Comment pins: ${pins.map((pin) => pin.text).filter(Boolean).join("; ")}.`
+      : "",
+    strokeLabels.length ? `Stroke intent: ${strokeLabels.join("; ")}.` : "",
+    "Apply this to the selected target first and preserve the surrounding surface.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeLiveEditTarget(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const bounds = normalizeLiveEditBounds(value.bounds || value.region);
+  const targetId = cleanString(value.targetId || value.outputObjectId);
+  const targetHref = cleanString(
+    value.targetHref || value.href || value.url || value.resolvedUrl,
+  );
+  const targetPath = cleanString(value.targetPath || value.previewPath);
+  const sourceFrameId = cleanString(value.sourceFrameId);
+  if (!bounds || (!targetId && !targetHref && !targetPath && !sourceFrameId)) {
+    return null;
+  }
+  return {
+    kind: "canvax-live-edit-target",
+    id: cleanString(value.id),
+    sourceFrameId,
+    sourceFrameTitle: cleanString(value.sourceFrameTitle),
+    targetId,
+    targetLabel: cleanString(value.targetLabel) || "Picked output region",
+    targetType: cleanString(value.targetType),
+    targetSource: cleanString(value.targetSource),
+    targetHref,
+    targetPath,
+    targetVersionTag: cleanString(value.targetVersionTag),
+    surface: cleanString(value.surface) || "generated-output",
+    bounds,
+    note: cleanString(value.note),
+    status: cleanString(value.status) === "accepted" ? "accepted" : "picked",
+    instruction: cleanString(value.instruction),
+    pickedAt: cleanString(value.pickedAt),
+    acceptedAt: cleanString(value.acceptedAt),
+    acceptedVariantId: cleanString(value.acceptedVariantId),
+    acceptedVariantLabel: cleanString(value.acceptedVariantLabel),
+    acceptedVariantRole: cleanString(value.acceptedVariantRole),
+    updatedAt: cleanString(value.updatedAt),
+  };
+}
+
+function normalizeLiveEditBounds(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const x = clamp01(value.x ?? value.left);
+  const y = clamp01(value.y ?? value.top);
+  const w = clamp01(value.w ?? value.width);
+  const h = clamp01(value.h ?? value.height);
+  if (!w || !h) {
+    return null;
+  }
+  const right = clamp01(x + w);
+  const bottom = clamp01(y + h);
+  const width = Math.max(0.02, right - x);
+  const height = Math.max(0.02, bottom - y);
+  return {
+    x,
+    y,
+    w: width,
+    h: height,
+    left: x,
+    top: y,
+    right,
+    bottom,
+    width,
+    height,
+  };
+}
+
+function normalizeLiveEditVariant(value, fallbackTarget = null, index = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target =
+    normalizeLiveEditTarget(value.target || value.liveEditTarget) ||
+    fallbackTarget;
+  if (!target) {
+    return null;
+  }
+  return {
+    kind: "canvax-live-edit-variant",
+    id: cleanString(value.id) || `live-variant-${index + 1}`,
+    index: Math.max(1, Number(value.index) || index + 1),
+    role: cleanString(value.role) || "structure-layout",
+    label: cleanString(value.label) || `Variant ${index + 1}`,
+    archetype: cleanString(value.archetype),
+    title: cleanString(value.title || value.label),
+    body: cleanString(value.body),
+    cta: cleanString(value.cta),
+    summary: cleanString(value.summary),
+    target,
+    designMoves: Array.isArray(value.designMoves)
+      ? value.designMoves.map(cleanString).filter(Boolean).slice(0, 12)
+      : [],
+    sourceFrameId: cleanString(value.sourceFrameId || target.sourceFrameId),
+    sourceFrameTitle: cleanString(
+      value.sourceFrameTitle || target.sourceFrameTitle,
+    ),
+    targetId: cleanString(value.targetId || target.targetId),
+    targetLabel: cleanString(value.targetLabel || target.targetLabel),
+    note: cleanString(value.note),
+    style: value.style && typeof value.style === "object" ? value.style : {},
+    createdAt: cleanString(value.createdAt),
+    acceptedAt: cleanString(value.acceptedAt),
+  };
+}
+
+function normalizeLiveEditVariants(value) {
+  return Array.isArray(value)
+    ? value
+        .map((variant, index) => normalizeLiveEditVariant(variant, null, index))
+        .filter(Boolean)
+        .slice(0, 3)
+    : [];
+}
+
+function normalizeLiveEditPins(value) {
+  return Array.isArray(value)
+    ? value
+        .map((pin, index) => {
+          const text = cleanString(pin?.text || pin?.note || pin?.comment);
+          if (!text) {
+            return null;
+          }
+          return {
+            id: cleanString(pin?.id) || `live-edit-pin-${index + 1}`,
+            text,
+            point: pin?.point || null,
+            targetId: cleanString(pin?.targetId),
+            targetLabel: cleanString(pin?.targetLabel),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 40)
+    : [];
+}
+
+function normalizeLiveEditCanvasMarks(value) {
+  return Array.isArray(value)
+    ? value
+        .map((mark) => {
+          if (!mark || typeof mark !== "object" || Array.isArray(mark)) {
+            return null;
+          }
+          return {
+            id: cleanString(mark.id),
+            type: cleanString(mark.type),
+            points: Array.isArray(mark.points) ? mark.points.slice(0, 80) : [],
+            bounds: normalizeLiveEditBounds(mark.bounds || mark.normalizedBounds),
+            normalizedBounds: normalizeLiveEditBounds(
+              mark.normalizedBounds || mark.bounds,
+            ),
+            semantics:
+              mark.semantics && typeof mark.semantics === "object"
+                ? {
+                    intent: cleanString(mark.semantics.intent),
+                    label: cleanString(mark.semantics.label),
+                    confidence: Number(mark.semantics.confidence) || 0,
+                    rule: cleanString(mark.semantics.rule),
+                    vector: mark.semantics.vector || null,
+                  }
+                : null,
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 12)
+    : [];
 }
 
 function normalizeFrameCodeBounds(bounds = {}) {
@@ -1297,6 +1677,7 @@ function buildPublishNotes(
   affectedRegions,
   affectedComponents = [],
   previewTweak = null,
+  acceptedLiveEdit = null,
 ) {
   const detail = cleanString(queueItem?.detail);
   const regionText = `${affectedRegions.length} affected ${
@@ -1308,9 +1689,13 @@ function buildPublishNotes(
   const tweakText = previewTweak?.note
     ? `Preview tweak: ${compactText(previewTweak.note, 180)}`
     : "";
+  const liveEditText = acceptedLiveEdit?.patchNote
+    ? `Accepted Live Edit: ${compactText(acceptedLiveEdit.patchNote, 220)}`
+    : "";
   return [
     "Generated locally from Canvax rewrite request data. No paid API key was required.",
     detail,
+    liveEditText,
     tweakText,
     regionText,
     componentText,
@@ -1446,6 +1831,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function cssAttributeEscape(value) {
+  return cleanString(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
 function fail(message) {
