@@ -624,6 +624,7 @@ const dom = {
   workbenchLiveEditNote: document.querySelector("#workbench-live-edit-note"),
   workbenchLiveEditPrev: document.querySelector("#workbench-live-edit-prev"),
   workbenchLiveEditNext: document.querySelector("#workbench-live-edit-next"),
+  workbenchLiveEditTalk: document.querySelector("#workbench-live-edit-talk"),
   workbenchLiveEditPin: document.querySelector("#workbench-live-edit-pin"),
   workbenchLiveEditDraw: document.querySelector("#workbench-live-edit-draw"),
   workbenchLiveEditVariants: document.querySelector(
@@ -1367,6 +1368,15 @@ function bindEvents() {
   });
   dom.workbenchLiveEditNext.addEventListener("click", () => {
     cycleLiveEditVariant(1);
+  });
+  dom.workbenchLiveEditTalk.addEventListener("click", () => {
+    if (state.voice.status === "listening") {
+      stopVoiceDictation();
+      if (state.voice.provider === "workbench-live-edit-voice") {
+        return;
+      }
+    }
+    startLiveEditDictation();
   });
   dom.workbenchLiveEditPin.addEventListener(
     "click",
@@ -3321,6 +3331,9 @@ function normalizeVoiceSegment(segment, index = 0) {
   if (!text) {
     return null;
   }
+  const liveEditTarget = normalizeLiveEditTarget(
+    segment.liveEditTarget || segment.target,
+  );
   return {
     id:
       typeof segment.id === "string" && segment.id.trim()
@@ -3337,6 +3350,17 @@ function normalizeVoiceSegment(segment, index = 0) {
     frameId: typeof segment.frameId === "string" ? segment.frameId.trim() : "",
     frameTitle:
       typeof segment.frameTitle === "string" ? segment.frameTitle.trim() : "",
+    liveEditTarget,
+    liveEditTargetId:
+      cleanString(segment.liveEditTargetId) || liveEditTarget?.targetId || "",
+    liveEditTargetType:
+      cleanString(segment.liveEditTargetType) ||
+      liveEditTarget?.targetType ||
+      "",
+    liveEditTargetLabel:
+      cleanString(segment.liveEditTargetLabel) ||
+      liveEditTarget?.targetLabel ||
+      "",
   };
 }
 
@@ -3946,6 +3970,48 @@ function normalizeLiveEditRequestStrokes(value) {
     : [];
 }
 
+function normalizeLiveEditVoiceIntents(value) {
+  return Array.isArray(value)
+    ? value
+        .map((intent, index) => {
+          if (!intent || typeof intent !== "object" || Array.isArray(intent)) {
+            return null;
+          }
+          const text = cleanString(intent.text || intent.transcript);
+          if (!text) {
+            return null;
+          }
+          const liveEditTarget = normalizeLiveEditTarget(
+            intent.liveEditTarget || intent.target,
+          );
+          return {
+            id: cleanString(intent.id) || `live-edit-voice-${index + 1}`,
+            text,
+            at: cleanString(intent.at) || new Date().toISOString(),
+            provider: cleanString(intent.provider) || "workbench-live-edit-voice",
+            scope: intent.scope === "session" ? "session" : "frame",
+            frameId: cleanString(intent.frameId),
+            frameTitle: cleanString(intent.frameTitle),
+            liveEditTarget,
+            liveEditTargetId:
+              cleanString(intent.liveEditTargetId) ||
+              liveEditTarget?.targetId ||
+              "",
+            liveEditTargetType:
+              cleanString(intent.liveEditTargetType) ||
+              liveEditTarget?.targetType ||
+              "",
+            liveEditTargetLabel:
+              cleanString(intent.liveEditTargetLabel) ||
+              liveEditTarget?.targetLabel ||
+              "",
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 12)
+    : [];
+}
+
 function normalizeLiveEditRequestDesignKit(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -4022,6 +4088,9 @@ function normalizeLiveEditRequest(value) {
     actionIntent,
     note: cleanString(value.note || target.note),
     transcriptText: cleanString(value.transcriptText || value.text),
+    voiceIntents: normalizeLiveEditVoiceIntents(
+      value.voiceIntents || value.voiceSegments,
+    ),
     pins: normalizeLiveEditPins(value.pins || value.liveEditPins),
     strokes: normalizeLiveEditRequestStrokes(
       value.strokes || value.canvasMarks || value.outputAnnotations,
@@ -10532,6 +10601,18 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.workbenchLiveEditNote.disabled = !liveTarget;
   dom.workbenchLiveEditPrev.disabled = variants.length < 2;
   dom.workbenchLiveEditNext.disabled = variants.length < 2;
+  const liveEditVoiceActive =
+    state.voice.status === "listening" &&
+    state.voice.provider === "workbench-live-edit-voice";
+  dom.workbenchLiveEditTalk.disabled = !liveTarget;
+  dom.workbenchLiveEditTalk.textContent = liveEditVoiceActive
+    ? "Listening"
+    : "Talk";
+  dom.workbenchLiveEditTalk.classList.toggle("active", liveEditVoiceActive);
+  dom.workbenchLiveEditTalk.setAttribute(
+    "aria-pressed",
+    String(liveEditVoiceActive),
+  );
   dom.workbenchLiveEditPin.disabled = !liveTarget;
   dom.workbenchLiveEditPin.classList.toggle("active", placingLivePin);
   dom.workbenchLiveEditPin.setAttribute("aria-pressed", String(placingLivePin));
@@ -11917,6 +11998,59 @@ function updateLiveEditTargetNote(value) {
   frame.updatedAt = new Date().toISOString();
   persistState();
   scheduleLivePreviewSync();
+}
+
+function appendLiveEditVoiceIntent(
+  text,
+  { provider = "workbench-live-edit-voice" } = {},
+) {
+  const content = cleanString(text);
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (!content || !frame || !liveTarget) {
+    return false;
+  }
+  const existingNote = cleanString(
+    dom.workbenchLiveEditNote?.value || liveTarget.note,
+  );
+  const nextNote = [existingNote, content].filter(Boolean).join(" ");
+  if (dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value = nextNote;
+  }
+  updateLiveEditTargetNote(nextNote);
+  addVoiceSegment(content, {
+    provider,
+    scope: "frame",
+    liveEditTarget: frame.liveEditTarget,
+  });
+  renderLiveEditControls({
+    frame,
+    target: currentWorkbenchTarget(),
+    targetUrl: resolveWorkbenchTargetUrl(currentWorkbenchTarget()),
+  });
+  renderWorkbenchOutput();
+  renderStatus(`Live Edit voice added to ${liveTarget.targetLabel || "target"}`);
+  return true;
+}
+
+function startLiveEditDictation() {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (!frame || !liveTarget) {
+    renderStatus("Pick a live edit target before talking to it");
+    dom.workbenchLiveEditNote?.focus();
+    return;
+  }
+  state.voice.scope = "frame";
+  startVoiceDictation({
+    provider: "workbench-live-edit-voice",
+    fallbackSurface: "live-edit",
+    statusLabel: `Dictating for picked ${liveTarget.targetLabel || "target"}`,
+    onFinalTranscript: (transcript, context) =>
+      appendLiveEditVoiceIntent(transcript, {
+        provider: context?.provider || "workbench-live-edit-voice",
+      }),
+  });
 }
 
 function liveEditPinPointForTarget(liveTarget) {
@@ -13593,6 +13727,26 @@ function liveEditRequestTranscriptText(frame, note = "") {
   return compactDisplayText([note, ...voiceText].filter(Boolean).join(" "), 900);
 }
 
+function liveEditTargetVoiceIntents(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const targetId = cleanString(target?.targetId);
+  if (!frame || !targetId) {
+    return [];
+  }
+  return normalizeLiveEditVoiceIntents(
+    state.voice.segments.filter((segment) => {
+      const segmentTargetId =
+        cleanString(segment.liveEditTargetId) ||
+        cleanString(segment.liveEditTarget?.targetId);
+      return (
+        segment.frameId === frame.id &&
+        segmentTargetId === targetId &&
+        cleanString(segment.provider).includes("live-edit")
+      );
+    }),
+  );
+}
+
 function liveEditRequestStrokes(frame, liveTarget) {
   const target = normalizeLiveEditTarget(liveTarget);
   const targetId = cleanString(target?.targetId);
@@ -13680,6 +13834,7 @@ function buildFrameBoundLiveEditRequest({
     actionIntent,
     note,
     transcriptText: liveEditRequestTranscriptText(frame, note),
+    voiceIntents: liveEditTargetVoiceIntents(frame, target),
     pins: liveEditTargetPins(frame, target),
     strokes: liveEditRequestStrokes(frame, target),
     currentOutputBinding: normalizeLiveEditRequestBinding(
@@ -14781,6 +14936,10 @@ function renderVoicePanel() {
             segment.scope === "frame"
               ? segment.frameTitle || frameTitleById(segment.frameId)
               : segment.frameTitle || "Board context";
+          const targetLabel = cleanString(segment.liveEditTargetLabel);
+          const metaLabel = targetLabel
+            ? `${frameLabel} · Live Edit target: ${targetLabel}`
+            : frameLabel;
           return `
             <article class="voice-segment">
               <div class="voice-segment-row">
@@ -14788,7 +14947,7 @@ function renderVoicePanel() {
                 <span class="voice-segment-meta">${escapeHtml(timeLabel(segment.at))}</span>
               </div>
               <p class="voice-segment-copy">${escapeHtml(segment.text)}</p>
-              <p class="voice-segment-meta">${escapeHtml(frameLabel)}</p>
+              <p class="voice-segment-meta">${escapeHtml(metaLabel)}</p>
             </article>
           `;
         })
@@ -14832,6 +14991,24 @@ function focusVoiceFallbackInput(message) {
   }, 0);
 }
 
+function focusLiveEditVoiceFallback(message) {
+  const fallbackMessage =
+    message ||
+    "Browser voice is unavailable here. Type or paste the target-specific instruction into this Live Edit note.";
+  state.voice.error = fallbackMessage;
+  state.voice.interimText = "";
+  renderVoicePanel();
+  renderLiveEditControls({
+    frame: currentFrame(),
+    target: currentWorkbenchTarget(),
+    targetUrl: resolveWorkbenchTargetUrl(currentWorkbenchTarget()),
+  });
+  renderStatus(fallbackMessage);
+  window.setTimeout(() => {
+    dom.workbenchLiveEditNote?.focus({ preventScroll: false });
+  }, 0);
+}
+
 function voiceScopeLabel(scope = state.voice.scope, frame = currentFrame()) {
   if (scope === "session") {
     return "the whole board";
@@ -14863,18 +15040,31 @@ function setVoiceScope(scope) {
   );
 }
 
-function startVoiceDictation() {
+function startVoiceDictation(options = {}) {
   if (state.voice.status === "listening") {
     return;
   }
+  const provider = cleanString(options.provider) || "browser-speech";
+  const onFinalTranscript =
+    typeof options.onFinalTranscript === "function"
+      ? options.onFinalTranscript
+      : null;
+  const fallbackSurface = cleanString(options.fallbackSurface);
+  const statusLabel = cleanString(options.statusLabel);
 
   const Recognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) {
     state.voice.status = "unsupported";
-    focusVoiceFallbackInput(
-      "Browser speech recognition is unavailable here. Dictate in this box, or speak in Codex chat and I can bridge the transcript into Canvax.",
-    );
+    const message =
+      fallbackSurface === "live-edit"
+        ? "Browser speech recognition is unavailable here. Type or paste the target-specific instruction into this Live Edit note."
+        : "Browser speech recognition is unavailable here. Dictate in this box, or speak in Codex chat and I can bridge the transcript into Canvax.";
+    if (fallbackSurface === "live-edit") {
+      focusLiveEditVoiceFallback(message);
+    } else {
+      focusVoiceFallbackInput(message);
+    }
     return;
   }
 
@@ -14887,11 +15077,18 @@ function startVoiceDictation() {
 
     voiceRecognition.onstart = () => {
       state.voice.status = "listening";
-      state.voice.provider = "browser-speech";
+      state.voice.provider = provider;
       state.voice.interimText = "";
       state.voice.error = "";
       renderVoicePanel();
-      renderStatus(`Dictating for ${voiceScopeLabel(state.voice.scope)}`);
+      renderLiveEditControls({
+        frame: currentFrame(),
+        target: currentWorkbenchTarget(),
+        targetUrl: resolveWorkbenchTargetUrl(currentWorkbenchTarget()),
+      });
+      renderStatus(
+        statusLabel || `Dictating for ${voiceScopeLabel(state.voice.scope)}`,
+      );
     };
 
     voiceRecognition.onresult = (event) => {
@@ -14907,13 +15104,23 @@ function startVoiceDictation() {
           continue;
         }
         if (result.isFinal) {
-          addVoiceSegment(transcript, { provider: "browser-speech" });
+          const handled = onFinalTranscript
+            ? onFinalTranscript(transcript, { provider })
+            : false;
+          if (!handled) {
+            addVoiceSegment(transcript, { provider });
+          }
         } else {
           interimParts.push(transcript);
         }
       }
       state.voice.interimText = interimParts.join(" ").trim();
       renderVoicePanel();
+      renderLiveEditControls({
+        frame: currentFrame(),
+        target: currentWorkbenchTarget(),
+        targetUrl: resolveWorkbenchTargetUrl(currentWorkbenchTarget()),
+      });
     };
 
     voiceRecognition.onerror = (event) => {
@@ -14923,7 +15130,11 @@ function startVoiceDictation() {
           : "error";
       state.voice.error = humanizeVoiceError(event.error);
       state.voice.interimText = "";
-      focusVoiceFallbackInput(state.voice.error);
+      if (fallbackSurface === "live-edit") {
+        focusLiveEditVoiceFallback(state.voice.error);
+      } else {
+        focusVoiceFallbackInput(state.voice.error);
+      }
     };
 
     voiceRecognition.onend = () => {
@@ -14933,6 +15144,11 @@ function startVoiceDictation() {
       }
       state.voice.interimText = "";
       renderVoicePanel();
+      renderLiveEditControls({
+        frame: currentFrame(),
+        target: currentWorkbenchTarget(),
+        targetUrl: resolveWorkbenchTargetUrl(currentWorkbenchTarget()),
+      });
     };
 
     voiceRecognition.start();
@@ -14942,7 +15158,11 @@ function startVoiceDictation() {
       error instanceof Error
         ? error.message
         : "Dictation could not start in this browser.";
-    focusVoiceFallbackInput(state.voice.error);
+    if (fallbackSurface === "live-edit") {
+      focusLiveEditVoiceFallback(state.voice.error);
+    } else {
+      focusVoiceFallbackInput(state.voice.error);
+    }
   }
 }
 
@@ -15403,21 +15623,29 @@ function clearVoiceScope() {
   );
 }
 
-function addVoiceSegment(text, { provider = "manual-note" } = {}) {
+function addVoiceSegment(
+  text,
+  { provider = "manual-note", scope = state.voice.scope, liveEditTarget = null } = {},
+) {
   const content = String(text || "").trim();
   if (!content) {
     return;
   }
   const frame = currentFrame();
+  const target = normalizeLiveEditTarget(liveEditTarget);
   state.voice.segments.unshift(
     normalizeVoiceSegment({
       id: uid("voice"),
       text: content,
       at: new Date().toISOString(),
-      scope: state.voice.scope,
+      scope: scope === "session" ? "session" : "frame",
       provider,
       frameId: frame?.id || "",
       frameTitle: frame?.title || "",
+      liveEditTarget: target,
+      liveEditTargetId: target?.targetId || "",
+      liveEditTargetType: target?.targetType || "",
+      liveEditTargetLabel: target?.targetLabel || "",
     }),
   );
   state.voice.segments = state.voice.segments.slice(0, 120);
@@ -15428,8 +15656,10 @@ function addVoiceSegment(text, { provider = "manual-note" } = {}) {
   renderSpec();
   void saveExportToWorkspace({ silent: true });
   renderStatus(
-    state.voice.scope === "session"
+    scope === "session"
       ? "Board voice note captured"
+      : target
+        ? `Live Edit voice captured for ${target.targetLabel || "target"}`
       : `${frame.title} voice note captured`,
   );
 }
@@ -24342,6 +24572,9 @@ function buildVoiceIntentQueue(segments, options = {}) {
         text,
         frameId: cleanString(segment.frameId),
         frameTitle: cleanString(segment.frameTitle),
+        liveEditTargetId: cleanString(segment.liveEditTargetId),
+        liveEditTargetType: cleanString(segment.liveEditTargetType),
+        liveEditTargetLabel: cleanString(segment.liveEditTargetLabel),
         scope: segment.scope === "session" ? "session" : "frame",
         provider: cleanString(segment.provider),
         at: cleanString(segment.at),
@@ -24407,8 +24640,11 @@ function buildVoiceSectionLines(
         intent.scope === "session"
           ? "board"
           : intent.frameTitle || "current frame";
+      const targetSuffix = intent.liveEditTargetLabel
+        ? ` -> ${intent.liveEditTargetLabel}`
+        : "";
       lines.push(
-        `- ${intent.label} (${scope}): ${collapseVoiceTextForMarkdown(intent.summary || intent.text)}`,
+        `- ${intent.label} (${scope}${targetSuffix}): ${collapseVoiceTextForMarkdown(intent.summary || intent.text)}`,
       );
     });
   }
@@ -26299,6 +26535,13 @@ function appendLiveEditRequestMarkdown(lines, request, indent = "  ") {
   if (liveRequest.transcriptText) {
     lines.push(
       `${indent}- Live edit transcript/text: ${compactDisplayText(liveRequest.transcriptText, 220)}`,
+    );
+  }
+  if (liveRequest.voiceIntents.length) {
+    lines.push(
+      `${indent}- Live edit target voice: ${liveRequest.voiceIntents
+        .map((intent) => compactDisplayText(intent.text, 120))
+        .join(" / ")}`,
     );
   }
   if (liveRequest.surfaceOperations.length) {
@@ -29794,6 +30037,7 @@ async function runSelfTest() {
           Boolean(dom.workbenchLiveEditAction) &&
           Boolean(dom.workbenchLiveEditActionOptions) &&
           Boolean(dom.workbenchLiveEditNote) &&
+          Boolean(dom.workbenchLiveEditTalk) &&
           Boolean(dom.workbenchLiveEditPin) &&
           Boolean(dom.workbenchLiveEditDraw) &&
           Boolean(dom.workbenchLivePickOutput) &&
@@ -29996,6 +30240,7 @@ async function runSelfTest() {
     const previousWorkspaceModeForLiveEdit = state.workspaceMode;
     const previousWorkbenchFocusForLiveEdit = state.workbenchFocus;
     const previousToolForLiveEdit = state.tool;
+    const previousVoiceForLiveEdit = structuredClone(state.voice);
     const previousFrameElementsForLiveEdit = structuredClone(
       frameForCanvasReply.elements || [],
     );
@@ -30072,6 +30317,15 @@ async function runSelfTest() {
       );
     dom.workbenchLiveEditNote.value = "Pin this generated CTA";
     updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
+    const liveEditVoiceIntentCaptured = appendLiveEditVoiceIntent(
+      "Make this picked target voice more direct",
+      { provider: "self-test-live-edit-voice" },
+    );
+    const liveEditVoiceSegment = state.voice.segments.find(
+      (segment) =>
+        segment.provider === "self-test-live-edit-voice" &&
+        segment.liveEditTargetId === "self-test-canvas-reply",
+    );
     const liveEditPinPlacementArmed = beginLiveEditCommentPinPlacement();
     const livePinPlacementCanvas = dom.canvas;
     const livePinPlacementRect = livePinPlacementCanvas.getBoundingClientRect();
@@ -30169,6 +30423,9 @@ async function runSelfTest() {
       createdLiveEditRequest.normalizedBounds?.w > 0 &&
       createdLiveEditRequest.activeDesignKit?.statusLabel &&
       createdLiveEditRequest.transcriptText.includes("generated CTA") &&
+      createdLiveEditRequest.transcriptText.includes("target voice") &&
+      liveEditVoiceIntentCaptured &&
+      liveEditVoiceSegment?.liveEditTarget?.targetId === "self-test-canvas-reply" &&
       createdLiveEditRequest.pins.length === 1 &&
       createdLiveEditRequest.strokes.some(
         (stroke) => stroke.source === "canvas-mark",
@@ -30316,6 +30573,7 @@ async function runSelfTest() {
       previousAcceptedLiveEditVariant;
     frameForCanvasReply.liveEditRequest = previousLiveEditRequest;
     frameForCanvasReply.elements = previousFrameElementsForLiveEdit;
+    state.voice = previousVoiceForLiveEdit;
     state.workspaceMode = previousWorkspaceModeForLiveEdit;
     state.workbenchFocus = previousWorkbenchFocusForLiveEdit;
     state.tool = previousToolForLiveEdit;
@@ -30325,6 +30583,7 @@ async function runSelfTest() {
     );
     frameForCanvasReply.canvasReply = previousCanvasReply;
     state.viewMode = previousViewModeForReply;
+    renderVoicePanel();
     renderCanvas();
     results.push(
       assert(
@@ -30336,7 +30595,7 @@ async function runSelfTest() {
           liveEditDiscarded &&
           outputDragPicked &&
           liveEditDomSelectorCaptured,
-        "same-canvas reply underlay renders live edit target, places and drags comment pins, captures DOM selector metadata, in-surface variants, cycling, and clean discard",
+        "same-canvas reply underlay renders live edit target, binds target voice, places and drags comment pins, captures DOM selector metadata, in-surface variants, cycling, and clean discard",
         JSON.stringify({
           canvasReplyRendered,
           hasBinding: canvasReplyBinding?.branchFrameId === frameForCanvasReply.id,
@@ -30355,6 +30614,8 @@ async function runSelfTest() {
           liveEditVariantOperationsMaterial,
           liveEditActionChipSelected: Boolean(liveEditActionChipSelected),
           liveEditActionIntentExported,
+          liveEditVoiceIntentCaptured,
+          liveEditVoiceTargetId: liveEditVoiceSegment?.liveEditTargetId || "",
           liveEditRequestMaterial,
           firstLiveEditOperationChipCount,
           secondLiveEditOperationChipCount,

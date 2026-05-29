@@ -981,6 +981,7 @@ function buildAcceptedLiveEditContext(selected) {
     outputAnnotations: outputAnnotations.slice(0, 12),
     outputEditBinding,
     liveEditRequest,
+    voiceIntents: normalizeLiveEditVoiceIntents(liveEditRequest?.voiceIntents),
     surfaceOperations: normalizeLiveEditSurfaceOperations(
       liveEditRequest?.surfaceOperations || variant?.surfaceOperations,
     ),
@@ -1037,6 +1038,13 @@ function buildAcceptedLiveEditPatchNote(context) {
         )
         .join("; ")}.`
     : "";
+  const voiceText = Array.isArray(context.voiceIntents) && context.voiceIntents.length
+    ? `Target voice: ${context.voiceIntents
+        .map((intent) => intent.text)
+        .filter(Boolean)
+        .slice(0, 4)
+        .join("; ")}.`
+    : "";
   const sourceHint = formatLiveEditSourceHint(target);
   return [
     variant
@@ -1047,6 +1055,7 @@ function buildAcceptedLiveEditPatchNote(context) {
     context.liveEditRequest?.transcriptText
       ? `Transcript/text: ${context.liveEditRequest.transcriptText}.`
       : "",
+    voiceText,
     variant?.summary || variant?.body
       ? `Variant direction: ${variant.summary || variant.body}.`
       : "",
@@ -1376,6 +1385,48 @@ function normalizeLiveEditVariants(value) {
     : [];
 }
 
+function normalizeLiveEditVoiceIntents(value) {
+  return Array.isArray(value)
+    ? value
+        .map((intent, index) => {
+          if (!intent || typeof intent !== "object" || Array.isArray(intent)) {
+            return null;
+          }
+          const text = cleanString(intent.text || intent.transcript);
+          if (!text) {
+            return null;
+          }
+          const liveEditTarget = normalizeLiveEditTarget(
+            intent.liveEditTarget || intent.target,
+          );
+          return {
+            id: cleanString(intent.id) || `live-edit-voice-${index + 1}`,
+            text,
+            at: cleanString(intent.at),
+            provider: cleanString(intent.provider),
+            scope: intent.scope === "session" ? "session" : "frame",
+            frameId: cleanString(intent.frameId),
+            frameTitle: cleanString(intent.frameTitle),
+            liveEditTarget,
+            liveEditTargetId:
+              cleanString(intent.liveEditTargetId) ||
+              liveEditTarget?.targetId ||
+              "",
+            liveEditTargetType:
+              cleanString(intent.liveEditTargetType) ||
+              liveEditTarget?.targetType ||
+              "",
+            liveEditTargetLabel:
+              cleanString(intent.liveEditTargetLabel) ||
+              liveEditTarget?.targetLabel ||
+              "",
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 12)
+    : [];
+}
+
 function normalizeAcceptedLiveEditRequest(value, fallbackTarget = null) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -1426,6 +1477,9 @@ function normalizeAcceptedLiveEditRequest(value, fallbackTarget = null) {
     actionIntent,
     note: cleanString(value.note || target.note),
     transcriptText: cleanString(value.transcriptText || value.text),
+    voiceIntents: normalizeLiveEditVoiceIntents(
+      value.voiceIntents || value.voiceSegments,
+    ),
     pins: normalizeLiveEditPins(value.pins || value.liveEditPins),
     strokes: Array.isArray(value.strokes)
       ? value.strokes.slice(0, 24)

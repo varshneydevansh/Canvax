@@ -3108,10 +3108,11 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
 }
 
 .workbench-live-edit-actions {
-    display: grid;
-    grid-auto-flow: column;
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.35rem;
     align-items: center;
+    justify-content: flex-end;
 }
 
 .workbench-output-surface.empty-state {
@@ -3202,7 +3203,6 @@ body[data-workspace-mode="simple"] .workbench-live-edit-bar {
 }
 
 body[data-workspace-mode="simple"] .workbench-live-edit-actions {
-    grid-auto-flow: column;
     justify-content: start;
 }
 
