@@ -669,6 +669,7 @@ const dom = {
   mapObjectTypeDetails: document.querySelector("#map-object-type-details"),
   mapCopyObjectContext: document.querySelector("#map-copy-object-context"),
   mapMakeEditable: document.querySelector("#map-make-editable"),
+  mapLivePick: document.querySelector("#map-live-pick"),
   mapPinObject: document.querySelector("#map-pin-object"),
   mapLockObject: document.querySelector("#map-lock-object"),
   mapGroupSelection: document.querySelector("#map-group-selection"),
@@ -1472,6 +1473,9 @@ function bindEvents() {
   });
   dom.mapMakeEditable.addEventListener("click", () => {
     createEditableFrameFromSelectedOutput();
+  });
+  dom.mapLivePick.addEventListener("click", () => {
+    startLiveEditFromSelectedSpatialObject();
   });
   dom.mapPinObject.addEventListener("click", toggleSelectedSpatialObjectPin);
   dom.mapLockObject.addEventListener("click", toggleSelectedSpatialObjectLock);
@@ -2593,6 +2597,8 @@ function hydrateState() {
       liveEditPickActive: false,
       liveEditPinPlacement: null,
       liveEditPinDrag: null,
+      liveEditMapDrawActive: false,
+      liveEditMapStrokeDraft: null,
       lastActionScope: "",
       draftElement: null,
       isDrawing: false,
@@ -3121,6 +3127,8 @@ function createInitialState() {
     liveEditPickActive: false,
     liveEditPinPlacement: null,
     liveEditPinDrag: null,
+    liveEditMapDrawActive: false,
+    liveEditMapStrokeDraft: null,
     lastActionScope: "",
     draftElement: null,
     isDrawing: false,
@@ -4250,6 +4258,13 @@ function normalizeFrame(frame, index) {
       frame.acceptedLiveEditVariant,
     ),
     liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+    liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
+      ? frame.liveEditMapStrokes
+          .map((stroke, strokeIndex) =>
+            normalizeOutputAnnotation(stroke, strokeIndex),
+          )
+          .filter(Boolean)
+      : [],
     backgroundImage: frame.backgroundImage || "",
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
     elements: Array.isArray(frame.elements)
@@ -4385,6 +4400,7 @@ function createFrame(overrides = {}) {
       liveEditVariantIndex: overrides.liveEditVariantIndex || 0,
       acceptedLiveEditVariant: overrides.acceptedLiveEditVariant || null,
       liveEditRequest: overrides.liveEditRequest || null,
+      liveEditMapStrokes: overrides.liveEditMapStrokes || [],
       backgroundImage: overrides.backgroundImage || "",
       flowPosition: overrides.flowPosition || defaultFlowPosition(index),
       elements: overrides.elements || [],
@@ -5984,31 +6000,43 @@ function normalizeSpatialObjects(objects) {
   }
   return objects
     .filter((object) => object?.id)
-    .map((object, index) => ({
-      id: object.id,
-      type: object.type || "note",
-      title: object.title || "Spatial object",
-      subtitle: object.subtitle || "",
-      sourceId: object.sourceId || "",
-      sourceKind: normalizeSpatialSourceKind(
-        object.sourceKind || object.type || "manual",
-      ),
-      frameIds: Array.isArray(object.frameIds) ? object.frameIds : [],
-      x: Number.isFinite(object.x)
-        ? object.x
-        : defaultSpatialObjectPosition(index).x,
-      y: Number.isFinite(object.y)
-        ? object.y
-        : defaultSpatialObjectPosition(index).y,
-      width: Number.isFinite(object.width)
-        ? object.width
-        : SPATIAL_OBJECT_WIDTH,
-      height: Number.isFinite(object.height)
-        ? object.height
-        : SPATIAL_OBJECT_HEIGHT,
-      status: object.status || "",
-      meta: object.meta && typeof object.meta === "object" ? object.meta : {},
-    }));
+    .map((object, index) => {
+      const meta =
+        object.meta && typeof object.meta === "object" ? object.meta : {};
+      const liveEdit = normalizeElementLiveEditBinding(
+        object.liveEdit || meta.liveEdit,
+      );
+      const liveEditRequest = normalizeLiveEditRequest(
+        object.liveEditRequest || meta.liveEditRequest,
+      );
+      return {
+        id: object.id,
+        type: object.type || "note",
+        title: object.title || "Spatial object",
+        subtitle: object.subtitle || "",
+        sourceId: object.sourceId || "",
+        sourceKind: normalizeSpatialSourceKind(
+          object.sourceKind || object.type || "manual",
+        ),
+        frameIds: Array.isArray(object.frameIds) ? object.frameIds : [],
+        x: Number.isFinite(object.x)
+          ? object.x
+          : defaultSpatialObjectPosition(index).x,
+        y: Number.isFinite(object.y)
+          ? object.y
+          : defaultSpatialObjectPosition(index).y,
+        width: Number.isFinite(object.width)
+          ? object.width
+          : SPATIAL_OBJECT_WIDTH,
+        height: Number.isFinite(object.height)
+          ? object.height
+          : SPATIAL_OBJECT_HEIGHT,
+        status: object.status || "",
+        meta,
+        ...(liveEdit ? { liveEdit } : {}),
+        ...(liveEditRequest ? { liveEditRequest } : {}),
+      };
+    });
 }
 
 function normalizeSpatialSourceKind(value) {
@@ -9051,6 +9079,19 @@ function buildSpatialObjectContextText(object) {
       );
     }
   }
+  const liveEdit = normalizeElementLiveEditBinding(
+    object.liveEdit || object.meta?.liveEdit,
+  );
+  if (liveEdit) {
+    details.push(
+      "",
+      "## Live Edit Binding",
+      `- Status: ${liveEdit.status}`,
+      `- Target: ${liveEdit.target.targetType || "spatial-map-object"} ${liveEdit.target.targetId}`,
+      `- Accepted variant: ${liveEdit.acceptedVariant?.label || "none"}`,
+      `- Request status: ${liveEdit.request?.status || "none"}`,
+    );
+  }
   if (promptText) {
     details.push("", "## Prompt / Context", promptText);
   }
@@ -10138,12 +10179,16 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
 function renderLiveEditControls({ frame, target, targetUrl }) {
   const hasOutput = Boolean(target && targetUrl);
   const hasCanvasSelection = Boolean(selectedCanvasLiveEditElement(frame));
-  const canPick = hasOutput || hasCanvasSelection;
+  const hasMapSelection = Boolean(
+    state.viewMode === "flow" && selectedSpatialObject(),
+  );
+  const canPick = hasOutput || hasCanvasSelection || hasMapSelection;
   const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
   const variants = currentLiveEditVariants(frame);
   const variantIndex = currentLiveEditVariantIndex(frame);
   const selectedVariant = variants[variantIndex] || null;
   const placingLivePin = liveEditPinPlacementMatchesTarget(liveTarget);
+  const drawOnMap = liveEditTargetIsSpatialMapObject(liveTarget);
   const drawOnOutput = liveEditTargetDrawsOnOutput(
     liveTarget,
     target,
@@ -10153,7 +10198,8 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   const drawModeActive = Boolean(
     liveTarget &&
       drawingToolActive &&
-      ((drawOnOutput && state.workbenchFocus === "output") ||
+      ((drawOnMap && state.liveEditMapDrawActive) ||
+        (drawOnOutput && state.workbenchFocus === "output") ||
         (!drawOnOutput && state.workbenchFocus === "sketch")),
   );
   const showBar = Boolean(
@@ -10210,6 +10256,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   }
   const label =
     liveTarget?.targetLabel ||
+    (hasMapSelection ? spatialObjectTitle(selectedSpatialObject()) : "") ||
     (target ? designerOutputTargetLabelFromItem(target, frame.title) : "") ||
     "Generated output";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
@@ -10417,6 +10464,17 @@ function denormalizeLiveEditBounds(bounds, frame = currentFrame()) {
 
 function rebaseCanvasLiveEditTargetBounds(frame, liveTarget) {
   const target = normalizeLiveEditTarget(liveTarget);
+  if (liveEditTargetIsSpatialMapObject(target)) {
+    const object = spatialObjectById(target.targetObjectId || target.targetId);
+    const bounds = normalizeSpatialObjectLiveEditBounds(object);
+    return target && bounds
+      ? {
+          ...target,
+          bounds,
+          updatedAt: new Date().toISOString(),
+        }
+      : target;
+  }
   const element = liveEditTargetCanvasElement(frame, target);
   const bounds = element ? getElementBounds(element, frame) : null;
   const viewport = viewportPresets[frame?.viewport] || viewportPresets.desktop;
@@ -10433,6 +10491,9 @@ function rebaseCanvasLiveEditTargetBounds(frame, liveTarget) {
 function liveEditTargetMatchesOutput(liveTarget, target, targetUrl = "") {
   const normalized = normalizeLiveEditTarget(liveTarget);
   if (!normalized || !target) {
+    return false;
+  }
+  if (liveEditTargetIsSpatialMapObject(normalized)) {
     return false;
   }
   const url = targetUrl || resolveWorkbenchTargetUrl(target);
@@ -10587,11 +10648,202 @@ function startLiveEditFromAssetCandidate(candidateId) {
   state.liveEditPickActive = false;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditMapDrawActive = false;
+  state.liveEditMapStrokeDraft = null;
   touchFrame(frame, {
     capture: false,
     status: `Picked asset candidate ${liveTarget.targetLabel} for Live Edit`,
   });
   return true;
+}
+
+function liveEditTargetIsSpatialMapObject(liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  return Boolean(
+    target &&
+      (target.targetSource === "canvax-map" ||
+        target.targetType === "spatial-map-object" ||
+        target.surface === "spatial map object"),
+  );
+}
+
+function spatialObjectLiveEditFrame(object) {
+  if (!object) {
+    return currentFrame();
+  }
+  const frameId =
+    normalizeStringArray(object.frameIds).find((id) => currentFrameById(id)) ||
+    (object.sourceKind === "variant-branch" ? object.sourceId : "") ||
+    "";
+  return currentFrameById(frameId) || currentFrame();
+}
+
+function normalizeSpatialObjectLiveEditBounds(object) {
+  if (!object) {
+    return null;
+  }
+  const layout = computeFlowSurfaceSize();
+  const surfaceWidth = Math.max(1, layout.width || 1);
+  const surfaceHeight = Math.max(1, layout.height || 1);
+  return normalizeLiveEditBounds({
+    x: (Number(object.x) || 0) / surfaceWidth,
+    y: (Number(object.y) || 0) / surfaceHeight,
+    w: (Number(object.width) || SPATIAL_OBJECT_WIDTH) / surfaceWidth,
+    h: (Number(object.height) || SPATIAL_OBJECT_HEIGHT) / surfaceHeight,
+  });
+}
+
+function spatialObjectLiveEditSourceHint(object) {
+  const meta = object?.meta || {};
+  const rawHint =
+    meta.sourceHint && typeof meta.sourceHint === "object" ? meta.sourceHint : {};
+  return normalizeLiveEditSourceHint({
+    ...rawHint,
+    targetSourceFile:
+      meta.targetSourceFile ||
+      meta.sourceFile ||
+      rawHint.targetSourceFile ||
+      rawHint.sourceFile,
+    targetSourcePath:
+      meta.targetSourcePath ||
+      meta.sourcePath ||
+      rawHint.targetSourcePath ||
+      rawHint.sourcePath,
+    targetSourceSymbol:
+      meta.targetSourceSymbol ||
+      meta.sourceSymbol ||
+      meta.component ||
+      rawHint.targetSourceSymbol ||
+      rawHint.sourceSymbol,
+    targetSourceComponent:
+      meta.targetSourceComponent ||
+      meta.sourceComponent ||
+      meta.component ||
+      rawHint.targetSourceComponent ||
+      rawHint.sourceComponent,
+    targetSourceLine:
+      meta.targetSourceLine ||
+      meta.sourceLine ||
+      rawHint.targetSourceLine ||
+      rawHint.sourceLine,
+    targetTaskFile:
+      meta.targetTaskFile ||
+      meta.taskFile ||
+      rawHint.targetTaskFile ||
+      rawHint.taskFile,
+    targetTaskId:
+      meta.targetTaskId ||
+      meta.taskId ||
+      rawHint.targetTaskId ||
+      rawHint.taskId,
+    targetSourceBinding:
+      meta.targetSourceBinding ||
+      meta.sourceBinding ||
+      rawHint.targetSourceBinding ||
+      rawHint.sourceBinding,
+  });
+}
+
+function createLiveEditTargetFromSpatialObject(object) {
+  const frame = spatialObjectLiveEditFrame(object);
+  const bounds = normalizeSpatialObjectLiveEditBounds(object);
+  if (!object || !frame || !bounds) {
+    return null;
+  }
+  const meta = object.meta || {};
+  const href = spatialObjectHref(object);
+  const targetPath = cleanString(meta.previewPath || meta.path);
+  const targetHref = cleanString(
+    meta.url ||
+      (/^\/workspace\//.test(href) || /^https?:\/\//i.test(href) ? href : ""),
+  );
+  const sourceHint = spatialObjectLiveEditSourceHint(object);
+  const note =
+    cleanString(dom.workbenchLiveEditNote?.value) ||
+    object.liveEdit?.note ||
+    meta.liveEdit?.note ||
+    meta.prompt ||
+    meta.summary ||
+    meta.description ||
+    object.subtitle ||
+    object.title;
+  return normalizeLiveEditTarget({
+    id: uid("live-edit"),
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    targetId: object.id,
+    targetObjectId: object.id,
+    targetLabel: spatialObjectTitle(object),
+    targetType: "spatial-map-object",
+    targetSource: "canvax-map",
+    targetSelector: `[data-spatial-object-id="${cssAttributeEscape(object.id)}"]`,
+    ...(sourceHint || {}),
+    targetPath,
+    targetHref,
+    targetVersionTag:
+      cleanString(meta.versionTag || meta.generatedAt || meta.updatedAt) ||
+      `${object.sourceKind || object.type}:${object.sourceId || object.id}`,
+    surface: "spatial map object",
+    bounds,
+    note,
+    instruction:
+      "Treat this as a direct Live Edit selection on the Canvax spatial canvas. Apply text intent, comment pins, correction strokes, and the selected variant to this Map object first, then preserve the surrounding board.",
+    status: "picked",
+    pickedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function startLiveEditFromSpatialObject(objectId) {
+  const object = spatialObjectById(objectId);
+  const liveTarget = createLiveEditTargetFromSpatialObject(object);
+  if (!object || !liveTarget) {
+    renderStatus("Map object could not be picked for Live Edit");
+    return false;
+  }
+  const frame = currentFrameById(liveTarget.sourceFrameId) || currentFrame();
+  if (!frame) {
+    renderStatus("Map object source frame is no longer available");
+    return false;
+  }
+  state.activeFrameId = frame.id;
+  state.workspaceMode = "simple";
+  state.workbenchFocus = "map";
+  state.viewMode = "flow";
+  setSelectedSpatialObjects([object.id], object.id);
+  clearElementSelection();
+  if (
+    dom.workbenchLiveEditNote &&
+    !cleanString(dom.workbenchLiveEditNote.value)
+  ) {
+    dom.workbenchLiveEditNote.value = liveTarget.note;
+  }
+  frame.liveEditTarget = liveTarget;
+  frame.liveEditPins = [];
+  frame.liveEditVariants = [];
+  frame.liveEditVariantIndex = 0;
+  frame.acceptedLiveEditVariant = null;
+  frame.liveEditRequest = null;
+  frame.liveEditMapStrokes = [];
+  state.liveEditPickActive = false;
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
+  state.liveEditMapDrawActive = false;
+  state.liveEditMapStrokeDraft = null;
+  touchFrame(frame, {
+    capture: false,
+    status: `Picked Map object ${liveTarget.targetLabel} for Live Edit`,
+  });
+  return true;
+}
+
+function startLiveEditFromSelectedSpatialObject() {
+  const selectedObjects = selectedSpatialObjects();
+  if (selectedObjects.length !== 1) {
+    renderStatus("Select one Map object before picking it for Live Edit");
+    return false;
+  }
+  return startLiveEditFromSpatialObject(selectedObjects[0].id);
 }
 
 function liveEditTargetStyle(bounds) {
@@ -11015,6 +11267,12 @@ function setLiveEditPickMode(active) {
   const target = currentWorkbenchTarget();
   const frame = currentFrame();
   const selectedElement = selectedCanvasLiveEditElement(frame);
+  const selectedMapObject =
+    state.viewMode === "flow" ? selectedSpatialObject() : null;
+  if (active && !resolveWorkbenchTargetUrl(target) && selectedMapObject) {
+    startLiveEditFromSpatialObject(selectedMapObject.id);
+    return;
+  }
   if (active && !resolveWorkbenchTargetUrl(target) && selectedElement) {
     frame.liveEditTarget = createLiveEditTargetFromCanvasElement(
       selectedElement,
@@ -11028,6 +11286,8 @@ function setLiveEditPickMode(active) {
     state.liveEditPickActive = false;
     state.liveEditPinPlacement = null;
     state.liveEditPinDrag = null;
+    state.liveEditMapDrawActive = false;
+    state.liveEditMapStrokeDraft = null;
     touchFrame(frame, {
       capture: false,
       status: "Selected canvas object is ready for Live Edit",
@@ -11038,13 +11298,15 @@ function setLiveEditPickMode(active) {
     state.liveEditPickActive = false;
     renderFocusPad();
     renderStatus(
-      "Make or attach an output, or select a canvas object before picking a live edit target",
+      "Make or attach an output, or select a canvas/Map object before picking a live edit target",
     );
     return;
   }
   state.liveEditPickActive = Boolean(active);
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditMapDrawActive = false;
+  state.liveEditMapStrokeDraft = null;
   if (state.liveEditPickActive) {
     state.workbenchFocus = "output";
     renderStatus("Pick a region inside the generated output");
@@ -11074,6 +11336,8 @@ function pickLiveEditTargetFromEvent(event) {
   state.liveEditPickActive = false;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditMapDrawActive = false;
+  state.liveEditMapStrokeDraft = null;
   touchFrame(frame, {
     capture: false,
     status: `Picked live edit target in ${liveTarget.targetLabel}`,
@@ -11151,8 +11415,13 @@ function beginLiveEditCommentPinPlacement() {
     note: text,
     updatedAt: new Date().toISOString(),
   };
-  renderWorkbenchOutput();
-  renderStatus("Click inside the selected Live Edit target to place the comment pin");
+  if (liveEditTargetIsSpatialMapObject(liveTarget)) {
+    renderFlowBoard();
+    renderStatus("Click inside the outlined Map object to place the comment pin");
+  } else {
+    renderWorkbenchOutput();
+    renderStatus("Click inside the selected Live Edit target to place the comment pin");
+  }
   return true;
 }
 
@@ -11250,6 +11519,9 @@ function liveEditTargetDrawsOnOutput(liveTarget, target, targetUrl = "") {
   if (!normalized || !target || !targetUrl) {
     return false;
   }
+  if (liveEditTargetIsSpatialMapObject(normalized)) {
+    return false;
+  }
   const targetPath = cleanString(target.previewPath || target.path);
   return Boolean(
     (normalized.targetHref && normalized.targetHref === targetUrl) ||
@@ -11275,19 +11547,24 @@ function activateLiveEditDrawMode() {
     target,
     targetUrl,
   );
+  const drawOnMap = liveEditTargetIsSpatialMapObject(liveTarget);
   state.liveEditPickActive = false;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.workspaceMode = "simple";
-  state.workbenchFocus = drawOnOutput ? "output" : "sketch";
-  state.viewMode = "frame";
+  state.liveEditMapDrawActive = drawOnMap;
+  state.liveEditMapStrokeDraft = null;
+  state.workbenchFocus = drawOnMap ? "map" : drawOnOutput ? "output" : "sketch";
+  state.viewMode = drawOnMap ? "flow" : "frame";
   if (!workbenchOutputToolCanDraw()) {
     state.tool = "pen";
   }
   persistState();
   renderAll();
   renderStatus(
-    drawOnOutput
+    drawOnMap
+      ? "Draw correction strokes directly on the picked Map object"
+      : drawOnOutput
       ? "Draw correction strokes directly on the picked output target"
       : "Draw correction strokes around the picked canvas target",
   );
@@ -11444,6 +11721,185 @@ function finishLiveEditPinDrag(event) {
   return true;
 }
 
+function spatialMapLiveEditPointFromEvent(event) {
+  const point = pointFromFlowEvent(event);
+  const layout = computeFlowSurfaceSize();
+  if (!point || !layout?.width || !layout?.height) {
+    return null;
+  }
+  return {
+    x: roundNumber(clamp(point.x / Math.max(1, layout.width), 0, 1)),
+    y: roundNumber(clamp(point.y / Math.max(1, layout.height), 0, 1)),
+  };
+}
+
+function spatialObjectNodeMatchesLiveTarget(node, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const objectId = cleanString(node?.dataset?.spatialObjectId);
+  if (!target || !objectId) {
+    return false;
+  }
+  return (
+    objectId === target.targetId ||
+    objectId === target.targetObjectId ||
+    objectId === cleanString(target.targetSelector).match(/"([^"]+)"/)?.[1]
+  );
+}
+
+function liveEditMapTargetNodeFromEvent(event, liveTarget) {
+  const node = event.target.closest?.("[data-spatial-object-id]");
+  return spatialObjectNodeMatchesLiveTarget(node, liveTarget) ? node : null;
+}
+
+function placeLiveEditCommentPinFromMapEvent(event) {
+  if (
+    state.workspaceMode !== "simple" ||
+    !state.liveEditPinPlacement ||
+    event.button > 0
+  ) {
+    return false;
+  }
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (
+    !liveEditTargetIsSpatialMapObject(liveTarget) ||
+    !liveEditPinPlacementMatchesTarget(liveTarget)
+  ) {
+    return false;
+  }
+  const node = liveEditMapTargetNodeFromEvent(event, liveTarget);
+  if (!node) {
+    return false;
+  }
+  const point = spatialMapLiveEditPointFromEvent(event);
+  event.preventDefault();
+  event.stopPropagation();
+  if (!point || !pointInsideLiveEditTarget(point, liveTarget)) {
+    renderStatus("Click inside the outlined Map object to place the pin");
+    return true;
+  }
+  addLiveEditCommentPin(point, {
+    placement: "direct-map-target-click",
+    text: state.liveEditPinPlacement.text,
+  });
+  return true;
+}
+
+function beginLiveEditMapStroke(event) {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (
+    !state.liveEditMapDrawActive ||
+    !liveEditTargetIsSpatialMapObject(liveTarget) ||
+    event.button > 0 ||
+    !workbenchOutputToolCanDraw()
+  ) {
+    return false;
+  }
+  const node = liveEditMapTargetNodeFromEvent(event, liveTarget);
+  const point = spatialMapLiveEditPointFromEvent(event);
+  if (!node || !point || !pointInsideLiveEditTarget(point, liveTarget)) {
+    return false;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    dom.flowBoard.setPointerCapture?.(event.pointerId);
+  } catch {
+    // Synthetic self-test events do not always have a browser-owned pointer.
+  }
+  state.liveEditMapStrokeDraft = {
+    id: uid("map-live-mark"),
+    pointerId: event.pointerId,
+    type: "path",
+    points: [point],
+    color: state.tool === "erase" ? ERASER_COLOR : normalizeColor(state.color),
+    size: state.tool === "marker" ? Math.max(8, state.size) : state.size,
+    alpha: state.tool === "marker" ? 0.42 : 1,
+    composite: state.tool === "erase" ? "destination-out" : "source-over",
+    targetId: liveTarget.targetId,
+    targetLabel: liveTarget.targetLabel,
+    targetVersionTag: liveTarget.targetVersionTag,
+    createdAt: new Date().toISOString(),
+  };
+  renderFlowBoard();
+  return true;
+}
+
+function updateLiveEditMapStroke(event) {
+  const draft = state.liveEditMapStrokeDraft;
+  if (!draft || draft.pointerId !== event.pointerId) {
+    return false;
+  }
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const point = spatialMapLiveEditPointFromEvent(event);
+  if (!point || !pointInsideLiveEditTarget(point, liveTarget, 0.03)) {
+    return true;
+  }
+  const lastPoint = draft.points.at(-1);
+  if (
+    !lastPoint ||
+    Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y) > 0.002
+  ) {
+    draft.points.push(point);
+    draft.points = draft.points.slice(-96);
+    renderFlowBoard();
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
+function finishLiveEditMapStroke(event) {
+  const draft = state.liveEditMapStrokeDraft;
+  if (!draft || draft.pointerId !== event.pointerId) {
+    return false;
+  }
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const stroke = normalizeOutputAnnotation(
+    {
+      ...draft,
+      points: draft.points.length > 1 ? draft.points : [...draft.points, ...draft.points],
+    },
+    0,
+  );
+  state.liveEditMapStrokeDraft = null;
+  try {
+    dom.flowBoard.releasePointerCapture?.(event.pointerId);
+  } catch {
+    // Ignore release failures from synthetic pointer paths.
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  if (!frame || !liveTarget || !stroke) {
+    renderFlowBoard();
+    return true;
+  }
+  frame.liveEditMapStrokes = [
+    ...(Array.isArray(frame.liveEditMapStrokes)
+      ? frame.liveEditMapStrokes
+      : []),
+    stroke,
+  ].slice(-40);
+  if (frame.liveEditRequest) {
+    frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+      frame,
+      liveTarget: frame.liveEditTarget,
+      variants: frame.liveEditVariants,
+      note: cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note),
+      status: frame.liveEditRequest.status || "variant-ready",
+      acceptedVariant: frame.acceptedLiveEditVariant,
+    });
+  }
+  touchFrame(frame, {
+    capture: false,
+    status: "Marked the picked Map object for Live Edit",
+  });
+  return true;
+}
+
 async function acceptLiveEditTarget() {
   const frame = currentFrame();
   const liveTarget = rebaseCanvasLiveEditTargetBounds(
@@ -11550,10 +12006,12 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
   const hasExternalTarget = Boolean(liveTarget.targetPath || liveTarget.targetHref);
   if (!hasExternalTarget) {
     const reason =
-      liveTarget.targetSource === "canvax-asset-candidate" ||
-      liveTarget.targetType === "generated-asset-candidate"
-        ? "asset-candidate-local-binding"
-        : "canvas-object-local-binding";
+      liveEditTargetIsSpatialMapObject(liveTarget)
+        ? "spatial-map-object-local-binding"
+        : liveTarget.targetSource === "canvax-asset-candidate" ||
+            liveTarget.targetType === "generated-asset-candidate"
+          ? "asset-candidate-local-binding"
+          : "canvas-object-local-binding";
     state.serverStatus = {
       ...state.serverStatus,
       liveEditWriteback: {
@@ -11564,7 +12022,11 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         targetLabel: liveTarget.targetLabel,
       },
     };
-    renderStatus("Live edit accepted on the canvas object");
+    renderStatus(
+      liveEditTargetIsSpatialMapObject(liveTarget)
+        ? "Live edit accepted on the Map object"
+        : "Live edit accepted on the canvas object",
+    );
     return state.serverStatus.liveEditWriteback;
   }
 
@@ -11704,10 +12166,17 @@ function applyAcceptedLiveEditVariantToSourceTarget(
     return null;
   }
   if (!sourceElement) {
-    return applyAcceptedLiveEditVariantToAssetCandidate(
-      frame,
-      target,
-      acceptedVariant,
+    return (
+      applyAcceptedLiveEditVariantToSpatialObject(
+        frame,
+        target,
+        acceptedVariant,
+      ) ||
+      applyAcceptedLiveEditVariantToAssetCandidate(
+        frame,
+        target,
+        acceptedVariant,
+      )
     );
   }
   const acceptedAt = target.acceptedAt || new Date().toISOString();
@@ -11722,6 +12191,73 @@ function applyAcceptedLiveEditVariantToSourceTarget(
     updatedAt: acceptedAt,
   });
   return sourceElement.liveEdit;
+}
+
+function applyAcceptedLiveEditVariantToSpatialObject(
+  frame,
+  liveTarget,
+  acceptedVariant,
+) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !liveEditTargetIsSpatialMapObject(target)) {
+    return null;
+  }
+  const object = spatialObjectById(target.targetObjectId || target.targetId);
+  if (!object) {
+    return null;
+  }
+  const acceptedAt = target.acceptedAt || new Date().toISOString();
+  const binding = normalizeElementLiveEditBinding({
+    status: "accepted",
+    target,
+    acceptedVariant,
+    request: frame.liveEditRequest,
+    pins: frame.liveEditPins,
+    note: target.note,
+    acceptedAt,
+    updatedAt: acceptedAt,
+  });
+  if (!binding) {
+    return null;
+  }
+  object.liveEdit = binding;
+  object.liveEditRequest = binding.request;
+  object.status = object.status || "live-edit-accepted";
+  object.meta = {
+    ...(object.meta || {}),
+    liveEdit: binding,
+    liveEditRequest: binding.request,
+    acceptedLiveEditVariant: binding.acceptedVariant,
+    liveEditStatus: binding.status,
+    liveEditAcceptedAt: acceptedAt,
+  };
+  if (normalizeSpatialSourceKind(object.sourceKind) === "asset-candidate") {
+    const candidate = assetCandidateById(object.sourceId || object.id);
+    if (candidate) {
+      candidate.liveEdit = binding;
+      candidate.liveEditRequest = binding.request;
+      candidate.acceptedLiveEditVariant = binding.acceptedVariant;
+      candidate.liveEditStatus = binding.status;
+      candidate.updatedAt = acceptedAt;
+      const placementMap =
+        candidate.placementMap || buildAssetCandidatePlacementMap(candidate, frame);
+      candidate.outputSlots = normalizeAssetCandidateOutputSlots(
+        candidate.outputSlots,
+        candidate,
+        placementMap,
+      ).map((slot, index) =>
+        index === 0
+          ? {
+              ...slot,
+              liveEdit: binding,
+              liveEditRequest: binding.request,
+            }
+          : slot,
+      );
+      refreshCurrentAssetCandidatePackReview();
+    }
+  }
+  return binding;
 }
 
 function applyAcceptedLiveEditVariantToAssetCandidate(
@@ -11867,6 +12403,8 @@ function closeLiveEditTarget() {
   state.liveEditPickActive = false;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditMapDrawActive = false;
+  state.liveEditMapStrokeDraft = null;
   persistState();
   renderAll();
   renderStatus(
@@ -12014,10 +12552,20 @@ function liveEditTargetStrokeSignals(frame, liveTarget) {
     .map((annotation) => annotation.semantics?.label)
     .filter(Boolean)
     .slice(-5);
+  const mapSignals = summarizeOutputAnnotations(frame?.liveEditMapStrokes)
+    .filter(
+      (stroke) =>
+        !target?.targetId ||
+        !stroke.targetId ||
+        stroke.targetId === target.targetId,
+    )
+    .map((stroke) => stroke.semantics?.label)
+    .filter(Boolean)
+    .slice(-5);
   const canvasSignals = liveEditTargetCanvasMarks(frame, target)
     .map((mark) => mark.semantics?.label)
     .filter(Boolean);
-  return [...outputSignals, ...canvasSignals].slice(-6);
+  return [...outputSignals, ...mapSignals, ...canvasSignals].slice(-6);
 }
 
 function liveEditSurfaceOperation(kind, label, detail, priority = 2) {
@@ -12409,7 +12957,29 @@ function liveEditRequestStrokes(frame, liveTarget) {
       semantics: annotation.semantics || null,
       text: annotation.text || annotation.label || "",
     }));
-  return normalizeLiveEditRequestStrokes([...canvasMarks, ...outputMarks]);
+  const mapMarks = summarizeOutputAnnotations(frame?.liveEditMapStrokes)
+    .filter(
+      (stroke) =>
+        !targetId ||
+        !stroke.targetId ||
+        cleanString(stroke.targetId) === targetId,
+    )
+    .map((stroke, index) => ({
+      id: stroke.id || `map-live-edit-stroke-${index + 1}`,
+      source: "spatial-map-mark",
+      type: stroke.type || "path",
+      targetId: stroke.targetId || targetId,
+      targetLabel: stroke.targetLabel || target?.targetLabel || "",
+      bounds: stroke.bounds || stroke.normalizedBounds || null,
+      points: stroke.points || [],
+      semantics: stroke.semantics || null,
+      text: stroke.text || stroke.label || "",
+    }));
+  return normalizeLiveEditRequestStrokes([
+    ...canvasMarks,
+    ...outputMarks,
+    ...mapMarks,
+  ]);
 }
 
 function buildFrameBoundLiveEditRequest({
@@ -12646,6 +13216,7 @@ function cycleLiveEditVariant(direction = 1) {
   }
   persistState();
   renderCanvas();
+  renderFlowBoard();
   renderWorkbenchOutput();
   renderFocusPad();
   renderStatus(`Showing live edit variant ${nextIndex + 1} of ${variants.length}`);
@@ -15278,6 +15849,131 @@ function renderSpatialSelectionBoxMarkup() {
   `;
 }
 
+function liveEditTargetMatchesSpatialObject(liveTarget, object) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target || !object) {
+    return false;
+  }
+  return Boolean(
+    liveEditTargetIsSpatialMapObject(target) &&
+      (target.targetId === object.id ||
+        target.targetObjectId === object.id ||
+        target.targetSelector ===
+          `[data-spatial-object-id="${cssAttributeEscape(object.id)}"]`),
+  );
+}
+
+function spatialLiveEditRelativePoint(point, bounds) {
+  const normalizedPoint = normalizeOutputAnnotationPoint(point);
+  const normalizedBounds = normalizeLiveEditBounds(bounds);
+  if (!normalizedPoint || !normalizedBounds) {
+    return null;
+  }
+  return {
+    x: roundNumber(
+      clamp((normalizedPoint.x - normalizedBounds.x) / normalizedBounds.w, 0, 1),
+    ),
+    y: roundNumber(
+      clamp((normalizedPoint.y - normalizedBounds.y) / normalizedBounds.h, 0, 1),
+    ),
+  };
+}
+
+function spatialLiveEditPathPoints(points, bounds) {
+  return (Array.isArray(points) ? points : [])
+    .map((point) => spatialLiveEditRelativePoint(point, bounds))
+    .filter(Boolean)
+    .map((point) => `${(point.x * 100).toFixed(2)},${(point.y * 100).toFixed(2)}`)
+    .join(" ");
+}
+
+function spatialObjectLiveEditPins(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  return normalizeLiveEditPins(frame?.liveEditPins).filter(
+    (pin) =>
+      target &&
+      (!pin.targetId ||
+        pin.targetId === target.targetId ||
+        pin.targetId === target.targetObjectId),
+  );
+}
+
+function spatialObjectLiveEditStrokes(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target) {
+    return [];
+  }
+  const committed = summarizeOutputAnnotations(frame?.liveEditMapStrokes).filter(
+    (stroke) =>
+      !stroke.targetId ||
+      stroke.targetId === target.targetId ||
+      stroke.targetId === target.targetObjectId,
+  );
+  const draft = normalizeOutputAnnotation(state.liveEditMapStrokeDraft, 0);
+  return [
+    ...committed,
+    draft &&
+    (draft.targetId === target.targetId || draft.targetId === target.targetObjectId)
+      ? { ...summarizeOutputAnnotation(draft), draft: true }
+      : null,
+  ].filter(Boolean);
+}
+
+function renderSpatialObjectLiveEditMarkup(object, liveTarget, liveVariant, frame) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const bounds =
+    normalizeSpatialObjectLiveEditBounds(object) ||
+    normalizeLiveEditBounds(target?.bounds);
+  if (!target || !bounds) {
+    return "";
+  }
+  const pins = spatialObjectLiveEditPins(frame, target);
+  const strokes = spatialObjectLiveEditStrokes(frame, target);
+  const operations = normalizeLiveEditSurfaceOperations(
+    liveVariant?.surfaceOperations,
+  ).slice(0, 3);
+  return `
+    <div class="spatial-object-live-edit-layer" aria-hidden="true">
+      ${
+        strokes.length
+          ? `<svg class="spatial-object-live-edit-marks" viewBox="0 0 100 100" preserveAspectRatio="none">
+              ${strokes
+                .map((stroke) => {
+                  const path = spatialLiveEditPathPoints(stroke.points, bounds);
+                  return path
+                    ? `<polyline points="${escapeHtml(path)}" fill="none" stroke="${escapeHtml(stroke.composite === "destination-out" ? "#fff6e5" : stroke.color || palette[0])}" stroke-width="${Math.max(1.5, Math.min(7, Number(stroke.size) || 5))}" stroke-linecap="round" stroke-linejoin="round" opacity="${stroke.draft ? "0.74" : "0.92"}" />`
+                    : "";
+                })
+                .join("")}
+            </svg>`
+          : ""
+      }
+      ${pins
+        .map((pin, index) => {
+          const point = spatialLiveEditRelativePoint(pin.point, bounds);
+          return point
+            ? `<span class="spatial-object-live-edit-pin" style="left:${(point.x * 100).toFixed(3)}%; top:${(point.y * 100).toFixed(3)}%;">${index + 1}</span>`
+            : "";
+        })
+        .join("")}
+    </div>
+    ${
+      liveVariant
+        ? `<div class="spatial-object-live-edit-swap" style="--live-variant-accent:${escapeHtml(liveVariant.style?.accent || palette[0])}; --live-variant-bg:${escapeHtml(liveVariant.style?.background || "#fff7e6")}; --live-variant-fg:${escapeHtml(liveVariant.style?.foreground || "#18110e")};">
+            <span>${escapeHtml(liveVariant.label)}</span>
+            <strong>${escapeHtml(compactDisplayText(liveVariant.title, 72))}</strong>
+            <p>${escapeHtml(compactDisplayText(liveVariant.body, 110))}</p>
+            ${
+              operations.length
+                ? `<small>${operations.map((operation) => escapeHtml(operation.label)).join(" / ")}</small>`
+                : ""
+            }
+          </div>`
+        : ""
+    }
+  `;
+}
+
 function renderSpatialObjectNode(object) {
   const frameTitle = spatialObjectFrameLabel(object);
   const thumbnail = cleanString(object.meta?.thumbnailDataUrl);
@@ -15289,9 +15985,16 @@ function renderSpatialObjectNode(object) {
   const isPinned = isSpatialObjectPinned(object);
   const isLocked = isSpatialObjectLocked(object);
   const isOutputReference = isManifestSpatialObject(object);
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const isLiveEditTarget = liveEditTargetMatchesSpatialObject(liveTarget, object);
+  const liveVariant = isLiveEditTarget ? currentLiveEditVariant(frame) : null;
   const badgeMarkup = [
     isOutputReference
       ? '<span class="spatial-object-reference-badge">Output ref</span>'
+      : "",
+    isLiveEditTarget
+      ? '<span class="spatial-object-live-edit-badge">Live edit</span>'
       : "",
     isPinned ? '<span class="spatial-object-pin-badge">Pinned</span>' : "",
     isLocked ? '<span class="spatial-object-lock-badge">Locked</span>' : "",
@@ -15304,7 +16007,7 @@ function renderSpatialObjectNode(object) {
     : "";
   return `
     <article
-      class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""} ${isPinned ? "pinned" : ""} ${isLocked ? "locked" : ""}"
+      class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""} ${isLiveEditTarget ? "live-edit-target" : ""} ${liveVariant ? "has-live-edit-variant" : ""} ${isPinned ? "pinned" : ""} ${isLocked ? "locked" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
       data-spatial-object-source="${escapeHtml(normalizedSourceKind)}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
@@ -15344,6 +16047,11 @@ function renderSpatialObjectNode(object) {
         <span>${escapeHtml(frameTitle)}</span>
         <span>${escapeHtml(footerStatus)}</span>
       </div>
+      ${
+        isLiveEditTarget
+          ? renderSpatialObjectLiveEditMarkup(object, liveTarget, liveVariant, frame)
+          : ""
+      }
       ${actionMarkup}
     </article>
   `;
@@ -15942,6 +16650,10 @@ function renderMapSelectionActions() {
   const canMutateSelection = canMutateSpatialObjects(selectedObjects);
   const copyText = buildSpatialSelectionContextText(selectedObjects);
   const canMakeEditable = canCreateEditableFrameFromSelectedOutput();
+  const canLivePick = selectedObjects.length === 1;
+  const activeMapLiveTarget =
+    canLivePick &&
+    liveEditTargetMatchesSpatialObject(currentFrame()?.liveEditTarget, object);
   const branchSelection = selectedVariantBranchFrames();
   const hasBranchSelection = branchSelection.length > 0;
   dom.mapSelectionActions.hidden = !hasSelection;
@@ -15949,6 +16661,10 @@ function renderMapSelectionActions() {
   dom.mapCopyObjectContext.disabled = !copyText;
   dom.mapMakeEditable.hidden = !canMakeEditable;
   dom.mapMakeEditable.disabled = !canMakeEditable;
+  dom.mapLivePick.disabled = !canLivePick;
+  dom.mapLivePick.classList.toggle("active", Boolean(activeMapLiveTarget));
+  dom.mapLivePick.setAttribute("aria-pressed", String(Boolean(activeMapLiveTarget)));
+  dom.mapLivePick.textContent = activeMapLiveTarget ? "Retarget" : "Pick target";
   dom.mapPinObject.disabled = !hasSelection;
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
@@ -16016,6 +16732,10 @@ function renderMapSelectionActions() {
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
     dom.mapMakeEditable.disabled = true;
+    dom.mapLivePick.disabled = true;
+    dom.mapLivePick.classList.remove("active");
+    dom.mapLivePick.setAttribute("aria-pressed", "false");
+    dom.mapLivePick.textContent = "Pick target";
     dom.mapPinObject.textContent = "Pin";
     dom.mapLockObject.textContent = "Lock";
     return;
@@ -16038,6 +16758,10 @@ function renderMapSelectionActions() {
     dom.mapObjectTypeDetails.innerHTML = "";
     dom.mapMakeEditable.hidden = true;
     dom.mapMakeEditable.disabled = true;
+    dom.mapLivePick.disabled = true;
+    dom.mapLivePick.classList.remove("active");
+    dom.mapLivePick.setAttribute("aria-pressed", "false");
+    dom.mapLivePick.textContent = "Pick target";
     return;
   }
 
@@ -19163,6 +19887,10 @@ function tryReleasePointerCapture(pointerId) {
 }
 
 function onFlowBoardClick(event) {
+  if (placeLiveEditCommentPinFromMapEvent(event)) {
+    return;
+  }
+
   const removeSpatialButton = event.target.closest(
     "[data-spatial-object-remove]",
   );
@@ -19295,6 +20023,10 @@ function onFlowSvgClick(event) {
 }
 
 function onFlowBoardPointerDown(event) {
+  if (beginLiveEditMapStroke(event)) {
+    return;
+  }
+
   const linkHandle = event.target.closest("[data-flow-link-handle]");
   if (linkHandle) {
     event.preventDefault();
@@ -19590,6 +20322,10 @@ function stepFlowPanMomentum(timestamp) {
 }
 
 function onWindowPointerMove(event) {
+  if (updateLiveEditMapStroke(event)) {
+    return;
+  }
+
   if (state.shellPan && event.pointerId === state.shellPan.pointerId) {
     dom.deviceShell.scrollLeft =
       state.shellPan.scrollLeft - (event.clientX - state.shellPan.startX);
@@ -19734,6 +20470,10 @@ function onWindowPointerMove(event) {
 }
 
 function onWindowPointerUp(event) {
+  if (finishLiveEditMapStroke(event)) {
+    return;
+  }
+
   if (state.shellPan && event.pointerId === state.shellPan.pointerId) {
     state.shellPan = null;
     renderCanvas();
@@ -22911,6 +23651,9 @@ async function buildExportPackage(frameSelection = state.frames) {
         frame.acceptedLiveEditVariant,
       ),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+      liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
+        ? summarizeOutputAnnotations(frame.liveEditMapStrokes)
+        : [],
       outputEditBinding: frameOutputEditBinding(frame),
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
@@ -23035,6 +23778,9 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
         frame.acceptedLiveEditVariant,
       ),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+      liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
+        ? summarizeOutputAnnotations(frame.liveEditMapStrokes)
+        : [],
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       captureCount: frame.captureCount,
@@ -23608,6 +24354,10 @@ function buildSpatialWorkspaceObject(object, spatialGrouping) {
     },
     inspector: buildMapObjectInspectorContract(object, spatialGrouping),
     contextMarkdown: buildSpatialObjectContextText(object),
+    liveEdit: normalizeElementLiveEditBinding(object.liveEdit || object.meta?.liveEdit),
+    liveEditRequest: normalizeLiveEditRequest(
+      object.liveEditRequest || object.meta?.liveEditRequest,
+    ),
     meta: object.meta || {},
   };
 }
@@ -24496,6 +25246,9 @@ function buildFrameComposition(frame) {
       frame,
       frame.liveEditTarget,
     ),
+    liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
+      ? summarizeOutputAnnotations(frame.liveEditMapStrokes)
+      : [],
     liveEditVariants: currentLiveEditVariants(frame),
     liveEditVariantIndex: currentLiveEditVariantIndex(frame),
     acceptedLiveEditVariant: normalizeLiveEditVariant(
@@ -25711,6 +26464,9 @@ function summarizeFrameForCheckpoint(frame, index) {
       frame.acceptedLiveEditVariant,
     ),
     liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+    liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
+      ? summarizeOutputAnnotations(frame.liveEditMapStrokes)
+      : [],
     outputEditBinding: frameOutputEditBinding(frame),
     updatedAt: frame.updatedAt,
     captureCount: frame.captures.length,
@@ -30566,6 +31322,8 @@ function assertWorkbenchRailSizeControls() {
 async function assertWorkbenchSpatialMap() {
   const previous = {
     frames: structuredClone(state.frames),
+    voice: structuredClone(state.voice),
+    activeFrameId: state.activeFrameId,
     workspaceMode: state.workspaceMode,
     workbenchFocus: state.workbenchFocus,
     viewMode: state.viewMode,
@@ -30575,6 +31333,10 @@ async function assertWorkbenchSpatialMap() {
     mapObjectSearch: state.mapObjectSearch,
     outputLaneCollapsed: state.outputLaneCollapsed,
     spatialObjects: structuredClone(state.spatialObjects),
+    selectedSpatialObjectId: state.selectedSpatialObjectId,
+    selectedSpatialObjectIds: structuredClone(state.selectedSpatialObjectIds),
+    serverStatus: structuredClone(state.serverStatus),
+    liveEditNote: dom.workbenchLiveEditNote?.value || "",
   };
 
   state.spatialObjects = [
@@ -30947,6 +31709,108 @@ async function assertWorkbenchSpatialMap() {
     pastedMapNote?.meta?.text.includes("editorial rhythm") &&
     pastedMapNote?.x === expectedTextPastePosition.x &&
     pastedMapNote?.y === expectedTextPastePosition.y;
+  selectSpatialObject("spatial-selftest-asset", { render: true });
+  const mapLivePickButtonRendered =
+    !dom.mapLivePick.disabled &&
+    dom.mapLivePick.textContent.includes("Pick");
+  if (dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value =
+      "Make this picked Map object clearer without moving the surrounding board";
+  }
+  const mapLiveEditStarted = startLiveEditFromSelectedSpatialObject();
+  const mapLiveFrame = currentFrame();
+  const mapLiveTarget = normalizeLiveEditTarget(mapLiveFrame.liveEditTarget);
+  const mapLiveBounds = normalizeLiveEditBounds(mapLiveTarget?.bounds);
+  const mapLivePin = addLiveEditCommentPin(
+    mapLiveBounds
+      ? {
+          x: mapLiveBounds.centerX,
+          y: mapLiveBounds.centerY,
+        }
+      : null,
+    {
+      placement: "direct-map-target-click",
+      text: "Improve this map object directly",
+    },
+  );
+  const mapLiveStroke = normalizeOutputAnnotation(
+    {
+      id: "spatial-selftest-live-mark",
+      points: mapLiveBounds
+        ? [
+            {
+              x: mapLiveBounds.x + mapLiveBounds.w * 0.18,
+              y: mapLiveBounds.y + mapLiveBounds.h * 0.48,
+            },
+            {
+              x: mapLiveBounds.x + mapLiveBounds.w * 0.82,
+              y: mapLiveBounds.y + mapLiveBounds.h * 0.5,
+            },
+          ]
+        : [],
+      color: palette[0],
+      size: 8,
+      targetId: "spatial-selftest-asset",
+      targetLabel: "Self-test asset object",
+    },
+    0,
+  );
+  mapLiveFrame.liveEditMapStrokes = mapLiveStroke ? [mapLiveStroke] : [];
+  const mapLiveVariants = createLiveEditVariants();
+  cycleLiveEditVariant(1);
+  renderFlowBoard();
+  const mapLiveOutlined = Boolean(
+    dom.flowBoard.querySelector(
+      "[data-spatial-object-id='spatial-selftest-asset'].live-edit-target",
+    ),
+  );
+  const mapLivePinRendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-object-live-edit-pin"),
+  );
+  const mapLiveStrokeRendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-object-live-edit-marks polyline"),
+  );
+  const mapLiveVariantRendered = Boolean(
+    dom.flowBoard.querySelector(".spatial-object-live-edit-swap"),
+  );
+  await acceptLiveEditTarget();
+  const liveEditedSpatialObject = spatialObjectById("spatial-selftest-asset");
+  const liveEditedSpatialExport = buildSpatialWorkspaceExport().objects.find(
+    (object) => object.id === "spatial-selftest-asset",
+  );
+  const mapLiveEditBinding = normalizeElementLiveEditBinding(
+    liveEditedSpatialObject?.liveEdit,
+  );
+  const mapLiveEditBound =
+    mapLivePickButtonRendered &&
+    mapLiveEditStarted &&
+    mapLiveTarget?.targetType === "spatial-map-object" &&
+    mapLiveTarget?.targetSource === "canvax-map" &&
+    mapLiveTarget?.targetSelector?.includes("spatial-selftest-asset") &&
+    mapLiveOutlined &&
+    mapLivePin?.placement === "direct-map-target-click" &&
+    mapLivePinRendered &&
+    mapLiveStrokeRendered &&
+    mapLiveVariantRendered &&
+    mapLiveVariants.length === 3 &&
+    mapLiveVariants.every(
+      (variant) =>
+        ["canvas object", "image/composition region"].includes(
+          variant.targetMedium,
+        ) &&
+        normalizeLiveEditSurfaceOperations(variant.surfaceOperations).length >=
+          4,
+    ) &&
+    mapLiveFrame.liveEditRequest?.targetObjectId === "spatial-selftest-asset" &&
+    mapLiveFrame.liveEditRequest?.strokes?.some(
+      (stroke) => stroke.source === "spatial-map-mark",
+    ) &&
+    mapLiveFrame.liveEditRequest?.status === "accepted" &&
+    mapLiveEditBinding?.status === "accepted" &&
+    mapLiveEditBinding?.target?.targetType === "spatial-map-object" &&
+    liveEditedSpatialObject?.meta?.liveEditStatus === "accepted" &&
+    liveEditedSpatialExport?.liveEdit?.status === "accepted" &&
+    liveEditedSpatialExport?.contextMarkdown.includes("## Live Edit Binding");
   const spatialMapDetail = JSON.stringify({
     mapVisible,
     zoomChanged,
@@ -30977,6 +31841,13 @@ async function assertWorkbenchSpatialMap() {
     mapFileDropWorks,
     mapTextDropWorks,
     mapTextPasteWorks,
+    mapLivePickButtonRendered,
+    mapLiveEditStarted,
+    mapLiveOutlined,
+    mapLivePinRendered,
+    mapLiveStrokeRendered,
+    mapLiveVariantRendered,
+    mapLiveEditBound,
     expectedMapCreateFramePosition,
     expectedDropPosition,
     expectedTextDropPosition,
@@ -31018,6 +31889,8 @@ async function assertWorkbenchSpatialMap() {
   });
 
   state.frames = previous.frames;
+  state.voice = previous.voice;
+  state.activeFrameId = previous.activeFrameId;
   state.workspaceMode = previous.workspaceMode;
   state.workbenchFocus = previous.workbenchFocus;
   state.viewMode = previous.viewMode;
@@ -31027,6 +31900,12 @@ async function assertWorkbenchSpatialMap() {
   state.mapObjectSearch = previous.mapObjectSearch;
   state.outputLaneCollapsed = previous.outputLaneCollapsed;
   state.spatialObjects = previous.spatialObjects;
+  state.selectedSpatialObjectId = previous.selectedSpatialObjectId;
+  state.selectedSpatialObjectIds = previous.selectedSpatialObjectIds;
+  state.serverStatus = previous.serverStatus;
+  if (dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value = previous.liveEditNote;
+  }
   cancelFlowPanMomentum();
   persistState();
   renderAll();
@@ -31060,8 +31939,9 @@ async function assertWorkbenchSpatialMap() {
       mapCreateFrameWorks &&
       mapFileDropWorks &&
       mapTextDropWorks &&
-      mapTextPasteWorks,
-    "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, drops files/text, pastes notes, and exports frames, objects, and group containment",
+      mapTextPasteWorks &&
+      mapLiveEditBound,
+    "Workbench spatial map renders, navigates timeline, pans with momentum, filters, searches, drops files/text, pastes notes, and supports Map object Live Edit",
     spatialMapDetail,
   );
 }

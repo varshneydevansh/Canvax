@@ -5188,6 +5188,7 @@ select,
 }
 
 .spatial-object-reference-badge,
+.spatial-object-live-edit-badge,
 .spatial-object-pin-badge,
 .spatial-object-lock-badge {
     padding: 0.16rem 0.44rem;
@@ -5202,6 +5203,11 @@ select,
 .spatial-object-reference-badge {
     background: rgba(255, 93, 58, 0.14);
     color: #9c2c1a;
+}
+
+.spatial-object-live-edit-badge {
+    background: rgba(240, 162, 2, 0.18);
+    color: #7a5000;
 }
 
 .spatial-object-pin-badge {
@@ -5268,6 +5274,32 @@ select,
         0 0 0 0.18rem rgba(12, 141, 123, 0.16),
         0 0.85rem 1.8rem rgba(26, 23, 20, 0.11),
         0 1.8rem 3.2rem rgba(12, 141, 123, 0.12);
+}
+
+.spatial-object-node.live-edit-target {
+    border-color: rgba(240, 162, 2, 0.78);
+    box-shadow:
+        0 0 0 0.2rem rgba(240, 162, 2, 0.18),
+        0 0.85rem 1.8rem rgba(26, 23, 20, 0.12),
+        0 1.8rem 3.2rem rgba(240, 162, 2, 0.16);
+}
+
+.spatial-object-node.live-edit-target::before {
+    content: "";
+    position: absolute;
+    inset: -0.42rem;
+    z-index: 0;
+    border: 0.13rem solid rgba(240, 162, 2, 0.9);
+    border-radius: 1.35rem;
+    pointer-events: none;
+    box-shadow:
+        0 0 0 0.16rem rgba(255, 255, 255, 0.64),
+        0 0.45rem 1rem rgba(240, 162, 2, 0.18);
+}
+
+.spatial-object-node.live-edit-target > * {
+    position: relative;
+    z-index: 1;
 }
 
 .spatial-object-node.selected::after {
@@ -5866,6 +5898,75 @@ select,
     background: rgba(255, 93, 58, 0.1);
     color: #8d2817;
     font-weight: 800;
+}
+
+.spatial-object-live-edit-layer {
+    position: absolute;
+    inset: 0.55rem;
+    z-index: 2;
+    overflow: hidden;
+    border-radius: 0.86rem;
+    pointer-events: none;
+}
+
+.spatial-object-live-edit-marks {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0.12rem 0.2rem rgba(26, 23, 20, 0.18));
+    mix-blend-mode: multiply;
+}
+
+.spatial-object-live-edit-pin {
+    position: absolute;
+    display: grid;
+    width: 1.28rem;
+    height: 1.28rem;
+    place-items: center;
+    transform: translate(-50%, -50%);
+    border: 0.12rem solid #1b140f;
+    border-radius: 999px;
+    background: #f0a202;
+    color: #1b140f;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 900;
+    box-shadow:
+        0 0 0 0.12rem rgba(255, 255, 255, 0.72),
+        0 0.28rem 0.72rem rgba(26, 23, 20, 0.22);
+}
+
+.spatial-object-live-edit-swap {
+    display: grid;
+    gap: 0.24rem;
+    padding: 0.56rem 0.62rem;
+    border: 0.0625rem solid color-mix(in srgb, var(--live-variant-accent), transparent 30%);
+    border-radius: 0.75rem;
+    background: var(--live-variant-bg);
+    color: var(--live-variant-fg);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.36);
+}
+
+.spatial-object-live-edit-swap span {
+    color: var(--live-variant-accent);
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.spatial-object-live-edit-swap strong {
+    font-size: 0.78rem;
+}
+
+.spatial-object-live-edit-swap p,
+.spatial-object-live-edit-swap small {
+    margin: 0;
+    color: color-mix(in srgb, var(--live-variant-fg), transparent 18%);
+    font-size: 0.68rem;
+    line-height: 1.3;
 }
 
 .spatial-object-actions {
