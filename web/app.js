@@ -3907,7 +3907,7 @@ function normalizeFrameElement(element, index = 0) {
   }
   const composite =
     element.composite === "destination-out" ? "destination-out" : "source-over";
-  return {
+  const normalized = {
     ...element,
     id:
       typeof element.id === "string" && element.id.trim()
@@ -3922,6 +3922,13 @@ function normalizeFrameElement(element, index = 0) {
     composite,
     prototype: normalizeElementPrototype(element.prototype),
   };
+  const liveEdit = normalizeElementLiveEditBinding(element.liveEdit);
+  if (liveEdit) {
+    normalized.liveEdit = liveEdit;
+  } else {
+    delete normalized.liveEdit;
+  }
+  return normalized;
 }
 
 function normalizeElementPrototype(prototype) {
@@ -3953,6 +3960,29 @@ function normalizeElementPrototype(prototype) {
       typeof prototype.updatedAt === "string" && prototype.updatedAt.trim()
         ? prototype.updatedAt.trim()
         : new Date().toISOString(),
+  };
+}
+
+function normalizeElementLiveEditBinding(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target = normalizeLiveEditTarget(value.target || value.liveEditTarget);
+  if (!target) {
+    return null;
+  }
+  const acceptedVariant =
+    normalizeLiveEditVariant(value.acceptedVariant || value.variant) || null;
+  const acceptedAt = cleanString(value.acceptedAt || acceptedVariant?.acceptedAt);
+  return {
+    kind: "canvax-element-live-edit-binding",
+    status: cleanString(value.status) || (acceptedAt ? "accepted" : "picked"),
+    target,
+    acceptedVariant,
+    pins: normalizeLiveEditPins(value.pins),
+    note: cleanString(value.note || target.note),
+    acceptedAt,
+    updatedAt: cleanString(value.updatedAt) || new Date().toISOString(),
   };
 }
 
@@ -9930,6 +9960,51 @@ function currentLiveEditVariant(frame = currentFrame()) {
   return variants[currentLiveEditVariantIndex(frame)] || null;
 }
 
+function liveEditTargetCanvasElement(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target?.targetId) {
+    return null;
+  }
+  if (
+    target.targetSource !== "canvax-canvas" &&
+    !["canvas-object", "image-region"].includes(target.targetType)
+  ) {
+    return null;
+  }
+  return (
+    frame.elements?.find((element) => element.id === target.targetId) || null
+  );
+}
+
+function denormalizeLiveEditBounds(bounds, frame = currentFrame()) {
+  const normalized = normalizeLiveEditBounds(bounds);
+  const viewport = viewportPresets[frame?.viewport] || viewportPresets.desktop;
+  if (!normalized) {
+    return null;
+  }
+  return makeBounds(
+    normalized.x * viewport.width,
+    normalized.y * viewport.height,
+    (normalized.x + normalized.w) * viewport.width,
+    (normalized.y + normalized.h) * viewport.height,
+  );
+}
+
+function rebaseCanvasLiveEditTargetBounds(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const element = liveEditTargetCanvasElement(frame, target);
+  const bounds = element ? getElementBounds(element, frame) : null;
+  const viewport = viewportPresets[frame?.viewport] || viewportPresets.desktop;
+  if (!target || !bounds) {
+    return target;
+  }
+  return normalizeLiveEditTarget({
+    ...target,
+    bounds: normalizeBounds(bounds, viewport),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 function liveEditTargetMatchesOutput(liveTarget, target, targetUrl = "") {
   const normalized = normalizeLiveEditTarget(liveTarget);
   if (!normalized || !target) {
@@ -10225,7 +10300,10 @@ function addLiveEditCommentPin() {
 
 async function acceptLiveEditTarget() {
   const frame = currentFrame();
-  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  const liveTarget = rebaseCanvasLiveEditTargetBounds(
+    frame,
+    normalizeLiveEditTarget(frame.liveEditTarget),
+  );
   if (!liveTarget) {
     renderStatus("Pick a live edit target first");
     return;
@@ -10239,6 +10317,8 @@ async function acceptLiveEditTarget() {
     ? normalizeLiveEditVariant(
         {
           ...selectedVariant,
+          target: liveTarget,
+          liveEditTarget: liveTarget,
           acceptedAt,
         },
         variantIndex,
@@ -10265,6 +10345,11 @@ async function acceptLiveEditTarget() {
   );
   frame.liveEditVariantIndex = variantIndex;
   frame.acceptedLiveEditVariant = acceptedVariant;
+  applyAcceptedLiveEditVariantToSourceTarget(
+    frame,
+    frame.liveEditTarget,
+    acceptedVariant,
+  );
   state.liveEditPickActive = false;
   const voiceText = [
     acceptedVariant
@@ -10292,6 +10377,29 @@ async function acceptLiveEditTarget() {
       ? `Accepted ${acceptedVariant.label} live edit variant for ${frame.title}.`
       : `Accepted live edit target for ${frame.title}.`,
   });
+}
+
+function applyAcceptedLiveEditVariantToSourceTarget(
+  frame,
+  liveTarget,
+  acceptedVariant,
+) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const sourceElement = liveEditTargetCanvasElement(frame, target);
+  if (!frame || !target || !sourceElement) {
+    return null;
+  }
+  const acceptedAt = target.acceptedAt || new Date().toISOString();
+  sourceElement.liveEdit = normalizeElementLiveEditBinding({
+    status: "accepted",
+    target,
+    acceptedVariant,
+    pins: frame.liveEditPins,
+    note: target.note,
+    acceptedAt,
+    updatedAt: acceptedAt,
+  });
+  return sourceElement.liveEdit;
 }
 
 async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
@@ -10410,9 +10518,97 @@ function liveEditTargetPins(frame, liveTarget) {
   );
 }
 
+function summarizeCanvasLiveEditMark(element, frame = currentFrame()) {
+  if (!element || isEraserElement(element)) {
+    return null;
+  }
+  const viewport = viewportPresets[frame?.viewport] || viewportPresets.desktop;
+  const bounds = getElementBounds(element, frame);
+  if (!bounds) {
+    return null;
+  }
+  const normalizedBounds = normalizeBounds(bounds, viewport);
+  const pointFromCanvas = (point) => ({
+    x: roundNumber(clamp(point.x / viewport.width, 0, 1)),
+    y: roundNumber(clamp(point.y / viewport.height, 0, 1)),
+  });
+  let points = [];
+  if (element.type === "path") {
+    points = (element.points || []).map(pointFromCanvas);
+  } else if (element.type === "line" || element.type === "arrow") {
+    points = [pointFromCanvas(element.start), pointFromCanvas(element.end)];
+  } else if (element.type === "ellipse" || element.type === "rect") {
+    points = [
+      { x: normalizedBounds.left, y: normalizedBounds.centerY },
+      { x: normalizedBounds.centerX, y: normalizedBounds.top },
+      { x: normalizedBounds.right, y: normalizedBounds.centerY },
+      { x: normalizedBounds.centerX, y: normalizedBounds.bottom },
+      { x: normalizedBounds.left, y: normalizedBounds.centerY },
+    ];
+  }
+  if (!points.length) {
+    return null;
+  }
+  const base = {
+    id: element.id,
+    type: element.type,
+    points,
+    color: element.color || palette[0],
+    size: Number(element.size) || 8,
+    bounds: normalizedBounds,
+    normalizedBounds,
+    createdAt: element.createdAt || "",
+  };
+  return {
+    ...base,
+    semantics:
+      element.type === "arrow"
+        ? {
+            intent: "move-or-flow",
+            label: "Arrow/drag: move or follow this direction",
+            confidence: 0.72,
+            rule: "canvas-arrow",
+            vector: {
+              x: roundNumber(points.at(-1).x - points[0].x),
+              y: roundNumber(points.at(-1).y - points[0].y),
+            },
+          }
+        : classifyOutputAnnotationSemantics(base),
+  };
+}
+
+function liveEditTargetCanvasMarks(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const targetBounds =
+    liveEditTargetCanvasElement(frame, target)
+      ? getElementBounds(liveEditTargetCanvasElement(frame, target), frame)
+      : denormalizeLiveEditBounds(target?.bounds, frame);
+  if (!frame || !target || !targetBounds) {
+    return [];
+  }
+  const searchBounds = expandBounds(
+    targetBounds,
+    Math.max(80, Math.max(targetBounds.width, targetBounds.height) * 0.16),
+  );
+  return (frame.elements || [])
+    .filter(
+      (element) =>
+        element.id !== target.targetId &&
+        ["path", "line", "arrow", "ellipse", "rect"].includes(element.type),
+    )
+    .map((element) => {
+      const bounds = getElementBounds(element, frame);
+      return bounds && boundsIntersect(searchBounds, bounds)
+        ? summarizeCanvasLiveEditMark(element, frame)
+        : null;
+    })
+    .filter(Boolean)
+    .slice(-8);
+}
+
 function liveEditTargetStrokeSignals(frame, liveTarget) {
   const target = normalizeLiveEditTarget(liveTarget);
-  return (frame?.outputAnnotations || [])
+  const outputSignals = (frame?.outputAnnotations || [])
     .map(summarizeOutputAnnotation)
     .filter(
       (annotation) =>
@@ -10423,6 +10619,10 @@ function liveEditTargetStrokeSignals(frame, liveTarget) {
     .map((annotation) => annotation.semantics?.label)
     .filter(Boolean)
     .slice(-5);
+  const canvasSignals = liveEditTargetCanvasMarks(frame, target)
+    .map((mark) => mark.semantics?.label)
+    .filter(Boolean);
+  return [...outputSignals, ...canvasSignals].slice(-6);
 }
 
 function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
@@ -10566,6 +10766,7 @@ function cycleLiveEditVariant(direction = 1) {
   frame.liveEditVariants = variants;
   frame.liveEditVariantIndex = nextIndex;
   persistState();
+  renderCanvas();
   renderWorkbenchOutput();
   renderFocusPad();
   renderStatus(`Showing live edit variant ${nextIndex + 1} of ${variants.length}`);
@@ -10574,7 +10775,10 @@ function cycleLiveEditVariant(direction = 1) {
 
 function createLiveEditVariants() {
   const frame = currentFrame();
-  const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  const liveTarget = rebaseCanvasLiveEditTargetBounds(
+    frame,
+    normalizeLiveEditTarget(frame.liveEditTarget),
+  );
   if (!liveTarget) {
     renderStatus("Pick a live edit target before creating targeted variants");
     return [];
@@ -15434,7 +15638,7 @@ function renderCanvas() {
     dom.canvas.height,
     1,
     state.draftElement,
-    { transparentBase: canvasReplyVisible },
+    { transparentBase: canvasReplyVisible, showLiveEditOverlay: true },
   );
 }
 
@@ -15528,6 +15732,194 @@ function drawScene(
       }
     }
   }
+
+  if (options.showLiveEditOverlay && state.viewMode === "frame") {
+    drawCanvasLiveEditOverlay(ctx, frame, width, height, scale);
+  }
+}
+
+function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
+  const liveTarget = rebaseCanvasLiveEditTargetBounds(
+    frame,
+    frame?.liveEditTarget,
+  );
+  const element = liveEditTargetCanvasElement(frame, liveTarget);
+  const bounds =
+    element && getElementBounds(element, frame)
+      ? getElementBounds(element, frame)
+      : denormalizeLiveEditBounds(liveTarget?.bounds, frame);
+  if (!liveTarget || !bounds) {
+    return;
+  }
+
+  const variant = currentLiveEditVariant(frame);
+  const pins = liveEditTargetPins(frame, liveTarget);
+  const label =
+    variant?.label ||
+    (liveTarget.status === "accepted" ? "Accepted target" : "Picked target");
+
+  ctx.save();
+  ctx.lineWidth = Math.max(2, 2.5 * scale);
+  ctx.strokeStyle = "#f5b938";
+  ctx.fillStyle = "rgba(245, 185, 56, 0.08)";
+  ctx.setLineDash([12 * scale, 8 * scale]);
+  roundRect(
+    ctx,
+    bounds.left * scale,
+    bounds.top * scale,
+    bounds.width * scale,
+    bounds.height * scale,
+    16 * scale,
+  );
+  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = Math.max(1, 1 * scale);
+  ctx.strokeStyle = "rgba(24, 17, 14, 0.72)";
+  roundRect(
+    ctx,
+    (bounds.left - 4) * scale,
+    (bounds.top - 4) * scale,
+    (bounds.width + 8) * scale,
+    (bounds.height + 8) * scale,
+    20 * scale,
+  );
+  ctx.stroke();
+  drawCanvasLiveEditBadge(ctx, label, bounds, scale);
+  pins.forEach((pin, index) =>
+    drawCanvasLiveEditPin(ctx, pin, index, width, height, scale),
+  );
+  if (variant) {
+    drawCanvasLiveEditVariantCard(ctx, variant, bounds, width, height, scale);
+  }
+  ctx.restore();
+}
+
+function drawCanvasLiveEditBadge(ctx, label, bounds, scale = 1) {
+  const text = compactDisplayText(label, 28).toUpperCase();
+  const x = Math.max(8, bounds.left * scale + 10 * scale);
+  const y = Math.max(8, bounds.top * scale - 16 * scale);
+  ctx.save();
+  ctx.font = `900 ${Math.max(10, 11 * scale)}px "Avenir Next", sans-serif`;
+  const width = Math.max(74 * scale, ctx.measureText(text).width + 22 * scale);
+  const height = 24 * scale;
+  ctx.fillStyle = "#f5b938";
+  roundRect(ctx, x, y, width, height, 999);
+  ctx.fill();
+  ctx.fillStyle = "#18110e";
+  ctx.fillText(text, x + 11 * scale, y + 16 * scale);
+  ctx.restore();
+}
+
+function drawCanvasLiveEditPin(ctx, pin, index, width, height, scale = 1) {
+  const point = normalizeOutputAnnotationPoint(pin.point);
+  if (!point) {
+    return;
+  }
+  const x = point.x * width * scale;
+  const y = point.y * height * scale;
+  const radius = 12 * scale;
+  ctx.save();
+  ctx.fillStyle = "#f5b938";
+  ctx.strokeStyle = "rgba(24, 17, 14, 0.88)";
+  ctx.lineWidth = 2 * scale;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#18110e";
+  ctx.font = `900 ${Math.max(10, 11 * scale)}px "Avenir Next", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(index + 1), x, y + 0.5 * scale);
+  ctx.restore();
+}
+
+function drawCanvasLiveEditVariantCard(
+  ctx,
+  variant,
+  bounds,
+  canvasWidth,
+  canvasHeight,
+  scale = 1,
+) {
+  const normalized = normalizeLiveEditVariant(variant);
+  if (!normalized) {
+    return;
+  }
+  const cardWidth = Math.min(280, Math.max(178, bounds.width * 0.72)) * scale;
+  const cardHeight = Math.min(154, Math.max(112, bounds.height * 0.64)) * scale;
+  const preferredX = (bounds.left + Math.min(24, bounds.width * 0.12)) * scale;
+  const preferredY = (bounds.top + Math.min(24, bounds.height * 0.14)) * scale;
+  const x = clamp(preferredX, 8, Math.max(8, canvasWidth * scale - cardWidth - 8));
+  const y = clamp(preferredY, 8, Math.max(8, canvasHeight * scale - cardHeight - 8));
+  const style = normalized.style || {};
+
+  ctx.save();
+  ctx.fillStyle = style.background || "#fff7e6";
+  ctx.strokeStyle = style.accent || "#0c8d7b";
+  ctx.lineWidth = 2 * scale;
+  roundRect(ctx, x, y, cardWidth, cardHeight, 16 * scale);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = style.accent || "#0c8d7b";
+  ctx.font = `900 ${Math.max(9, 10 * scale)}px "Avenir Next", sans-serif`;
+  ctx.fillText(normalized.role.toUpperCase(), x + 16 * scale, y + 24 * scale);
+
+  ctx.fillStyle = style.foreground || "#18110e";
+  ctx.font = `900 ${Math.max(15, 18 * scale)}px "Avenir Next", sans-serif`;
+  drawCanvasWrappedText(
+    ctx,
+    normalized.title,
+    x + 16 * scale,
+    y + 48 * scale,
+    cardWidth - 32 * scale,
+    22 * scale,
+    2,
+  );
+
+  ctx.fillStyle = "rgba(24, 17, 14, 0.72)";
+  ctx.font = `600 ${Math.max(11, 12 * scale)}px "Avenir Next", sans-serif`;
+  drawCanvasWrappedText(
+    ctx,
+    normalized.body,
+    x + 16 * scale,
+    y + 94 * scale,
+    cardWidth - 32 * scale,
+    17 * scale,
+    2,
+  );
+  ctx.restore();
+}
+
+function drawCanvasWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = compactDisplayText(text, 140).split(/\s+/).filter(Boolean);
+  let line = "";
+  const lines = [];
+  let truncated = false;
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (ctx.measureText(next).width <= maxWidth || !line) {
+      line = next;
+      continue;
+    }
+    lines.push(line);
+    line = word;
+    if (lines.length >= maxLines) {
+      truncated = true;
+      break;
+    }
+  }
+  if (line && lines.length < maxLines) {
+    lines.push(line);
+  } else if (line) {
+    truncated = true;
+  }
+  lines.slice(0, maxLines).forEach((entry, index) => {
+    const suffix = truncated && index === maxLines - 1 ? "..." : "";
+    ctx.fillText(`${entry}${suffix}`, x, y + index * lineHeight);
+  });
 }
 
 function drawGrid(ctx, viewportId, width, height) {
@@ -22176,6 +22568,10 @@ function buildFrameComposition(frame) {
     labels: elements.filter((element) => element.type === "label"),
     liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
     liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
+    liveEditCanvasMarks: liveEditTargetCanvasMarks(
+      frame,
+      frame.liveEditTarget,
+    ),
     liveEditVariants: currentLiveEditVariants(frame),
     liveEditVariantIndex: currentLiveEditVariantIndex(frame),
     acceptedLiveEditVariant: normalizeLiveEditVariant(
@@ -22208,6 +22604,7 @@ function summarizeCompositionElement(element, frame, viewport, index) {
     strokeSize: element.size || 0,
     assetCandidateId: element.assetCandidateId || "",
     prototype: normalizeElementPrototype(element.prototype),
+    liveEdit: normalizeElementLiveEditBinding(element.liveEdit),
     hasEmbeddedImage:
       element.type === "image" && Boolean(element.imageDataUrl || element.src),
     imageSource:
@@ -23624,6 +24021,7 @@ function buildMaterializeElement(element, frame = currentFrame()) {
       typeof element.composite === "string" ? element.composite : "source-over",
     groupId: typeof element.groupId === "string" ? element.groupId : "",
     bounds: normalizeMaterializeBounds(getElementBounds(element, frame)),
+    liveEdit: normalizeElementLiveEditBinding(element.liveEdit),
   };
 
   if (element.type === "path") {
@@ -25737,6 +26135,121 @@ async function runSelfTest() {
           liveEditVariantsHotSwap &&
           liveEditDiscarded,
         "same-canvas reply underlay renders live edit target, in-surface variants, cycling, and clean discard",
+      ),
+    );
+    const previousCanvasObjectLiveEditState = {
+      canvasReply: structuredClone(frameForCanvasReply.canvasReply || null),
+      elements: structuredClone(frameForCanvasReply.elements || []),
+      backgroundImage: frameForCanvasReply.backgroundImage || "",
+      liveEditTarget: structuredClone(frameForCanvasReply.liveEditTarget || null),
+      liveEditPins: structuredClone(frameForCanvasReply.liveEditPins || []),
+      liveEditVariants: structuredClone(frameForCanvasReply.liveEditVariants || []),
+      liveEditVariantIndex: frameForCanvasReply.liveEditVariantIndex || 0,
+      acceptedLiveEditVariant: structuredClone(
+        frameForCanvasReply.acceptedLiveEditVariant || null,
+      ),
+      selectedElementIds: [...state.selectedElementIds],
+      selectedElementId: state.selectedElementId,
+      workspaceMode: state.workspaceMode,
+      viewMode: state.viewMode,
+      tool: state.tool,
+      previewManifest: structuredClone(state.serverStatus.previewManifest),
+    };
+    const canvasLiveEditRect = {
+      id: "selftest-live-canvas-object",
+      type: "rect",
+      start: { x: 140, y: 120 },
+      end: { x: 390, y: 280 },
+      color: palette[1],
+      size: 6,
+      alpha: 1,
+      composite: "source-over",
+      groupId: "",
+    };
+    const canvasLiveEditArrow = {
+      id: "selftest-live-canvas-arrow",
+      type: "arrow",
+      start: { x: 430, y: 210 },
+      end: { x: 520, y: 160 },
+      color: palette[0],
+      size: 7,
+      alpha: 1,
+      composite: "source-over",
+      groupId: "",
+    };
+    frameForCanvasReply.canvasReply = null;
+    frameForCanvasReply.backgroundImage = "";
+    frameForCanvasReply.elements = [canvasLiveEditRect, canvasLiveEditArrow];
+    frameForCanvasReply.liveEditTarget = null;
+    frameForCanvasReply.liveEditPins = [];
+    frameForCanvasReply.liveEditVariants = [];
+    frameForCanvasReply.liveEditVariantIndex = 0;
+    frameForCanvasReply.acceptedLiveEditVariant = null;
+    state.serverStatus.previewManifest = null;
+    state.workspaceMode = "simple";
+    state.viewMode = "frame";
+    state.tool = "select";
+    setSelectedElements([canvasLiveEditRect.id], canvasLiveEditRect.id);
+    setLiveEditPickMode(true);
+    dom.workbenchLiveEditNote.value = "Make this canvas card read like a book-page hero callout";
+    addLiveEditCommentPin();
+    const canvasObjectVariants = createLiveEditVariants();
+    cycleLiveEditVariant(2);
+    renderCanvas();
+    const canvasLiveEditBounds = getElementBounds(canvasLiveEditRect, frameForCanvasReply);
+    const canvasObjectOverlayRendered = canvasRegionHasGoldPixel(
+      dom.canvas,
+      canvasLiveEditBounds,
+    );
+    await acceptLiveEditTarget();
+    const canvasObjectComposition = buildFrameComposition(frameForCanvasReply);
+    const canvasObjectElement = frameForCanvasReply.elements.find(
+      (element) => element.id === canvasLiveEditRect.id,
+    );
+    const canvasObjectCompositionElement =
+      canvasObjectComposition.elements.find(
+        (element) => element.id === canvasLiveEditRect.id,
+      );
+    const canvasObjectLiveEditExported =
+      canvasObjectVariants.length === 3 &&
+      frameForCanvasReply.liveEditVariantIndex === 2 &&
+      canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
+      canvasObjectCompositionElement?.liveEdit?.acceptedVariant?.label ===
+        "Clarity" &&
+      canvasObjectComposition.liveEditCanvasMarks.some(
+        (mark) => mark.semantics?.intent === "move-or-flow",
+      ) &&
+      frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
+        "Clarity";
+    frameForCanvasReply.canvasReply =
+      previousCanvasObjectLiveEditState.canvasReply;
+    frameForCanvasReply.elements = previousCanvasObjectLiveEditState.elements;
+    frameForCanvasReply.backgroundImage =
+      previousCanvasObjectLiveEditState.backgroundImage;
+    frameForCanvasReply.liveEditTarget =
+      previousCanvasObjectLiveEditState.liveEditTarget;
+    frameForCanvasReply.liveEditPins =
+      previousCanvasObjectLiveEditState.liveEditPins;
+    frameForCanvasReply.liveEditVariants =
+      previousCanvasObjectLiveEditState.liveEditVariants;
+    frameForCanvasReply.liveEditVariantIndex =
+      previousCanvasObjectLiveEditState.liveEditVariantIndex;
+    frameForCanvasReply.acceptedLiveEditVariant =
+      previousCanvasObjectLiveEditState.acceptedLiveEditVariant;
+    state.selectedElementIds =
+      previousCanvasObjectLiveEditState.selectedElementIds;
+    state.selectedElementId = previousCanvasObjectLiveEditState.selectedElementId;
+    state.workspaceMode = previousCanvasObjectLiveEditState.workspaceMode;
+    state.viewMode = previousCanvasObjectLiveEditState.viewMode;
+    state.tool = previousCanvasObjectLiveEditState.tool;
+    state.serverStatus.previewManifest =
+      previousCanvasObjectLiveEditState.previewManifest;
+    renderAll();
+    results.push(
+      assert(
+        canvasObjectOverlayRendered &&
+          canvasObjectLiveEditExported,
+        "canvas object live edit renders on the sketch canvas and accepts back onto the source element",
       ),
     );
     const previousCanvasReplyRefreshState = {
@@ -30922,6 +31435,35 @@ function findElementByType(type) {
 
 function assert(condition, name, detail = "") {
   return { name, passed: Boolean(condition), detail };
+}
+
+function canvasRegionHasGoldPixel(canvas, bounds) {
+  if (!canvas || !bounds) {
+    return false;
+  }
+  const ctx = canvas.getContext("2d");
+  const left = Math.max(0, Math.floor(bounds.left - 12));
+  const top = Math.max(0, Math.floor(bounds.top - 24));
+  const right = Math.min(canvas.width, Math.ceil(bounds.right + 12));
+  const bottom = Math.min(canvas.height, Math.ceil(bounds.bottom + 12));
+  const width = Math.max(1, right - left);
+  const height = Math.max(1, bottom - top);
+  let pixels = null;
+  try {
+    pixels = ctx.getImageData(left, top, width, height).data;
+  } catch {
+    return false;
+  }
+  for (let index = 0; index < pixels.length; index += 4) {
+    const red = pixels[index];
+    const green = pixels[index + 1];
+    const blue = pixels[index + 2];
+    const alpha = pixels[index + 3];
+    if (red > 210 && green > 140 && green < 220 && blue < 120 && alpha > 120) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function renderSelfTestResults(results) {
