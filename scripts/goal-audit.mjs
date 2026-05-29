@@ -546,6 +546,8 @@ const checks = [
         path: "web/app.js",
         includes: [
           "maybeExecuteLiveRewriteFromFreeze",
+          "executeAcceptedLiveEditWriteback",
+          "executeLatestPatchTask",
           "liveRewriteQueued",
           "buildVoiceExport",
           "buildVoiceIntentQueue",
@@ -600,6 +602,8 @@ const checks = [
           "canvax-preview-tweak-request",
           "preview-tweak",
           "normalizePreviewTweakRegion",
+          "handleExecutePatchTask",
+          "/api/execute-patch-task",
         ],
       },
       {
@@ -617,7 +621,8 @@ const checks = [
         includes: [
           "preview tweak request stays no-API and targets the frame",
           "rewrite context includes Preview region tweak request",
-          "rewrite emits Codex patch task for Preview tweak targets",
+          "rewrite context carries accepted Live Edit source intent",
+          "rewrite emits Codex patch task for accepted Live Edit targets",
           "patch task executor applies local generated implementation edits",
           "applied patch preserves selector binding and records patch metadata",
           "rewritePatchTask",
@@ -635,7 +640,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local voice intent cards and Preview region-tweak requests now feed the handoff/rewrite path, emit Codex patch tasks, and can apply deterministic edits to Canvax-generated implementation bundles or explicit project-linked files, but arbitrary unlinked production app patches still require Codex judgment.",
+      "Continuous first-party Codex file rewrites while the user keeps sketching remain blocked on host integration; local voice intent cards, Preview region-tweak requests, and accepted Live Edit variants now feed the handoff/rewrite path, emit Codex patch tasks, and can apply deterministic edits to Canvax-generated implementation bundles or explicit project-linked files, but arbitrary unlinked production app patches still require Codex judgment.",
   },
   {
     id: "image-asset-handoff",
@@ -728,7 +733,7 @@ const checks = [
         includes: [
           "synthetic rough frame includes sketch",
           "image prompt and asset packs stay no-API",
-          "rewrite emits Codex patch task for Preview tweak targets",
+          "rewrite emits Codex patch task for accepted Live Edit targets",
           "patch task executor applies local generated implementation edits",
           "rewrite preview can bind to Codex output manifest",
         ],

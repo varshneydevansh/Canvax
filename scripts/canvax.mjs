@@ -908,6 +908,13 @@ async function runServer(port) {
 
       if (
         request.method === "POST" &&
+        url.pathname === "/api/execute-patch-task"
+      ) {
+        return handleExecutePatchTask(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
         url.pathname === "/api/run-design-review"
       ) {
         return handleRunDesignReview(request, response);
@@ -1864,6 +1871,71 @@ async function handleExecuteRewriteRequest(request, response) {
         error instanceof Error
           ? error.message
           : "Rewrite request execution failed.",
+    });
+  }
+}
+
+async function handleExecutePatchTask(request, response) {
+  const payload = await readJson(request);
+  const taskPath = cleanString(payload?.taskPath);
+  const noPublish = Boolean(payload?.noPublish);
+  if (!taskPath) {
+    return writeJson(response, 400, {
+      executed: false,
+      error: "Patch task path is required.",
+    });
+  }
+
+  const resolvedTaskPath = taskPath.startsWith("/")
+    ? resolve(taskPath)
+    : resolve(projectRoot, taskPath);
+  if (!isAllowedWorkspacePath(resolvedTaskPath)) {
+    return writeJson(response, 400, {
+      executed: false,
+      error: "Patch task must be inside the Canvax workspace.",
+    });
+  }
+
+  const args = [
+    "scripts/execute-patch-task.mjs",
+    "--task",
+    toWorkspaceRelativePath(resolvedTaskPath),
+    "--json",
+  ];
+  if (noPublish) {
+    args.push("--no-publish");
+  }
+
+  try {
+    const { stdout } = await runCommand(process.execPath, args, {
+      cwd: projectRoot,
+    });
+    const result = JSON.parse(stdout);
+    await appendFile(
+      sessionEventsPath,
+      `${JSON.stringify({
+        type: "patch-task-executed",
+        at: new Date().toISOString(),
+        frameId: cleanString(result.frameId),
+        taskPath: cleanString(result.taskPath),
+        resultPath: cleanString(result.resultPath),
+        manifestPath: cleanString(result.manifestPath),
+        changedFileCount: Number(result.changedFileCount) || 0,
+        published: Boolean(result.published),
+      })}\n`,
+    );
+
+    return writeJson(response, 200, {
+      executed: true,
+      ...result,
+    });
+  } catch (error) {
+    return writeJson(response, 500, {
+      executed: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Patch task execution failed.",
     });
   }
 }

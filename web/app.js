@@ -2562,6 +2562,8 @@ function hydrateState() {
         outputDigest: null,
         outputActivity: [],
         sessionEvents: [],
+        patchExecution: null,
+        liveEditWriteback: null,
       },
       captureTimer: null,
       previewStateTimer: null,
@@ -3085,6 +3087,8 @@ function createInitialState() {
       outputDigest: null,
       outputActivity: [],
       sessionEvents: [],
+      patchExecution: null,
+      liveEditWriteback: null,
     },
     designKitSearch: "",
     captureTimer: null,
@@ -10371,12 +10375,133 @@ async function acceptLiveEditTarget() {
       : "Live edit target accepted for the next Codex rewrite",
   });
   await saveLiveEditTargetToPreviewManifest(frame, frame.liveEditTarget);
+  const exportResult = await saveExportToWorkspace({ silent: true });
   await saveCheckpointToWorkspace("live-edit-target", {
     silent: true,
+    exportResult,
     note: acceptedVariant
       ? `Accepted ${acceptedVariant.label} live edit variant for ${frame.title}.`
       : `Accepted live edit target for ${frame.title}.`,
   });
+  await executeAcceptedLiveEditWriteback(frame, exportResult);
+}
+
+async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (!frame || !liveTarget) {
+    return null;
+  }
+  const hasExternalTarget = Boolean(liveTarget.targetPath || liveTarget.targetHref);
+  if (!hasExternalTarget) {
+    state.serverStatus = {
+      ...state.serverStatus,
+      liveEditWriteback: {
+        executed: false,
+        skipped: true,
+        reason: "canvas-object-local-binding",
+        targetId: liveTarget.targetId,
+        targetLabel: liveTarget.targetLabel,
+      },
+    };
+    renderStatus("Live edit accepted on the canvas object");
+    return state.serverStatus.liveEditWriteback;
+  }
+
+  const acceptedVariant = normalizeLiveEditVariant(frame.acceptedLiveEditVariant);
+  const label = acceptedVariant?.label || liveTarget.acceptedVariantLabel || "target";
+  state.serverStatus = {
+    ...state.serverStatus,
+    liveEditWriteback: {
+      executed: false,
+      inFlight: true,
+      targetId: liveTarget.targetId,
+      targetLabel: liveTarget.targetLabel,
+      variantLabel: label,
+    },
+  };
+  dom.workspaceStatus.textContent =
+    "Applying accepted Live Edit through the local rewrite pipeline...";
+  renderStatus("Applying accepted Live Edit...");
+
+  let rewriteResult = null;
+  let patchResult = null;
+  try {
+    rewriteResult = await executeLatestRewriteRequest({
+      exportResult,
+      frameId: frame.id,
+    });
+    state.serverStatus = {
+      ...state.serverStatus,
+      rewriteExecution: {
+        ...rewriteResult,
+        trigger: "live-edit-accept",
+      },
+    };
+
+    if (rewriteResult?.patchTaskPath) {
+      try {
+        patchResult = await executeLatestPatchTask({
+          taskPath: rewriteResult.patchTaskPath,
+        });
+      } catch (error) {
+        patchResult = {
+          executed: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Patch task execution failed.",
+        };
+      }
+    }
+
+    state.serverStatus = {
+      ...state.serverStatus,
+      patchExecution: patchResult,
+      liveEditWriteback: {
+        executed: true,
+        targetId: liveTarget.targetId,
+        targetLabel: liveTarget.targetLabel,
+        variantLabel: label,
+        previewPath: rewriteResult?.previewPath || "",
+        patchTaskPath: rewriteResult?.patchTaskPath || "",
+        changedFileCount: Number(patchResult?.changedFileCount) || 0,
+        patchApplied: Boolean(patchResult?.executed),
+        patchError: patchResult?.error || "",
+      },
+    };
+    await refreshPreviewStateFromServer();
+    renderServerStatus();
+    renderWorkbenchAgentLog();
+    renderWorkbenchOutput();
+    scheduleLivePreviewSync();
+    dom.workspaceStatus.textContent = patchResult?.executed
+      ? `Accepted Live Edit applied and patched ${patchResult.changedFileCount || 0} file${patchResult.changedFileCount === 1 ? "" : "s"}.`
+      : `Accepted Live Edit wrote a rewrite task at ${rewriteResult?.patchTaskPath || "the latest patch task"}.`;
+    renderStatus(
+      patchResult?.executed
+        ? "Accepted Live Edit patched the bound target"
+        : "Accepted Live Edit wrote a patch task",
+    );
+    return state.serverStatus.liveEditWriteback;
+  } catch (error) {
+    state.serverStatus = {
+      ...state.serverStatus,
+      liveEditWriteback: {
+        executed: false,
+        targetId: liveTarget.targetId,
+        targetLabel: liveTarget.targetLabel,
+        variantLabel: label,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Accepted Live Edit write-back failed.",
+      },
+    };
+    dom.workspaceStatus.textContent =
+      "Accepted Live Edit saved, but the local rewrite pipeline did not finish.";
+    renderStatus("Accepted Live Edit saved for Codex");
+    return state.serverStatus.liveEditWriteback;
+  }
 }
 
 function applyAcceptedLiveEditVariantToSourceTarget(
@@ -11744,6 +11869,27 @@ async function executeLatestRewriteRequest(options = {}) {
   const data = await response.json();
   if (!response.ok || !data?.executed) {
     throw new Error(data?.error || "Rewrite request execution failed.");
+  }
+  await refreshPreviewStateFromServer();
+  return data;
+}
+
+async function executeLatestPatchTask(options = {}) {
+  const taskPath = cleanString(options.taskPath);
+  if (!taskPath) {
+    return null;
+  }
+  const response = await fetch("/api/execute-patch-task", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      taskPath,
+      noPublish: Boolean(options.noPublish),
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data?.executed) {
+    throw new Error(data?.error || "Patch task execution failed.");
   }
   await refreshPreviewStateFromServer();
   return data;
@@ -20548,6 +20694,8 @@ async function refreshPreviewStateFromServer() {
       outputDigest: state.serverStatus.outputDigest || null,
       outputActivity: state.serverStatus.outputActivity || [],
       sessionEvents: state.serverStatus.sessionEvents || [],
+      patchExecution: state.serverStatus.patchExecution || null,
+      liveEditWriteback: state.serverStatus.liveEditWriteback || null,
     };
   } finally {
     window.clearTimeout(state.previewStateTimer);
