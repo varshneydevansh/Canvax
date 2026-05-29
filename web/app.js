@@ -10189,6 +10189,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   const selectedVariant = variants[variantIndex] || null;
   const placingLivePin = liveEditPinPlacementMatchesTarget(liveTarget);
   const drawOnMap = liveEditTargetIsSpatialMapObject(liveTarget);
+  const drawOnCanvas = liveEditTargetUsesCanvasSurface(liveTarget, frame);
   const drawOnOutput = liveEditTargetDrawsOnOutput(
     liveTarget,
     target,
@@ -10199,8 +10200,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     liveTarget &&
       drawingToolActive &&
       ((drawOnMap && state.liveEditMapDrawActive) ||
+        (drawOnCanvas && state.workbenchFocus === "sketch") ||
         (drawOnOutput && state.workbenchFocus === "output") ||
-        (!drawOnOutput && state.workbenchFocus === "sketch")),
+        (!drawOnMap && !drawOnCanvas && !drawOnOutput && state.workbenchFocus === "sketch")),
   );
   const showBar = Boolean(
     state.liveEditPickActive ||
@@ -10260,7 +10262,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     (target ? designerOutputTargetLabelFromItem(target, frame.title) : "") ||
     "Generated output";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
-    ? "Pick a target in the output"
+    ? workbenchTargetIsCanvasReply(target)
+      ? "Pick a target on the canvas"
+      : "Pick a target in the output"
     : selectedVariant
       ? `${selectedVariant.label}: ${label}`
       : `${liveTarget?.status === "accepted" ? "Accepted" : "Picked"}: ${label}`;
@@ -10413,6 +10417,10 @@ function currentWorkbenchTarget() {
   }
   const manifest = state.serverStatus.previewManifest || null;
   return resolveManifestTargetEntry(manifest, state.activeFrameId);
+}
+
+function workbenchTargetIsCanvasReply(target) {
+  return Boolean(target?.canvasReply || target?.source === "canvax-canvas-reply");
 }
 
 function currentLiveEditVariants(frame = currentFrame()) {
@@ -10664,6 +10672,27 @@ function liveEditTargetIsSpatialMapObject(liveTarget) {
       (target.targetSource === "canvax-map" ||
         target.targetType === "spatial-map-object" ||
         target.surface === "spatial map object"),
+  );
+}
+
+function liveEditTargetIsSameCanvasReply(liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  return Boolean(
+    target &&
+      (target.surface === "same-canvas-reply" ||
+        target.targetSource === "canvax-canvas-reply" ||
+        target.targetType === "same-canvas-reply"),
+  );
+}
+
+function liveEditTargetUsesCanvasSurface(liveTarget, frame = currentFrame()) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  return Boolean(
+    target &&
+      (liveEditTargetIsSameCanvasReply(target) ||
+        liveEditTargetCanvasElement(frame, target) ||
+        (target.targetSource === "canvax-canvas" &&
+          ["canvas-object", "image-region"].includes(target.targetType))),
   );
 }
 
@@ -11308,13 +11337,61 @@ function setLiveEditPickMode(active) {
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   if (state.liveEditPickActive) {
-    state.workbenchFocus = "output";
-    renderStatus("Pick a region inside the generated output");
+    state.workbenchFocus = workbenchTargetIsCanvasReply(target)
+      ? "sketch"
+      : "output";
+    state.viewMode = "frame";
+    renderStatus(
+      workbenchTargetIsCanvasReply(target)
+        ? "Pick a region directly on the same-canvas reply"
+        : "Pick a region inside the generated output",
+    );
   } else {
     renderStatus("Live edit picker closed");
   }
   persistState();
   renderAll();
+}
+
+function pickLiveEditTargetFromCanvasEvent(event) {
+  if (
+    state.workspaceMode !== "simple" ||
+    !state.liveEditPickActive ||
+    state.viewMode !== "frame" ||
+    event.button > 0
+  ) {
+    return false;
+  }
+  const frame = currentFrame();
+  const target = currentWorkbenchTarget();
+  if (!workbenchTargetIsCanvasReply(target)) {
+    return false;
+  }
+  const point = canvasLiveEditPointFromEvent(event, frame);
+  const liveTarget = createLiveEditTargetFromPoint(target, frame, point);
+  if (!liveTarget) {
+    renderStatus("Could not bind that same-canvas reply region");
+    return false;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  frame.liveEditTarget = liveTarget;
+  frame.liveEditPins = [];
+  frame.liveEditVariants = [];
+  frame.liveEditVariantIndex = 0;
+  frame.acceptedLiveEditVariant = null;
+  frame.liveEditRequest = null;
+  state.liveEditPickActive = false;
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
+  state.liveEditMapDrawActive = false;
+  state.liveEditMapStrokeDraft = null;
+  state.workbenchFocus = "sketch";
+  touchFrame(frame, {
+    capture: false,
+    status: `Picked live edit target on ${liveTarget.targetLabel}`,
+  });
+  return true;
 }
 
 function pickLiveEditTargetFromEvent(event) {
@@ -11418,6 +11495,11 @@ function beginLiveEditCommentPinPlacement() {
   if (liveEditTargetIsSpatialMapObject(liveTarget)) {
     renderFlowBoard();
     renderStatus("Click inside the outlined Map object to place the comment pin");
+  } else if (liveEditTargetUsesCanvasSurface(liveTarget, frame)) {
+    renderCanvas();
+    renderStatus(
+      "Click inside the outlined canvas target to place the comment pin",
+    );
   } else {
     renderWorkbenchOutput();
     renderStatus("Click inside the selected Live Edit target to place the comment pin");
@@ -11514,12 +11596,60 @@ function addLiveEditCommentPin(point = null, options = {}) {
   return pin;
 }
 
+function canvasLiveEditPointFromEvent(event, frame = currentFrame()) {
+  const viewport = viewportPresets[frame?.viewport] || viewportPresets.desktop;
+  const point = pointFromEvent(event);
+  if (!point || !viewport.width || !viewport.height) {
+    return null;
+  }
+  return {
+    x: roundNumber(clamp(point.x / viewport.width, 0, 1)),
+    y: roundNumber(clamp(point.y / viewport.height, 0, 1)),
+  };
+}
+
+function placeLiveEditCommentPinFromCanvasEvent(event) {
+  if (
+    state.workspaceMode !== "simple" ||
+    !state.liveEditPinPlacement ||
+    state.viewMode !== "frame" ||
+    event.button > 0
+  ) {
+    return false;
+  }
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (
+    !liveEditTargetUsesCanvasSurface(liveTarget, frame) ||
+    !liveEditPinPlacementMatchesTarget(liveTarget)
+  ) {
+    return false;
+  }
+  const point = canvasLiveEditPointFromEvent(event, frame);
+  event.preventDefault();
+  event.stopPropagation();
+  if (!point || !pointInsideLiveEditTarget(point, liveTarget)) {
+    renderStatus("Click inside the outlined canvas target to place the pin");
+    return true;
+  }
+  addLiveEditCommentPin(point, {
+    placement: liveEditTargetIsSameCanvasReply(liveTarget)
+      ? "direct-same-canvas-click"
+      : "direct-canvas-target-click",
+    text: state.liveEditPinPlacement.text,
+  });
+  return true;
+}
+
 function liveEditTargetDrawsOnOutput(liveTarget, target, targetUrl = "") {
   const normalized = normalizeLiveEditTarget(liveTarget);
   if (!normalized || !target || !targetUrl) {
     return false;
   }
-  if (liveEditTargetIsSpatialMapObject(normalized)) {
+  if (
+    liveEditTargetIsSpatialMapObject(normalized) ||
+    liveEditTargetIsSameCanvasReply(normalized)
+  ) {
     return false;
   }
   const targetPath = cleanString(target.previewPath || target.path);
@@ -11528,7 +11658,7 @@ function liveEditTargetDrawsOnOutput(liveTarget, target, targetUrl = "") {
       (normalized.targetPath && normalized.targetPath === targetPath) ||
       (normalized.targetObjectId && normalized.targetObjectId === target.id) ||
       (normalized.targetId && normalized.targetId === target.id) ||
-      ["generated-output", "same-canvas-reply"].includes(normalized.surface) ||
+      normalized.surface === "generated-output" ||
       normalized.targetType === "preview-dom-element",
   );
 }
@@ -11548,13 +11678,18 @@ function activateLiveEditDrawMode() {
     targetUrl,
   );
   const drawOnMap = liveEditTargetIsSpatialMapObject(liveTarget);
+  const drawOnCanvas = liveEditTargetUsesCanvasSurface(liveTarget, frame);
   state.liveEditPickActive = false;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.workspaceMode = "simple";
   state.liveEditMapDrawActive = drawOnMap;
   state.liveEditMapStrokeDraft = null;
-  state.workbenchFocus = drawOnMap ? "map" : drawOnOutput ? "output" : "sketch";
+  state.workbenchFocus = drawOnMap
+    ? "map"
+    : drawOnOutput && !drawOnCanvas
+      ? "output"
+      : "sketch";
   state.viewMode = drawOnMap ? "flow" : "frame";
   if (!workbenchOutputToolCanDraw()) {
     state.tool = "pen";
@@ -11564,6 +11699,8 @@ function activateLiveEditDrawMode() {
   renderStatus(
     drawOnMap
       ? "Draw correction strokes directly on the picked Map object"
+      : drawOnCanvas
+      ? "Draw correction strokes directly over the picked canvas target"
       : drawOnOutput
       ? "Draw correction strokes directly on the picked output target"
       : "Draw correction strokes around the picked canvas target",
@@ -19376,6 +19513,14 @@ function onPointerDown(event) {
   updateBrushPreviewPosition(event);
   const frame = currentFrame();
   const point = pointFromEvent(event);
+
+  if (pickLiveEditTargetFromCanvasEvent(event)) {
+    return;
+  }
+
+  if (placeLiveEditCommentPinFromCanvasEvent(event)) {
+    return;
+  }
 
   if (state.tool === "select") {
     const selectedElements = currentSelectedElements(frame);
@@ -29148,35 +29293,80 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditRequest || null,
     );
     const previousWorkspaceModeForLiveEdit = state.workspaceMode;
+    const previousWorkbenchFocusForLiveEdit = state.workbenchFocus;
+    const previousToolForLiveEdit = state.tool;
+    const previousFrameElementsForLiveEdit = structuredClone(
+      frameForCanvasReply.elements || [],
+    );
+    const previousSelectedElementIdsForLiveEdit = [...state.selectedElementIds];
+    const previousSelectedElementIdForLiveEdit = state.selectedElementId;
     state.workspaceMode = "simple";
-    frameForCanvasReply.liveEditTarget = createLiveEditTargetFromPoint(
-      canvasReplyTargetForFrame(frameForCanvasReply),
+    state.workbenchFocus = "sketch";
+    state.tool = "select";
+    frameForCanvasReply.liveEditTarget = null;
+    setLiveEditPickMode(true);
+    const canvasReplyPickPoint = { x: 0.42, y: 0.36 };
+    const canvasReplyViewport =
+      viewportPresets[frameForCanvasReply.viewport] || viewportPresets.desktop;
+    const canvasReplyPickRect = dom.canvas.getBoundingClientRect();
+    dom.canvas.dispatchEvent(
+      makePointerEvent(
+        "pointerdown",
+        canvasReplyPickRect,
+        [
+          canvasReplyPickPoint.x * canvasReplyViewport.width,
+          canvasReplyPickPoint.y * canvasReplyViewport.height,
+        ],
+        230,
+      ),
+    );
+    const sameCanvasLiveEditPicked =
+      frameForCanvasReply.liveEditTarget?.surface === "same-canvas-reply" &&
+      state.workbenchFocus === "sketch" &&
+      state.liveEditPickActive === false;
+    const sameCanvasLiveEditDrawModeArmed =
+      activateLiveEditDrawMode() &&
+      state.workbenchFocus === "sketch" &&
+      state.viewMode === "frame" &&
+      state.tool === "pen" &&
+      dom.workbenchLiveEditDraw?.classList.contains("active");
+    const sameCanvasTargetBounds = denormalizeLiveEditBounds(
+      frameForCanvasReply.liveEditTarget?.bounds,
       frameForCanvasReply,
-      { x: 0.42, y: 0.36 },
+    );
+    if (sameCanvasLiveEditDrawModeArmed && sameCanvasTargetBounds) {
+      dispatchPointerSequence(
+        [
+          sameCanvasTargetBounds.left + sameCanvasTargetBounds.width * 0.24,
+          sameCanvasTargetBounds.top + sameCanvasTargetBounds.height * 0.62,
+        ],
+        [
+          sameCanvasTargetBounds.left + sameCanvasTargetBounds.width * 0.72,
+          sameCanvasTargetBounds.top + sameCanvasTargetBounds.height * 0.6,
+        ],
+      );
+    }
+    const sameCanvasLiveEditMarks = liveEditTargetCanvasMarks(
+      frameForCanvasReply,
+      frameForCanvasReply.liveEditTarget,
     );
     dom.workbenchLiveEditNote.value = "Pin this generated CTA";
     updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
     const liveEditPinPlacementArmed = beginLiveEditCommentPinPlacement();
-    const livePinPlacementCanvas =
-      dom.workbenchOutputSurface.querySelector(".workbench-output-overlay");
-    const livePinPlacementRect = livePinPlacementCanvas?.getBoundingClientRect();
+    const livePinPlacementCanvas = dom.canvas;
+    const livePinPlacementRect = livePinPlacementCanvas.getBoundingClientRect();
     const livePinPlacementPoint = { x: 0.46, y: 0.4 };
     if (livePinPlacementCanvas && livePinPlacementRect) {
-      dom.workbenchOutputSurface.dispatchEvent(
-        new PointerEvent("pointerdown", {
-          bubbles: true,
-          cancelable: true,
-          pointerId: 231,
-          pointerType: "mouse",
-          button: 0,
-          buttons: 1,
-          clientX:
-            livePinPlacementRect.left +
-            livePinPlacementPoint.x * livePinPlacementRect.width,
-          clientY:
-            livePinPlacementRect.top +
-            livePinPlacementPoint.y * livePinPlacementRect.height,
-        }),
+      livePinPlacementCanvas.dispatchEvent(
+        makePointerEvent(
+          "pointerdown",
+          livePinPlacementRect,
+          [
+            livePinPlacementPoint.x * canvasReplyViewport.width,
+            livePinPlacementPoint.y * canvasReplyViewport.height,
+          ],
+          231,
+        ),
       );
     }
     const placedLiveEditPin =
@@ -29201,8 +29391,11 @@ async function runSelfTest() {
         dom.workbenchOutputSurface.querySelector(".workbench-live-edit-pin"),
       ) &&
       dom.workbenchLiveEditBar.hidden === false &&
+      sameCanvasLiveEditPicked &&
+      sameCanvasLiveEditDrawModeArmed &&
+      sameCanvasLiveEditMarks.length > 0 &&
       liveEditPinPlacementArmed &&
-      placedLiveEditPin?.placement === "direct-target-click" &&
+      placedLiveEditPin?.placement === "direct-same-canvas-click" &&
       movedLiveEditPin?.point?.x === 0.52 &&
       Boolean(movedLiveEditPin?.draggedAt) &&
       movedLiveEditPin?.text.includes("generated CTA") &&
@@ -29246,6 +29439,9 @@ async function runSelfTest() {
       createdLiveEditRequest.activeDesignKit?.statusLabel &&
       createdLiveEditRequest.transcriptText.includes("generated CTA") &&
       createdLiveEditRequest.pins.length === 1 &&
+      createdLiveEditRequest.strokes.some(
+        (stroke) => stroke.source === "canvas-mark",
+      ) &&
       createdLiveEditRequest.variantCount === 3 &&
       createdLiveEditRequest.surfaceOperations.length >= 4 &&
       createdLiveEditRequest.currentOutputBinding?.objectId ===
@@ -29348,7 +29544,14 @@ async function runSelfTest() {
     frameForCanvasReply.acceptedLiveEditVariant =
       previousAcceptedLiveEditVariant;
     frameForCanvasReply.liveEditRequest = previousLiveEditRequest;
+    frameForCanvasReply.elements = previousFrameElementsForLiveEdit;
     state.workspaceMode = previousWorkspaceModeForLiveEdit;
+    state.workbenchFocus = previousWorkbenchFocusForLiveEdit;
+    state.tool = previousToolForLiveEdit;
+    setSelectedElements(
+      previousSelectedElementIdsForLiveEdit,
+      previousSelectedElementIdForLiveEdit,
+    );
     frameForCanvasReply.canvasReply = previousCanvasReply;
     state.viewMode = previousViewModeForReply;
     renderCanvas();
@@ -29369,6 +29572,9 @@ async function runSelfTest() {
             canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html"),
           ),
           liveEditOutputRendered,
+          sameCanvasLiveEditPicked,
+          sameCanvasLiveEditDrawModeArmed,
+          sameCanvasLiveEditMarkCount: sameCanvasLiveEditMarks.length,
           liveEditPinPlacementArmed,
           placedPinPlacement: placedLiveEditPin?.placement || "",
           movedPinX: movedLiveEditPin?.point?.x ?? null,

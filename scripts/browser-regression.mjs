@@ -1039,15 +1039,18 @@ async function launchChromeSession(
         return waitForEvaluatedValue(cdp, expression, timeoutMs);
       },
       async captureScreenshot(filePath) {
-        const result = await cdp.send("Page.captureScreenshot", {
-          format: "png",
-          captureBeyondViewport: false,
-          fromSurface: true,
-        });
+        const result = await withTimeout(
+          cdp.send("Page.captureScreenshot", {
+            format: "png",
+            captureBeyondViewport: false,
+            fromSurface: true,
+          }),
+          10000,
+        );
         await writeFile(filePath, Buffer.from(result.result.data, "base64"));
       },
       async close() {
-        await cdp.close();
+        await withTimeout(cdp.close(), 1500).catch(() => {});
         await closeChromeProcess(child);
         await rm(profileDir, { recursive: true, force: true });
       },
@@ -1344,11 +1347,14 @@ async function waitForResponsiveSmokeState(cdp, expression, timeoutMs) {
   let lastState = null;
   while (Date.now() < deadline) {
     try {
-      const response = await cdp.send("Runtime.evaluate", {
-        expression,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const response = await withTimeout(
+        cdp.send("Runtime.evaluate", {
+          expression,
+          returnByValue: true,
+          awaitPromise: true,
+        }),
+        cdpCommandTimeoutMs(deadline),
+      );
       const value = response?.result?.result?.value ?? response?.result?.value;
       lastState = value || lastState;
       if (value?.readyState === "complete" && value?.passed) {
@@ -1373,11 +1379,14 @@ async function waitForEvaluatedValue(cdp, expression, timeoutMs) {
   let lastState = null;
   while (Date.now() < deadline) {
     try {
-      const response = await cdp.send("Runtime.evaluate", {
-        expression,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const response = await withTimeout(
+        cdp.send("Runtime.evaluate", {
+          expression,
+          returnByValue: true,
+          awaitPromise: true,
+        }),
+        cdpCommandTimeoutMs(deadline),
+      );
       const value = response?.result?.result?.value ?? response?.result?.value;
       lastState = value || lastState;
       const hasReadyState = Object.prototype.hasOwnProperty.call(
@@ -1407,8 +1416,9 @@ async function waitForSelfTestState(cdp, resultsId, timeoutMs) {
   let lastState = null;
   while (Date.now() < deadline) {
     try {
-      const response = await cdp.send("Runtime.evaluate", {
-        expression: `(() => {
+      const response = await withTimeout(
+        cdp.send("Runtime.evaluate", {
+          expression: `(() => {
           const node = document.querySelector(${JSON.stringify(selector)});
           return {
             ready: Boolean(node),
@@ -1419,9 +1429,11 @@ async function waitForSelfTestState(cdp, resultsId, timeoutMs) {
             text: node?.textContent || ""
           };
         })()`,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+          returnByValue: true,
+          awaitPromise: true,
+        }),
+        cdpCommandTimeoutMs(deadline),
+      );
       const value = response?.result?.result?.value ?? response?.result?.value;
       lastState = value || lastState;
       if (value?.ready) {
@@ -1457,6 +1469,28 @@ async function closeChromeProcess(child) {
   if (!exited) {
     child.kill("SIGKILL");
   }
+}
+
+function cdpCommandTimeoutMs(deadline) {
+  return Math.max(300, Math.min(5000, deadline - Date.now()));
+}
+
+function withTimeout(promise, timeoutMs) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const timeout = setTimeout(() => {
+      rejectPromise(new Error(`CDP command timed out after ${timeoutMs}ms.`));
+    }, timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolvePromise(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        rejectPromise(error);
+      },
+    );
+  });
 }
 
 function delay(ms) {
