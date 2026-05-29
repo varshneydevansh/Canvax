@@ -130,6 +130,7 @@ await validateDesignJuryReviewDryRun();
 await validateDesignKitLibraryPackageDryRun();
 await validateProjectLinkDryRun();
 await validateLiveEditSourceHintPatchDryRun();
+await validateLiveEditUnhintedSourceSearchDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
@@ -1201,6 +1202,174 @@ async function validateLiveEditSourceHintPatchDryRun() {
   } catch (error) {
     results.push({
       name: "Live Edit source-hinted patch task targets local source files",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLiveEditUnhintedSourceSearchDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "unhinted-source-fixture");
+  const requestPath = resolve(fixtureRoot, "canvax-rewrite-request.json");
+  const taskPackPath = resolve(fixtureRoot, "canvax-task-pack.json");
+  const previewTweakPath = resolve(fixtureRoot, "canvax-preview-tweak.json");
+  const frameId = "frame-unhinted-live-edit";
+  const now = new Date().toISOString();
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    id: "live-edit-unhinted-hero-cta",
+    sourceFrameId: frameId,
+    sourceFrameTitle: "Unhinted preview pick",
+    targetId: "hero-cta",
+    targetNodeId: "hero-cta",
+    targetLabel: "Hero CTA - Reserve suite",
+    targetType: "preview-dom-element",
+    targetSource: "canvax-unhinted-fixture",
+    targetSelector: '[data-testid="hero-cta"]',
+    targetTag: "button",
+    targetText: "Reserve suite",
+    targetHref: "/workspace/artifacts/preview/unhinted/index.html",
+    targetPath: "artifacts/preview/unhinted/index.html",
+    surface: "generated-output",
+    bounds: { x: 0.28, y: 0.62, w: 0.18, h: 0.08 },
+    note: "Make the Reserve suite button clearer and calmer.",
+    status: "accepted",
+    acceptedAt: now,
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "live-edit-unhinted-clarity",
+    index: 3,
+    role: "clarity-accessibility",
+    label: "Clarity",
+    title: "Clarify the reservation CTA",
+    body: "Improve the picked button copy, spacing, and contrast without changing surrounding layout.",
+    summary: "Direct clarity pass for the Reserve suite CTA.",
+    target: liveEditTarget,
+    acceptedAt: now,
+  };
+  const frame = {
+    id: frameId,
+    title: "Unhinted preview pick",
+    viewport: "desktop",
+    viewportWidth: 1440,
+    viewportHeight: 1024,
+    updatedAt: now,
+    liveEditTarget,
+    liveEditVariants: [acceptedVariant],
+    liveEditVariantIndex: 0,
+    acceptedLiveEditVariant: acceptedVariant,
+    liveEditPins: [
+      {
+        id: "pin-unhinted-cta",
+        kind: "canvax-live-edit-comment-pin",
+        text: "This is the button to clarify.",
+        point: { x: 0.34, y: 0.66 },
+        targetId: "hero-cta",
+        targetLabel: "Hero CTA - Reserve suite",
+        createdAt: now,
+      },
+    ],
+    composition: {
+      viewport: { width: 1440, height: 1024, label: "Desktop" },
+      elements: [],
+      liveEditCanvasMarks: [],
+    },
+  };
+  try {
+    await mkdir(fixtureRoot, { recursive: true });
+    await writeFile(
+      requestPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-rewrite-request",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          activeFrameId: frameId,
+          activeFrameTitle: frame.title,
+          rewriteQueue: [
+            {
+              frameId,
+              priority: 1,
+              label: "Unhinted Live Edit source search",
+              reason: "accepted-live-edit",
+            },
+          ],
+          frames: [frame],
+          outputManifest: {
+            kind: "canvax-codex-output",
+            targets: [],
+            artifacts: [],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeFile(
+      taskPackPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-task-pack",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          activeFrameId: frameId,
+          frames: [frame],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeFile(previewTweakPath, "{}\n");
+    const rewriteResult = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-rewrite-request.mjs",
+          "--request",
+          ".canvax/unhinted-source-fixture/canvax-rewrite-request.json",
+          "--task-pack",
+          ".canvax/unhinted-source-fixture/canvax-task-pack.json",
+          "--preview-tweak",
+          ".canvax/unhinted-source-fixture/canvax-preview-tweak.json",
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const patchTask = JSON.parse(
+      await readFile(resolve(projectRoot, rewriteResult.patchTaskPath), "utf8"),
+    );
+    const context = JSON.parse(
+      await readFile(resolve(projectRoot, rewriteResult.contextPath), "utf8"),
+    );
+    const queries = (patchTask.sourceSearchHints || []).map((hint) => hint.query);
+    const passed = Boolean(
+      rewriteResult.ok === true &&
+        patchTask.sourceDiscovery?.status === "needs-source-search" &&
+        patchTask.sourceSearchHints?.some(
+          (hint) =>
+            hint.kind === "unhinted-live-edit-source-search" &&
+            hint.searchType === "selector" &&
+            hint.query.includes("data-testid"),
+        ) &&
+        queries.some((query) => query.includes("Reserve suite")) &&
+        patchTask.affectedRegions?.some(
+          (region) =>
+            region.source === "live-edit-accepted-variant" &&
+            region.sourceSearchHints?.length >= 2,
+        ) &&
+        context.codexPatchTask?.sourceDiscovery?.status === "needs-source-search",
+    );
+    results.push({
+      name: "Live Edit unhinted picks emit source-search hints",
+      passed,
+      detail: passed
+        ? `${patchTask.sourceSearchHints.length} search hints for ${liveEditTarget.targetId}`
+        : "unhinted Live Edit patch task did not include expected source-search hints",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit unhinted picks emit source-search hints",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

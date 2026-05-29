@@ -27,6 +27,14 @@ const defaultOutputRoot = resolve(
   "codex-rewrite",
   "frames",
 );
+const liveEditSourceSearchFileGlobs = [
+  "src/**/*.{js,jsx,ts,tsx,vue,svelte,astro,html,css,scss}",
+  "app/**/*.{js,jsx,ts,tsx,html,css,scss}",
+  "pages/**/*.{js,jsx,ts,tsx,html,css,scss}",
+  "components/**/*.{js,jsx,ts,tsx,html,css,scss}",
+  "styles/**/*.{css,scss}",
+  "*.{js,jsx,ts,tsx,html,css,scss,md,mdx}",
+];
 
 const args = process.argv.slice(2);
 const wantsJson = args.includes("--json");
@@ -400,6 +408,11 @@ function buildCodexPatchTask({
     acceptedLiveEdit,
     affectedComponents,
   );
+  const sourceSearchHints = buildLiveEditSourceSearchHints(
+    acceptedLiveEdit,
+    affectedRegions,
+    affectedComponents,
+  );
   return {
     kind: "canvax-codex-patch-task",
     schemaVersion: 1,
@@ -413,6 +426,12 @@ function buildCodexPatchTask({
     previewPath,
     contextPath,
     suggestedFiles,
+    sourceDiscovery: buildLiveEditSourceDiscovery({
+      acceptedLiveEdit,
+      suggestedFiles,
+      sourceSearchHints,
+    }),
+    sourceSearchHints,
     componentTargets: affectedComponents.map((component) => ({
       id: component.id || "",
       label: component.label || "",
@@ -441,6 +460,10 @@ function buildCodexPatchTask({
       liveEditPins: region.liveEditPins || [],
       liveEditCanvasMarks: region.liveEditCanvasMarks || [],
       targetSourceHint: region.liveEditTarget?.targetSourceHint || null,
+      sourceSearchHints:
+        region.source === "live-edit-accepted-variant"
+          ? sourceSearchHints
+          : [],
     })),
     designContract: buildContract?.path || "",
     portTask: portTask?.path || "",
@@ -450,6 +473,9 @@ function buildCodexPatchTask({
         ? "This task came from an accepted Canvax Live Edit variant. Apply the selected variant to the outlined target first, using pins and strokes as direct editing intent."
         : "",
       "Prefer the component selectors and suggested files before making broad layout changes.",
+      sourceSearchHints.length
+        ? "No explicit source file was attached to the accepted Live Edit target. Use sourceSearchHints to search the local project by selector, text, node id, component name, and target label before treating the pick as screenshot-only."
+        : "",
       "Preserve unrelated generated output regions unless the Canvax note, sketch, or voice context explicitly asks for broader changes.",
       "After editing real app files, publish the result with scripts/write-codex-output.mjs so Canvax Preview can bind the update.",
     ].filter(Boolean),
@@ -476,6 +502,45 @@ function buildCodexPatchTask({
           ],
     noApiBoundary:
       "This patch task is local planning data for Codex. It does not call ChatGPT, image generation, browser automation, or paid APIs.",
+  };
+}
+
+function buildLiveEditSourceDiscovery({
+  acceptedLiveEdit = null,
+  suggestedFiles = [],
+  sourceSearchHints = [],
+}) {
+  const target = acceptedLiveEdit?.target || null;
+  if (!acceptedLiveEdit || !target) {
+    return {
+      kind: "canvax-live-edit-source-discovery",
+      status: "not-live-edit",
+      hintCount: 0,
+      suggestedFileCount: suggestedFiles.length,
+      reason: "Patch task did not come from an accepted Live Edit target.",
+    };
+  }
+  if (sourceSearchHints.length) {
+    return {
+      kind: "canvax-live-edit-source-discovery",
+      status: "needs-source-search",
+      hintCount: sourceSearchHints.length,
+      suggestedFileCount: suggestedFiles.length,
+      targetId: target.targetId || "",
+      targetType: target.targetType || "",
+      reason:
+        "Accepted Live Edit target has no concrete source file/task binding; search hints preserve direct target intent for Codex.",
+    };
+  }
+  return {
+    kind: "canvax-live-edit-source-discovery",
+    status: "explicit-or-generated-binding",
+    hintCount: 0,
+    suggestedFileCount: suggestedFiles.length,
+    targetId: target.targetId || "",
+    targetType: target.targetType || "",
+    reason:
+      "Accepted Live Edit target already has source-hinted, component-map, generated-bundle, or project-linked files.",
   };
 }
 
@@ -578,6 +643,139 @@ function collectLiveEditSourceHintFiles(acceptedLiveEdit, affectedComponents = [
     addFile(component.taskFile, "component task hint", "component-target-source-hint");
   });
   return files;
+}
+
+function buildLiveEditSourceSearchHints(
+  acceptedLiveEdit = null,
+  affectedRegions = [],
+  affectedComponents = [],
+) {
+  const target = acceptedLiveEdit?.target || null;
+  if (!target || liveEditHasConcreteSourceBinding(target, affectedComponents)) {
+    return [];
+  }
+  const hints = [];
+  const addHint = (query, searchType, reason, confidence = "medium") => {
+    const cleanQuery = compactText(cleanString(query), 180);
+    if (!cleanQuery) {
+      return;
+    }
+    hints.push({
+      kind: "unhinted-live-edit-source-search",
+      query: cleanQuery,
+      searchType,
+      reason,
+      confidence,
+      targetId: target.targetId || "",
+      targetNodeId: target.targetNodeId || "",
+      targetType: target.targetType || "",
+      targetLabel: target.targetLabel || "",
+      targetSelector: target.targetSelector || "",
+      targetText: target.targetText || "",
+      targetSurface: target.surface || "",
+      sourceFrameId: target.sourceFrameId || "",
+      expectedFileGlobs: liveEditSourceSearchFileGlobs,
+      suggestedCommands: buildSourceSearchCommands(cleanQuery),
+    });
+  };
+  addHint(
+    target.targetSelector,
+    "selector",
+    "Search for the exact DOM selector captured from the picked output target.",
+    "high",
+  );
+  addHint(
+    target.targetNodeId || target.targetId,
+    "node-id",
+    "Search for the Canvax node id, test id, or generated element id behind the picked target.",
+    target.targetNodeId || target.targetSelector ? "high" : "medium",
+  );
+  addHint(
+    target.targetSourceComponent || target.targetSourceSymbol,
+    "component-name",
+    "Search for a component or symbol name captured without an explicit source file path.",
+    "medium",
+  );
+  addHint(
+    target.targetText,
+    "visible-text",
+    "Search for visible text inside the picked region when no source file hint exists.",
+    "medium",
+  );
+  addHint(
+    target.targetLabel,
+    "target-label",
+    "Search for the human-readable target label from the Live Edit pick.",
+    "low",
+  );
+  affectedComponents.forEach((component) => {
+    if (component.sourceFile || component.sourcePath || component.suggestedFile) {
+      return;
+    }
+    addHint(
+      component.selector,
+      "component-selector",
+      "Search for a component selector inferred from overlapping frame-code ownership.",
+      "high",
+    );
+    addHint(
+      component.suggestedComponentName ||
+        component.sourceComponent ||
+        component.label ||
+        component.id,
+      "component-target",
+      "Search for the nearest component target inferred from the picked bounds.",
+      "medium",
+    );
+  });
+  const acceptedRegion = affectedRegions.find(
+    (region) => region.source === "live-edit-accepted-variant",
+  );
+  addHint(
+    acceptedRegion?.note || acceptedLiveEdit.patchNote || target.note,
+    "live-edit-intent",
+    "Search nearby code/tasks using the accepted Live Edit note when structural identifiers are absent.",
+    "low",
+  );
+  const seen = new Set();
+  return hints
+    .filter((hint) => {
+      const key = `${hint.searchType}:${hint.query.toLowerCase()}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 10);
+}
+
+function liveEditHasConcreteSourceBinding(target, affectedComponents = []) {
+  if (
+    cleanString(target?.targetSourceFile) ||
+    cleanString(target?.targetSourcePath) ||
+    cleanString(target?.targetTaskFile) ||
+    cleanString(target?.targetSourceHint?.file) ||
+    cleanString(target?.targetSourceHint?.path) ||
+    cleanString(target?.targetSourceHint?.taskFile)
+  ) {
+    return true;
+  }
+  return affectedComponents.some(
+    (component) =>
+      cleanString(component.sourceFile) ||
+      cleanString(component.sourcePath) ||
+      cleanString(component.suggestedFile) ||
+      cleanString(component.taskFile),
+  );
+}
+
+function buildSourceSearchCommands(query) {
+  const escaped = JSON.stringify(query);
+  return [
+    `rg -n ${escaped} src app pages components styles --glob '*.{js,jsx,ts,tsx,vue,svelte,astro,html,css,scss,md,mdx}'`,
+    `rg -n ${escaped} . --glob '!node_modules' --glob '!dist' --glob '!build' --glob '!artifacts/preview'`,
+  ];
 }
 
 function flattenPatchTaskDestinations(value) {

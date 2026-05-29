@@ -156,6 +156,11 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
     },
   );
   if (!files.length) {
+    if (Array.isArray(task.sourceSearchHints) && task.sourceSearchHints.length) {
+      fail(
+        `Patch task needs source discovery before deterministic patching: ${toProjectRelative(absoluteTaskPath)} (${task.sourceSearchHints.length} source search hints)`,
+      );
+    }
     fail(
       `Patch task has no local Canvax-generated, production-proof, source-hinted, or project-linked implementation files: ${toProjectRelative(absoluteTaskPath)}`,
     );
