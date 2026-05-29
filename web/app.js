@@ -4258,6 +4258,9 @@ function normalizeFrame(frame, index) {
       frame.acceptedLiveEditVariant,
     ),
     liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+    liveEditRegionBindings: normalizeLiveEditRegionBindings(
+      frame.liveEditRegionBindings,
+    ),
     liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
       ? frame.liveEditMapStrokes
           .map((stroke, strokeIndex) =>
@@ -4376,6 +4379,15 @@ function normalizeElementLiveEditBinding(value) {
   };
 }
 
+function normalizeLiveEditRegionBindings(value) {
+  return Array.isArray(value)
+    ? value
+        .map((binding) => normalizeElementLiveEditBinding(binding))
+        .filter(Boolean)
+        .slice(-20)
+    : [];
+}
+
 function createFrame(overrides = {}) {
   const index = Number.isFinite(overrides.frameIndex)
     ? overrides.frameIndex
@@ -4400,6 +4412,7 @@ function createFrame(overrides = {}) {
       liveEditVariantIndex: overrides.liveEditVariantIndex || 0,
       acceptedLiveEditVariant: overrides.acceptedLiveEditVariant || null,
       liveEditRequest: overrides.liveEditRequest || null,
+      liveEditRegionBindings: overrides.liveEditRegionBindings || [],
       liveEditMapStrokes: overrides.liveEditMapStrokes || [],
       backgroundImage: overrides.backgroundImage || "",
       flowPosition: overrides.flowPosition || defaultFlowPosition(index),
@@ -10179,10 +10192,12 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
 function renderLiveEditControls({ frame, target, targetUrl }) {
   const hasOutput = Boolean(target && targetUrl);
   const hasCanvasSelection = Boolean(selectedCanvasLiveEditElement(frame));
+  const hasCanvasPickSurface = workbenchCanPickCanvasSurface(frame);
   const hasMapSelection = Boolean(
     state.viewMode === "flow" && selectedSpatialObject(),
   );
-  const canPick = hasOutput || hasCanvasSelection || hasMapSelection;
+  const canPick =
+    hasOutput || hasCanvasSelection || hasCanvasPickSurface || hasMapSelection;
   const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
   const variants = currentLiveEditVariants(frame);
   const variantIndex = currentLiveEditVariantIndex(frame);
@@ -10262,7 +10277,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     (target ? designerOutputTargetLabelFromItem(target, frame.title) : "") ||
     "Generated output";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
-    ? workbenchTargetIsCanvasReply(target)
+    ? liveEditPickTargetsCanvasSurface(target)
       ? "Pick a target on the canvas"
       : "Pick a target in the output"
     : selectedVariant
@@ -10423,6 +10438,20 @@ function workbenchTargetIsCanvasReply(target) {
   return Boolean(target?.canvasReply || target?.source === "canvax-canvas-reply");
 }
 
+function workbenchCanPickCanvasSurface(frame = currentFrame()) {
+  return Boolean(frame && state.viewMode === "frame");
+}
+
+function liveEditPickTargetsCanvasSurface(target = currentWorkbenchTarget()) {
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  return Boolean(
+    workbenchCanPickCanvasSurface() &&
+      (workbenchTargetIsCanvasReply(target) ||
+        !targetUrl ||
+        ["sketch", "split"].includes(state.workbenchFocus)),
+  );
+}
+
 function currentLiveEditVariants(frame = currentFrame()) {
   return normalizeLiveEditVariants(frame?.liveEditVariants);
 }
@@ -10561,6 +10590,31 @@ function createLiveEditTargetFromCanvasElement(element, frame = currentFrame()) 
   });
 }
 
+function createLiveEditTargetFromCanvasRegion(point, frame = currentFrame()) {
+  const normalizedPoint = normalizeOutputAnnotationPoint(point);
+  const bounds = selectionBoundsFromPoint(normalizedPoint);
+  if (!frame || !bounds) {
+    return null;
+  }
+  return normalizeLiveEditTarget({
+    id: uid("live-edit"),
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    targetId: uid(`canvas-region-${frame.id}`),
+    targetLabel: `Canvas region: ${compactDisplayText(frame.title || frame.id, 42)}`,
+    targetType: "canvas-region",
+    targetSource: "canvax-canvas",
+    surface: "canvas-region",
+    bounds,
+    note: cleanString(dom.workbenchLiveEditNote?.value),
+    instruction:
+      "Treat this as a direct Live Edit selection on an arbitrary Canvax canvas region. Apply text intent, comment pins, correction strokes, and the selected variant to the picked bounds while preserving surrounding sketch context.",
+    status: "picked",
+    pickedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 function createLiveEditTargetFromAssetCandidate(candidate) {
   const normalizedCandidate = normalizeAssetCandidate(candidate);
   if (!normalizedCandidate) {
@@ -10685,14 +10739,26 @@ function liveEditTargetIsSameCanvasReply(liveTarget) {
   );
 }
 
+function liveEditTargetIsCanvasRegion(liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  return Boolean(
+    target &&
+      target.targetSource === "canvax-canvas" &&
+      target.targetType === "canvas-region",
+  );
+}
+
 function liveEditTargetUsesCanvasSurface(liveTarget, frame = currentFrame()) {
   const target = normalizeLiveEditTarget(liveTarget);
   return Boolean(
     target &&
       (liveEditTargetIsSameCanvasReply(target) ||
+        liveEditTargetIsCanvasRegion(target) ||
         liveEditTargetCanvasElement(frame, target) ||
         (target.targetSource === "canvax-canvas" &&
-          ["canvas-object", "image-region"].includes(target.targetType))),
+          ["canvas-object", "image-region", "canvas-region"].includes(
+            target.targetType,
+          ))),
   );
 }
 
@@ -11295,14 +11361,16 @@ function toggleLiveEditPickMode() {
 function setLiveEditPickMode(active) {
   const target = currentWorkbenchTarget();
   const frame = currentFrame();
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  const pickCanvas = liveEditPickTargetsCanvasSurface(target);
   const selectedElement = selectedCanvasLiveEditElement(frame);
   const selectedMapObject =
     state.viewMode === "flow" ? selectedSpatialObject() : null;
-  if (active && !resolveWorkbenchTargetUrl(target) && selectedMapObject) {
+  if (active && !targetUrl && selectedMapObject) {
     startLiveEditFromSpatialObject(selectedMapObject.id);
     return;
   }
-  if (active && !resolveWorkbenchTargetUrl(target) && selectedElement) {
+  if (active && pickCanvas && selectedElement) {
     frame.liveEditTarget = createLiveEditTargetFromCanvasElement(
       selectedElement,
       frame,
@@ -11323,11 +11391,11 @@ function setLiveEditPickMode(active) {
     });
     return;
   }
-  if (active && !resolveWorkbenchTargetUrl(target)) {
+  if (active && !targetUrl && !pickCanvas) {
     state.liveEditPickActive = false;
     renderFocusPad();
     renderStatus(
-      "Make or attach an output, or select a canvas/Map object before picking a live edit target",
+      "Open the canvas, make or attach an output, or select a Map object before picking a live edit target",
     );
     return;
   }
@@ -11337,13 +11405,11 @@ function setLiveEditPickMode(active) {
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   if (state.liveEditPickActive) {
-    state.workbenchFocus = workbenchTargetIsCanvasReply(target)
-      ? "sketch"
-      : "output";
+    state.workbenchFocus = pickCanvas ? "sketch" : "output";
     state.viewMode = "frame";
     renderStatus(
-      workbenchTargetIsCanvasReply(target)
-        ? "Pick a region directly on the same-canvas reply"
+      pickCanvas
+        ? "Pick a canvas object, image region, or blank region for Live Edit"
         : "Pick a region inside the generated output",
     );
   } else {
@@ -11364,13 +11430,20 @@ function pickLiveEditTargetFromCanvasEvent(event) {
   }
   const frame = currentFrame();
   const target = currentWorkbenchTarget();
-  if (!workbenchTargetIsCanvasReply(target)) {
+  if (!liveEditPickTargetsCanvasSurface(target)) {
     return false;
   }
+  const canvasPoint = pointFromEvent(event);
+  const hitElement = hitTestElement(frame, canvasPoint);
   const point = canvasLiveEditPointFromEvent(event, frame);
-  const liveTarget = createLiveEditTargetFromPoint(target, frame, point);
+  const liveTarget =
+    hitElement && !isEraserElement(hitElement)
+      ? createLiveEditTargetFromCanvasElement(hitElement, frame)
+      : workbenchTargetIsCanvasReply(target)
+        ? createLiveEditTargetFromPoint(target, frame, point)
+        : createLiveEditTargetFromCanvasRegion(point, frame);
   if (!liveTarget) {
-    renderStatus("Could not bind that same-canvas reply region");
+    renderStatus("Could not bind that canvas target");
     return false;
   }
   event.preventDefault();
@@ -11387,6 +11460,12 @@ function pickLiveEditTargetFromCanvasEvent(event) {
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   state.workbenchFocus = "sketch";
+  const sourceElement = liveEditTargetCanvasElement(frame, liveTarget);
+  if (sourceElement) {
+    setSelectedElements([sourceElement.id], sourceElement.id);
+  } else {
+    clearElementSelection();
+  }
   touchFrame(frame, {
     capture: false,
     status: `Picked live edit target on ${liveTarget.targetLabel}`,
@@ -12148,6 +12227,8 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         : liveTarget.targetSource === "canvax-asset-candidate" ||
             liveTarget.targetType === "generated-asset-candidate"
           ? "asset-candidate-local-binding"
+          : liveEditTargetIsCanvasRegion(liveTarget)
+            ? "canvas-region-local-binding"
           : "canvas-object-local-binding";
     state.serverStatus = {
       ...state.serverStatus,
@@ -12162,7 +12243,9 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
     renderStatus(
       liveEditTargetIsSpatialMapObject(liveTarget)
         ? "Live edit accepted on the Map object"
-        : "Live edit accepted on the canvas object",
+        : liveEditTargetIsCanvasRegion(liveTarget)
+          ? "Live edit accepted on the canvas region"
+          : "Live edit accepted on the canvas object",
     );
     return state.serverStatus.liveEditWriteback;
   }
@@ -12313,6 +12396,11 @@ function applyAcceptedLiveEditVariantToSourceTarget(
         frame,
         target,
         acceptedVariant,
+      ) ||
+      applyAcceptedLiveEditVariantToCanvasRegion(
+        frame,
+        target,
+        acceptedVariant,
       )
     );
   }
@@ -12328,6 +12416,36 @@ function applyAcceptedLiveEditVariantToSourceTarget(
     updatedAt: acceptedAt,
   });
   return sourceElement.liveEdit;
+}
+
+function applyAcceptedLiveEditVariantToCanvasRegion(
+  frame,
+  liveTarget,
+  acceptedVariant,
+) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !liveEditTargetIsCanvasRegion(target)) {
+    return null;
+  }
+  const acceptedAt = target.acceptedAt || new Date().toISOString();
+  const binding = normalizeElementLiveEditBinding({
+    status: "accepted",
+    target,
+    acceptedVariant,
+    request: frame.liveEditRequest,
+    pins: frame.liveEditPins,
+    note: target.note,
+    acceptedAt,
+    updatedAt: acceptedAt,
+  });
+  if (!binding) {
+    return null;
+  }
+  const previousBindings = normalizeLiveEditRegionBindings(
+    frame.liveEditRegionBindings,
+  ).filter((entry) => entry.target?.targetId !== target.targetId);
+  frame.liveEditRegionBindings = [...previousBindings, binding].slice(-20);
+  return binding;
 }
 
 function applyAcceptedLiveEditVariantToSpatialObject(
@@ -23796,6 +23914,9 @@ async function buildExportPackage(frameSelection = state.frames) {
         frame.acceptedLiveEditVariant,
       ),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+      liveEditRegionBindings: normalizeLiveEditRegionBindings(
+        frame.liveEditRegionBindings,
+      ),
       liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
         ? summarizeOutputAnnotations(frame.liveEditMapStrokes)
         : [],
@@ -23923,6 +24044,9 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
         frame.acceptedLiveEditVariant,
       ),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+      liveEditRegionBindings: normalizeLiveEditRegionBindings(
+        frame.liveEditRegionBindings,
+      ),
       liveEditMapStrokes: Array.isArray(frame.liveEditMapStrokes)
         ? summarizeOutputAnnotations(frame.liveEditMapStrokes)
         : [],
@@ -23980,6 +24104,9 @@ function buildOutputRevisionGraph(frames, manifest, rewriteQueue = []) {
         frame.acceptedLiveEditVariant,
       ),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+      liveEditRegionBindings: normalizeLiveEditRegionBindings(
+        frame.liveEditRegionBindings,
+      ),
       status: status?.label || (relatedTargets.length ? "Output bound" : "No output"),
       stale: status?.label === "Output stale",
       queueReasons: queueItems.map((item) => item.reason),
@@ -25400,6 +25527,9 @@ function buildFrameComposition(frame) {
       frame.acceptedLiveEditVariant,
     ),
     liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
+    liveEditRegionBindings: normalizeLiveEditRegionBindings(
+      frame.liveEditRegionBindings,
+    ),
     outputAnnotations: summarizeOutputAnnotations(frame.outputAnnotations),
   };
 }
@@ -29601,8 +29731,12 @@ async function runSelfTest() {
         frameForCanvasReply.acceptedLiveEditVariant || null,
       ),
       liveEditRequest: structuredClone(frameForCanvasReply.liveEditRequest || null),
+      liveEditRegionBindings: structuredClone(
+        frameForCanvasReply.liveEditRegionBindings || [],
+      ),
       selectedElementIds: [...state.selectedElementIds],
       selectedElementId: state.selectedElementId,
+      workbenchFocus: state.workbenchFocus,
       workspaceMode: state.workspaceMode,
       viewMode: state.viewMode,
       tool: state.tool,
@@ -29639,12 +29773,48 @@ async function runSelfTest() {
     frameForCanvasReply.liveEditVariantIndex = 0;
     frameForCanvasReply.acceptedLiveEditVariant = null;
     frameForCanvasReply.liveEditRequest = null;
+    frameForCanvasReply.liveEditRegionBindings = [];
     state.serverStatus.previewManifest = null;
     state.workspaceMode = "simple";
+    state.workbenchFocus = "sketch";
     state.viewMode = "frame";
     state.tool = "select";
-    setSelectedElements([canvasLiveEditRect.id], canvasLiveEditRect.id);
+    setSelectedElements([], null);
     setLiveEditPickMode(true);
+    dispatchPointerTap([650, 420]);
+    const canvasRegionDirectTarget = normalizeLiveEditTarget(
+      frameForCanvasReply.liveEditTarget,
+    );
+    dom.workbenchLiveEditNote.value =
+      "Turn this blank canvas region into a poster callout";
+    updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
+    const canvasRegionVariants = createLiveEditVariants();
+    await acceptLiveEditTarget();
+    const canvasRegionBinding =
+      normalizeLiveEditRegionBindings(frameForCanvasReply.liveEditRegionBindings)
+        .at(-1) || null;
+    const canvasRegionDirectPickAccepted =
+      canvasRegionDirectTarget?.targetType === "canvas-region" &&
+      canvasRegionDirectTarget?.targetSource === "canvax-canvas" &&
+      canvasRegionVariants.length === 3 &&
+      canvasRegionBinding?.target?.targetId === canvasRegionDirectTarget.targetId &&
+      canvasRegionBinding?.request?.status === "accepted" &&
+      frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest?.target
+        ?.targetType === "canvas-region";
+    frameForCanvasReply.liveEditTarget = null;
+    frameForCanvasReply.liveEditPins = [];
+    frameForCanvasReply.liveEditVariants = [];
+    frameForCanvasReply.liveEditVariantIndex = 0;
+    frameForCanvasReply.acceptedLiveEditVariant = null;
+    frameForCanvasReply.liveEditRequest = null;
+    setSelectedElements([], null);
+    setLiveEditPickMode(true);
+    dispatchPointerTap([220, 190]);
+    const canvasObjectDirectPicked =
+      frameForCanvasReply.liveEditTarget?.targetId === canvasLiveEditRect.id &&
+      frameForCanvasReply.liveEditTarget?.targetType === "canvas-object" &&
+      state.liveEditPickActive === false &&
+      state.selectedElementId === canvasLiveEditRect.id;
     const canvasLiveEditDrawModeArmed =
       activateLiveEditDrawMode() &&
       state.workbenchFocus === "sketch" &&
@@ -29675,6 +29845,8 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditVariantIndex === 2 &&
       canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
       canvasObjectElement?.liveEdit?.request?.status === "accepted" &&
+      canvasObjectDirectPicked &&
+      canvasRegionDirectPickAccepted &&
       canvasObjectCompositionElement?.liveEdit?.acceptedVariant?.label ===
         "Clarity" &&
       canvasObjectComposition.liveEditRequest?.status === "accepted" &&
@@ -29705,9 +29877,12 @@ async function runSelfTest() {
       previousCanvasObjectLiveEditState.acceptedLiveEditVariant;
     frameForCanvasReply.liveEditRequest =
       previousCanvasObjectLiveEditState.liveEditRequest;
+    frameForCanvasReply.liveEditRegionBindings =
+      previousCanvasObjectLiveEditState.liveEditRegionBindings;
     state.selectedElementIds =
       previousCanvasObjectLiveEditState.selectedElementIds;
     state.selectedElementId = previousCanvasObjectLiveEditState.selectedElementId;
+    state.workbenchFocus = previousCanvasObjectLiveEditState.workbenchFocus;
     state.workspaceMode = previousCanvasObjectLiveEditState.workspaceMode;
     state.viewMode = previousCanvasObjectLiveEditState.viewMode;
     state.tool = previousCanvasObjectLiveEditState.tool;
@@ -29718,7 +29893,7 @@ async function runSelfTest() {
       assert(
         canvasObjectOverlayRendered &&
           canvasObjectLiveEditExported,
-        "canvas object live edit renders on the sketch canvas and accepts back onto the source element",
+        "canvas Live Edit picks blank regions and drawn objects directly, then accepts back onto the correct Canvax binding",
       ),
     );
     const previousCanvasReplyRefreshState = {
