@@ -760,7 +760,8 @@ function matchingFrameCodeRegions(
       label: cleanString(liveEditTarget.targetLabel) || "Live edit target",
       type: cleanString(liveEditTarget.targetType) || "live-edit-target",
       selector: exactTargetId
-        ? `[data-canvax-node-id="${cssAttributeEscape(exactTargetId)}"]`
+        ? cleanString(liveEditTarget.targetSelector) ||
+          `[data-canvax-node-id="${cssAttributeEscape(exactTargetId)}"]`
         : "",
       suggestedComponentName: "",
       bounds: normalizedBounds,
@@ -935,9 +936,16 @@ function normalizeLiveEditTarget(value) {
     sourceFrameId,
     sourceFrameTitle: cleanString(value.sourceFrameTitle),
     targetId,
+    targetObjectId: cleanString(value.targetObjectId || value.outputTargetId),
+    targetNodeId: cleanString(value.targetNodeId || value.nodeId),
     targetLabel: cleanString(value.targetLabel) || "Picked output region",
     targetType: cleanString(value.targetType),
     targetSource: cleanString(value.targetSource),
+    targetSelector: cleanString(
+      value.targetSelector || value.selector || value.implementationSelector,
+    ),
+    targetTag: cleanString(value.targetTag || value.tagName),
+    targetText: cleanString(value.targetText || value.textContent),
     targetHref,
     targetPath,
     targetVersionTag: cleanString(value.targetVersionTag),

@@ -3429,9 +3429,19 @@ function normalizeLiveEditTarget(value, index = 0) {
     sourceFrameId,
     sourceFrameTitle: cleanString(source.sourceFrameTitle),
     targetId,
+    targetObjectId: cleanString(source.targetObjectId || source.outputTargetId),
+    targetNodeId: cleanString(source.targetNodeId || source.nodeId),
     targetLabel: cleanString(source.targetLabel) || "Picked output region",
     targetType: cleanString(source.targetType),
     targetSource: cleanString(source.targetSource),
+    targetSelector: cleanString(
+      source.targetSelector || source.selector || source.implementationSelector,
+    ),
+    targetTag: cleanString(source.targetTag || source.tagName),
+    targetText: compactDisplayText(
+      cleanString(source.targetText || source.textContent),
+      160,
+    ),
     targetHref,
     targetPath,
     targetVersionTag: cleanString(source.targetVersionTag),
@@ -10143,20 +10153,30 @@ function selectionBoundsFromPoint(point) {
   });
 }
 
-function createLiveEditTargetFromPoint(target, frame, point) {
-  const bounds = selectionBoundsFromPoint(point);
+function createLiveEditTargetFromPoint(target, frame, point, event = null) {
+  const domTarget = inspectWorkbenchOutputDomTargetFromEvent(event);
+  const bounds = domTarget?.bounds || selectionBoundsFromPoint(point);
   const targetUrl = resolveWorkbenchTargetUrl(target);
   if (!target || !frame || !bounds) {
     return null;
   }
+  const outputTargetId = cleanString(target.id);
+  const domNodeId = cleanString(domTarget?.nodeId);
+  const selector = cleanString(domTarget?.selector);
   return normalizeLiveEditTarget({
     id: uid("live-edit"),
     sourceFrameId: frame.id,
     sourceFrameTitle: frame.title,
-    targetId: target.id || "",
-    targetLabel: designerOutputTargetLabelFromItem(target, frame.title),
-    targetType: target.type || "",
+    targetId: domNodeId || outputTargetId,
+    targetObjectId: outputTargetId,
+    targetNodeId: domNodeId,
+    targetLabel:
+      domTarget?.label || designerOutputTargetLabelFromItem(target, frame.title),
+    targetType: domTarget ? "preview-dom-element" : target.type || "",
     targetSource: target.source || "",
+    targetSelector: selector,
+    targetTag: domTarget?.tag || "",
+    targetText: domTarget?.text || "",
     targetHref: targetUrl,
     targetPath: target.previewPath || target.path || "",
     targetVersionTag: target.versionTag || "",
@@ -10167,6 +10187,150 @@ function createLiveEditTargetFromPoint(target, frame, point) {
     pickedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
+}
+
+function inspectWorkbenchOutputDomTargetFromEvent(event) {
+  if (!event) {
+    return null;
+  }
+  const surface = event.currentTarget?.closest?.(
+    "[data-workbench-output-surface]",
+  );
+  const iframe = surface?.querySelector("iframe");
+  if (!surface || !iframe) {
+    return null;
+  }
+  const iframeRect = iframe.getBoundingClientRect();
+  if (!iframeRect.width || !iframeRect.height) {
+    return null;
+  }
+  const localX = event.clientX - iframeRect.left;
+  const localY = event.clientY - iframeRect.top;
+  if (
+    localX < 0 ||
+    localY < 0 ||
+    localX > iframeRect.width ||
+    localY > iframeRect.height
+  ) {
+    return null;
+  }
+  let frameDocument = null;
+  let frameWindow = null;
+  try {
+    frameDocument = iframe.contentDocument;
+    frameWindow = iframe.contentWindow;
+  } catch {
+    return null;
+  }
+  if (!frameDocument || !frameWindow) {
+    return null;
+  }
+  const viewportWidth =
+    frameWindow.innerWidth || frameDocument.documentElement?.clientWidth || iframeRect.width;
+  const viewportHeight =
+    frameWindow.innerHeight || frameDocument.documentElement?.clientHeight || iframeRect.height;
+  const frameX = clamp((localX / iframeRect.width) * viewportWidth, 0, viewportWidth);
+  const frameY = clamp((localY / iframeRect.height) * viewportHeight, 0, viewportHeight);
+  const rawElement = frameDocument.elementFromPoint(frameX, frameY);
+  const element = closestInspectablePreviewElement(rawElement);
+  if (!element || element === frameDocument.documentElement || element === frameDocument.body) {
+    return null;
+  }
+  const rect = element.getBoundingClientRect();
+  const bounds = normalizeLiveEditBounds({
+    x: rect.left / Math.max(1, viewportWidth),
+    y: rect.top / Math.max(1, viewportHeight),
+    w: rect.width / Math.max(1, viewportWidth),
+    h: rect.height / Math.max(1, viewportHeight),
+  });
+  if (!bounds) {
+    return null;
+  }
+  const nodeId = cleanString(
+    element.getAttribute("data-canvax-node-id") ||
+      element.id ||
+      element.getAttribute("data-testid") ||
+      element.getAttribute("name"),
+  );
+  const selector = previewElementSelector(element);
+  const text = compactDisplayText(
+    cleanString(element.innerText || element.textContent),
+    160,
+  );
+  const tag = cleanString(element.tagName).toLowerCase();
+  const role = cleanString(element.getAttribute("role"));
+  const ariaLabel = cleanString(element.getAttribute("aria-label"));
+  const label = compactDisplayText(
+    [
+      nodeId || selector || tag,
+      ariaLabel || text,
+    ]
+      .filter(Boolean)
+      .join(" - "),
+    84,
+  );
+  return {
+    bounds,
+    label: label || "Preview element",
+    nodeId,
+    role,
+    selector,
+    tag,
+    text,
+  };
+}
+
+function closestInspectablePreviewElement(element) {
+  let current = element;
+  while (current && current.nodeType === Node.ELEMENT_NODE) {
+    if (
+      current.hasAttribute("data-canvax-node-id") ||
+      current.id ||
+      current.getAttribute("role") ||
+      current.matches?.("button,a,input,textarea,select,label,img,svg,figure,article,section,header,main,nav,aside,footer,h1,h2,h3,h4,h5,h6,p")
+    ) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return element?.nodeType === Node.ELEMENT_NODE ? element : null;
+}
+
+function previewElementSelector(element) {
+  if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+    return "";
+  }
+  const canvaxId = cleanString(element.getAttribute("data-canvax-node-id"));
+  if (canvaxId) {
+    return `[data-canvax-node-id="${cssAttributeEscape(canvaxId)}"]`;
+  }
+  if (element.id) {
+    return `#${cssIdentifierEscape(element.id)}`;
+  }
+  const testId = cleanString(element.getAttribute("data-testid"));
+  if (testId) {
+    return `[data-testid="${cssAttributeEscape(testId)}"]`;
+  }
+  const name = cleanString(element.getAttribute("name"));
+  if (name) {
+    return `${element.tagName.toLowerCase()}[name="${cssAttributeEscape(name)}"]`;
+  }
+  const path = [];
+  let current = element;
+  while (current && current.nodeType === Node.ELEMENT_NODE && path.length < 4) {
+    const tag = current.tagName.toLowerCase();
+    if (!tag || tag === "html" || tag === "body") {
+      break;
+    }
+    const parent = current.parentElement;
+    const sameTagIndex = parent
+      ? [...parent.children].filter((child) => child.tagName === current.tagName)
+          .indexOf(current) + 1
+      : 0;
+    path.unshift(sameTagIndex > 1 ? `${tag}:nth-of-type(${sameTagIndex})` : tag);
+    current = parent;
+  }
+  return path.join(" > ");
 }
 
 function toggleLiveEditPickMode() {
@@ -10216,7 +10380,7 @@ function pickLiveEditTargetFromEvent(event) {
   const frame = currentFrame();
   const target = currentWorkbenchTarget();
   const point = outputAnnotationPointFromEvent(event);
-  const liveTarget = createLiveEditTargetFromPoint(target, frame, point);
+  const liveTarget = createLiveEditTargetFromPoint(target, frame, point, event);
   if (!liveTarget) {
     renderStatus("Could not bind that output region");
     return false;
@@ -26264,6 +26428,56 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditTarget === null &&
       currentLiveEditVariants(frameForCanvasReply).length === 0 &&
       !frameForCanvasReply.acceptedLiveEditVariant;
+    const domCaptureSurface = document.createElement("section");
+    domCaptureSurface.setAttribute("data-workbench-output-surface", "selftest");
+    domCaptureSurface.style.cssText =
+      "position:fixed;left:12px;top:12px;width:400px;height:240px;opacity:0;pointer-events:none;";
+    const domCaptureIframe = document.createElement("iframe");
+    domCaptureIframe.style.cssText =
+      "position:absolute;inset:0;width:400px;height:240px;border:0;";
+    const domCaptureCanvas = document.createElement("canvas");
+    domCaptureCanvas.className = "workbench-output-overlay";
+    domCaptureCanvas.style.cssText =
+      "position:absolute;inset:0;width:400px;height:240px;";
+    domCaptureSurface.append(domCaptureIframe, domCaptureCanvas);
+    document.body.appendChild(domCaptureSurface);
+    await new Promise((resolve) => {
+      domCaptureIframe.addEventListener("load", resolve, { once: true });
+      domCaptureIframe.srcdoc = `
+        <!doctype html>
+        <html>
+          <body style="margin:0">
+            <button
+              data-canvax-node-id="self-dom-cta"
+              style="position:absolute;left:80px;top:50px;width:160px;height:80px"
+            >Book now</button>
+          </body>
+        </html>
+      `;
+    });
+    const domCaptureRect = domCaptureCanvas.getBoundingClientRect();
+    const domCaptureEvent = {
+      currentTarget: domCaptureSurface,
+      clientX: domCaptureRect.left + 120,
+      clientY: domCaptureRect.top + 80,
+    };
+    const domCapturedPoint = outputAnnotationPointFromEvent(domCaptureEvent);
+    const domCapturedTarget = createLiveEditTargetFromPoint(
+      canvasReplyTargetForFrame(frameForCanvasReply),
+      frameForCanvasReply,
+      domCapturedPoint,
+      domCaptureEvent,
+    );
+    domCaptureSurface.remove();
+    const liveEditDomSelectorCaptured =
+      domCapturedTarget?.targetType === "preview-dom-element" &&
+      domCapturedTarget.targetId === "self-dom-cta" &&
+      domCapturedTarget.targetObjectId === "self-test-canvas-reply" &&
+      domCapturedTarget.targetSelector ===
+        '[data-canvax-node-id="self-dom-cta"]' &&
+      domCapturedTarget.bounds.x === 0.2 &&
+      domCapturedTarget.bounds.w === 0.4 &&
+      domCapturedTarget.targetText.includes("Book now");
     frameForCanvasReply.liveEditTarget = previousLiveEditTarget;
     frameForCanvasReply.liveEditPins = previousLiveEditPins;
     frameForCanvasReply.liveEditVariants = previousLiveEditVariants;
@@ -26281,8 +26495,9 @@ async function runSelfTest() {
           canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html") &&
           liveEditOutputRendered &&
           liveEditVariantsHotSwap &&
-          liveEditDiscarded,
-        "same-canvas reply underlay renders live edit target, in-surface variants, cycling, and clean discard",
+          liveEditDiscarded &&
+          liveEditDomSelectorCaptured,
+        "same-canvas reply underlay renders live edit target, captures DOM selector metadata, in-surface variants, cycling, and clean discard",
       ),
     );
     const previousCanvasObjectLiveEditState = {
@@ -31641,6 +31856,18 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function cssAttributeEscape(value) {
+  return cleanString(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+function cssIdentifierEscape(value) {
+  const text = cleanString(value);
+  if (window.CSS?.escape) {
+    return window.CSS.escape(text);
+  }
+  return text.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
 }
 
 function cleanString(value) {
