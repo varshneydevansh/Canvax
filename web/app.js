@@ -3603,6 +3603,49 @@ function normalizeLiveEditPins(value) {
     : [];
 }
 
+function normalizeLiveEditSurfaceOperations(value) {
+  return Array.isArray(value)
+    ? value
+        .map((operation, index) => {
+          if (typeof operation === "string") {
+            const label = cleanString(operation);
+            if (!label) {
+              return null;
+            }
+            return {
+              kind: `operation-${index + 1}`,
+              label,
+              detail: "",
+              priority: index + 1,
+            };
+          }
+          if (
+            !operation ||
+            typeof operation !== "object" ||
+            Array.isArray(operation)
+          ) {
+            return null;
+          }
+          const kind = cleanString(operation.kind || operation.type);
+          const label = cleanString(operation.label || operation.title);
+          const detail = cleanString(
+            operation.detail || operation.description || operation.note,
+          );
+          if (!kind && !label && !detail) {
+            return null;
+          }
+          return {
+            kind: kind || `operation-${index + 1}`,
+            label: label || kind || `Operation ${index + 1}`,
+            detail,
+            priority: Math.max(1, Number(operation.priority) || index + 1),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+}
+
 function normalizeLiveEditVariant(value, index = 0) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -3643,6 +3686,7 @@ function normalizeLiveEditVariant(value, index = 0) {
     targetId: cleanString(source.targetId || target.targetId),
     targetLabel: cleanString(source.targetLabel || target.targetLabel),
     note: cleanString(source.note),
+    targetMedium: cleanString(source.targetMedium),
     style: {
       accent: normalizeColor(
         style.accent || source.accent,
@@ -3655,6 +3699,9 @@ function normalizeLiveEditVariant(value, index = 0) {
       texture: cleanString(style.texture),
       density: cleanString(style.density) || "balanced",
     },
+    surfaceOperations: normalizeLiveEditSurfaceOperations(
+      source.surfaceOperations || source.operations,
+    ),
     createdAt,
     acceptedAt: cleanString(source.acceptedAt),
   };
@@ -10247,15 +10294,34 @@ function renderLiveEditVariantMarkup(variant, liveTarget) {
   const moves = Array.isArray(normalized.designMoves)
     ? normalized.designMoves.slice(0, 3)
     : [];
+  const operations = normalizeLiveEditSurfaceOperations(
+    normalized.surfaceOperations,
+  ).slice(0, 4);
   return `
     <article
       class="workbench-live-edit-variant-swap"
+      data-live-variant-role="${escapeHtml(normalized.role)}"
+      data-live-target-medium="${escapeHtml(normalized.targetMedium || liveEditTargetMediumLabel(liveTarget))}"
       style="${liveEditVariantOverlayStyle(liveTarget)} --live-variant-accent:${escapeHtml(style.accent || palette[0])}; --live-variant-bg:${escapeHtml(style.background || "#fff7e6")}; --live-variant-fg:${escapeHtml(style.foreground || "#18110e")};"
       aria-label="${escapeHtml(normalized.label)} live edit variant"
     >
       <span>${escapeHtml(normalized.role)}</span>
       <strong>${escapeHtml(normalized.title)}</strong>
       <p>${escapeHtml(normalized.body)}</p>
+      ${
+        operations.length
+          ? `<dl class="workbench-live-edit-operations" aria-label="Surface operations">${operations
+              .map(
+                (operation) => `
+                  <div class="workbench-live-edit-operation" data-operation-kind="${escapeHtml(operation.kind)}">
+                    <dt>${escapeHtml(operation.label)}</dt>
+                    <dd>${escapeHtml(operation.detail || operation.kind)}</dd>
+                  </div>
+                `,
+              )
+              .join("")}</dl>`
+          : ""
+      }
       <em>${escapeHtml(normalized.cta)}</em>
       ${
         moves.length
@@ -11444,6 +11510,359 @@ function liveEditTargetStrokeSignals(frame, liveTarget) {
   return [...outputSignals, ...canvasSignals].slice(-6);
 }
 
+function liveEditSurfaceOperation(kind, label, detail, priority = 2) {
+  return {
+    kind,
+    label,
+    detail: compactDisplayText(detail, 96),
+    priority,
+  };
+}
+
+function liveEditTargetMediumKey(target, frame = currentFrame()) {
+  const targetText = [
+    liveEditTargetMediumLabel(target, frame),
+    target?.targetType,
+    target?.targetSource,
+    target?.targetLabel,
+    target?.surface,
+    frame?.viewport,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/book|spread|page|chapter|folio/.test(targetText)) {
+    return "page-layout";
+  }
+  if (/comic|storyboard|panel|shot/.test(targetText)) {
+    return "storyboard";
+  }
+  if (/poster|image|asset|photo|composition|illustration/.test(targetText)) {
+    return "image-composition";
+  }
+  if (/preview|screen|dom|html|implementation|component|button|input|card|hero/.test(targetText)) {
+    return "implementation-ui";
+  }
+  if (/canvas|object|sketch|path|rect|ellipse|arrow|line/.test(targetText)) {
+    return "canvas-object";
+  }
+  return "artifact-region";
+}
+
+function liveEditMediumSurfaceOperations({ frame, target, role, actionMode, strokeSignals = [] }) {
+  const mediumKey = liveEditTargetMediumKey(target, frame);
+  const selectorHint =
+    target?.targetSourceFile ||
+    target?.targetSelector ||
+    target?.targetObjectId ||
+    target?.targetId ||
+    "current Canvax binding";
+  const markDetail = strokeSignals.length
+    ? `Honor correction marks: ${strokeSignals.join("; ")}.`
+    : "Preserve the picked bounds and surrounding context.";
+  const actionDetail = actionMode?.label
+    ? `Tune for ${actionMode.label}.`
+    : "Tune for the current Workbench action.";
+  const roleOperations = {
+    "structure-layout": [
+      liveEditSurfaceOperation(
+        "selected-bounds-reflow",
+        "Reflow bounds",
+        "Change geometry, spacing, and hierarchy inside the outlined target only.",
+        1,
+      ),
+      liveEditSurfaceOperation(
+        "context-lock",
+        "Lock context",
+        "Keep neighboring canvas/output regions stable while the picked target changes.",
+        2,
+      ),
+    ],
+    "visual-taste": [
+      liveEditSurfaceOperation(
+        "art-direction-shift",
+        "Shift taste",
+        "Change visual language, material, rhythm, type tone, and color emphasis without losing purpose.",
+        1,
+      ),
+      liveEditSurfaceOperation(
+        "design-kit-fit",
+        "Respect kit",
+        "Keep the variant aligned with the active Canvax design kit and existing surface tone.",
+        2,
+      ),
+    ],
+    "clarity-accessibility": [
+      liveEditSurfaceOperation(
+        "clarity-pass",
+        "Clarify use",
+        "Prioritize readable copy, obvious affordances, and understandable hierarchy.",
+        1,
+      ),
+      liveEditSurfaceOperation(
+        "accessibility-pass",
+        "Harden access",
+        "Improve contrast, target size, focus/read order, and reduced ambiguity.",
+        2,
+      ),
+    ],
+  };
+  const mediumOperations = {
+    "page-layout": {
+      "structure-layout": [
+        liveEditSurfaceOperation(
+          "page-grid",
+          "Page grid",
+          "Rebalance columns, margins, gutters, captions, and reading sequence.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "spread-safe-zone",
+          "Safe zone",
+          "Keep folios, trim, bleed, and nearby page content undisturbed.",
+          4,
+        ),
+      ],
+      "visual-taste": [
+        liveEditSurfaceOperation(
+          "editorial-type",
+          "Editorial type",
+          "Try a stronger typographic voice for book/page hierarchy.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "print-material",
+          "Print material",
+          "Adjust paper, ink, illustration, or plate-like surface cues.",
+          4,
+        ),
+      ],
+      "clarity-accessibility": [
+        liveEditSurfaceOperation(
+          "reading-order",
+          "Reading order",
+          "Make headings, body copy, captions, and calls to action scan correctly.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "legibility-safe",
+          "Legibility",
+          "Raise type size, line length, contrast, and paragraph rhythm.",
+          4,
+        ),
+      ],
+    },
+    storyboard: {
+      "structure-layout": [
+        liveEditSurfaceOperation(
+          "panel-flow",
+          "Panel flow",
+          "Rework shot order, motion direction, and continuation through the selected panel.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "continuity-lock",
+          "Continuity",
+          "Preserve characters, props, scene axis, and adjacent panel intent.",
+          4,
+        ),
+      ],
+      "visual-taste": [
+        liveEditSurfaceOperation(
+          "shot-language",
+          "Shot style",
+          "Change crop, contrast, gesture, and camera feel for a distinct storytelling beat.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "panel-tone",
+          "Panel tone",
+          "Tune mood, line weight, surface texture, and emphasis without losing continuity.",
+          4,
+        ),
+      ],
+      "clarity-accessibility": [
+        liveEditSurfaceOperation(
+          "story-read",
+          "Story read",
+          "Make focal order, speech/caption placement, and action direction clear.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "panel-cleanup",
+          "Cleanup",
+          "Reduce competing marks and simplify ambiguous visual beats.",
+          4,
+        ),
+      ],
+    },
+    "image-composition": {
+      "structure-layout": [
+        liveEditSurfaceOperation(
+          "composition-crop",
+          "Composition",
+          "Move focal mass, crop, negative space, and foreground/background balance.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "asset-slot-lock",
+          "Slot lock",
+          "Keep the selected image or asset slot bound to the same Canvax output target.",
+          4,
+        ),
+      ],
+      "visual-taste": [
+        liveEditSurfaceOperation(
+          "palette-light",
+          "Light/color",
+          "Try a materially different lighting, palette, and finish direction.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "style-reference",
+          "Style ref",
+          "Translate the active design kit into image-generation-friendly visual cues.",
+          4,
+        ),
+      ],
+      "clarity-accessibility": [
+        liveEditSurfaceOperation(
+          "subject-separation",
+          "Separation",
+          "Separate subject, background, labels, and important detail more clearly.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "safe-crop",
+          "Safe crop",
+          "Protect text, faces, product edges, and downstream crop zones.",
+          4,
+        ),
+      ],
+    },
+    "implementation-ui": {
+      "structure-layout": [
+        liveEditSurfaceOperation(
+          "component-structure",
+          "Component",
+          "Rewrite internal component structure, spacing, and responsive bounds.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "source-binding",
+          "Source bind",
+          `Write back through ${selectorHint} instead of producing a throwaway mock.`,
+          4,
+        ),
+      ],
+      "visual-taste": [
+        liveEditSurfaceOperation(
+          "ui-visual-system",
+          "Visual system",
+          "Change type, color, surface, and states while keeping DOM/source contract stable.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "interaction-feedback",
+          "Feedback",
+          "Improve hover, focus, active, disabled, and loading feedback inside the target.",
+          4,
+        ),
+      ],
+      "clarity-accessibility": [
+        liveEditSurfaceOperation(
+          "ux-copy",
+          "UX copy",
+          "Make labels and actions describe outcomes, not vague commands.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "a11y-contract",
+          "A11y",
+          "Protect keyboard, focus, contrast, target size, and semantic order.",
+          4,
+        ),
+      ],
+    },
+    "canvas-object": {
+      "structure-layout": [
+        liveEditSurfaceOperation(
+          "object-geometry",
+          "Geometry",
+          "Edit the selected object's size, placement, grouping, and alignment.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "relative-position",
+          "Relate",
+          "Preserve its relationship to nearby sketch marks, pins, and output references.",
+          4,
+        ),
+      ],
+      "visual-taste": [
+        liveEditSurfaceOperation(
+          "object-style",
+          "Object style",
+          "Change stroke, fill, weight, texture, or visual role of the object.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "sketch-to-polish",
+          "Polish",
+          "Translate rough marks into a clearer designed element without losing intent.",
+          4,
+        ),
+      ],
+      "clarity-accessibility": [
+        liveEditSurfaceOperation(
+          "object-label",
+          "Label",
+          "Clarify text, affordance, role, or annotation attached to the object.",
+          3,
+        ),
+        liveEditSurfaceOperation(
+          "mark-semantics",
+          "Marks",
+          "Apply circle, arrow, cross, underline, and scratch semantics predictably.",
+          4,
+        ),
+      ],
+    },
+    "artifact-region": {
+      "structure-layout": [
+        liveEditSurfaceOperation(
+          "region-structure",
+          "Region shape",
+          "Recompose the picked artifact region while keeping the outer artifact intact.",
+          3,
+        ),
+      ],
+      "visual-taste": [
+        liveEditSurfaceOperation(
+          "region-style",
+          "Region style",
+          "Give the selected region a different surface language and emphasis.",
+          3,
+        ),
+      ],
+      "clarity-accessibility": [
+        liveEditSurfaceOperation(
+          "region-clarity",
+          "Region clarity",
+          "Make the selected artifact region easier to read and act on.",
+          3,
+        ),
+      ],
+    },
+  };
+  return [
+    ...(roleOperations[role] || []),
+    ...((mediumOperations[mediumKey] || mediumOperations["artifact-region"])[role] || []),
+    liveEditSurfaceOperation("mark-intent", "Marks", markDetail, 5),
+    liveEditSurfaceOperation("action-mode", "Mode", actionDetail, 6),
+  ].slice(0, 6);
+}
+
 function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
   const target = normalizeLiveEditTarget(liveTarget);
   if (!frame || !target) {
@@ -11475,6 +11894,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
     sourceFrameTitle: frame.title,
     targetId: target.targetId,
     targetLabel: target.targetLabel,
+    targetMedium: medium,
     note,
     createdAt,
   };
@@ -11501,6 +11921,13 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           "turn pins and strokes into hierarchy and placement changes",
           `follow active action mode: ${actionMode.label}`,
         ],
+        surfaceOperations: liveEditMediumSurfaceOperations({
+          frame,
+          target,
+          role: "structure-layout",
+          actionMode,
+          strokeSignals,
+        }),
         style: {
           accent: "#0c8d7b",
           background: "#ecfbf6",
@@ -11531,6 +11958,13 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           "make the selected region feel more designed than merely rendered",
           `respect design kit: ${kitSummary}`,
         ],
+        surfaceOperations: liveEditMediumSurfaceOperations({
+          frame,
+          target,
+          role: "visual-taste",
+          actionMode,
+          strokeSignals,
+        }),
         style: {
           accent: "#f0a202",
           background: "#fff6da",
@@ -11561,6 +11995,13 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           "remove or reduce whatever the scratch/cross strokes mark",
           "keep the accepted output binding and manifest target intact",
         ],
+        surfaceOperations: liveEditMediumSurfaceOperations({
+          frame,
+          target,
+          role: "clarity-accessibility",
+          actionMode,
+          strokeSignals,
+        }),
         style: {
           accent: "#2364aa",
           background: "#eef4ff",
@@ -27301,11 +27742,38 @@ async function runSelfTest() {
       dom.workbenchOutputSurface.querySelector(
         ".workbench-live-edit-variant-swap strong",
       )?.textContent || "";
+    const firstLiveEditOperationChipCount =
+      dom.workbenchOutputSurface.querySelectorAll(
+        ".workbench-live-edit-operation",
+      ).length;
+    const liveEditVariantOperationRoles = new Set(
+      createdLiveEditVariants.map((variant) => variant.role),
+    );
+    const liveEditVariantOperationKinds = new Set(
+      createdLiveEditVariants.flatMap((variant) =>
+        normalizeLiveEditSurfaceOperations(variant.surfaceOperations).map(
+          (operation) => operation.kind,
+        ),
+      ),
+    );
+    const liveEditVariantOperationsMaterial =
+      createdLiveEditVariants.every(
+        (variant) =>
+          normalizeLiveEditSurfaceOperations(variant.surfaceOperations).length >=
+          4,
+      ) &&
+      liveEditVariantOperationRoles.size === 3 &&
+      liveEditVariantOperationKinds.size >= 10 &&
+      firstLiveEditOperationChipCount >= 4;
     cycleLiveEditVariant(1);
     const secondLiveEditVariantTitle =
       dom.workbenchOutputSurface.querySelector(
         ".workbench-live-edit-variant-swap strong",
       )?.textContent || "";
+    const secondLiveEditOperationChipCount =
+      dom.workbenchOutputSurface.querySelectorAll(
+        ".workbench-live-edit-operation",
+      ).length;
     const liveEditVariantsHotSwap =
       createdLiveEditVariants.length === 3 &&
       currentLiveEditVariants(frameForCanvasReply).length === 3 &&
@@ -27314,6 +27782,8 @@ async function runSelfTest() {
       Boolean(firstLiveEditVariantTitle) &&
       Boolean(secondLiveEditVariantTitle) &&
       firstLiveEditVariantTitle !== secondLiveEditVariantTitle &&
+      liveEditVariantOperationsMaterial &&
+      secondLiveEditOperationChipCount >= 4 &&
       dom.workbenchLiveEditCounter.textContent.includes("2 / 3 variants") &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
         "Taste";
@@ -27416,6 +27886,9 @@ async function runSelfTest() {
           movedPinX: movedLiveEditPin?.point?.x ?? null,
           movedPinDragged: Boolean(movedLiveEditPin?.draggedAt),
           liveEditVariantsHotSwap,
+          liveEditVariantOperationsMaterial,
+          firstLiveEditOperationChipCount,
+          secondLiveEditOperationChipCount,
           liveEditDiscarded,
           liveEditDomSelectorCaptured,
         }),
