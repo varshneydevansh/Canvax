@@ -17771,6 +17771,13 @@ function renderSpatialObjectLiveEditMarkup(object, liveTarget, liveVariant, fram
   return `
     <div class="spatial-object-live-edit-layer" aria-hidden="true">
       ${
+        liveVariant
+          ? `<div class="spatial-object-live-edit-treatment" data-live-variant-role="${escapeHtml(liveVariant.role)}" style="--live-variant-accent:${escapeHtml(liveVariant.style?.accent || palette[0])}; --live-variant-bg:${escapeHtml(liveVariant.style?.background || "#fff7e6")}; --live-variant-fg:${escapeHtml(liveVariant.style?.foreground || "#18110e")};">
+              <span>${escapeHtml(`${liveVariant.index || 1}/3 ${liveVariant.label}`)}</span>
+            </div>`
+          : ""
+      }
+      ${
         strokes.length
           ? `<svg class="spatial-object-live-edit-marks" viewBox="0 0 100 100" preserveAspectRatio="none">
               ${strokes
@@ -17795,7 +17802,7 @@ function renderSpatialObjectLiveEditMarkup(object, liveTarget, liveVariant, fram
     </div>
     ${
       liveVariant
-        ? `<div class="spatial-object-live-edit-swap" style="--live-variant-accent:${escapeHtml(liveVariant.style?.accent || palette[0])}; --live-variant-bg:${escapeHtml(liveVariant.style?.background || "#fff7e6")}; --live-variant-fg:${escapeHtml(liveVariant.style?.foreground || "#18110e")};">
+        ? `<div class="spatial-object-live-edit-swap" data-live-variant-role="${escapeHtml(liveVariant.role)}" style="--live-variant-accent:${escapeHtml(liveVariant.style?.accent || palette[0])}; --live-variant-bg:${escapeHtml(liveVariant.style?.background || "#fff7e6")}; --live-variant-fg:${escapeHtml(liveVariant.style?.foreground || "#18110e")};">
             <span>${escapeHtml(liveVariant.label)}</span>
             <strong>${escapeHtml(compactDisplayText(liveVariant.title, 72))}</strong>
             <p>${escapeHtml(compactDisplayText(liveVariant.body, 110))}</p>
@@ -17854,6 +17861,7 @@ function renderSpatialObjectNode(object) {
       class="spatial-object-node ${escapeHtml(object.type || "note")} ${escapeHtml(sourceClass)} ${state.flowDrag?.objectId === object.id ? "dragging" : ""} ${isSelected ? "selected" : ""} ${isLiveEditTarget ? "live-edit-target" : ""} ${liveVariant ? "has-live-edit-variant" : ""} ${isPinned ? "pinned" : ""} ${isLocked ? "locked" : ""}"
       data-spatial-object-id="${escapeHtml(object.id)}"
       data-spatial-object-source="${escapeHtml(normalizedSourceKind)}"
+      data-live-variant-role="${escapeHtml(liveVariant?.role || "")}"
       style="left:${object.x}px; top:${object.y}px; width:${object.width}px; min-height:${object.height}px;"
       title="${escapeHtml(object.meta?.prompt || object.subtitle || object.title)}"
       role="button"
@@ -20284,6 +20292,9 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   ctx.strokeStyle = "#f5b938";
   ctx.fillStyle = "rgba(245, 185, 56, 0.08)";
   ctx.setLineDash([12 * scale, 8 * scale]);
+  if (variant) {
+    drawCanvasLiveEditVariantTreatment(ctx, variant, bounds, scale);
+  }
   roundRect(
     ctx,
     bounds.left * scale,
@@ -20316,6 +20327,134 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   if (variant) {
     drawCanvasLiveEditVariantCard(ctx, variant, bounds, width, height, scale);
   }
+  ctx.restore();
+}
+
+function drawCanvasLiveEditVariantTreatment(
+  ctx,
+  variant,
+  bounds,
+  scale = 1,
+) {
+  const normalized = normalizeLiveEditVariant(variant);
+  if (!normalized || !bounds) {
+    return;
+  }
+  const style = normalized.style || {};
+  const accent = style.accent || palette[0];
+  const background = style.background || "#fff7e6";
+  const foreground = style.foreground || "#18110e";
+  const x = bounds.left * scale;
+  const y = bounds.top * scale;
+  const width = Math.max(1, bounds.width * scale);
+  const height = Math.max(1, bounds.height * scale);
+  const radius = Math.min(18 * scale, Math.max(8 * scale, Math.min(width, height) * 0.12));
+  const inset = Math.max(10 * scale, Math.min(width, height) * 0.08);
+  const label = `${normalized.index || 1}/3 ${normalized.label || "Variant"}`;
+
+  ctx.save();
+  ctx.setLineDash([]);
+  roundRect(ctx, x, y, width, height, radius);
+  ctx.clip();
+  ctx.globalAlpha = 0.82;
+  ctx.fillStyle = background;
+  ctx.fillRect(x, y, width, height);
+  ctx.globalAlpha = 1;
+
+  if (normalized.role === "structure-layout") {
+    const columnWidth = Math.max(26 * scale, (width - inset * 2) / 3);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = Math.max(2, 2 * scale);
+    ctx.globalAlpha = 0.72;
+    for (let index = 0; index < 4; index += 1) {
+      const columnX = x + inset + columnWidth * index;
+      ctx.beginPath();
+      ctx.moveTo(columnX, y + inset);
+      ctx.lineTo(columnX, y + height - inset);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = accent;
+    roundRect(ctx, x + inset, y + inset, Math.max(42 * scale, width * 0.32), 9 * scale, 999);
+    ctx.fill();
+    ctx.fillStyle = foreground;
+    for (let index = 0; index < 3; index += 1) {
+      const rowY = y + inset + 26 * scale + index * 20 * scale;
+      roundRect(
+        ctx,
+        x + inset,
+        rowY,
+        Math.max(36 * scale, width - inset * 2 - index * 24 * scale),
+        7 * scale,
+        999,
+      );
+      ctx.fill();
+    }
+  } else if (normalized.role === "visual-taste") {
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = 0.82;
+    const stripeWidth = Math.max(18 * scale, width * 0.16);
+    for (let index = -1; index < 5; index += 1) {
+      ctx.save();
+      ctx.translate(x + width * 0.18 + index * stripeWidth * 1.45, y + height / 2);
+      ctx.rotate(-Math.PI / 8);
+      roundRect(ctx, -stripeWidth / 2, -height, stripeWidth, height * 2, 999);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = foreground;
+    roundRect(ctx, x + inset, y + height - inset - 13 * scale, width - inset * 2, 13 * scale, 999);
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = Math.max(3, 3 * scale);
+    ctx.globalAlpha = 0.92;
+    roundRect(
+      ctx,
+      x + inset,
+      y + inset,
+      Math.max(20 * scale, width - inset * 2),
+      Math.max(20 * scale, height - inset * 2),
+      Math.min(radius, 12 * scale),
+    );
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = accent;
+    for (let index = 0; index < 4; index += 1) {
+      const rowY = y + inset + 13 * scale + index * 18 * scale;
+      if (rowY > y + height - inset - 5 * scale) {
+        break;
+      }
+      roundRect(
+        ctx,
+        x + inset + 14 * scale,
+        rowY,
+        Math.max(28 * scale, width - inset * 2 - 28 * scale - index * 18 * scale),
+        8 * scale,
+        999,
+      );
+      ctx.fill();
+    }
+    ctx.fillStyle = foreground;
+    roundRect(
+      ctx,
+      x + width - inset - 36 * scale,
+      y + height - inset - 14 * scale,
+      36 * scale,
+      14 * scale,
+      999,
+    );
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "rgba(24, 17, 14, 0.84)";
+  roundRect(ctx, x + 9 * scale, y + 9 * scale, Math.min(width - 18 * scale, 92 * scale), 22 * scale, 999);
+  ctx.fill();
+  ctx.fillStyle = "#fff7e6";
+  ctx.font = `900 ${Math.max(9, 10 * scale)}px "Avenir Next", sans-serif`;
+  ctx.fillText(compactDisplayText(label, 18).toUpperCase(), x + 19 * scale, y + 24 * scale);
   ctx.restore();
 }
 
@@ -31926,6 +32065,8 @@ async function runSelfTest() {
       dom.canvas,
       canvasLiveEditBounds,
     );
+    const canvasObjectVariantTreatmentRendered =
+      canvasRegionHasLiveVariantTreatmentPixel(dom.canvas, canvasLiveEditBounds);
     await acceptLiveEditTarget();
     renderCanvas();
     const canvasObjectLocalOutcome = describeLiveEditWritebackOutcome(
@@ -31946,6 +32087,7 @@ async function runSelfTest() {
       canvasObjectVariants.length === 3 &&
       canvasLiveEditDrawModeArmed &&
       frameForCanvasReply.liveEditVariantIndex === 2 &&
+      canvasObjectVariantTreatmentRendered &&
       canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
       canvasObjectElement?.liveEdit?.request?.status === "accepted" &&
       state.serverStatus.liveEditWriteback?.status === "local-bound" &&
@@ -32009,7 +32151,7 @@ async function runSelfTest() {
       assert(
         canvasObjectOverlayRendered &&
           canvasObjectLiveEditExported,
-        "canvas Live Edit drag-selects arbitrary regions, picks drawn objects directly, and accepts back onto the correct Canvax binding",
+        "canvas Live Edit drag-selects arbitrary regions, picks drawn objects directly, hot-swaps inside the target, and accepts back onto the correct Canvax binding",
       ),
     );
     const previousCanvasReplyRefreshState = {
@@ -34360,6 +34502,11 @@ async function assertWorkbenchSpatialMap() {
   const mapLiveVariantRendered = Boolean(
     dom.flowBoard.querySelector(".spatial-object-live-edit-swap"),
   );
+  const mapLiveVariantTreatmentRendered = Boolean(
+    dom.flowBoard.querySelector(
+      ".spatial-object-live-edit-treatment[data-live-variant-role='visual-taste']",
+    ),
+  );
   await acceptLiveEditTarget();
   renderFlowBoard();
   const liveEditedSpatialObject = spatialObjectById("spatial-selftest-asset");
@@ -34389,6 +34536,7 @@ async function assertWorkbenchSpatialMap() {
     mapLivePinRendered &&
     mapLiveStrokeRendered &&
     mapLiveVariantRendered &&
+    mapLiveVariantTreatmentRendered &&
     mapLiveVariants.length === 3 &&
     mapLiveVariants.every(
       (variant) =>
@@ -34453,6 +34601,7 @@ async function assertWorkbenchSpatialMap() {
     mapLivePinRendered,
     mapLiveStrokeRendered,
     mapLiveVariantRendered,
+    mapLiveVariantTreatmentRendered,
     mapLiveOutcomeRendered,
     mapLiveEditBound,
     expectedMapCreateFramePosition,
@@ -37781,6 +37930,35 @@ function canvasRegionHasAcceptedOutcomePixel(canvas, bounds) {
     const blue = pixels[index + 2];
     const alpha = pixels[index + 3];
     if (red < 95 && green > 55 && green < 130 && blue > 40 && blue < 130 && alpha > 170) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function canvasRegionHasLiveVariantTreatmentPixel(canvas, bounds) {
+  if (!canvas || !bounds) {
+    return false;
+  }
+  const ctx = canvas.getContext("2d");
+  const left = Math.max(0, Math.floor(bounds.left + bounds.width * 0.08));
+  const top = Math.max(0, Math.floor(bounds.top + bounds.height * 0.08));
+  const right = Math.min(canvas.width, Math.ceil(bounds.right - bounds.width * 0.08));
+  const bottom = Math.min(canvas.height, Math.ceil(bounds.bottom - bounds.height * 0.08));
+  const width = Math.max(1, right - left);
+  const height = Math.max(1, bottom - top);
+  let pixels = null;
+  try {
+    pixels = ctx.getImageData(left, top, width, height).data;
+  } catch {
+    return false;
+  }
+  for (let index = 0; index < pixels.length; index += 4) {
+    const red = pixels[index];
+    const green = pixels[index + 1];
+    const blue = pixels[index + 2];
+    const alpha = pixels[index + 3];
+    if (red > 18 && red < 72 && green > 70 && green < 126 && blue > 140 && blue < 210 && alpha > 150) {
       return true;
     }
   }
