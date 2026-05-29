@@ -151,6 +151,81 @@ const actionModes = [
   },
 ];
 
+const liveEditActionChips = [
+  {
+    id: "freeform",
+    label: "Freeform",
+    description: "Follow the user's note, voice, pins, and strokes.",
+    structure: "Let the picked artifact dictate the structural move.",
+    visual: "Choose the strongest visual direction for the user's note.",
+    clarity: "Resolve ambiguity without flattening the user's intent.",
+  },
+  {
+    id: "layout",
+    label: "Layout",
+    description: "Change spacing, grouping, rhythm, and composition.",
+    structure: "Prioritize reflow, grouping, scale, and reading sequence.",
+    visual: "Keep the visual system stable while layout changes carry the idea.",
+    clarity: "Make the target easier to scan through hierarchy and spacing.",
+  },
+  {
+    id: "typeset",
+    label: "Typeset",
+    description: "Push typography, labels, scale, and reading rhythm.",
+    structure: "Organize the target around type hierarchy and line rhythm.",
+    visual: "Use typography as the main art-direction move.",
+    clarity: "Improve copy legibility, label specificity, and text contrast.",
+  },
+  {
+    id: "colorize",
+    label: "Colorize",
+    description: "Try a distinct color, light, and contrast direction.",
+    structure: "Keep layout mostly stable so the color system can be compared.",
+    visual: "Make palette, lighting, tone, and material contrast do the work.",
+    clarity: "Use color to separate state, emphasis, and action clearly.",
+  },
+  {
+    id: "delight",
+    label: "Delight",
+    description: "Add personality, motion cues, texture, and memorable detail.",
+    structure: "Preserve function while adding a clearer moment of emphasis.",
+    visual: "Introduce a tasteful surprise that still fits the design kit.",
+    clarity: "Keep delight secondary to comprehension and affordance.",
+  },
+  {
+    id: "clarify",
+    label: "Clarify",
+    description: "Make copy, controls, and affordances explain themselves.",
+    structure: "Simplify the target around the clearest user path.",
+    visual: "Reduce visual noise that competes with the main action.",
+    clarity: "Rewrite labels and states so the outcome is obvious.",
+  },
+  {
+    id: "bolder",
+    label: "Bolder",
+    description: "Increase confidence, scale, contrast, and point of view.",
+    structure: "Make one hierarchy decision stronger instead of adding parts.",
+    visual: "Raise contrast, scale, and art direction with restraint.",
+    clarity: "Keep the bolder version usable and readable.",
+  },
+  {
+    id: "quieter",
+    label: "Quieter",
+    description: "Reduce noise and make the target calmer and easier to use.",
+    structure: "Remove unnecessary structure and tighten the chosen path.",
+    visual: "Use quieter surfaces, lower decoration, and calmer hierarchy.",
+    clarity: "Make the essential text and action easier to perceive.",
+  },
+  {
+    id: "animate",
+    label: "Animate",
+    description: "Add state, motion, and feedback direction for the target.",
+    structure: "Preserve layout while defining motion states and transitions.",
+    visual: "Use motion timing, entrance, and feedback as the differentiator.",
+    clarity: "Make motion clarify cause, state, and next action.",
+  },
+];
+
 const workbenchPromptChips = [
   {
     id: "design-context",
@@ -540,6 +615,9 @@ const dom = {
   workbenchLiveEditTitle: document.querySelector("#workbench-live-edit-title"),
   workbenchLiveEditDetail: document.querySelector("#workbench-live-edit-detail"),
   workbenchLiveEditAction: document.querySelector("#workbench-live-edit-action"),
+  workbenchLiveEditActionOptions: document.querySelector(
+    "#workbench-live-edit-action-options",
+  ),
   workbenchLiveEditCounter: document.querySelector(
     "#workbench-live-edit-counter",
   ),
@@ -1275,6 +1353,14 @@ function bindEvents() {
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
   dom.workbenchLiveEditNote.addEventListener("input", () => {
     updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
+  });
+  dom.workbenchLiveEditAction.addEventListener("click", cycleLiveEditActionIntent);
+  dom.workbenchLiveEditActionOptions.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-live-edit-action]");
+    if (!button) {
+      return;
+    }
+    setLiveEditActionIntent(button.dataset.liveEditAction);
   });
   dom.workbenchLiveEditPrev.addEventListener("click", () => {
     cycleLiveEditVariant(-1);
@@ -2015,6 +2101,47 @@ function normalizeActionMode(value) {
 
 function currentActionMode() {
   return normalizeActionMode(state?.board?.actionMode);
+}
+
+function normalizeLiveEditActionIntent(value) {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const rawId =
+    typeof value === "string"
+      ? value
+      : source.id || source.action || source.intent || source.liveEditAction;
+  const chip =
+    liveEditActionChips.find((entry) => entry.id === rawId) ||
+    liveEditActionChips[0];
+  return {
+    kind: "canvax-live-edit-action",
+    id: chip.id,
+    label: chip.label,
+    description: chip.description,
+    guidance: {
+      structure: chip.structure,
+      visual: chip.visual,
+      clarity: chip.clarity,
+    },
+  };
+}
+
+function currentLiveEditActionIntent(frame = currentFrame()) {
+  return normalizeLiveEditActionIntent(frame?.liveEditActionIntent);
+}
+
+function liveEditActionGuidanceForRole(actionIntent, role) {
+  const intent = normalizeLiveEditActionIntent(actionIntent);
+  if (role === "structure-layout") {
+    return intent.guidance.structure || intent.description;
+  }
+  if (role === "visual-taste") {
+    return intent.guidance.visual || intent.description;
+  }
+  if (role === "clarity-accessibility") {
+    return intent.guidance.clarity || intent.description;
+  }
+  return intent.description;
 }
 
 function generationSummaryText(config = state?.board?.generation) {
@@ -3708,6 +3835,7 @@ function normalizeLiveEditVariant(value, index = 0) {
     targetLabel: cleanString(source.targetLabel || target.targetLabel),
     note: cleanString(source.note),
     targetMedium: cleanString(source.targetMedium),
+    actionIntent: normalizeLiveEditActionIntent(source.actionIntent),
     style: {
       accent: normalizeColor(
         style.accent || source.accent,
@@ -3863,6 +3991,9 @@ function normalizeLiveEditRequest(value) {
   const surfaceOperations = normalizeLiveEditSurfaceOperations(
     value.surfaceOperations || activeVariant?.surfaceOperations,
   );
+  const actionIntent = normalizeLiveEditActionIntent(
+    value.actionIntent || activeVariant?.actionIntent,
+  );
   const status = cleanString(value.status);
   return {
     kind: "canvax-live-edit-request",
@@ -3888,6 +4019,7 @@ function normalizeLiveEditRequest(value) {
     activeDesignKit: normalizeLiveEditRequestDesignKit(
       value.activeDesignKit || value.designKit,
     ),
+    actionIntent,
     note: cleanString(value.note || target.note),
     transcriptText: cleanString(value.transcriptText || value.text),
     pins: normalizeLiveEditPins(value.pins || value.liveEditPins),
@@ -4252,6 +4384,9 @@ function normalizeFrame(frame, index) {
     mobile: frame.mobile || "",
     variant: normalizeFrameVariant(frame.variant),
     canvasReply: normalizeCanvasReply(frame.canvasReply),
+    liveEditActionIntent: normalizeLiveEditActionIntent(
+      frame.liveEditActionIntent,
+    ),
     liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
     liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
     liveEditVariants: normalizeLiveEditVariants(frame.liveEditVariants),
@@ -4408,6 +4543,7 @@ function createFrame(overrides = {}) {
       mobile: overrides.mobile || "",
       variant: overrides.variant || null,
       canvasReply: overrides.canvasReply || null,
+      liveEditActionIntent: overrides.liveEditActionIntent || null,
       liveEditTarget: overrides.liveEditTarget || null,
       liveEditPins: overrides.liveEditPins || [],
       liveEditVariants: overrides.liveEditVariants || [],
@@ -10201,6 +10337,70 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
       : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
 }
 
+function setLiveEditActionIntent(actionId) {
+  const frame = currentFrame();
+  if (!frame) {
+    return null;
+  }
+  const actionIntent = normalizeLiveEditActionIntent(actionId);
+  frame.liveEditActionIntent = actionIntent;
+  const resetVariants =
+    currentLiveEditVariants(frame).length > 0 && !frame.acceptedLiveEditVariant;
+  if (resetVariants) {
+    frame.liveEditVariants = [];
+    frame.liveEditVariantIndex = 0;
+  }
+  if (frame.liveEditRequest) {
+    frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+      frame,
+      liveTarget: frame.liveEditTarget,
+      variants: resetVariants ? [] : frame.liveEditVariants,
+      note: cleanString(dom.workbenchLiveEditNote?.value || frame.liveEditTarget?.note),
+      status: resetVariants ? "picked" : frame.liveEditRequest.status || "variant-ready",
+      acceptedVariant: frame.acceptedLiveEditVariant,
+    });
+  }
+  frame.updatedAt = new Date().toISOString();
+  persistState();
+  renderLiveEditActionOptions(frame);
+  renderLiveEditControls({
+    frame,
+    target: currentWorkbenchTarget(),
+    targetUrl: resolveWorkbenchTargetUrl(currentWorkbenchTarget()),
+  });
+  renderCanvas();
+  renderWorkbenchOutput();
+  renderFlowBoard();
+  renderStatus(
+    resetVariants
+      ? `Live Edit action: ${actionIntent.label}. Press Go to regenerate variants.`
+      : `Live Edit action: ${actionIntent.label}`,
+  );
+  return actionIntent;
+}
+
+function cycleLiveEditActionIntent() {
+  const frame = currentFrame();
+  const current = currentLiveEditActionIntent(frame);
+  const index = liveEditActionChips.findIndex((chip) => chip.id === current.id);
+  const next =
+    liveEditActionChips[(index + 1 + liveEditActionChips.length) % liveEditActionChips.length];
+  return setLiveEditActionIntent(next.id);
+}
+
+function renderLiveEditActionOptions(frame = currentFrame()) {
+  if (!dom.workbenchLiveEditActionOptions) {
+    return;
+  }
+  const active = currentLiveEditActionIntent(frame);
+  dom.workbenchLiveEditActionOptions.innerHTML = liveEditActionChips
+    .map(
+      (chip) =>
+        `<button class="workbench-live-edit-action-option${chip.id === active.id ? " active" : ""}" type="button" data-live-edit-action="${escapeHtml(chip.id)}" aria-pressed="${chip.id === active.id ? "true" : "false"}" title="${escapeHtml(chip.description)}">${escapeHtml(chip.label)}</button>`,
+    )
+    .join("");
+}
+
 function renderLiveEditControls({ frame, target, targetUrl }) {
   const hasOutput = Boolean(target && targetUrl);
   const hasCanvasSelection = Boolean(selectedCanvasLiveEditElement(frame));
@@ -10214,6 +10414,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   const variants = currentLiveEditVariants(frame);
   const variantIndex = currentLiveEditVariantIndex(frame);
   const selectedVariant = variants[variantIndex] || null;
+  const actionIntent = currentLiveEditActionIntent(frame);
   const placingLivePin = liveEditPinPlacementMatchesTarget(liveTarget);
   const drawOnMap = liveEditTargetIsSpatialMapObject(liveTarget);
   const drawOnCanvas = liveEditTargetUsesCanvasSurface(liveTarget, frame);
@@ -10310,7 +10511,10 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
         )}%`
       : "Click the generated output to bind the next rewrite to a concrete region.";
   dom.workbenchLiveEditDetail.textContent = detail;
-  dom.workbenchLiveEditAction.textContent = currentActionMode().label;
+  dom.workbenchLiveEditAction.textContent = actionIntent.label;
+  dom.workbenchLiveEditAction.title = actionIntent.description;
+  dom.workbenchLiveEditAction.setAttribute("aria-label", `Live Edit action: ${actionIntent.label}`);
+  renderLiveEditActionOptions(frame);
   dom.workbenchLiveEditCounter.textContent = variants.length
     ? `${variantIndex + 1} / ${variants.length} variants`
     : placingLivePin
@@ -13051,8 +13255,16 @@ function liveEditTargetMediumKey(target, frame = currentFrame()) {
   return "artifact-region";
 }
 
-function liveEditMediumSurfaceOperations({ frame, target, role, actionMode, strokeSignals = [] }) {
+function liveEditMediumSurfaceOperations({
+  frame,
+  target,
+  role,
+  actionMode,
+  actionIntent,
+  strokeSignals = [],
+}) {
   const mediumKey = liveEditTargetMediumKey(target, frame);
+  const liveAction = normalizeLiveEditActionIntent(actionIntent);
   const selectorHint =
     target?.targetSourceFile ||
     target?.targetSelector ||
@@ -13065,6 +13277,10 @@ function liveEditMediumSurfaceOperations({ frame, target, role, actionMode, stro
   const actionDetail = actionMode?.label
     ? `Tune for ${actionMode.label}.`
     : "Tune for the current Workbench action.";
+  const liveActionDetail = `${liveAction.label}: ${liveEditActionGuidanceForRole(
+    liveAction,
+    role,
+  )}`;
   const roleOperations = {
     "structure-layout": [
       liveEditSurfaceOperation(
@@ -13361,7 +13577,8 @@ function liveEditMediumSurfaceOperations({ frame, target, role, actionMode, stro
     ...(roleOperations[role] || []),
     ...((mediumOperations[mediumKey] || mediumOperations["artifact-region"])[role] || []),
     liveEditSurfaceOperation("mark-intent", "Marks", markDetail, 5),
-    liveEditSurfaceOperation("action-mode", "Mode", actionDetail, 6),
+    liveEditSurfaceOperation("live-edit-action", "Action", liveActionDetail, 6),
+    liveEditSurfaceOperation("action-mode", "Mode", actionDetail, 7),
   ].slice(0, 6);
 }
 
@@ -13440,6 +13657,7 @@ function buildFrameBoundLiveEditRequest({
   }
   const normalizedVariants = normalizeLiveEditVariants(variants);
   const variantIndex = currentLiveEditVariantIndex(frame);
+  const actionIntent = currentLiveEditActionIntent(frame);
   const activeVariant =
     normalizeLiveEditVariant(acceptedVariant) ||
     normalizedVariants[Math.min(variantIndex, normalizedVariants.length - 1)] ||
@@ -13459,6 +13677,7 @@ function buildFrameBoundLiveEditRequest({
     sourceFrameId: frame.id,
     sourceFrameTitle: frame.title,
     activeDesignKit: designKit,
+    actionIntent,
     note,
     transcriptText: liveEditRequestTranscriptText(frame, note),
     pins: liveEditTargetPins(frame, target),
@@ -13494,6 +13713,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
   }
   const createdAt = new Date().toISOString();
   const actionMode = currentActionMode();
+  const actionIntent = currentLiveEditActionIntent(frame);
   const designKit = buildDesignKitSummary([frame]);
   const medium = liveEditTargetMediumLabel(target, frame);
   const pins = liveEditTargetPins(frame, target).map((pin) => pin.text);
@@ -13520,8 +13740,21 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
     targetLabel: target.targetLabel,
     targetMedium: medium,
     note,
+    actionIntent,
     createdAt,
   };
+  const structureAction = liveEditActionGuidanceForRole(
+    actionIntent,
+    "structure-layout",
+  );
+  const visualAction = liveEditActionGuidanceForRole(
+    actionIntent,
+    "visual-taste",
+  );
+  const clarityAction = liveEditActionGuidanceForRole(
+    actionIntent,
+    "clarity-accessibility",
+  );
 
   return [
     normalizeLiveEditVariant(
@@ -13532,9 +13765,9 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
         role: "structure-layout",
         label: "Structure",
         archetype: "Spatial reflow",
-        title: `Recompose the picked ${medium}`,
+        title: `${actionIntent.label}: recompose the picked ${medium}`,
         body: compactDisplayText(
-          `Keep ${targetName} in place, then improve hierarchy, spacing, and reading order. ${userIntent || actionMode.description}`,
+          `Keep ${targetName} in place, then improve hierarchy, spacing, and reading order. ${structureAction} ${userIntent || actionMode.description}`,
           180,
         ),
         cta: "Apply structure",
@@ -13543,6 +13776,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           "rebuild the selected bounds as a clearer component structure",
           "preserve the surrounding canvas and output context",
           "turn pins and strokes into hierarchy and placement changes",
+          `apply live action chip: ${actionIntent.label}`,
           `follow active action mode: ${actionMode.label}`,
         ],
         surfaceOperations: liveEditMediumSurfaceOperations({
@@ -13550,6 +13784,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           target,
           role: "structure-layout",
           actionMode,
+          actionIntent,
           strokeSignals,
         }),
         style: {
@@ -13569,9 +13804,9 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
         role: "visual-taste",
         label: "Taste",
         archetype: "Art-direction pass",
-        title: `Restyle the picked ${medium}`,
+        title: `${actionIntent.label}: restyle the picked ${medium}`,
         body: compactDisplayText(
-          `Keep the same function, but push visual tone, contrast, typography, and material feel using ${kitSummary}.`,
+          `Keep the same function, but push visual tone, contrast, typography, and material feel using ${kitSummary}. ${visualAction}`,
           180,
         ),
         cta: "Apply taste",
@@ -13580,6 +13815,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           "change the visual language without changing the target contract",
           "raise contrast and type hierarchy while avoiding generic AI styling",
           "make the selected region feel more designed than merely rendered",
+          `apply live action chip: ${actionIntent.label}`,
           `respect design kit: ${kitSummary}`,
         ],
         surfaceOperations: liveEditMediumSurfaceOperations({
@@ -13587,6 +13823,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           target,
           role: "visual-taste",
           actionMode,
+          actionIntent,
           strokeSignals,
         }),
         style: {
@@ -13606,9 +13843,9 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
         role: "clarity-accessibility",
         label: "Clarity",
         archetype: "Usability hardening",
-        title: `Clarify the picked ${medium}`,
+        title: `${actionIntent.label}: clarify the picked ${medium}`,
         body: compactDisplayText(
-          `Make the target easier to read, tap, understand, and implement. Resolve ambiguous copy, controls, and contrast first.`,
+          `Make the target easier to read, tap, understand, and implement. ${clarityAction}`,
           180,
         ),
         cta: "Apply clarity",
@@ -13617,6 +13854,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           "tighten copy, labels, and affordances inside the picked region",
           "raise accessible contrast and touch/readability standards",
           "remove or reduce whatever the scratch/cross strokes mark",
+          `apply live action chip: ${actionIntent.label}`,
           "keep the accepted output binding and manifest target intact",
         ],
         surfaceOperations: liveEditMediumSurfaceOperations({
@@ -13624,6 +13862,7 @@ function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
           target,
           role: "clarity-accessibility",
           actionMode,
+          actionIntent,
           strokeSignals,
         }),
         style: {
@@ -24222,6 +24461,7 @@ async function buildExportPackage(frameSelection = state.frames) {
       mobile: frame.mobile,
       variant: frame.variant,
       canvasReply: frame.canvasReply,
+      liveEditActionIntent: currentLiveEditActionIntent(frame),
       liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
       liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       liveEditVariants: currentLiveEditVariants(frame),
@@ -24352,6 +24592,7 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       mobile: frame.mobile,
       variant: frame.variant || null,
       canvasReply: frame.canvasReply || null,
+      liveEditActionIntent: currentLiveEditActionIntent(frame),
       liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
       liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       liveEditVariants: currentLiveEditVariants(frame),
@@ -24413,6 +24654,7 @@ function buildOutputRevisionGraph(frames, manifest, rewriteQueue = []) {
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+      liveEditActionIntent: currentLiveEditActionIntent(frame),
       liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       liveEditVariants: currentLiveEditVariants(frame),
       liveEditVariantIndex: currentLiveEditVariantIndex(frame),
@@ -25455,6 +25697,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
       variants: frame.mobile,
       variant: frame.variant,
       canvasReply: frame.canvasReply,
+      liveEditActionIntent: currentLiveEditActionIntent(frame),
       liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
       liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
       liveEditVariants: currentLiveEditVariants(frame),
@@ -25829,6 +26072,7 @@ function buildFrameComposition(frame) {
     elements,
     labels: elements.filter((element) => element.type === "label"),
     liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+    liveEditActionIntent: currentLiveEditActionIntent(frame),
     liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
     liveEditCanvasMarks: liveEditTargetCanvasMarks(
       frame,
@@ -26045,6 +26289,11 @@ function appendLiveEditRequestMarkdown(lines, request, indent = "  ") {
   if (liveRequest.activeDesignKit?.statusLabel) {
     lines.push(
       `${indent}- Live edit design kit: ${liveRequest.activeDesignKit.statusLabel}`,
+    );
+  }
+  if (liveRequest.actionIntent?.label) {
+    lines.push(
+      `${indent}- Live edit action chip: ${liveRequest.actionIntent.label} - ${liveRequest.actionIntent.description}`,
     );
   }
   if (liveRequest.transcriptText) {
@@ -27047,6 +27296,7 @@ function summarizeFrameForCheckpoint(frame, index) {
     assets: frame.assets,
     mobile: frame.mobile,
     canvasReply: frame.canvasReply || null,
+    liveEditActionIntent: currentLiveEditActionIntent(frame),
     liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
     liveEditPins: normalizeLiveEditPins(frame.liveEditPins),
     liveEditVariants: currentLiveEditVariants(frame),
@@ -29541,6 +29791,8 @@ async function runSelfTest() {
           Boolean(dom.focusLivePick) &&
           Boolean(dom.canvasReplyUnderlay) &&
           Boolean(dom.workbenchLiveEditBar) &&
+          Boolean(dom.workbenchLiveEditAction) &&
+          Boolean(dom.workbenchLiveEditActionOptions) &&
           Boolean(dom.workbenchLiveEditNote) &&
           Boolean(dom.workbenchLiveEditPin) &&
           Boolean(dom.workbenchLiveEditDraw) &&
@@ -29724,6 +29976,9 @@ async function runSelfTest() {
     const previousLiveEditTarget = structuredClone(
       frameForCanvasReply.liveEditTarget || null,
     );
+    const previousLiveEditActionIntent = structuredClone(
+      frameForCanvasReply.liveEditActionIntent || null,
+    );
     const previousLiveEditPins = structuredClone(
       frameForCanvasReply.liveEditPins || [],
     );
@@ -29809,6 +30064,12 @@ async function runSelfTest() {
       frameForCanvasReply,
       frameForCanvasReply.liveEditTarget,
     );
+    const liveEditActionChipSelected =
+      setLiveEditActionIntent("delight")?.id === "delight" &&
+      dom.workbenchLiveEditAction.textContent.includes("Delight") &&
+      dom.workbenchLiveEditActionOptions.querySelector(
+        "[data-live-edit-action='delight'].active",
+      );
     dom.workbenchLiveEditNote.value = "Pin this generated CTA";
     updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
     const liveEditPinPlacementArmed = beginLiveEditCommentPinPlacement();
@@ -29879,6 +30140,18 @@ async function runSelfTest() {
         ),
       ),
     );
+    const createdLiveEditRequest = normalizeLiveEditRequest(
+      frameForCanvasReply.liveEditRequest,
+    );
+    const liveEditActionIntentExported =
+      createdLiveEditRequest?.actionIntent?.id === "delight" &&
+      createdLiveEditVariants.every(
+        (variant) => variant.actionIntent?.id === "delight",
+      ) &&
+      createdLiveEditVariants.some((variant) =>
+        variant.title.includes("Delight"),
+      ) &&
+      liveEditVariantOperationKinds.has("live-edit-action");
     const liveEditVariantOperationsMaterial =
       createdLiveEditVariants.every(
         (variant) =>
@@ -29887,10 +30160,9 @@ async function runSelfTest() {
       ) &&
       liveEditVariantOperationRoles.size === 3 &&
       liveEditVariantOperationKinds.size >= 10 &&
+      liveEditActionChipSelected &&
+      liveEditActionIntentExported &&
       firstLiveEditOperationChipCount >= 4;
-    const createdLiveEditRequest = normalizeLiveEditRequest(
-      frameForCanvasReply.liveEditRequest,
-    );
     const liveEditRequestMaterial =
       createdLiveEditRequest?.status === "variant-ready" &&
       createdLiveEditRequest.target?.targetId === "self-test-canvas-reply" &&
@@ -30036,6 +30308,7 @@ async function runSelfTest() {
       domCapturedTarget.bounds.w === 0.4 &&
       domCapturedTarget.targetText.includes("Book now");
     frameForCanvasReply.liveEditTarget = previousLiveEditTarget;
+    frameForCanvasReply.liveEditActionIntent = previousLiveEditActionIntent;
     frameForCanvasReply.liveEditPins = previousLiveEditPins;
     frameForCanvasReply.liveEditVariants = previousLiveEditVariants;
     frameForCanvasReply.liveEditVariantIndex = previousLiveEditVariantIndex;
@@ -30080,6 +30353,8 @@ async function runSelfTest() {
           movedPinDragged: Boolean(movedLiveEditPin?.draggedAt),
           liveEditVariantsHotSwap,
           liveEditVariantOperationsMaterial,
+          liveEditActionChipSelected: Boolean(liveEditActionChipSelected),
+          liveEditActionIntentExported,
           liveEditRequestMaterial,
           firstLiveEditOperationChipCount,
           secondLiveEditOperationChipCount,

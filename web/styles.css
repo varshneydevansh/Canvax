@@ -3001,7 +3001,9 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     margin-top: 0.18rem;
 }
 
-.workbench-live-edit-chips span {
+.workbench-live-edit-chips span,
+.workbench-live-edit-action-chip,
+.workbench-live-edit-action-option {
     display: inline-flex;
     align-items: center;
     min-height: 1.5rem;
@@ -3017,6 +3019,48 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
 }
 
 .workbench-live-edit-chips span:first-child {
+    color: #18110e;
+    background: #f5b938;
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.workbench-live-edit-action-chip,
+.workbench-live-edit-action-option {
+    cursor: pointer;
+}
+
+.workbench-live-edit-action-chip {
+    color: #f5b938;
+    border-color: rgba(245, 185, 56, 0.44);
+    background: rgba(245, 185, 56, 0.12);
+}
+
+.workbench-live-edit-action-chip:hover,
+.workbench-live-edit-action-chip:focus-visible,
+.workbench-live-edit-action-option:hover,
+.workbench-live-edit-action-option:focus-visible {
+    color: #18110e;
+    background: #f5b938;
+    outline: none;
+}
+
+.workbench-live-edit-action-options {
+    display: flex;
+    gap: 0.28rem;
+    overflow-x: auto;
+    padding: 0.1rem 0 0.2rem;
+    scrollbar-width: thin;
+}
+
+.workbench-live-edit-action-option {
+    flex: 0 0 auto;
+    min-height: 1.35rem;
+    padding: 0.16rem 0.42rem;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 0.58rem;
+}
+
+.workbench-live-edit-action-option.active {
     color: #18110e;
     background: #f5b938;
     border-color: rgba(255, 255, 255, 0.35);

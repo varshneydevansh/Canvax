@@ -973,6 +973,9 @@ function buildAcceptedLiveEditContext(selected) {
     kind: "canvax-accepted-live-edit",
     target,
     variant,
+    actionIntent:
+      normalizeLiveEditActionIntent(liveEditRequest?.actionIntent) ||
+      normalizeLiveEditActionIntent(variant?.actionIntent),
     pins,
     canvasMarks,
     outputAnnotations: outputAnnotations.slice(0, 12),
@@ -1018,6 +1021,13 @@ function buildAcceptedLiveEditPatchNote(context) {
   const surfaceOperations = normalizeLiveEditSurfaceOperations(
     context.surfaceOperations || variant?.surfaceOperations,
   );
+  const actionText = context.actionIntent?.label
+    ? `Live Edit action chip: ${context.actionIntent.label}${
+        context.actionIntent.description
+          ? ` - ${context.actionIntent.description}`
+          : ""
+      }.`
+    : "";
   const operationText = surfaceOperations.length
     ? `Surface operations: ${surfaceOperations
         .map((operation) =>
@@ -1041,6 +1051,7 @@ function buildAcceptedLiveEditPatchNote(context) {
       ? `Variant direction: ${variant.summary || variant.body}.`
       : "",
     designMoves.length ? `Design moves: ${designMoves.join("; ")}.` : "",
+    actionText,
     operationText,
     pins.length
       ? `Comment pins: ${pins.map((pin) => pin.text).filter(Boolean).join("; ")}.`
@@ -1285,12 +1296,35 @@ function normalizeLiveEditVariant(value, fallbackTarget = null, index = 0) {
     targetLabel: cleanString(value.targetLabel || target.targetLabel),
     note: cleanString(value.note),
     targetMedium: cleanString(value.targetMedium),
+    actionIntent: normalizeLiveEditActionIntent(value.actionIntent),
     style: value.style && typeof value.style === "object" ? value.style : {},
     surfaceOperations: normalizeLiveEditSurfaceOperations(
       value.surfaceOperations || value.operations,
     ),
     createdAt: cleanString(value.createdAt),
     acceptedAt: cleanString(value.acceptedAt),
+  };
+}
+
+function normalizeLiveEditActionIntent(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const id = cleanString(value.id || value.action || value.intent);
+  const label = cleanString(value.label || id);
+  const description = cleanString(value.description || value.detail);
+  if (!id && !label && !description) {
+    return null;
+  }
+  return {
+    kind: "canvax-live-edit-action",
+    id,
+    label,
+    description,
+    guidance:
+      value.guidance && typeof value.guidance === "object" && !Array.isArray(value.guidance)
+        ? value.guidance
+        : null,
   };
 }
 
@@ -1366,6 +1400,9 @@ function normalizeAcceptedLiveEditRequest(value, fallbackTarget = null) {
     acceptedVariant ||
     normalizeLiveEditVariant(value.activeVariant, target, variantIndex) ||
     normalizeLiveEditVariant(variants[variantIndex], target, variantIndex);
+  const actionIntent = normalizeLiveEditActionIntent(
+    value.actionIntent || activeVariant?.actionIntent,
+  );
   return {
     kind: "canvax-live-edit-request",
     id: cleanString(value.id),
@@ -1386,6 +1423,7 @@ function normalizeAcceptedLiveEditRequest(value, fallbackTarget = null) {
       !Array.isArray(value.activeDesignKit)
         ? value.activeDesignKit
         : null,
+    actionIntent,
     note: cleanString(value.note || target.note),
     transcriptText: cleanString(value.transcriptText || value.text),
     pins: normalizeLiveEditPins(value.pins || value.liveEditPins),

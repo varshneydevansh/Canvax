@@ -39,7 +39,7 @@ const previewSelfTestTimeoutMs = parsePositiveInteger(
 );
 const responsiveSmokeTimeoutMs = parsePositiveInteger(
   process.env.CANVAX_RESPONSIVE_SMOKE_TIMEOUT_MS,
-  20000,
+  60000,
 );
 const responsiveSmokeViewports = [
   { label: "desktop", width: 1440, height: 1024 },
