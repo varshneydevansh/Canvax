@@ -1454,7 +1454,13 @@
                                 </div>
                             </div>
 
-                            <div id="device-shell" class="device-shell">
+                            <div
+                                id="device-shell"
+                                class="device-shell"
+                                data-edit-surface="scratchpad"
+                                data-surface-label="Scratch pad"
+                                aria-label="Scratch pad canvas surface"
+                            >
                                 <div
                                     id="brush-preview"
                                     class="brush-preview"
@@ -1495,11 +1501,19 @@
                                         Output reply
                                     </span>
                                 </div>
-                                <canvas id="board-canvas"></canvas>
+                                <canvas
+                                    id="board-canvas"
+                                    data-edit-surface="scratchpad"
+                                    data-surface-label="Scratch pad"
+                                    aria-label="Scratch pad canvas"
+                                ></canvas>
                             </div>
                             <div
                                 id="workbench-output-stage"
                                 class="workbench-output-card workbench-output-stage"
+                                data-edit-surface="output-canvas"
+                                data-surface-label="Output canvas"
+                                aria-label="Output canvas"
                                 aria-live="polite"
                             >
                                 <div class="workbench-output-head">

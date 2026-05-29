@@ -560,6 +560,8 @@ const checks = [
           "beginLiveEditCanvasPickDraft",
           "beginLiveEditOutputPickDraft",
           "liveEditPickDraftBounds",
+          "preferredSurface",
+          "outputPickStaysOnOutput",
           "createLiveEditTargetFromOutputBounds",
           "normalizeLiveEditActionIntent",
           "setLiveEditActionIntent",
@@ -604,6 +606,14 @@ const checks = [
           "buildVoiceIntentQueue",
           "focus-voice-intents",
           "transcriptBridge",
+        ],
+      },
+      {
+        path: "web/index.html",
+        includes: [
+          "data-edit-surface=\"scratchpad\"",
+          "data-edit-surface=\"output-canvas\"",
+          "data-surface-label=\"Output canvas\"",
         ],
       },
       {

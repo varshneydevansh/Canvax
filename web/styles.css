@@ -327,6 +327,25 @@ body[data-workspace-mode="simple"][data-workbench-focus="split"]
     min-height: min(72vh, 54rem);
 }
 
+body[data-workspace-mode="simple"][data-workbench-focus="split"]
+    .device-shell {
+    border-color: rgba(12, 141, 123, 0.22);
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(12, 141, 123, 0.14),
+        var(--shadow-lg);
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="split"]
+    .workbench-output-stage,
+body[data-workspace-mode="simple"][data-workbench-focus="output"]
+    .workbench-output-stage {
+    position: relative;
+    border-color: rgba(35, 100, 170, 0.34);
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.06),
+        0 1rem 2.8rem rgba(35, 100, 170, 0.18);
+}
+
 body[data-workspace-mode="simple"][data-workbench-focus="output"]
     .workbench-output-stage {
     min-height: min(84vh, 68rem);
@@ -4509,6 +4528,65 @@ input.color-hex-input[data-invalid="true"] {
 
 .device-shell.has-canvas-reply::before {
     content: "draw corrections over generated output";
+}
+
+.device-shell::after,
+.workbench-output-stage::after {
+    position: absolute;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.9rem;
+    max-width: calc(100% - 2rem);
+    padding: 0.28rem 0.62rem;
+    overflow: hidden;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 255, 255, 0.18);
+    color: rgba(250, 246, 240, 0.88);
+    background: rgba(28, 28, 30, 0.72);
+    box-shadow: 0 0.75rem 1.6rem rgba(0, 0, 0, 0.16);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    opacity: 0;
+    pointer-events: none;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    transform: translateY(0.24rem);
+    transition:
+        opacity var(--duration-md) var(--ease-out),
+        transform var(--duration-md) var(--ease-out);
+    white-space: nowrap;
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="split"]
+    .device-shell::after,
+body[data-workspace-mode="simple"][data-workbench-focus="split"]
+    .workbench-output-stage::after,
+body[data-workspace-mode="simple"][data-workbench-focus="output"]
+    .workbench-output-stage::after {
+    content: attr(data-surface-label);
+    opacity: 1;
+    transform: translateY(0);
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="split"]
+    .device-shell::after {
+    border-color: rgba(12, 141, 123, 0.32);
+    color: #eaf7f5;
+    background: rgba(12, 88, 78, 0.78);
+}
+
+body[data-workspace-mode="simple"][data-workbench-focus="split"]
+    .workbench-output-stage::after,
+body[data-workspace-mode="simple"][data-workbench-focus="output"]
+    .workbench-output-stage::after {
+    border-color: rgba(87, 139, 203, 0.34);
+    background: rgba(27, 70, 128, 0.78);
 }
 
 .device-shell.has-canvas-reply #board-canvas {

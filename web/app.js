@@ -1176,7 +1176,10 @@ function bindEvents() {
   });
   dom.workbenchComposerPick.addEventListener("click", () => {
     commitManualVoiceDraft("workbench-composer");
-    toggleLiveEditPickMode();
+    toggleLiveEditPickMode({
+      preferredSurface:
+        state.workbenchFocus === "output" ? "output" : "auto",
+    });
   });
   dom.workbenchComposerApply.addEventListener("click", () => {
     commitManualVoiceDraft("workbench-composer");
@@ -1310,7 +1313,12 @@ function bindEvents() {
   dom.focusCanvasReply.addEventListener("click", () => {
     void replyInCanvasFromCurrentSketch();
   });
-  dom.focusLivePick.addEventListener("click", toggleLiveEditPickMode);
+  dom.focusLivePick.addEventListener("click", () =>
+    toggleLiveEditPickMode({
+      preferredSurface:
+        state.workbenchFocus === "output" ? "output" : "auto",
+    }),
+  );
   dom.focusBuildReal.addEventListener("click", () => {
     void buildRealScreenWithCodex();
   });
@@ -1346,10 +1354,12 @@ function bindEvents() {
   dom.workbenchOutputStageReview.addEventListener("click", () => {
     void runWorkbenchDesignReview();
   });
-  dom.workbenchLivePickOutput.addEventListener("click", toggleLiveEditPickMode);
+  dom.workbenchLivePickOutput.addEventListener("click", () =>
+    toggleLiveEditPickMode({ preferredSurface: "output" }),
+  );
   dom.workbenchOutputStageLivePick.addEventListener(
     "click",
-    toggleLiveEditPickMode,
+    () => toggleLiveEditPickMode({ preferredSurface: "output" }),
   );
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
   dom.workbenchLiveEditNote.addEventListener("input", () => {
@@ -5458,7 +5468,10 @@ function handleWorkbenchRailAction(action) {
     return;
   }
   if (action === "live-pick") {
-    toggleLiveEditPickMode();
+    toggleLiveEditPickMode({
+      preferredSurface:
+        state.workbenchFocus === "output" ? "output" : "auto",
+    });
     return;
   }
   if (action === "image-import") {
@@ -10739,8 +10752,18 @@ function workbenchCanPickCanvasSurface(frame = currentFrame()) {
   return Boolean(frame && state.viewMode === "frame");
 }
 
-function liveEditPickTargetsCanvasSurface(target = currentWorkbenchTarget()) {
+function liveEditPickTargetsCanvasSurface(
+  target = currentWorkbenchTarget(),
+  options = {},
+) {
   const targetUrl = resolveWorkbenchTargetUrl(target);
+  const preferredSurface = cleanString(options.preferredSurface);
+  if (preferredSurface === "output" && targetUrl) {
+    return false;
+  }
+  if (preferredSurface === "canvas") {
+    return workbenchCanPickCanvasSurface();
+  }
   return Boolean(
     workbenchCanPickCanvasSurface() &&
       (workbenchTargetIsCanvasReply(target) ||
@@ -11036,6 +11059,12 @@ function liveEditTargetIsSpatialMapObject(liveTarget) {
 
 function liveEditTargetIsSameCanvasReply(liveTarget) {
   const target = normalizeLiveEditTarget(liveTarget);
+  if (
+    target &&
+    ["generated-output", "output-preview"].includes(cleanString(target.surface))
+  ) {
+    return false;
+  }
   return Boolean(
     target &&
       (target.surface === "same-canvas-reply" ||
@@ -11387,12 +11416,21 @@ function liveEditPickDraftForSurface(surface, frame = currentFrame()) {
   return draft;
 }
 
-function createLiveEditTargetFromOutputBounds(target, frame, bounds) {
+function createLiveEditTargetFromOutputBounds(
+  target,
+  frame,
+  bounds,
+  options = {},
+) {
   const normalizedBounds = normalizeLiveEditBounds(bounds);
   const targetUrl = resolveWorkbenchTargetUrl(target);
   if (!target || !frame || !normalizedBounds) {
     return null;
   }
+  const forceOutputSurface = Boolean(options.forceOutputSurface);
+  const targetSurface = target.canvasReply && !forceOutputSurface
+    ? "same-canvas-reply"
+    : "generated-output";
   return normalizeLiveEditTarget({
     id: uid("live-edit"),
     sourceFrameId: frame.id,
@@ -11403,14 +11441,14 @@ function createLiveEditTargetFromOutputBounds(target, frame, bounds) {
       designerOutputTargetLabelFromItem(target, frame.title),
       48,
     )}`,
-    targetType: target.canvasReply
+    targetType: target.canvasReply && !forceOutputSurface
       ? "same-canvas-reply-region"
-      : target.type || "generated-output-region",
+      : "generated-output-region",
     targetSource: target.source || "",
     targetHref: targetUrl,
     targetPath: target.previewPath || target.path || "",
     targetVersionTag: target.versionTag || "",
-    surface: target.canvasReply ? "same-canvas-reply" : "generated-output",
+    surface: targetSurface,
     bounds: normalizedBounds,
     note: cleanString(dom.workbenchLiveEditNote?.value),
     instruction:
@@ -11432,6 +11470,9 @@ function createLiveEditTargetFromPoint(target, frame, point, event = null) {
   const domNodeId = cleanString(domTarget?.nodeId);
   const selector = cleanString(domTarget?.selector);
   const domSourceHint = normalizeLiveEditSourceHint(domTarget || {});
+  const forceOutputSurface = Boolean(
+    event?.currentTarget?.closest?.("[data-workbench-output-surface]"),
+  );
   return normalizeLiveEditTarget({
     id: uid("live-edit"),
     sourceFrameId: frame.id,
@@ -11450,7 +11491,10 @@ function createLiveEditTargetFromPoint(target, frame, point, event = null) {
     targetHref: targetUrl,
     targetPath: target.previewPath || target.path || "",
     targetVersionTag: target.versionTag || "",
-    surface: target.canvasReply ? "same-canvas-reply" : "generated-output",
+    surface:
+      target.canvasReply && !forceOutputSurface
+        ? "same-canvas-reply"
+        : "generated-output",
     bounds,
     note: cleanString(dom.workbenchLiveEditNote?.value),
     status: "picked",
@@ -11743,15 +11787,15 @@ function previewElementSelector(element) {
   return path.join(" > ");
 }
 
-function toggleLiveEditPickMode() {
-  setLiveEditPickMode(!state.liveEditPickActive);
+function toggleLiveEditPickMode(options = {}) {
+  setLiveEditPickMode(!state.liveEditPickActive, options);
 }
 
-function setLiveEditPickMode(active) {
+function setLiveEditPickMode(active, options = {}) {
   const target = currentWorkbenchTarget();
   const frame = currentFrame();
   const targetUrl = resolveWorkbenchTargetUrl(target);
-  const pickCanvas = liveEditPickTargetsCanvasSurface(target);
+  const pickCanvas = liveEditPickTargetsCanvasSurface(target, options);
   const selectedElement = selectedCanvasLiveEditElement(frame);
   const selectedMapObject =
     state.viewMode === "flow" ? selectedSpatialObject() : null;
@@ -11800,8 +11844,8 @@ function setLiveEditPickMode(active) {
     state.viewMode = "frame";
     renderStatus(
       pickCanvas
-        ? "Pick a canvas object, image region, or blank region for Live Edit"
-        : "Pick a region inside the generated output",
+        ? "Pick a scratchpad object, image region, or blank canvas region for Live Edit"
+        : "Pick a region inside the output canvas",
     );
   } else {
     renderStatus("Live edit picker closed");
@@ -11959,8 +12003,13 @@ function pickLiveEditTargetFromEvent(event, bounds = null) {
   const frame = currentFrame();
   const target = currentWorkbenchTarget();
   const point = outputAnnotationPointFromEvent(event);
+  const forceOutputSurface = Boolean(
+    event?.currentTarget?.closest?.("[data-workbench-output-surface]"),
+  );
   const liveTarget = bounds
-    ? createLiveEditTargetFromOutputBounds(target, frame, bounds)
+    ? createLiveEditTargetFromOutputBounds(target, frame, bounds, {
+        forceOutputSurface,
+      })
     : createLiveEditTargetFromPoint(target, frame, point, event);
   if (!liveTarget) {
     renderStatus("Could not bind that output region");
@@ -28563,7 +28612,7 @@ async function replyInCanvasFromCurrentSketch() {
     state.draftElement = null;
     state.isDrawing = false;
     state.viewMode = "frame";
-    state.workbenchFocus = "sketch";
+    state.workbenchFocus = "split";
     state.tool = "pen";
     clearElementSelection();
     frameRenderCache.delete(frame.id);
@@ -28708,6 +28757,12 @@ async function materializeCurrentFrame(options = {}) {
     }
     if (!silent) {
       dom.workspaceStatus.textContent = `${completedLabel} ${frame.title} to ${data.previewPath}`;
+    }
+    if (state.workspaceMode === "simple" && state.workbenchFocus !== "map") {
+      state.workbenchFocus = "split";
+      state.viewMode = "frame";
+      persistState();
+      renderWorkspaceMode();
     }
     if (announce) {
       renderStatus(`${completedLabel} ${frame.title}`);
@@ -30250,6 +30305,15 @@ async function runSelfTest() {
     state.workbenchFocus = "sketch";
     state.tool = "select";
     frameForCanvasReply.liveEditTarget = null;
+    const outputPickStaysOnOutput =
+      liveEditPickTargetsCanvasSurface(canvasReplyTargetForFrame(frameForCanvasReply), {
+        preferredSurface: "output",
+      }) === false;
+    setLiveEditPickMode(true, { preferredSurface: "output" });
+    const outputPickFocusSelected =
+      state.liveEditPickActive === true && state.workbenchFocus === "output";
+    setLiveEditPickMode(false);
+    state.workbenchFocus = "sketch";
     setLiveEditPickMode(true);
     const canvasReplyPickPoint = { x: 0.42, y: 0.36 };
     const canvasReplyViewport =
@@ -30497,8 +30561,8 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditTarget,
     );
     const outputDragPicked =
-      outputDragLiveTarget?.surface === "same-canvas-reply" &&
-      outputDragLiveTarget?.targetType === "same-canvas-reply-region" &&
+      outputDragLiveTarget?.surface === "generated-output" &&
+      outputDragLiveTarget?.targetType === "generated-output-region" &&
       outputDragLiveTarget.bounds?.w > 0.36 &&
       outputDragLiveTarget.bounds?.h > 0.28;
     closeLiveEditTarget();
@@ -30591,6 +30655,8 @@ async function runSelfTest() {
           canvasReplyBinding?.branchFrameId === frameForCanvasReply.id &&
           canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html") &&
           liveEditOutputRendered &&
+          outputPickStaysOnOutput &&
+          outputPickFocusSelected &&
           liveEditVariantsHotSwap &&
           liveEditDiscarded &&
           outputDragPicked &&
@@ -30603,6 +30669,8 @@ async function runSelfTest() {
             canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html"),
           ),
           liveEditOutputRendered,
+          outputPickStaysOnOutput,
+          outputPickFocusSelected,
           sameCanvasLiveEditPicked,
           sameCanvasLiveEditDrawModeArmed,
           sameCanvasLiveEditMarkCount: sameCanvasLiveEditMarks.length,

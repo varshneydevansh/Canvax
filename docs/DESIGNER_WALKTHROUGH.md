@@ -94,7 +94,7 @@ generated output exists
 switch to Split or Output focus
         |
         v
-draw arrows / notes / correction marks over output
+choose Scratch pad or Output canvas, then draw arrows / notes / correction marks
         |
         v
 Apply to Codex
