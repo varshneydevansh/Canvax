@@ -617,6 +617,7 @@ const dom = {
   workbenchLiveEditBar: document.querySelector("#workbench-live-edit-bar"),
   workbenchLiveEditTitle: document.querySelector("#workbench-live-edit-title"),
   workbenchLiveEditDetail: document.querySelector("#workbench-live-edit-detail"),
+  workbenchLiveEditPick: document.querySelector("#workbench-live-edit-pick"),
   workbenchLiveEditAction: document.querySelector("#workbench-live-edit-action"),
   workbenchLiveEditActionOptions: document.querySelector(
     "#workbench-live-edit-action-options",
@@ -1373,7 +1374,17 @@ function bindEvents() {
   );
   dom.workbenchClearMarks.addEventListener("click", clearWorkbenchOutputMarks);
   dom.workbenchLiveEditNote.addEventListener("input", () => {
+    if (!normalizeLiveEditTarget(currentFrame()?.liveEditTarget)) {
+      state.liveEditDraftNote = cleanString(dom.workbenchLiveEditNote.value);
+    }
     updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
+  });
+  dom.workbenchLiveEditPick.addEventListener("click", () => {
+    commitManualVoiceDraft("workbench-composer");
+    toggleLiveEditPickMode({
+      preferredSurface:
+        state.workbenchFocus === "output" ? "output" : "auto",
+    });
   });
   dom.workbenchLiveEditAction.addEventListener("click", cycleLiveEditActionIntent);
   dom.workbenchLiveEditActionOptions.addEventListener("click", (event) => {
@@ -2754,6 +2765,7 @@ function hydrateState() {
       liveEditPickActive: false,
       liveEditPickSurface: "",
       liveEditPickDraft: null,
+      liveEditDraftNote: "",
       liveEditPinPlacement: null,
       liveEditPinDrag: null,
       liveEditMapDrawActive: false,
@@ -3286,6 +3298,7 @@ function createInitialState() {
     liveEditPickActive: false,
     liveEditPickSurface: "",
     liveEditPickDraft: null,
+    liveEditDraftNote: "",
     liveEditPinPlacement: null,
     liveEditPinDrag: null,
     liveEditMapDrawActive: false,
@@ -10717,6 +10730,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
         (!drawOnMap && !drawOnCanvas && !drawOnOutput && state.workbenchFocus === "sketch")),
   );
   const showBar = Boolean(
+    canPick ||
     state.liveEditPickActive ||
       (liveTarget && liveTarget.status !== "accepted") ||
       (liveTarget && variants.length && !frame.acceptedLiveEditVariant),
@@ -10724,13 +10738,21 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.focusLivePick.disabled = !canPick;
   dom.focusLivePick.classList.toggle("active", state.liveEditPickActive);
   dom.focusLivePick.setAttribute("aria-pressed", String(state.liveEditPickActive));
-  dom.focusLivePick.textContent = state.liveEditPickActive ? "Picking..." : "Pick target";
+  const liveEditIdleLabel = liveTarget ? "Retarget" : "Live Edit";
+  dom.focusLivePick.textContent = state.liveEditPickActive
+    ? "Picking..."
+    : liveEditIdleLabel;
   dom.workbenchComposerPick.disabled = !canPick;
   dom.workbenchComposerPick.classList.toggle("active", state.liveEditPickActive);
   dom.workbenchComposerPick.setAttribute(
     "aria-pressed",
     String(state.liveEditPickActive),
   );
+  dom.workbenchComposerPick.textContent = state.liveEditPickActive
+    ? "Picking"
+    : liveTarget
+      ? "Retarget"
+      : "Live Edit";
   dom.workbenchLivePickOutput.disabled = !canPick;
   dom.workbenchOutputStageLivePick.disabled = !canPick;
   dom.workbenchLivePickOutput.classList.toggle(
@@ -10745,12 +10767,12 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     ? "Picking..."
     : liveTarget
       ? "Retarget"
-      : "Pick target";
+      : "Live Edit";
   dom.workbenchOutputStageLivePick.textContent = state.liveEditPickActive
     ? "Picking..."
     : liveTarget
       ? "Retarget"
-      : "Pick target";
+      : "Live Edit";
   dom.workbenchRail
     .querySelectorAll("[data-rail-action='live-pick']")
     .forEach((button) => {
@@ -10761,7 +10783,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
         ? "Picking"
         : liveTarget
           ? "Retarget"
-          : "Pick";
+          : "Live";
     });
 
   dom.workbenchLiveEditBar.hidden = !showBar;
@@ -10773,13 +10795,26 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     (hasMapSelection ? spatialObjectTitle(selectedSpatialObject()) : "") ||
     (target ? designerOutputTargetLabelFromItem(target, frame.title) : "") ||
     "Generated output";
+  dom.workbenchLiveEditPick.disabled = !canPick;
+  dom.workbenchLiveEditPick.classList.toggle("active", state.liveEditPickActive);
+  dom.workbenchLiveEditPick.setAttribute(
+    "aria-pressed",
+    String(state.liveEditPickActive),
+  );
+  dom.workbenchLiveEditPick.textContent = state.liveEditPickActive
+    ? "Picking..."
+    : liveTarget
+      ? "Retarget"
+      : "Pick";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
     ? activeEditSurface === "canvas"
       ? "Pick a target on the canvas"
       : "Pick a target in the output"
     : selectedVariant
       ? `${selectedVariant.label}: ${label}`
-      : `${liveTarget?.status === "accepted" ? "Accepted" : "Picked"}: ${label}`;
+      : liveTarget
+        ? `${liveTarget.status === "accepted" ? "Accepted" : "Picked"}: ${label}`
+        : "Live Edit ready";
   const detail = selectedVariant
     ? compactDisplayText(
         `${selectedVariant.title}. ${selectedVariant.summary || selectedVariant.body}`,
@@ -10793,7 +10828,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
         )}% / ${Math.round(liveTarget.bounds.w * 100)}x${Math.round(
           liveTarget.bounds.h * 100,
         )}%`
-      : "Click the generated output to bind the next rewrite to a concrete region.";
+      : hasOutput
+        ? "Pick the output or scratch canvas, then mark, comment, talk, generate variants, and accept in place."
+        : "Pick a scratchpad object, image, or drawn region, then mark, comment, talk, generate variants, and accept in place.";
   dom.workbenchLiveEditDetail.textContent = detail;
   dom.workbenchLiveEditAction.textContent = actionIntent.label;
   dom.workbenchLiveEditAction.title = actionIntent.description;
@@ -10811,9 +10848,13 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
           }`
     : "pick first";
   if (document.activeElement !== dom.workbenchLiveEditNote) {
-    dom.workbenchLiveEditNote.value = liveTarget?.note || "";
+    dom.workbenchLiveEditNote.value =
+      liveTarget?.note || state.liveEditDraftNote || "";
   }
-  dom.workbenchLiveEditNote.disabled = !liveTarget;
+  dom.workbenchLiveEditNote.disabled = !canPick && !liveTarget;
+  dom.workbenchLiveEditNote.placeholder = liveTarget
+    ? "What should Codex change in this picked region?"
+    : "Type intent first, then pick the exact region.";
   dom.workbenchLiveEditPrev.disabled = variants.length < 2;
   dom.workbenchLiveEditNext.disabled = variants.length < 2;
   const liveEditVoiceActive =
@@ -10849,6 +10890,11 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
       : "Go"
     : "Pick first";
   dom.workbenchLiveEditAccept.disabled = !liveTarget;
+  dom.workbenchLiveEditClose.disabled = !(
+    state.liveEditPickActive ||
+    liveTarget ||
+    variants.length
+  );
 }
 
 function renderDesignReviewControls(target) {
@@ -11307,7 +11353,7 @@ function createLiveEditTargetFromCanvasElement(element, frame = currentFrame()) 
     targetSource: "canvax-canvas",
     surface: targetType,
     bounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value),
+    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
     status: "picked",
     pickedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -11338,7 +11384,7 @@ function createLiveEditTargetFromCanvasRegionBounds(
     targetSource: "canvax-canvas",
     surface: "canvas-region",
     bounds: normalizedBounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value),
+    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
     instruction:
       "Treat this as a direct Live Edit selection on an arbitrary Canvax canvas region. Apply text intent, comment pins, correction strokes, and the selected variant to the picked bounds while preserving surrounding sketch context.",
     status: "picked",
@@ -11393,7 +11439,7 @@ function createLiveEditTargetFromAssetCandidate(candidate) {
     surface: "image/composition region",
     bounds,
     note:
-      cleanString(dom.workbenchLiveEditNote?.value) ||
+      cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote) ||
       normalizedCandidate.liveEdit?.note ||
       `Asset candidate: ${compactDisplayText(
         normalizedCandidate.prompt || normalizedCandidate.placement || "",
@@ -11442,6 +11488,7 @@ function startLiveEditFromAssetCandidate(candidateId) {
   frame.liveEditOriginalSnapshot = null;
   state.liveEditPickActive = false;
   state.liveEditPickSurface = "";
+  state.liveEditDraftNote = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.liveEditMapDrawActive = false;
@@ -11594,7 +11641,7 @@ function createLiveEditTargetFromSpatialObject(object) {
   );
   const sourceHint = spatialObjectLiveEditSourceHint(object);
   const note =
-    cleanString(dom.workbenchLiveEditNote?.value) ||
+    cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote) ||
     object.liveEdit?.note ||
     meta.liveEdit?.note ||
     meta.prompt ||
@@ -11662,6 +11709,7 @@ function startLiveEditFromSpatialObject(objectId) {
   frame.liveEditOriginalSnapshot = null;
   frame.liveEditMapStrokes = [];
   state.liveEditPickActive = false;
+  state.liveEditDraftNote = "";
   state.liveEditPickSurface = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
@@ -11871,7 +11919,7 @@ function createLiveEditTargetFromOutputBounds(
     targetVersionTag: target.versionTag || "",
     surface: targetSurface,
     bounds: normalizedBounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value),
+    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
     instruction:
       "Treat this as a drag-selected Live Edit region. Apply the user's text, voice, pins, and strokes to these exact bounds while preserving the surrounding artifact context.",
     status: "picked",
@@ -11917,7 +11965,7 @@ function createLiveEditTargetFromPoint(target, frame, point, event = null) {
         ? "same-canvas-reply"
         : "generated-output",
     bounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value),
+    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
     status: "picked",
     pickedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -12238,6 +12286,7 @@ function setLiveEditPickMode(active, options = {}) {
     state.liveEditPickActive = false;
     state.liveEditPickSurface = "";
     state.liveEditPickDraft = null;
+    state.liveEditDraftNote = "";
     state.liveEditPinPlacement = null;
     state.liveEditPinDrag = null;
     state.liveEditMapDrawActive = false;
@@ -12288,6 +12337,9 @@ function commitLiveEditTarget(frame, liveTarget, options = {}) {
   if (!frame || !target) {
     return false;
   }
+  if (!target.note && state.liveEditDraftNote) {
+    target.note = state.liveEditDraftNote;
+  }
   frame.liveEditTarget = target;
   frame.liveEditPins = [];
   frame.liveEditVariants = [];
@@ -12298,6 +12350,7 @@ function commitLiveEditTarget(frame, liveTarget, options = {}) {
   state.liveEditPickActive = false;
   state.liveEditPickSurface = "";
   state.liveEditPickDraft = null;
+  state.liveEditDraftNote = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.liveEditMapDrawActive = false;
@@ -18516,7 +18569,7 @@ function renderMapSelectionActions() {
   dom.mapLivePick.disabled = !canLivePick;
   dom.mapLivePick.classList.toggle("active", Boolean(activeMapLiveTarget));
   dom.mapLivePick.setAttribute("aria-pressed", String(Boolean(activeMapLiveTarget)));
-  dom.mapLivePick.textContent = activeMapLiveTarget ? "Retarget" : "Pick target";
+  dom.mapLivePick.textContent = activeMapLiveTarget ? "Retarget" : "Live Edit";
   dom.mapPinObject.disabled = !hasSelection;
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
@@ -18587,7 +18640,7 @@ function renderMapSelectionActions() {
     dom.mapLivePick.disabled = true;
     dom.mapLivePick.classList.remove("active");
     dom.mapLivePick.setAttribute("aria-pressed", "false");
-    dom.mapLivePick.textContent = "Pick target";
+    dom.mapLivePick.textContent = "Live Edit";
     dom.mapPinObject.textContent = "Pin";
     dom.mapLockObject.textContent = "Lock";
     return;
@@ -18613,7 +18666,7 @@ function renderMapSelectionActions() {
     dom.mapLivePick.disabled = true;
     dom.mapLivePick.classList.remove("active");
     dom.mapLivePick.setAttribute("aria-pressed", "false");
-    dom.mapLivePick.textContent = "Pick target";
+    dom.mapLivePick.textContent = "Live Edit";
     return;
   }
 
@@ -31242,6 +31295,7 @@ async function runSelfTest() {
           Boolean(dom.focusLivePick) &&
           Boolean(dom.canvasReplyUnderlay) &&
           Boolean(dom.workbenchLiveEditBar) &&
+          Boolean(dom.workbenchLiveEditPick) &&
           Boolean(dom.workbenchLiveEditAction) &&
           Boolean(dom.workbenchLiveEditActionOptions) &&
           Boolean(dom.workbenchLiveEditNote) &&
@@ -31257,8 +31311,16 @@ async function runSelfTest() {
           Boolean(dom.workbenchAgentLogToggle) &&
           Boolean(dom.workbenchAgentLogClose) &&
           Boolean(dom.workbenchLiveSurfaceButtons) &&
+          !dom.workbenchLiveEditBar.hidden &&
+          dom.workbenchLiveEditTitle.textContent.includes("Live Edit ready") &&
+          dom.workbenchLiveEditPick.textContent.includes("Pick") &&
+          !dom.workbenchLiveEditNote.disabled &&
+          dom.focusLivePick.textContent.includes("Live Edit") &&
+          dom.workbenchComposerPick.textContent.includes("Live Edit") &&
+          dom.focusLivePick.classList.contains("live-edit-command") &&
+          dom.workbenchComposerPick.classList.contains("live-edit-command") &&
           !document.querySelector("#codex-scratchpad-dock"),
-        "Workbench composer, canvas reply, context import, review controls, voice intent lane, edit surface switch, and compact agent log render",
+        "Workbench composer, canvas reply, context import, visible Live Edit commands, review controls, voice intent lane, edit surface switch, and compact agent log render",
       ),
     );
     const previousVoiceFallbackState = {
@@ -34441,7 +34503,8 @@ async function assertWorkbenchSpatialMap() {
   selectSpatialObject("spatial-selftest-asset", { render: true });
   const mapLivePickButtonRendered =
     !dom.mapLivePick.disabled &&
-    dom.mapLivePick.textContent.includes("Pick");
+    dom.mapLivePick.textContent.includes("Live Edit") &&
+    dom.mapLivePick.classList.contains("live-edit-command");
   if (dom.workbenchLiveEditNote) {
     dom.workbenchLiveEditNote.value =
       "Make this picked Map object clearer without moving the surrounding board";

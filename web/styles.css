@@ -1232,6 +1232,43 @@ button:disabled {
     background: rgba(12, 141, 123, 0.14);
 }
 
+.live-edit-command:not(:disabled) {
+    border-color: rgba(245, 185, 56, 0.52);
+    color: #fff6d8;
+    background:
+        linear-gradient(135deg, rgba(245, 185, 56, 0.34), rgba(255, 93, 58, 0.18)),
+        rgba(24, 24, 25, 0.72);
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.1),
+        0 0.5rem 1.2rem rgba(245, 185, 56, 0.14);
+}
+
+.live-edit-command:hover:not(:disabled),
+.live-edit-command:focus-visible {
+    border-color: rgba(245, 185, 56, 0.86);
+    color: #18110e;
+    background: #f5b938;
+    outline: none;
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.35),
+        0 0.75rem 1.6rem rgba(245, 185, 56, 0.24);
+}
+
+.live-edit-command.active:not(:disabled),
+.composer-button.live-edit-command.active,
+.rail-button.live-edit-command.active {
+    border-color: rgba(255, 255, 255, 0.46);
+    color: #18110e;
+    background: #f5b938;
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.4),
+        0 0.8rem 1.8rem rgba(245, 185, 56, 0.28);
+}
+
+.live-edit-command:disabled {
+    box-shadow: none;
+}
+
 .ghost-button.danger {
     color: #7f2417;
 }
@@ -3154,6 +3191,7 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
 }
 
 .workbench-live-edit-chips span,
+.workbench-live-edit-pick-chip,
 .workbench-live-edit-action-chip,
 .workbench-live-edit-action-option {
     display: inline-flex;
@@ -3170,12 +3208,31 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     text-transform: uppercase;
 }
 
-.workbench-live-edit-chips span:first-child {
+.workbench-live-edit-pick-chip {
     color: #18110e;
     background: #f5b938;
     border-color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
 }
 
+.workbench-live-edit-pick-chip.active,
+.workbench-live-edit-pick-chip:hover,
+.workbench-live-edit-pick-chip:focus-visible {
+    color: #18110e;
+    background: #ffe0a0;
+    outline: none;
+}
+
+.workbench-live-edit-pick-chip:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.workbench-live-edit-pick-chip:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.workbench-live-edit-pick-chip,
 .workbench-live-edit-action-chip,
 .workbench-live-edit-action-option {
     cursor: pointer;

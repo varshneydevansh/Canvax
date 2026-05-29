@@ -562,10 +562,10 @@
                             </button>
                             <button
                                 id="focus-live-pick"
-                                class="ghost-button"
+                                class="ghost-button live-edit-command"
                                 title="Pick a region inside the connected output, then sketch or speak the rewrite for that exact target"
                             >
-                                Pick target
+                                Live Edit
                             </button>
                             <button id="focus-build-real" class="ghost-button">
                                 Build code
@@ -665,7 +665,14 @@
                                     rewrite to a region.</span
                                 >
                                 <div class="workbench-live-edit-chips">
-                                    <span>Pick</span>
+                                    <button
+                                        id="workbench-live-edit-pick"
+                                        class="workbench-live-edit-pick-chip"
+                                        type="button"
+                                        title="Pick or retarget the artifact region for Live Edit"
+                                    >
+                                        Pick
+                                    </button>
                                     <button
                                         id="workbench-live-edit-action"
                                         class="workbench-live-edit-action-chip"
@@ -774,11 +781,11 @@
                             >
                             <button
                                 id="workbench-live-pick-output"
-                                class="ghost-button compact"
+                                class="ghost-button compact live-edit-command"
                                 type="button"
                                 hidden
                             >
-                                Pick target
+                                Live Edit
                             </button>
                             <button
                                 id="workbench-review-output"
@@ -913,11 +920,11 @@
                     </button>
                     <button
                         id="workbench-composer-pick"
-                        class="composer-button"
+                        class="composer-button live-edit-command"
                         type="button"
                         title="Pick a generated-output region for the next rewrite"
                     >
-                        Pick
+                        Live Edit
                     </button>
                     <button
                         id="workbench-composer-apply"
@@ -1069,12 +1076,12 @@
                         Variants
                     </button>
                     <button
-                        class="rail-button"
+                        class="rail-button live-edit-command"
                         data-rail-action="live-pick"
                         type="button"
                         title="Pick a region inside the generated output for live edit"
                     >
-                        Pick
+                        Live
                     </button>
                     <button
                         class="rail-button rail-button-strong"
@@ -1581,11 +1588,11 @@
                                     >
                                     <button
                                         id="workbench-output-stage-live-pick"
-                                        class="ghost-button compact"
+                                        class="ghost-button compact live-edit-command"
                                         type="button"
                                         hidden
                                     >
-                                        Pick target
+                                        Live Edit
                                     </button>
                                     <button
                                         id="workbench-output-stage-review"
@@ -1836,11 +1843,11 @@
                                     </button>
                                     <button
                                         id="map-live-pick"
-                                        class="ghost-button"
+                                        class="ghost-button live-edit-command"
                                         type="button"
                                         title="Pick this Map object for Live Edit"
                                     >
-                                        Pick target
+                                        Live Edit
                                     </button>
                                     <button
                                         id="map-pin-object"
