@@ -11043,7 +11043,11 @@ async function acceptLiveEditTarget() {
       ? `Accepted ${acceptedVariant.label} live edit variant for ${frame.title}.`
       : `Accepted live edit target for ${frame.title}.`,
   });
-  await executeAcceptedLiveEditWriteback(frame, exportResult);
+  const writebackResult = await executeAcceptedLiveEditWriteback(
+    frame,
+    exportResult,
+  );
+  await saveLiveEditWritebackCheckpoint(frame, writebackResult);
 }
 
 async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
@@ -11124,9 +11128,13 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         variantLabel: label,
         previewPath: rewriteResult?.previewPath || "",
         patchTaskPath: rewriteResult?.patchTaskPath || "",
+        patchResultPath: patchResult?.resultPath || "",
+        manifestPath: patchResult?.manifestPath || "",
         changedFileCount: Number(patchResult?.changedFileCount) || 0,
         patchApplied: Boolean(patchResult?.executed),
         patchError: patchResult?.error || "",
+        sourceHintExpansion: patchResult?.sourceHintExpansion || null,
+        projectLinkExpansion: patchResult?.projectLinkExpansion || null,
       },
     };
     await refreshPreviewStateFromServer();
@@ -11162,6 +11170,30 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
     renderStatus("Accepted Live Edit saved for Codex");
     return state.serverStatus.liveEditWriteback;
   }
+}
+
+async function saveLiveEditWritebackCheckpoint(frame, writebackResult) {
+  if (
+    !frame ||
+    !writebackResult ||
+    typeof writebackResult !== "object" ||
+    writebackResult.skipped
+  ) {
+    return null;
+  }
+  const changedFileCount = Number(writebackResult.changedFileCount) || 0;
+  const note = writebackResult.error
+    ? `Accepted Live Edit saved for ${frame.title}, but writeback failed: ${writebackResult.error}`
+    : writebackResult.patchApplied
+      ? `Accepted Live Edit patched ${changedFileCount} file${changedFileCount === 1 ? "" : "s"} for ${frame.title}.`
+      : `Accepted Live Edit wrote a patch task for ${frame.title}.`;
+  const exportResult = await saveExportToWorkspace({ silent: true });
+  return saveCheckpointToWorkspace("live-edit-writeback", {
+    silent: true,
+    exportResult,
+    label: "Live edit writeback",
+    note,
+  });
 }
 
 function applyAcceptedLiveEditVariantToSourceTarget(
@@ -24514,6 +24546,7 @@ function checkpointReasonLabel(reason) {
     "publish-output": "Published output",
     "output-update": "Output update",
     "live-edit-target": "Live edit target",
+    "live-edit-writeback": "Live edit writeback",
     "live-edit-variants": "Live edit variants",
     "checkpoint-replay": "Checkpoint replay",
   };
@@ -24902,6 +24935,83 @@ function summarizeManifestItems(items, kind) {
   }));
 }
 
+function summarizeRewriteExecutionStatus(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return {
+    executed: Boolean(value.executed),
+    trigger: cleanString(value.trigger),
+    frameId: cleanString(value.frameId),
+    frameTitle: cleanString(value.frameTitle),
+    previewPath: cleanString(value.previewPath),
+    contextPath: cleanString(value.contextPath),
+    patchTaskPath: cleanString(value.patchTaskPath),
+    manifestPath: cleanString(value.manifestPath),
+    affectedRegionCount: Number(value.affectedRegionCount) || 0,
+    componentTargetCount: Number(value.componentTargetCount) || 0,
+    acceptedLiveEditIncluded: Boolean(value.acceptedLiveEditIncluded),
+    previewTweakIncluded: Boolean(value.previewTweakIncluded),
+    error: cleanString(value.error),
+  };
+}
+
+function summarizePatchExecutionStatus(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const changedFiles = Array.isArray(value.changedFiles)
+    ? value.changedFiles.slice(0, 12).map((file) => ({
+        path: cleanString(file?.path),
+        kind: cleanString(file?.kind),
+        summary: cleanString(file?.summary),
+        targetIds: Array.isArray(file?.targetIds)
+          ? file.targetIds.map(cleanString).filter(Boolean).slice(0, 8)
+          : [],
+      }))
+    : [];
+  return {
+    executed: Boolean(value.executed),
+    dryRun: Boolean(value.dryRun),
+    taskPath: cleanString(value.taskPath),
+    resultPath: cleanString(value.resultPath),
+    markdownPath: cleanString(value.markdownPath),
+    manifestPath: cleanString(value.manifestPath),
+    frameId: cleanString(value.frameId),
+    changedFileCount: Number(value.changedFileCount) || changedFiles.length,
+    changedFiles,
+    published: Boolean(value.published),
+    projectLinkExpansion: value.projectLinkExpansion || null,
+    sourceHintExpansion: value.sourceHintExpansion || null,
+    error: cleanString(value.error),
+  };
+}
+
+function summarizeLiveEditWritebackStatus(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return {
+    executed: Boolean(value.executed),
+    skipped: Boolean(value.skipped),
+    inFlight: Boolean(value.inFlight),
+    reason: cleanString(value.reason),
+    targetId: cleanString(value.targetId),
+    targetLabel: cleanString(value.targetLabel),
+    variantLabel: cleanString(value.variantLabel),
+    previewPath: cleanString(value.previewPath),
+    patchTaskPath: cleanString(value.patchTaskPath),
+    patchResultPath: cleanString(value.patchResultPath),
+    manifestPath: cleanString(value.manifestPath),
+    changedFileCount: Number(value.changedFileCount) || 0,
+    patchApplied: Boolean(value.patchApplied),
+    patchError: cleanString(value.patchError),
+    error: cleanString(value.error),
+    projectLinkExpansion: value.projectLinkExpansion || null,
+    sourceHintExpansion: value.sourceHintExpansion || null,
+  };
+}
+
 function buildCheckpointPayload(reason, exportResult = null, options = {}) {
   const frame = currentFrame();
   const manifest = state.serverStatus.previewManifest || null;
@@ -24979,6 +25089,15 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
         }
       : null,
     outputDigest: state.serverStatus.outputDigest || null,
+    rewriteExecution: summarizeRewriteExecutionStatus(
+      state.serverStatus.rewriteExecution,
+    ),
+    patchExecution: summarizePatchExecutionStatus(
+      state.serverStatus.patchExecution,
+    ),
+    liveEditWriteback: summarizeLiveEditWritebackStatus(
+      state.serverStatus.liveEditWriteback,
+    ),
     rewriteQueue,
     artifacts: summarizeManifestItems(artifacts, "artifact"),
     changes: summarizeManifestItems(changes, "updated"),
@@ -27942,6 +28061,78 @@ async function runSelfTest() {
       assert(
         checkpointPayload.transport?.future?.mode === FUTURE_TRANSPORT_MODE,
         "checkpoint payload carries future transport path",
+      ),
+    );
+    const previousCheckpointExecutionState = {
+      rewriteExecution: structuredClone(state.serverStatus.rewriteExecution || null),
+      patchExecution: structuredClone(state.serverStatus.patchExecution || null),
+      liveEditWriteback: structuredClone(state.serverStatus.liveEditWriteback || null),
+    };
+    state.serverStatus = {
+      ...state.serverStatus,
+      rewriteExecution: {
+        executed: true,
+        trigger: "live-edit-accept",
+        frameId: state.activeFrameId,
+        previewPath: "artifacts/preview/codex-rewrite/frames/selftest/index.html",
+        patchTaskPath:
+          "artifacts/preview/codex-rewrite/frames/selftest/codex-patch-task.json",
+        acceptedLiveEditIncluded: true,
+        affectedRegionCount: 1,
+        componentTargetCount: 1,
+      },
+      patchExecution: {
+        executed: true,
+        taskPath:
+          "artifacts/preview/codex-rewrite/frames/selftest/codex-patch-task.json",
+        resultPath: "artifacts/canvax/applied-patches/latest/result.json",
+        changedFileCount: 2,
+        changedFiles: [
+          {
+            path: "src/SelfTest.jsx",
+            kind: "source-hinted-component",
+            summary: "Patched source hinted component.",
+            targetIds: ["selftest-target"],
+          },
+        ],
+        sourceHintExpansion: {
+          addedFiles: ["src/SelfTest.jsx"],
+        },
+      },
+      liveEditWriteback: {
+        executed: true,
+        targetId: "selftest-target",
+        targetLabel: "Self-test target",
+        variantLabel: "Clarity",
+        patchApplied: true,
+        changedFileCount: 2,
+        patchResultPath: "artifacts/canvax/applied-patches/latest/result.json",
+        sourceHintExpansion: {
+          addedFiles: ["src/SelfTest.jsx"],
+        },
+      },
+    };
+    const liveEditWritebackCheckpoint = buildCheckpointPayload(
+      "live-edit-writeback",
+      {
+        jsonPath: "exports/canvax-live-latest.json",
+        markdownPath: "exports/canvax-live-latest.md",
+        voiceMarkdownPath: "exports/canvax-voice-latest.md",
+      },
+    );
+    state.serverStatus = {
+      ...state.serverStatus,
+      ...previousCheckpointExecutionState,
+    };
+    results.push(
+      assert(
+        liveEditWritebackCheckpoint.reason === "live-edit-writeback" &&
+          liveEditWritebackCheckpoint.liveEditWriteback?.patchApplied === true &&
+          liveEditWritebackCheckpoint.patchExecution?.changedFiles?.[0]?.kind ===
+            "source-hinted-component" &&
+          liveEditWritebackCheckpoint.rewriteExecution
+            ?.acceptedLiveEditIncluded === true,
+        "checkpoint payload records accepted Live Edit writeback and source patch status",
       ),
     );
 

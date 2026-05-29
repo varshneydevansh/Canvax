@@ -547,11 +547,13 @@ const checks = [
         includes: [
           "maybeExecuteLiveRewriteFromFreeze",
           "executeAcceptedLiveEditWriteback",
+          "saveLiveEditWritebackCheckpoint",
           "executeLatestPatchTask",
           "inspectWorkbenchOutputDomTargetFromEvent",
           "previewElementSelector",
           "previewElementSourceHint",
           "targetSourceFile",
+          "liveEditWriteback",
           "targetSelector",
           "beginLiveEditCommentPinPlacement",
           "placeLiveEditCommentPinFromEvent",
