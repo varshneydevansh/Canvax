@@ -30,6 +30,14 @@ const description = readOption(args, "--description") || "";
 const notes = readOption(args, "--notes") || "";
 const targetType = readOption(args, "--type") || "implementation-preview";
 const frameIds = readMultiOption(args, "--frame");
+const liveEditBinding = readJsonOption(args, "--live-edit-binding");
+const liveEditTarget = readJsonOption(args, "--live-edit-target");
+const acceptedLiveEditVariant = readJsonOption(args, "--accepted-live-edit-variant");
+const liveEditOriginalSnapshot = readJsonOption(
+  args,
+  "--live-edit-original-snapshot",
+);
+const liveEditRequest = readJsonOption(args, "--live-edit-request");
 const changes = readMultiOption(args, "--change").map((entry, index) =>
   buildChange(entry, index),
 );
@@ -59,6 +67,11 @@ const primaryTarget =
         previewPath,
         description,
         frameIds,
+        ...(liveEditBinding ? { liveEditBinding } : {}),
+        ...(liveEditTarget ? { liveEditTarget } : {}),
+        ...(acceptedLiveEditVariant ? { acceptedLiveEditVariant } : {}),
+        ...(liveEditOriginalSnapshot ? { liveEditOriginalSnapshot } : {}),
+        ...(liveEditRequest ? { liveEditRequest } : {}),
       }
     : null;
 
@@ -102,6 +115,26 @@ function readMultiOption(inputArgs, flag) {
     }
   }
   return values.filter(Boolean);
+}
+
+function readJsonOption(inputArgs, flag) {
+  const raw = readOption(inputArgs, flag);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : null;
+  } catch (error) {
+    console.error(
+      `${flag} must be a valid JSON object: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    process.exit(1);
+  }
 }
 
 function buildChange(entry, index) {
@@ -178,6 +211,11 @@ Options:
   --notes <value>           Manifest-level notes
   --type <value>            Target type label
   --frame <id>              Associate the target with a frame id, repeatable
+  --live-edit-binding <json> Attach accepted Live Edit binding metadata
+  --live-edit-target <json>  Attach normalized Live Edit target metadata
+  --accepted-live-edit-variant <json> Attach accepted Live Edit variant metadata
+  --live-edit-original-snapshot <json> Attach original target restore snapshot
+  --live-edit-request <json> Attach frame-bound Live Edit request metadata
   --change <path::summary::frameIds>  Add a changed file entry, repeatable
   --artifact <path::desc::frameIds>   Add an artifact entry, repeatable
   --clear                   Remove the preview manifest

@@ -8092,6 +8092,20 @@ function buildPreviewOutputDigest(manifest, workspaceFollowMeta = null) {
               : 0,
           }
         : null,
+      liveEdit: target.liveEditBinding
+        ? {
+            status: cleanString(target.liveEditBinding.status),
+            acceptedVariantId: cleanString(
+              target.liveEditBinding.acceptedVariant?.id,
+            ),
+            sourceBindingStatus: cleanString(
+              target.liveEditBinding.sourceBinding?.status,
+            ),
+            writebackStatus: cleanString(
+              target.liveEditBinding.writeback?.status,
+            ),
+          }
+        : null,
     })),
     artifacts: artifacts.map((artifact) => ({
       id: cleanString(artifact.id),
@@ -8680,6 +8694,7 @@ function normalizePreviewTarget(entry, index = 0) {
           project: null,
           projectId: "",
           refinement: normalizeMaterializeRefinement(null),
+          liveEditBinding: null,
         }
       : null;
   }
@@ -8720,10 +8735,32 @@ function normalizePreviewTarget(entry, index = 0) {
     targetSelector: cleanString(entry.targetSelector),
     targetObjectId: cleanString(entry.targetObjectId),
     targetNodeId: cleanString(entry.targetNodeId),
+    targetSourceFile: cleanString(entry.targetSourceFile),
+    targetSourcePath: cleanString(entry.targetSourcePath),
+    targetSourceSymbol: cleanString(entry.targetSourceSymbol),
+    targetSourceComponent: cleanString(entry.targetSourceComponent),
+    targetSourceLine: cleanString(entry.targetSourceLine),
+    targetTaskFile: cleanString(entry.targetTaskFile),
+    targetTaskId: cleanString(entry.targetTaskId),
+    targetSourceHint: normalizeManifestJsonObject(entry.targetSourceHint),
     normalizedBounds: normalizeManifestJsonObject(entry.normalizedBounds),
     project: normalizeManifestProject(entry.project),
     projectId: manifestProjectId(entry),
     refinement: normalizeMaterializeRefinement(entry.refinement),
+    liveEditTarget: normalizeManifestJsonObject(entry.liveEditTarget),
+    acceptedLiveEditVariant: normalizeManifestJsonObject(
+      entry.acceptedLiveEditVariant,
+    ),
+    liveEditOriginalSnapshot: normalizeManifestJsonObject(
+      entry.liveEditOriginalSnapshot,
+    ),
+    liveEditPins: normalizeManifestJsonObject(entry.liveEditPins),
+    liveEditActionIntent: normalizeManifestJsonObject(entry.liveEditActionIntent),
+    liveEditBinding: normalizeManifestJsonObject(entry.liveEditBinding),
+    liveEditSourceDiscovery: normalizeManifestJsonObject(
+      entry.liveEditSourceDiscovery,
+    ),
+    liveEditWriteback: normalizeManifestJsonObject(entry.liveEditWriteback),
     liveEditRequest: normalizeManifestJsonObject(entry.liveEditRequest),
   };
 }
@@ -8931,8 +8968,30 @@ function buildPreviewTargetFromPayload(payload) {
     targetSelector: cleanString(source.targetSelector),
     targetObjectId: cleanString(source.targetObjectId),
     targetNodeId: cleanString(source.targetNodeId),
+    targetSourceFile: cleanString(source.targetSourceFile),
+    targetSourcePath: cleanString(source.targetSourcePath),
+    targetSourceSymbol: cleanString(source.targetSourceSymbol),
+    targetSourceComponent: cleanString(source.targetSourceComponent),
+    targetSourceLine: cleanString(source.targetSourceLine),
+    targetTaskFile: cleanString(source.targetTaskFile),
+    targetTaskId: cleanString(source.targetTaskId),
+    targetSourceHint: normalizeManifestJsonObject(source.targetSourceHint),
     normalizedBounds: normalizeManifestJsonObject(source.normalizedBounds),
     refinement: normalizeMaterializeRefinement(source.refinement),
+    liveEditTarget: normalizeManifestJsonObject(source.liveEditTarget),
+    acceptedLiveEditVariant: normalizeManifestJsonObject(
+      source.acceptedLiveEditVariant,
+    ),
+    liveEditOriginalSnapshot: normalizeManifestJsonObject(
+      source.liveEditOriginalSnapshot,
+    ),
+    liveEditPins: normalizeManifestJsonObject(source.liveEditPins),
+    liveEditActionIntent: normalizeManifestJsonObject(source.liveEditActionIntent),
+    liveEditBinding: normalizeManifestJsonObject(source.liveEditBinding),
+    liveEditSourceDiscovery: normalizeManifestJsonObject(
+      source.liveEditSourceDiscovery,
+    ),
+    liveEditWriteback: normalizeManifestJsonObject(source.liveEditWriteback),
     liveEditRequest: normalizeManifestJsonObject(source.liveEditRequest),
   };
 }

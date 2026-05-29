@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -131,6 +131,7 @@ await validateDesignKitLibraryPackageDryRun();
 await validateProjectLinkDryRun();
 await validateLiveEditSourceHintPatchDryRun();
 await validateLiveEditUnhintedSourceSearchDryRun();
+await validateLiveEditPreviewManifestBindingDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
@@ -1399,6 +1400,143 @@ async function validateLiveEditUnhintedSourceSearchDryRun() {
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });
+  }
+}
+
+async function validateLiveEditPreviewManifestBindingDryRun() {
+  let previousManifestRaw = null;
+  try {
+    previousManifestRaw = await readFile(previewManifestPath, "utf8");
+  } catch {
+    previousManifestRaw = null;
+  }
+  const frameId = "frame-live-edit-manifest";
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    targetId: "manifest-hero-cta",
+    targetNodeId: "manifest-hero-cta",
+    targetLabel: "Manifest Hero CTA",
+    targetType: "preview-dom-element",
+    targetSelector: '[data-testid="manifest-hero-cta"]',
+    targetText: "Reserve suite",
+    targetPath: "artifacts/preview/manifest-live-edit/index.html",
+    sourceFrameId: frameId,
+    bounds: { x: 0.24, y: 0.58, w: 0.2, h: 0.08 },
+    status: "accepted",
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "manifest-live-edit-clarity",
+    index: 3,
+    label: "Clarity",
+    role: "clarity-accessibility",
+    summary: "Clarify the selected CTA without redesigning the page.",
+    target: liveEditTarget,
+  };
+  const originalSnapshot = {
+    kind: "canvax-live-edit-original-snapshot",
+    target: liveEditTarget,
+    normalizedBounds: liveEditTarget.bounds,
+    restoreInstruction:
+      "Discard restores this exact selected target without stale variant state.",
+  };
+  const liveEditRequest = {
+    kind: "canvax-live-edit-request",
+    status: "accepted",
+    target: liveEditTarget,
+    acceptedVariant,
+    originalSnapshot,
+  };
+  const liveEditBinding = {
+    kind: "canvax-live-edit-manifest-binding",
+    status: "accepted",
+    target: liveEditTarget,
+    acceptedVariant,
+    originalSnapshot,
+    request: liveEditRequest,
+    sourceBinding: {
+      kind: "canvax-live-edit-source-binding",
+      status: "needs-source-search",
+      sourceSearchHints: [
+        {
+          kind: "live-edit-manifest-source-search-seed",
+          searchType: "selector",
+          query: liveEditTarget.targetSelector,
+        },
+      ],
+    },
+    writeback: {
+      kind: "canvax-live-edit-writeback",
+      status: "task-written",
+      patchTaskPath: "artifacts/preview/manifest-live-edit/codex-patch-task.json",
+    },
+  };
+  try {
+    await runCommand("node", [
+      "scripts/write-preview-manifest.mjs",
+      "--preview-path",
+      liveEditTarget.targetPath,
+      "--label",
+      "Manifest Live Edit preview",
+      "--source",
+      "canvax-live-edit-regression",
+      "--type",
+      "preview-dom-element",
+      "--frame",
+      frameId,
+      "--live-edit-binding",
+      JSON.stringify(liveEditBinding),
+      "--live-edit-target",
+      JSON.stringify(liveEditTarget),
+      "--accepted-live-edit-variant",
+      JSON.stringify(acceptedVariant),
+      "--live-edit-original-snapshot",
+      JSON.stringify(originalSnapshot),
+      "--live-edit-request",
+      JSON.stringify(liveEditRequest),
+    ]);
+    const manifest = JSON.parse(await readFile(previewManifestPath, "utf8"));
+    const target = manifest.targets?.[0];
+    const passed = Boolean(
+      target?.liveEditBinding?.kind === "canvax-live-edit-manifest-binding" &&
+        target.liveEditBinding.acceptedVariant?.label === "Clarity" &&
+        target.liveEditBinding.originalSnapshot?.restoreInstruction?.includes(
+          "Discard restores",
+        ) &&
+        target.liveEditBinding.sourceBinding?.status ===
+          "needs-source-search" &&
+        target.liveEditBinding.writeback?.patchTaskPath?.endsWith(
+          "codex-patch-task.json",
+        ) &&
+        target.liveEditTarget?.targetSelector ===
+          '[data-testid="manifest-hero-cta"]' &&
+        target.acceptedLiveEditVariant?.role === "clarity-accessibility" &&
+        target.liveEditOriginalSnapshot?.normalizedBounds?.w === 0.2 &&
+        target.liveEditRequest?.kind === "canvax-live-edit-request",
+    );
+    results.push({
+      name: "Live Edit preview manifest binding preserves accept metadata",
+      passed,
+      detail: passed
+        ? `${target.liveEditBinding.sourceBinding.status} for ${target.liveEditTarget.targetId}`
+        : "manifest did not preserve rich Live Edit accept metadata",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit preview manifest binding preserves accept metadata",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    if (previousManifestRaw !== null) {
+      await writeFile(previewManifestPath, previousManifestRaw);
+    } else {
+      try {
+        await unlink(previewManifestPath);
+      } catch {
+        // Ignore a missing regression manifest.
+      }
+    }
   }
 }
 

@@ -12907,6 +12907,9 @@ async function acceptLiveEditTarget() {
     frame,
     exportResult,
   );
+  await saveLiveEditTargetToPreviewManifest(frame, frame.liveEditTarget, {
+    writebackResult,
+  });
   await saveLiveEditWritebackCheckpoint(frame, writebackResult);
 }
 
@@ -13271,7 +13274,178 @@ function applyAcceptedLiveEditVariantToAssetCandidate(
   return binding;
 }
 
-async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
+function liveEditTargetHasConcreteSourceBinding(liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target) {
+    return false;
+  }
+  return Boolean(
+    cleanString(target.targetSourceFile) ||
+      cleanString(target.targetSourcePath) ||
+      cleanString(target.targetTaskFile) ||
+      cleanString(target.targetSourceHint?.file) ||
+      cleanString(target.targetSourceHint?.path) ||
+      cleanString(target.targetSourceHint?.taskFile),
+  );
+}
+
+function buildLiveEditSourceSearchSeeds(target, { note = "", pins = [] } = {}) {
+  const seeds = [
+    {
+      searchType: "selector",
+      query: target?.targetSelector,
+      reason: "Search by the selector captured from the picked artifact.",
+    },
+    {
+      searchType: "node-id",
+      query: target?.targetNodeId || target?.targetId,
+      reason: "Search by the Canvax node/object id captured from the pick.",
+    },
+    {
+      searchType: "visible-text",
+      query: target?.targetText,
+      reason: "Search by the visible text inside the selected target.",
+    },
+    {
+      searchType: "label",
+      query: target?.targetLabel,
+      reason: "Search by the human-readable Live Edit target label.",
+    },
+    {
+      searchType: "note",
+      query: note || target?.note,
+      reason: "Search by the accepted Live Edit instruction.",
+    },
+    ...normalizeLiveEditPins(pins).map((pin, index) => ({
+      searchType: "pin",
+      query: pin.text,
+      reason: `Search by comment pin ${index + 1} attached to the target.`,
+    })),
+  ];
+  const seen = new Set();
+  return seeds
+    .map((seed) => ({
+      kind: "live-edit-manifest-source-search-seed",
+      searchType: seed.searchType,
+      query: compactDisplayText(cleanString(seed.query), 180),
+      reason: seed.reason,
+    }))
+    .filter((seed) => {
+      const key = `${seed.searchType}:${seed.query.toLowerCase()}`;
+      if (!seed.query || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+}
+
+function buildLiveEditManifestSourceBinding(target, { note = "", pins = [] } = {}) {
+  const hasConcreteSourceBinding = liveEditTargetHasConcreteSourceBinding(target);
+  const hasExternalTarget = Boolean(target?.targetHref || target?.targetPath);
+  const localBinding = !hasExternalTarget;
+  const sourceSearchHints =
+    !hasConcreteSourceBinding && hasExternalTarget
+      ? buildLiveEditSourceSearchSeeds(target, { note, pins })
+      : [];
+  return {
+    kind: "canvax-live-edit-source-binding",
+    status: hasConcreteSourceBinding
+      ? "source-bound"
+      : localBinding
+        ? "local-canvax-binding"
+        : "needs-source-search",
+    hasConcreteSourceBinding,
+    targetSourceFile: cleanString(target?.targetSourceFile),
+    targetSourcePath: cleanString(target?.targetSourcePath),
+    targetSourceSymbol: cleanString(target?.targetSourceSymbol),
+    targetSourceComponent: cleanString(target?.targetSourceComponent),
+    targetSourceLine: cleanString(target?.targetSourceLine),
+    targetTaskFile: cleanString(target?.targetTaskFile),
+    targetTaskId: cleanString(target?.targetTaskId),
+    targetSourceHint: target?.targetSourceHint || null,
+    sourceSearchHints,
+    instruction: sourceSearchHints.length
+      ? "Search the local project by these selector/text/node/comment seeds before treating this pick as screenshot-only."
+      : "",
+  };
+}
+
+function normalizeLiveEditManifestWriteback(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return {
+    kind: "canvax-live-edit-writeback",
+    status: value.error
+      ? "error"
+      : value.skipped
+        ? "skipped"
+        : value.patchApplied
+          ? "patched"
+          : value.executed
+            ? "task-written"
+            : "saved",
+    executed: Boolean(value.executed),
+    skipped: Boolean(value.skipped),
+    reason: cleanString(value.reason),
+    targetId: cleanString(value.targetId),
+    targetLabel: cleanString(value.targetLabel),
+    variantLabel: cleanString(value.variantLabel),
+    previewPath: cleanString(value.previewPath),
+    patchTaskPath: cleanString(value.patchTaskPath),
+    patchResultPath: cleanString(value.patchResultPath),
+    manifestPath: cleanString(value.manifestPath),
+    changedFileCount: Math.max(0, Number(value.changedFileCount) || 0),
+    patchApplied: Boolean(value.patchApplied),
+    patchError: cleanString(value.patchError || value.error),
+    sourceHintExpansion: value.sourceHintExpansion || null,
+    projectLinkExpansion: value.projectLinkExpansion || null,
+  };
+}
+
+function buildLiveEditManifestBinding(
+  frame,
+  target,
+  { acceptedVariant = null, liveEditRequest = null, writebackResult = null } = {},
+) {
+  const pins = normalizeLiveEditPins(frame?.liveEditPins);
+  const note = cleanString(
+    liveEditRequest?.transcriptText ||
+      target?.note ||
+      dom.workbenchLiveEditNote?.value,
+  );
+  const originalSnapshot = normalizeLiveEditOriginalSnapshot(
+    frame?.liveEditOriginalSnapshot ||
+      liveEditRequest?.originalSnapshot ||
+      acceptedVariant?.originalSnapshot,
+  );
+  const sourceBinding = buildLiveEditManifestSourceBinding(target, {
+    note,
+    pins,
+  });
+  return {
+    kind: "canvax-live-edit-manifest-binding",
+    status: liveEditRequest?.status || target?.status || "accepted",
+    target,
+    actionIntent: currentLiveEditActionIntent(frame),
+    acceptedVariant,
+    originalSnapshot,
+    pins,
+    request: liveEditRequest,
+    sourceBinding,
+    writeback: normalizeLiveEditManifestWriteback(writebackResult),
+    acceptedAt: cleanString(target?.acceptedAt),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function saveLiveEditTargetToPreviewManifest(
+  frame,
+  liveTarget,
+  { writebackResult = null } = {},
+) {
   const target = normalizeLiveEditTarget(liveTarget);
   if (!frame || !target || (!target.targetHref && !target.targetPath)) {
     return null;
@@ -13289,6 +13463,13 @@ async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
   const variantNote = acceptedVariant
     ? `Accepted variant ${acceptedVariant.index}: ${acceptedVariant.label} (${acceptedVariant.role}). ${acceptedVariant.summary || acceptedVariant.body}`
     : "";
+  const liveEditBinding = buildLiveEditManifestBinding(frame, target, {
+    acceptedVariant,
+    liveEditRequest,
+    writebackResult,
+  });
+  const liveEditOriginalSnapshot = liveEditBinding.originalSnapshot;
+  const liveEditPins = liveEditBinding.pins;
   try {
     const response = await fetch("/api/save-preview-manifest", {
       method: "POST",
@@ -13303,6 +13484,14 @@ async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
         targetSelector: target.targetSelector,
         targetObjectId: target.targetObjectId,
         targetNodeId: target.targetNodeId,
+        targetSourceFile: target.targetSourceFile,
+        targetSourcePath: target.targetSourcePath,
+        targetSourceSymbol: target.targetSourceSymbol,
+        targetSourceComponent: target.targetSourceComponent,
+        targetSourceLine: target.targetSourceLine,
+        targetTaskFile: target.targetTaskFile,
+        targetTaskId: target.targetTaskId,
+        targetSourceHint: target.targetSourceHint,
         normalizedBounds: target.bounds,
         frameIds: [frame.id],
         sourceFrameId: frame.id,
@@ -13312,6 +13501,14 @@ async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
           variantNote ||
           "Accepted Canvax live edit target awaiting source rewrite.",
         changeSummary: [variantNote, operationText].filter(Boolean).join(" "),
+        liveEditTarget: target,
+        acceptedLiveEditVariant: acceptedVariant,
+        liveEditOriginalSnapshot,
+        liveEditPins,
+        liveEditActionIntent: currentLiveEditActionIntent(frame),
+        liveEditBinding,
+        liveEditSourceDiscovery: liveEditBinding.sourceBinding,
+        liveEditWriteback: liveEditBinding.writeback,
         liveEditRequest,
         versionTag: acceptedVariant
           ? `${target.targetVersionTag || target.updatedAt || frame.updatedAt}:${acceptedVariant.id}`
@@ -25140,6 +25337,16 @@ function summarizeOutputTarget(target) {
     target.previewPath ||
     target.url ||
     "";
+  const liveEditBinding =
+    target.liveEditBinding && typeof target.liveEditBinding === "object"
+      ? target.liveEditBinding
+      : null;
+  const acceptedVariant =
+    liveEditBinding?.acceptedVariant || target.acceptedLiveEditVariant || null;
+  const sourceBinding =
+    liveEditBinding?.sourceBinding || target.liveEditSourceDiscovery || null;
+  const writeback =
+    liveEditBinding?.writeback || target.liveEditWriteback || null;
   return {
     id: target.id || "",
     label: target.label || "",
@@ -25152,6 +25359,12 @@ function summarizeOutputTarget(target) {
     url: target.url || target.resolvedUrl || "",
     refinementIteration: target.refinement?.iteration || 0,
     refinementSummary: target.refinement?.summary || target.changeSummary || "",
+    liveEditStatus:
+      liveEditBinding?.status || target.liveEditRequest?.status || "",
+    liveEditVariantLabel:
+      acceptedVariant?.label || target.liveEditTarget?.acceptedVariantLabel || "",
+    liveEditSourceBindingStatus: sourceBinding?.status || "",
+    liveEditWritebackStatus: writeback?.status || "",
   };
 }
 
@@ -29393,6 +29606,7 @@ function normalizeManifestTarget(value, index = 0) {
       sourceFrameUpdatedAt: "",
       changeSummary: "",
       refinement: normalizeRefinementData(null),
+      liveEditBinding: null,
     };
   }
 
@@ -29457,7 +29671,81 @@ function normalizeManifestTarget(value, index = 0) {
     changeSummary:
       typeof value.changeSummary === "string" ? value.changeSummary.trim() : "",
     refinement: normalizeRefinementData(value.refinement),
+    targetSelector:
+      typeof value.targetSelector === "string" ? value.targetSelector.trim() : "",
+    targetObjectId:
+      typeof value.targetObjectId === "string" ? value.targetObjectId.trim() : "",
+    targetNodeId:
+      typeof value.targetNodeId === "string" ? value.targetNodeId.trim() : "",
+    normalizedBounds: normalizeManifestJsonObject(value.normalizedBounds),
+    targetSourceFile:
+      typeof value.targetSourceFile === "string"
+        ? value.targetSourceFile.trim()
+        : "",
+    targetSourcePath:
+      typeof value.targetSourcePath === "string"
+        ? value.targetSourcePath.trim()
+        : "",
+    targetSourceSymbol:
+      typeof value.targetSourceSymbol === "string"
+        ? value.targetSourceSymbol.trim()
+        : "",
+    targetSourceComponent:
+      typeof value.targetSourceComponent === "string"
+        ? value.targetSourceComponent.trim()
+        : "",
+    targetSourceLine:
+      typeof value.targetSourceLine === "string"
+        ? value.targetSourceLine.trim()
+        : "",
+    targetTaskFile:
+      typeof value.targetTaskFile === "string" ? value.targetTaskFile.trim() : "",
+    targetTaskId:
+      typeof value.targetTaskId === "string" ? value.targetTaskId.trim() : "",
+    targetSourceHint: normalizeManifestJsonObject(value.targetSourceHint),
+    liveEditTarget: normalizeManifestJsonObject(value.liveEditTarget),
+    acceptedLiveEditVariant: normalizeManifestJsonObject(
+      value.acceptedLiveEditVariant,
+    ),
+    liveEditOriginalSnapshot: normalizeManifestJsonObject(
+      value.liveEditOriginalSnapshot,
+    ),
+    liveEditPins: normalizeManifestJsonObject(value.liveEditPins) || [],
+    liveEditActionIntent: normalizeManifestJsonObject(value.liveEditActionIntent),
+    liveEditBinding: normalizeManifestJsonObject(value.liveEditBinding),
+    liveEditSourceDiscovery: normalizeManifestJsonObject(
+      value.liveEditSourceDiscovery,
+    ),
+    liveEditWriteback: normalizeManifestJsonObject(value.liveEditWriteback),
+    liveEditRequest: normalizeManifestJsonObject(value.liveEditRequest),
   };
+}
+
+function normalizeManifestJsonObject(value, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeManifestJsonObject(item, depth + 1))
+      .filter((item) => item !== null && item !== "");
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value)
+    .map(([key, item]) => [
+      typeof key === "string" ? key.trim() : "",
+      normalizeManifestJsonObject(item, depth + 1),
+    ])
+    .filter(([key, item]) => key && item !== null && item !== "");
+  return entries.length ? Object.fromEntries(entries) : null;
 }
 
 function normalizeManifestArtifact(value, index = 0) {

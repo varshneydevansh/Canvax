@@ -33,6 +33,10 @@ Live Edit restore update: variants and accepted rewrite/patch requests now carry
 `liveEditOriginalSnapshot`, the hot-swapped surface renders an `Original locked`
 affordance, and Close/Escape clears the temporary snapshot with the picker state
 so discard has an explicit restore anchor instead of only hiding the overlay.
+Accepted output-backed Live Edit targets also persist a first-class
+`canvax-live-edit-manifest-binding` into the preview manifest, carrying the
+accepted variant, restore snapshot, pins, action intent, source-binding or
+source-search status, and writeback result as machine-readable metadata.
 
 ## Prompt-To-Artifact Checklist
 
