@@ -105,6 +105,10 @@ First shipped slice:
 - A selected generated output region gets a visible outline and a compact
   bottom picker bar with pick/action/variant state, text note, comment pin,
   `Go`, `Accept`, and `Close`.
+- Same-origin preview DOM element picking captures selectors, tags, text, and
+  element bounds so the picked target can bind to the real rendered component.
+- Comment pins can be placed by clicking inside the selected target and dragged
+  later to refine the exact normalized point that Codex should treat as intent.
 - Selecting a canvas object or image region can also become a frame-bound live
   edit target.
 - The target is exported through frame data, composition data, task packs,
@@ -118,10 +122,6 @@ First shipped slice:
 
 Still open:
 
-- Real same-surface variant hot-swap before branching to full frames.
-- Preview DOM element selector capture instead of only output/card/object
-  binding.
-- Richer draggable comment-pin objects directly on selected targets.
 - Stronger stroke semantic classification for component-improvement circles
   and multi-stroke gestures.
 - Source write-back for arbitrary project-linked app targets after Accept.
@@ -692,7 +692,7 @@ Needed:
 - Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan with momentum/coast, Shift-drag lasso selection, selected-set dragging/resizing, multi-selection alignment/distribution, system clipboard copy/paste for selected spatial objects, selection-created group regions, group contents selection/fitting, front/back layer ordering, cursor-centered pinch/ctrl-wheel zoom, minimap click-to-pan, Fit map recovery, edge expansion when cards/objects are dragged into the left/top boundary, persistent trailing workspace room, a floating `Add to canvas` creation dock with viewport-centered placement, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, collapse repeated outputs to the latest useful per-frame/per-kind card, sit inside the output shelf lane with an inline legend explaining that they are references not frames, and can be promoted into editable `Output edit` frames. Richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Deterministic variants now appear as connected editable Flow frames plus selectable/resizable/movable `variant-branch` Map objects, expose in-place `Use variant` actions in Map, and export as explicit editable spatial branch/object records with semantic recipes, branch prompts, design moves, style knobs, and custom properties. Hosted AI-generated variants remain a future host bridge.**
-- Impeccable-style direct target editing. **Initial Workbench `Live Edit` / `Pick target` slice shipped: generated outputs and selected canvas/image objects can become frame-bound live edit targets, the chosen bounds are outlined, the bottom picker bar captures action/note/comment/variant state, `Go` creates targeted variants, `Accept` persists the selected target into checkpoint/manifest handoffs where relevant, and `Escape`/`Close` discards unaccepted picks. Comment pins and heuristic stroke semantics export with the target. True in-surface variant hot-swap, DOM selector picking, richer draggable pins, stronger multi-stroke semantics, and arbitrary source write-back remain open.**
+- Impeccable-style direct target editing. **Initial Workbench `Live Edit` / `Pick target` slice shipped: generated outputs, same-origin preview DOM elements, and selected canvas/image objects can become frame-bound live edit targets, the chosen bounds are outlined, the bottom picker bar captures action/note/comment/variant state, comment pins can be placed and dragged directly on the target, `Go` creates targeted variants that hot-swap in the same surface, `Accept` persists the selected target into checkpoint/manifest handoffs where relevant, and `Escape`/`Close` discards unaccepted picks. Comment pins and heuristic stroke semantics export with the target. Stronger multi-stroke semantics and arbitrary source write-back remain open.**
 - Voice-driven critique/refinement lane. **Initial local `Voice intent queue`
   shipped in Workbench and voice exports. It categorizes recent spoken notes into
   placement, scale, visual style, flow, asset, copy, or general intent cards so

@@ -1280,7 +1280,10 @@ function bindEvents() {
   dom.workbenchLiveEditNext.addEventListener("click", () => {
     cycleLiveEditVariant(1);
   });
-  dom.workbenchLiveEditPin.addEventListener("click", addLiveEditCommentPin);
+  dom.workbenchLiveEditPin.addEventListener(
+    "click",
+    beginLiveEditCommentPinPlacement,
+  );
   dom.workbenchLiveEditVariants.addEventListener("click", () => {
     createLiveEditVariants();
   });
@@ -2577,6 +2580,8 @@ function hydrateState() {
       outputCheckpointInFlight: false,
       outputAnnotationDraft: null,
       liveEditPickActive: false,
+      liveEditPinPlacement: null,
+      liveEditPinDrag: null,
       lastActionScope: "",
       draftElement: null,
       isDrawing: false,
@@ -3477,6 +3482,8 @@ function normalizeLiveEditPin(value, index = 0) {
     point,
     targetId: cleanString(source.targetId),
     targetLabel: cleanString(source.targetLabel),
+    placement: cleanString(source.placement || source.placementMode),
+    draggedAt: cleanString(source.draggedAt),
     createdAt: cleanString(source.createdAt) || now,
     updatedAt: cleanString(source.updatedAt) || now,
   };
@@ -9701,10 +9708,13 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
       )
     : [];
   const liveVariant = showLiveTarget ? currentLiveEditVariant(frame) : null;
+  const placingLivePin =
+    showLiveTarget && liveEditPinPlacementMatchesTarget(liveTarget);
   surface.className = [
     `workbench-output-surface${stageClass}`,
     annotationCount ? "has-annotations" : "",
     state.liveEditPickActive ? "live-pick-active" : "",
+    placingLivePin ? "live-pin-placement-active" : "",
     showLiveTarget ? "has-live-edit-target" : "",
     liveVariant ? "has-live-edit-variant" : "",
   ]
@@ -9728,13 +9738,15 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
     ${livePins
       .map(
         (pin, index) =>
-          `<span class="workbench-live-edit-pin" style="left:${(pin.point.x * 100).toFixed(3)}%; top:${(pin.point.y * 100).toFixed(3)}%;" title="${escapeHtml(pin.text)}">${index + 1}</span>`,
+          `<span class="workbench-live-edit-pin" data-live-edit-pin-id="${escapeHtml(pin.id)}" data-live-edit-target-id="${escapeHtml(pin.targetId || "")}" style="left:${(pin.point.x * 100).toFixed(3)}%; top:${(pin.point.y * 100).toFixed(3)}%;" title="${escapeHtml(`${pin.text} - drag to reposition`)}" role="button" aria-label="${escapeHtml(`Comment pin ${index + 1}: ${pin.text}`)}" tabindex="0">${index + 1}</span>`,
       )
       .join("")}
     ${liveVariant ? renderLiveEditVariantMarkup(liveVariant, liveTarget) : ""}
     <span class="workbench-output-draw-hint">${
       state.liveEditPickActive
         ? "Click to pick target"
+        : placingLivePin
+          ? "Click selected target to place pin"
         : annotationCount
         ? `${annotationCount} correction mark${annotationCount === 1 ? "" : "s"}`
         : "Draw corrections here"
@@ -9750,7 +9762,9 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
     : liveVariant
       ? `${baseMeta} Variant ${currentLiveEditVariantIndex(frame) + 1}/${currentLiveEditVariants(frame).length} is hot-swapped in this surface. Cycle variants, Accept to bind it, or Close/Escape to restore the original.`
     : showLiveTarget
-      ? `${baseMeta} Live edit target is bound to the next rewrite. Sketch, speak, or create variants from that region.`
+      ? placingLivePin
+        ? `${baseMeta} Click inside the selected target to place the comment pin; existing pins can be dragged.`
+        : `${baseMeta} Live edit target is bound to the next rewrite. Sketch, speak, place pins, or create variants from that region.`
       : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
 }
 
@@ -9762,6 +9776,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   const variants = currentLiveEditVariants(frame);
   const variantIndex = currentLiveEditVariantIndex(frame);
   const selectedVariant = variants[variantIndex] || null;
+  const placingLivePin = liveEditPinPlacementMatchesTarget(liveTarget);
   const showBar = Boolean(
     state.liveEditPickActive ||
       (liveTarget && liveTarget.status !== "accepted") ||
@@ -9828,6 +9843,8 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
         `${selectedVariant.title}. ${selectedVariant.summary || selectedVariant.body}`,
         180,
       )
+    : placingLivePin
+      ? "Click inside the outlined target to place this comment pin. Drag pins to refine the exact point."
     : liveTarget
       ? `Region ${Math.round(liveTarget.bounds.x * 100)}%, ${Math.round(
           liveTarget.bounds.y * 100,
@@ -9839,6 +9856,8 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.workbenchLiveEditAction.textContent = currentActionMode().label;
   dom.workbenchLiveEditCounter.textContent = variants.length
     ? `${variantIndex + 1} / ${variants.length} variants`
+    : placingLivePin
+      ? "place pin"
     : liveTarget
       ? liveTarget.status === "accepted"
         ? "accepted"
@@ -9853,6 +9872,11 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.workbenchLiveEditPrev.disabled = variants.length < 2;
   dom.workbenchLiveEditNext.disabled = variants.length < 2;
   dom.workbenchLiveEditPin.disabled = !liveTarget;
+  dom.workbenchLiveEditPin.classList.toggle("active", placingLivePin);
+  dom.workbenchLiveEditPin.setAttribute("aria-pressed", String(placingLivePin));
+  dom.workbenchLiveEditPin.textContent = placingLivePin
+    ? "Click target"
+    : "+ Comment";
   dom.workbenchLiveEditVariants.disabled = !liveTarget;
   dom.workbenchLiveEditVariants.textContent = liveTarget
     ? variants.length
@@ -10351,6 +10375,8 @@ function setLiveEditPickMode(active) {
     frame.liveEditVariantIndex = 0;
     frame.acceptedLiveEditVariant = null;
     state.liveEditPickActive = false;
+    state.liveEditPinPlacement = null;
+    state.liveEditPinDrag = null;
     touchFrame(frame, {
       capture: false,
       status: "Selected canvas object is ready for Live Edit",
@@ -10366,6 +10392,8 @@ function setLiveEditPickMode(active) {
     return;
   }
   state.liveEditPickActive = Boolean(active);
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
   if (state.liveEditPickActive) {
     state.workbenchFocus = "output";
     renderStatus("Pick a region inside the generated output");
@@ -10392,6 +10420,8 @@ function pickLiveEditTargetFromEvent(event) {
   frame.liveEditVariantIndex = 0;
   frame.acceptedLiveEditVariant = null;
   state.liveEditPickActive = false;
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
   touchFrame(frame, {
     capture: false,
     status: `Picked live edit target in ${liveTarget.targetLabel}`,
@@ -10426,26 +10456,99 @@ function liveEditPinPointForTarget(liveTarget) {
   };
 }
 
-function addLiveEditCommentPin() {
+function liveEditPinPlacementMatchesTarget(liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const placement = state.liveEditPinPlacement;
+  return Boolean(
+    target &&
+      placement &&
+      (!placement.targetId || placement.targetId === target.targetId),
+  );
+}
+
+function beginLiveEditCommentPinPlacement() {
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (!liveTarget) {
+    renderStatus("Pick a live edit target before adding a comment pin");
+    return false;
+  }
+  const text = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  if (!text) {
+    renderStatus("Type the comment before pinning it to this target");
+    dom.workbenchLiveEditNote?.focus();
+    return false;
+  }
+  state.liveEditPinPlacement = {
+    targetId: liveTarget.targetId,
+    text,
+    startedAt: new Date().toISOString(),
+  };
+  frame.liveEditTarget = {
+    ...liveTarget,
+    note: text,
+    updatedAt: new Date().toISOString(),
+  };
+  renderWorkbenchOutput();
+  renderStatus("Click inside the selected Live Edit target to place the comment pin");
+  return true;
+}
+
+function constrainLiveEditPinPoint(point, liveTarget) {
+  const normalized = normalizeOutputAnnotationPoint(point);
+  const bounds = normalizeLiveEditBounds(liveTarget?.bounds);
+  if (!normalized) {
+    return null;
+  }
+  if (!bounds) {
+    return normalized;
+  }
+  return {
+    x: roundNumber(clamp(normalized.x, bounds.x, bounds.x + bounds.w)),
+    y: roundNumber(clamp(normalized.y, bounds.y, bounds.y + bounds.h)),
+  };
+}
+
+function pointInsideLiveEditTarget(point, liveTarget, padding = 0.012) {
+  const normalized = normalizeOutputAnnotationPoint(point);
+  const bounds = normalizeLiveEditBounds(liveTarget?.bounds);
+  if (!normalized || !bounds) {
+    return false;
+  }
+  return (
+    normalized.x >= bounds.x - padding &&
+    normalized.x <= bounds.x + bounds.w + padding &&
+    normalized.y >= bounds.y - padding &&
+    normalized.y <= bounds.y + bounds.h + padding
+  );
+}
+
+function addLiveEditCommentPin(point = null, options = {}) {
   const frame = currentFrame();
   const liveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
   if (!liveTarget) {
     renderStatus("Pick a live edit target before adding a comment pin");
     return null;
   }
-  const text = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  const text = cleanString(
+    options.text || dom.workbenchLiveEditNote?.value || liveTarget.note,
+  );
   if (!text) {
     renderStatus("Type the comment before pinning it to this target");
     dom.workbenchLiveEditNote?.focus();
     return null;
   }
-  const point = liveEditPinPointForTarget(liveTarget);
+  const pinPoint = constrainLiveEditPinPoint(
+    point || liveEditPinPointForTarget(liveTarget),
+    liveTarget,
+  );
   const pin = normalizeLiveEditPin({
     id: uid("live-pin"),
     text,
-    point,
+    point: pinPoint,
     targetId: liveTarget.targetId,
     targetLabel: liveTarget.targetLabel,
+    placement: options.placement || (point ? "direct-target-click" : "default"),
     createdAt: new Date().toISOString(),
   });
   if (!pin) {
@@ -10459,11 +10562,155 @@ function addLiveEditCommentPin() {
     note: text,
     updatedAt: new Date().toISOString(),
   };
+  state.liveEditPinPlacement = null;
   touchFrame(frame, {
     capture: false,
-    status: "Pinned comment to live edit target",
+    status:
+      pin.placement === "direct-target-click"
+        ? "Placed comment pin on live edit target"
+        : "Pinned comment to live edit target",
   });
   return pin;
+}
+
+function placeLiveEditCommentPinFromEvent(event) {
+  if (
+    state.workspaceMode !== "simple" ||
+    !state.liveEditPinPlacement ||
+    event.button > 0
+  ) {
+    return false;
+  }
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  if (!liveEditPinPlacementMatchesTarget(liveTarget)) {
+    state.liveEditPinPlacement = null;
+    return false;
+  }
+  const point = outputAnnotationPointFromEvent(event);
+  event.preventDefault();
+  event.stopPropagation();
+  if (!point || !pointInsideLiveEditTarget(point, liveTarget)) {
+    renderStatus("Click inside the outlined Live Edit target to place the pin");
+    return true;
+  }
+  addLiveEditCommentPin(point, {
+    placement: "direct-target-click",
+    text: state.liveEditPinPlacement.text,
+  });
+  return true;
+}
+
+function liveEditPinElementFromEvent(event) {
+  return event.target instanceof Element
+    ? event.target.closest("[data-live-edit-pin-id]")
+    : null;
+}
+
+function moveLiveEditCommentPin(frame, pinId, point, options = {}) {
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const constrained = constrainLiveEditPinPoint(point, liveTarget);
+  if (!frame || !pinId || !constrained) {
+    return null;
+  }
+  let movedPin = null;
+  frame.liveEditPins = normalizeLiveEditPins(frame.liveEditPins).map((pin) => {
+    if (pin.id !== pinId) {
+      return pin;
+    }
+    movedPin = {
+      ...pin,
+      point: constrained,
+      draggedAt: options.final ? new Date().toISOString() : pin.draggedAt,
+      updatedAt: new Date().toISOString(),
+    };
+    return movedPin;
+  });
+  if (!movedPin) {
+    return null;
+  }
+  frame.updatedAt = new Date().toISOString();
+  updateRenderedLiveEditPinPosition(pinId, constrained);
+  scheduleLivePreviewSync();
+  return movedPin;
+}
+
+function updateRenderedLiveEditPinPosition(pinId, point) {
+  const selector = `[data-live-edit-pin-id="${cssAttributeEscape(pinId)}"]`;
+  document.querySelectorAll(selector).forEach((node) => {
+    node.style.left = `${(point.x * 100).toFixed(3)}%`;
+    node.style.top = `${(point.y * 100).toFixed(3)}%`;
+  });
+}
+
+function startLiveEditPinDrag(event) {
+  const pinNode = liveEditPinElementFromEvent(event);
+  if (
+    !pinNode ||
+    state.workspaceMode !== "simple" ||
+    state.liveEditPickActive ||
+    event.button > 0
+  ) {
+    return false;
+  }
+  const frame = currentFrame();
+  const pinId = cleanString(pinNode.dataset.liveEditPinId);
+  const pin = normalizeLiveEditPins(frame?.liveEditPins).find(
+    (entry) => entry.id === pinId,
+  );
+  if (!frame || !pin) {
+    return false;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  pinNode.setPointerCapture?.(event.pointerId);
+  state.liveEditPinDrag = {
+    pointerId: event.pointerId,
+    pinId,
+    frameId: frame.id,
+    startedAt: new Date().toISOString(),
+  };
+  state.liveEditPinPlacement = null;
+  renderStatus("Drag the comment pin to the exact area to change");
+  return true;
+}
+
+function updateLiveEditPinDrag(event) {
+  const drag = state.liveEditPinDrag;
+  if (!drag || drag.pointerId !== event.pointerId) {
+    return false;
+  }
+  const frame = currentFrameById(drag.frameId) || currentFrame();
+  const point = outputAnnotationPointFromEvent(event);
+  if (frame && point) {
+    moveLiveEditCommentPin(frame, drag.pinId, point);
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
+function finishLiveEditPinDrag(event) {
+  const drag = state.liveEditPinDrag;
+  if (!drag || drag.pointerId !== event.pointerId) {
+    return false;
+  }
+  const frame = currentFrameById(drag.frameId) || currentFrame();
+  const point = outputAnnotationPointFromEvent(event);
+  const pin = frame && point
+    ? moveLiveEditCommentPin(frame, drag.pinId, point, { final: true })
+    : null;
+  liveEditPinElementFromEvent(event)?.releasePointerCapture?.(event.pointerId);
+  state.liveEditPinDrag = null;
+  event.preventDefault();
+  event.stopPropagation();
+  if (pin) {
+    touchFrame(frame, {
+      capture: false,
+      status: "Repositioned live edit comment pin",
+    });
+  }
+  return true;
 }
 
 async function acceptLiveEditTarget() {
@@ -10513,6 +10760,8 @@ async function acceptLiveEditTarget() {
   );
   frame.liveEditVariantIndex = variantIndex;
   frame.acceptedLiveEditVariant = acceptedVariant;
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
   applyAcceptedLiveEditVariantToSourceTarget(
     frame,
     frame.liveEditTarget,
@@ -10761,6 +11010,8 @@ function closeLiveEditTarget() {
     frame.updatedAt = new Date().toISOString();
   }
   state.liveEditPickActive = false;
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
   persistState();
   renderAll();
   renderStatus(
@@ -11131,12 +11382,18 @@ function outputAnnotationPointFromEvent(event) {
 }
 
 function onWorkbenchOutputPointerDown(event) {
+  if (startLiveEditPinDrag(event)) {
+    return;
+  }
   if (
     state.workspaceMode === "simple" &&
     state.liveEditPickActive &&
     event.button <= 0
   ) {
     pickLiveEditTargetFromEvent(event);
+    return;
+  }
+  if (placeLiveEditCommentPinFromEvent(event)) {
     return;
   }
   if (
@@ -11173,6 +11430,9 @@ function onWorkbenchOutputPointerDown(event) {
 }
 
 function onWorkbenchOutputPointerMove(event) {
+  if (updateLiveEditPinDrag(event)) {
+    return;
+  }
   const draft = state.outputAnnotationDraft;
   if (!draft || draft.pointerId !== event.pointerId) {
     return;
@@ -11189,6 +11449,9 @@ function onWorkbenchOutputPointerMove(event) {
 }
 
 function onWorkbenchOutputPointerUp(event) {
+  if (finishLiveEditPinDrag(event)) {
+    return;
+  }
   const draft = state.outputAnnotationDraft;
   if (!draft || draft.pointerId !== event.pointerId) {
     return;
@@ -26384,7 +26647,40 @@ async function runSelfTest() {
       { x: 0.42, y: 0.36 },
     );
     dom.workbenchLiveEditNote.value = "Pin this generated CTA";
-    addLiveEditCommentPin();
+    updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
+    const liveEditPinPlacementArmed = beginLiveEditCommentPinPlacement();
+    const livePinPlacementCanvas =
+      dom.workbenchOutputSurface.querySelector(".workbench-output-overlay");
+    const livePinPlacementRect = livePinPlacementCanvas?.getBoundingClientRect();
+    const livePinPlacementPoint = { x: 0.46, y: 0.4 };
+    if (livePinPlacementCanvas && livePinPlacementRect) {
+      dom.workbenchOutputSurface.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 231,
+          pointerType: "mouse",
+          button: 0,
+          buttons: 1,
+          clientX:
+            livePinPlacementRect.left +
+            livePinPlacementPoint.x * livePinPlacementRect.width,
+          clientY:
+            livePinPlacementRect.top +
+            livePinPlacementPoint.y * livePinPlacementRect.height,
+        }),
+      );
+    }
+    const placedLiveEditPin =
+      normalizeLiveEditPins(frameForCanvasReply.liveEditPins)[0] || null;
+    const movedLiveEditPin = placedLiveEditPin
+      ? moveLiveEditCommentPin(
+          frameForCanvasReply,
+          placedLiveEditPin.id,
+          { x: 0.52, y: 0.44 },
+          { final: true },
+        )
+      : null;
     renderWorkbenchOutput();
     const liveEditOutputRendered =
       dom.workbenchOutputSurface.classList.contains("has-live-edit-target") &&
@@ -26397,9 +26693,11 @@ async function runSelfTest() {
         dom.workbenchOutputSurface.querySelector(".workbench-live-edit-pin"),
       ) &&
       dom.workbenchLiveEditBar.hidden === false &&
-      normalizeLiveEditPins(frameForCanvasReply.liveEditPins)[0]?.text.includes(
-        "generated CTA",
-      ) &&
+      liveEditPinPlacementArmed &&
+      placedLiveEditPin?.placement === "direct-target-click" &&
+      movedLiveEditPin?.point?.x === 0.52 &&
+      Boolean(movedLiveEditPin?.draggedAt) &&
+      movedLiveEditPin?.text.includes("generated CTA") &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditTarget?.targetId ===
         "self-test-canvas-reply";
     const createdLiveEditVariants = createLiveEditVariants();
@@ -26497,7 +26795,22 @@ async function runSelfTest() {
           liveEditVariantsHotSwap &&
           liveEditDiscarded &&
           liveEditDomSelectorCaptured,
-        "same-canvas reply underlay renders live edit target, captures DOM selector metadata, in-surface variants, cycling, and clean discard",
+        "same-canvas reply underlay renders live edit target, places and drags comment pins, captures DOM selector metadata, in-surface variants, cycling, and clean discard",
+        JSON.stringify({
+          canvasReplyRendered,
+          hasBinding: canvasReplyBinding?.branchFrameId === frameForCanvasReply.id,
+          hasHref: Boolean(
+            canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html"),
+          ),
+          liveEditOutputRendered,
+          liveEditPinPlacementArmed,
+          placedPinPlacement: placedLiveEditPin?.placement || "",
+          movedPinX: movedLiveEditPin?.point?.x ?? null,
+          movedPinDragged: Boolean(movedLiveEditPin?.draggedAt),
+          liveEditVariantsHotSwap,
+          liveEditDiscarded,
+          liveEditDomSelectorCaptured,
+        }),
       ),
     );
     const previousCanvasObjectLiveEditState = {

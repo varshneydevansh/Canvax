@@ -1053,6 +1053,8 @@ function normalizeLiveEditPins(value) {
             point: pin?.point || null,
             targetId: cleanString(pin?.targetId),
             targetLabel: cleanString(pin?.targetLabel),
+            placement: cleanString(pin?.placement || pin?.placementMode),
+            draggedAt: cleanString(pin?.draggedAt),
           };
         })
         .filter(Boolean)

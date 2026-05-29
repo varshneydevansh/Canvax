@@ -2644,7 +2644,12 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     cursor: cell;
 }
 
+.workbench-output-surface.live-pin-placement-active .workbench-output-overlay {
+    cursor: crosshair;
+}
+
 .workbench-output-surface.live-pick-active .workbench-output-draw-hint,
+.workbench-output-surface.live-pin-placement-active .workbench-output-draw-hint,
 .workbench-output-surface.has-live-edit-target .workbench-output-draw-hint {
     color: #18110e;
     background: rgba(245, 185, 56, 0.94);
@@ -2698,7 +2703,23 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     font-size: 0.7rem;
     font-weight: 900;
     transform: translate(-50%, -50%);
-    pointer-events: none;
+    cursor: grab;
+    pointer-events: auto;
+    touch-action: none;
+}
+
+.workbench-live-edit-pin:hover,
+.workbench-live-edit-pin:focus-visible {
+    transform: translate(-50%, -50%) scale(1.08);
+    outline: none;
+    box-shadow:
+        0 0.55rem 1.1rem rgba(0, 0, 0, 0.34),
+        0 0 0 0.25rem rgba(245, 185, 56, 0.38),
+        0 0 0 0.42rem rgba(255, 255, 255, 0.16);
+}
+
+.workbench-live-edit-pin:active {
+    cursor: grabbing;
 }
 
 .workbench-output-surface.has-live-edit-variant .workbench-live-edit-outline {
