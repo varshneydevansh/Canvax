@@ -73,9 +73,19 @@ for (const file of plan.files) {
 }
 
 const changedFiles = changes.filter((change) => change.changed);
+const sourceDiscoveryCandidateCount =
+  Number(plan.sourceDiscovery?.candidateCount) || 0;
+const status = changedFiles.length
+  ? "patched"
+  : plan.sourceDiscovery
+    ? sourceDiscoveryCandidateCount > 0
+      ? "source-discovered"
+      : "source-search-empty"
+    : "no-op";
 const result = {
   kind: "canvax-applied-patch-result",
   schemaVersion: 1,
+  status,
   requiresOpenAiApiKey: false,
   createdAt: new Date().toISOString(),
   source: "scripts/execute-patch-task.mjs",
@@ -90,6 +100,8 @@ const result = {
   projectLinkExpansion: plan.projectLinkExpansion,
   sourceHintExpansion: plan.sourceHintExpansion,
   sourceDiscovery: plan.sourceDiscovery,
+  sourceDiscovered: status === "source-discovered",
+  sourceDiscoveryCandidateCount,
   changedFiles: changedFiles.map((change) => ({
     path: change.path,
     kind: change.kind,
@@ -118,6 +130,7 @@ if (!wantsDryRun && !noPublish && changedFiles.length) {
 
 const output = {
   ok: true,
+  status,
   dryRun: wantsDryRun,
   taskPath: result.taskPath,
   resultPath: toProjectRelative(latestJsonPath),
@@ -128,6 +141,8 @@ const output = {
   projectLinkExpansion: result.projectLinkExpansion,
   sourceHintExpansion: result.sourceHintExpansion,
   sourceDiscovery: result.sourceDiscovery,
+  sourceDiscovered: result.sourceDiscovered,
+  sourceDiscoveryCandidateCount: result.sourceDiscoveryCandidateCount,
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
 };
@@ -1090,6 +1105,7 @@ function buildMarkdown(result) {
     "",
     `- Created: ${result.createdAt}`,
     `- Frame: ${result.frameTitle || result.frameId}`,
+    `- Status: ${result.status}`,
     `- Requires OpenAI API key: ${result.requiresOpenAiApiKey ? "yes" : "no"}`,
     `- Dry run: ${result.dryRun ? "yes" : "no"}`,
     "",

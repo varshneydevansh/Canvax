@@ -10415,6 +10415,13 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
       )
     : [];
   const liveVariant = showLiveTarget ? currentLiveEditVariant(frame) : null;
+  const liveWriteback = showLiveTarget
+    ? liveEditWritebackForTarget(frame, liveTarget, target)
+    : null;
+  const liveOutcome =
+    liveTarget?.status === "accepted" || liveWriteback?.inFlight
+      ? describeLiveEditWritebackOutcome(liveWriteback)
+      : null;
   const placingLivePin =
     showLiveTarget && liveEditPinPlacementMatchesTarget(liveTarget);
   const pickDraft = liveEditPickDraftForSurface("output", frame);
@@ -10444,7 +10451,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
     ></canvas>
     ${
       showLiveTarget
-        ? `<span class="workbench-live-edit-outline" style="${liveTargetStyle}"><span>${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Picked target")}</span></span>`
+        ? `<span class="workbench-live-edit-outline" data-live-edit-outcome-tone="${escapeHtml(liveOutcome?.tone || "")}" style="${liveTargetStyle}"><span class="workbench-live-edit-outline-label">${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Picked target")}</span></span>`
         : ""
     }
     ${
@@ -10459,11 +10466,18 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
       )
       .join("")}
     ${liveVariant ? renderLiveEditVariantMarkup(liveVariant, liveTarget) : ""}
+    ${
+      liveOutcome
+        ? `<span class="workbench-live-edit-outcome" data-tone="${escapeHtml(liveOutcome.tone)}"><strong>${escapeHtml(liveOutcome.label)}</strong><small>${escapeHtml(liveOutcome.detail)}</small></span>`
+        : ""
+    }
     <span class="workbench-output-draw-hint">${
       state.liveEditPickActive
         ? "Click to pick target"
         : placingLivePin
           ? "Click selected target to place pin"
+        : liveOutcome
+          ? liveOutcome.label
         : annotationCount
         ? `${annotationCount} correction mark${annotationCount === 1 ? "" : "s"}`
         : "Draw corrections here"
@@ -10481,8 +10495,111 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
     : showLiveTarget
       ? placingLivePin
         ? `${baseMeta} Click inside the selected target to place the comment pin; existing pins can be dragged.`
+        : liveOutcome
+          ? `${baseMeta} ${liveOutcome.detail}`
         : `${baseMeta} Live edit target is bound to the next rewrite. Sketch, speak, place pins, or create variants from that region.`
       : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
+}
+
+function liveEditWritebackForTarget(frame, liveTarget, outputTarget = null) {
+  const target = normalizeLiveEditTarget(liveTarget || frame?.liveEditTarget);
+  if (!target) {
+    return null;
+  }
+  const targetId = cleanString(target.targetId);
+  const targetObjectId = cleanString(target.targetObjectId);
+  const candidates = [
+    outputTarget?.liveEditBinding?.writeback,
+    outputTarget?.liveEditWriteback,
+    state.serverStatus.liveEditWriteback,
+  ].filter((value) => value && typeof value === "object");
+  return (
+    candidates.find((value) => {
+      const valueTargetId = cleanString(value.targetId);
+      const valueObjectId = cleanString(value.targetObjectId);
+      if (targetId && valueTargetId && targetId === valueTargetId) {
+        return true;
+      }
+      if (targetObjectId && valueObjectId && targetObjectId === valueObjectId) {
+        return true;
+      }
+      return !valueTargetId && !valueObjectId && target.status === "accepted";
+    }) || null
+  );
+}
+
+function describeLiveEditWritebackOutcome(writeback) {
+  if (!writeback || typeof writeback !== "object" || Array.isArray(writeback)) {
+    return null;
+  }
+  const status = cleanString(writeback.status);
+  const changedFileCount = Number(writeback.changedFileCount) || 0;
+  const candidateCount =
+    Number(writeback.sourceDiscoveryCandidateCount) ||
+    Number(writeback.sourceDiscovery?.candidateCount) ||
+    0;
+  if (writeback.inFlight) {
+    return {
+      label: "Writing back",
+      detail:
+        "Local rewrite and patch handoff is running for the accepted target.",
+      tone: "active",
+    };
+  }
+  if (writeback.error || writeback.patchError) {
+    return {
+      label: "Writeback failed",
+      detail: writeback.error || writeback.patchError,
+      tone: "danger",
+    };
+  }
+  if (writeback.patchApplied || status === "patched") {
+    return {
+      label: "Patched source",
+      detail: `Accepted Live Edit updated ${changedFileCount} source file${changedFileCount === 1 ? "" : "s"} from this picked target.`,
+      tone: "synced",
+    };
+  }
+  if (writeback.sourceDiscovered || status === "source-discovered") {
+    return {
+      label: "Source candidates",
+      detail: `Accepted Live Edit found ${candidateCount} likely source candidate${candidateCount === 1 ? "" : "s"} for Codex review before production mutation.`,
+      tone: "warning",
+    };
+  }
+  if (status === "source-search-empty") {
+    return {
+      label: "Source search empty",
+      detail:
+        "Accepted Live Edit searched local files but did not find a strong source candidate yet.",
+      tone: "warning",
+    };
+  }
+  if (status === "task-written") {
+    return {
+      label: "Patch task written",
+      detail:
+        "Accepted Live Edit wrote a frame-bound patch task for Codex to apply with source context.",
+      tone: "active",
+    };
+  }
+  if (writeback.skipped) {
+    return {
+      label: "Accepted locally",
+      detail:
+        "Accepted Live Edit is bound to this canvas object, asset, region, or Map object.",
+      tone: "synced",
+    };
+  }
+  if (writeback.executed || status === "saved") {
+    return {
+      label: "Saved to handoff",
+      detail:
+        "Accepted Live Edit is saved into the rewrite/checkpoint handoff for the selected artifact.",
+      tone: "synced",
+    };
+  }
+  return null;
 }
 
 function setLiveEditActionIntent(actionId) {
@@ -12937,6 +13054,7 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         reason,
         targetId: liveTarget.targetId,
         targetLabel: liveTarget.targetLabel,
+        updatedAt: new Date().toISOString(),
       },
     };
     renderStatus(
@@ -12959,6 +13077,7 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
       targetId: liveTarget.targetId,
       targetLabel: liveTarget.targetLabel,
       variantLabel: label,
+      updatedAt: new Date().toISOString(),
     },
   };
   dom.workspaceStatus.textContent =
@@ -12996,17 +13115,28 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
       }
     }
 
+    const patchStatus = cleanString(patchResult?.status);
     const patchApplied = Boolean(
-      patchResult?.executed && Number(patchResult?.changedFileCount) > 0,
+      patchStatus === "patched" ||
+        (patchResult?.executed && Number(patchResult?.changedFileCount) > 0),
     );
     const sourceDiscovery = patchResult?.sourceDiscovery || null;
     const sourceDiscoveryCandidateCount =
-      Number(sourceDiscovery?.candidateCount) || 0;
-    const sourceDiscovered = Boolean(sourceDiscovery);
+      Number(patchResult?.sourceDiscoveryCandidateCount) ||
+      Number(sourceDiscovery?.candidateCount) ||
+      0;
+    const sourceDiscovered = Boolean(
+      patchResult?.sourceDiscovered ||
+        patchStatus === "source-discovered" ||
+        sourceDiscoveryCandidateCount > 0,
+    );
+    const sourceSearched = Boolean(sourceDiscovery);
     const writebackStatus = patchApplied
       ? "patched"
       : sourceDiscovered
         ? "source-discovered"
+        : sourceSearched
+          ? "source-search-empty"
         : patchResult?.executed
           ? "task-written"
           : "saved";
@@ -13031,6 +13161,7 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         sourceDiscovered,
         sourceDiscoveryCandidateCount,
         projectLinkExpansion: patchResult?.projectLinkExpansion || null,
+        updatedAt: new Date().toISOString(),
       },
     };
     await refreshPreviewStateFromServer();
@@ -13042,12 +13173,16 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
       ? `Accepted Live Edit applied and patched ${patchResult.changedFileCount || 0} file${patchResult.changedFileCount === 1 ? "" : "s"}.`
       : sourceDiscovered
         ? `Accepted Live Edit found ${sourceDiscoveryCandidateCount} source candidate${sourceDiscoveryCandidateCount === 1 ? "" : "s"} for Codex review.`
+      : sourceSearched
+        ? "Accepted Live Edit searched local files but did not find a source candidate yet."
       : `Accepted Live Edit wrote a rewrite task at ${rewriteResult?.patchTaskPath || "the latest patch task"}.`;
     renderStatus(
       patchApplied
         ? "Accepted Live Edit patched the bound target"
         : sourceDiscovered
           ? "Accepted Live Edit found source candidates"
+        : sourceSearched
+          ? "Accepted Live Edit source search found no candidates"
         : "Accepted Live Edit wrote a patch task",
     );
     return state.serverStatus.liveEditWriteback;
@@ -13063,6 +13198,7 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
           error instanceof Error
             ? error.message
             : "Accepted Live Edit write-back failed.",
+        updatedAt: new Date().toISOString(),
       },
     };
     dom.workspaceStatus.textContent =
@@ -13090,8 +13226,10 @@ async function saveLiveEditWritebackCheckpoint(frame, writebackResult) {
     ? `Accepted Live Edit saved for ${frame.title}, but writeback failed: ${writebackResult.error}`
     : writebackResult.patchApplied
       ? `Accepted Live Edit patched ${changedFileCount} file${changedFileCount === 1 ? "" : "s"} for ${frame.title}.`
-      : writebackResult.sourceDiscovered || writebackResult.sourceDiscovery
+      : writebackResult.sourceDiscovered
         ? `Accepted Live Edit found ${sourceDiscoveryCandidateCount} source candidate${sourceDiscoveryCandidateCount === 1 ? "" : "s"} for ${frame.title}; Codex should review before mutating production files.`
+      : writebackResult.sourceDiscovery
+        ? `Accepted Live Edit searched local files for ${frame.title}, but no strong source candidate was found.`
       : `Accepted Live Edit wrote a patch task for ${frame.title}.`;
   const exportResult = await saveExportToWorkspace({ silent: true });
   return saveCheckpointToWorkspace("live-edit-writeback", {
@@ -13404,18 +13542,30 @@ function normalizeLiveEditManifestWriteback(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
+  const status = cleanString(value.status);
+  const sourceDiscoveryCandidateCount =
+    Number(value.sourceDiscoveryCandidateCount) ||
+    Number(value.sourceDiscovery?.candidateCount) ||
+    0;
+  const sourceDiscovered = Boolean(
+    value.sourceDiscovered ||
+      status === "source-discovered" ||
+      sourceDiscoveryCandidateCount > 0,
+  );
   return {
     kind: "canvax-live-edit-writeback",
     status:
-      cleanString(value.status) ||
+      status ||
       (value.error
         ? "error"
         : value.skipped
           ? "skipped"
           : value.patchApplied
             ? "patched"
-            : value.sourceDiscovered || value.sourceDiscovery
+            : sourceDiscovered
               ? "source-discovered"
+              : value.sourceDiscovery
+                ? "source-search-empty"
               : value.executed
                 ? "task-written"
                 : "saved"),
@@ -13429,16 +13579,14 @@ function normalizeLiveEditManifestWriteback(value) {
     patchTaskPath: cleanString(value.patchTaskPath),
     patchResultPath: cleanString(value.patchResultPath),
     manifestPath: cleanString(value.manifestPath),
+    updatedAt: cleanString(value.updatedAt),
     changedFileCount: Math.max(0, Number(value.changedFileCount) || 0),
     patchApplied: Boolean(value.patchApplied),
     patchError: cleanString(value.patchError || value.error),
     sourceHintExpansion: value.sourceHintExpansion || null,
     sourceDiscovery: value.sourceDiscovery || null,
-    sourceDiscovered: Boolean(value.sourceDiscovered || value.sourceDiscovery),
-    sourceDiscoveryCandidateCount:
-      Number(value.sourceDiscoveryCandidateCount) ||
-      Number(value.sourceDiscovery?.candidateCount) ||
-      0,
+    sourceDiscovered,
+    sourceDiscoveryCandidateCount,
     projectLinkExpansion: value.projectLinkExpansion || null,
   };
 }
@@ -16298,6 +16446,14 @@ function buildWorkbenchAgentLogItems() {
     });
   }
 
+  const liveEditWritebackItem = agentLogItemFromLiveEditWriteback(
+    state.serverStatus.liveEditWriteback,
+    now,
+  );
+  if (liveEditWritebackItem) {
+    items.push(liveEditWritebackItem);
+  }
+
   const designJury = state.serverStatus.designJury;
   if (designJury?.kind === "canvax-design-jury-review") {
     items.push({
@@ -16393,6 +16549,36 @@ function buildWorkbenchAgentLogItems() {
   return dedupeAgentLogItems(items)
     .sort((a, b) => String(b.at).localeCompare(String(a.at)))
     .slice(0, 9);
+}
+
+function agentLogItemFromLiveEditWriteback(writeback, fallbackAt = "") {
+  const outcome = describeLiveEditWritebackOutcome(writeback);
+  if (!outcome) {
+    return null;
+  }
+  const targetLabel = cleanString(writeback?.targetLabel) || "picked target";
+  const variantLabel = cleanString(writeback?.variantLabel);
+  const at =
+    cleanString(writeback?.updatedAt) ||
+    fallbackAt ||
+    new Date().toISOString();
+  return {
+    id: [
+      "live-edit-writeback",
+      cleanString(writeback?.targetId) || targetLabel,
+      cleanString(writeback?.status) || outcome.label,
+      at,
+    ]
+      .filter(Boolean)
+      .join("-"),
+    kind: "Live Edit",
+    title: `${outcome.label}: ${targetLabel}`,
+    detail: [variantLabel ? `Variant ${variantLabel}` : "", outcome.detail]
+      .filter(Boolean)
+      .join(" • "),
+    tone: outcome.tone,
+    at,
+  };
 }
 
 function agentLogItemFromSessionEvent(event) {
@@ -28403,6 +28589,10 @@ function summarizePatchExecutionStatus(value) {
           : [],
       }))
     : [];
+  const sourceDiscoveryCandidateCount =
+    Number(value.sourceDiscoveryCandidateCount) ||
+    Number(value.sourceDiscovery?.candidateCount) ||
+    0;
   return {
     executed: Boolean(value.executed),
     status: cleanString(value.status),
@@ -28418,7 +28608,12 @@ function summarizePatchExecutionStatus(value) {
     projectLinkExpansion: value.projectLinkExpansion || null,
     sourceHintExpansion: value.sourceHintExpansion || null,
     sourceDiscovery: value.sourceDiscovery || null,
-    sourceDiscovered: Boolean(value.sourceDiscovery),
+    sourceDiscovered: Boolean(
+      value.sourceDiscovered ||
+        cleanString(value.status) === "source-discovered" ||
+        sourceDiscoveryCandidateCount > 0,
+    ),
+    sourceDiscoveryCandidateCount,
     error: cleanString(value.error),
   };
 }
@@ -28427,6 +28622,15 @@ function summarizeLiveEditWritebackStatus(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
+  const sourceDiscoveryCandidateCount =
+    Number(value.sourceDiscoveryCandidateCount) ||
+    Number(value.sourceDiscovery?.candidateCount) ||
+    0;
+  const sourceDiscovered = Boolean(
+    value.sourceDiscovered ||
+      cleanString(value.status) === "source-discovered" ||
+      sourceDiscoveryCandidateCount > 0,
+  );
   return {
     executed: Boolean(value.executed),
     status: cleanString(value.status),
@@ -28440,6 +28644,7 @@ function summarizeLiveEditWritebackStatus(value) {
     patchTaskPath: cleanString(value.patchTaskPath),
     patchResultPath: cleanString(value.patchResultPath),
     manifestPath: cleanString(value.manifestPath),
+    updatedAt: cleanString(value.updatedAt),
     changedFileCount: Number(value.changedFileCount) || 0,
     patchApplied: Boolean(value.patchApplied),
     patchError: cleanString(value.patchError),
@@ -28447,11 +28652,8 @@ function summarizeLiveEditWritebackStatus(value) {
     projectLinkExpansion: value.projectLinkExpansion || null,
     sourceHintExpansion: value.sourceHintExpansion || null,
     sourceDiscovery: value.sourceDiscovery || null,
-    sourceDiscovered: Boolean(value.sourceDiscovered || value.sourceDiscovery),
-    sourceDiscoveryCandidateCount:
-      Number(value.sourceDiscoveryCandidateCount) ||
-      Number(value.sourceDiscovery?.candidateCount) ||
-      0,
+    sourceDiscovered,
+    sourceDiscoveryCandidateCount,
   };
 }
 
@@ -30933,6 +31135,41 @@ async function runSelfTest() {
       movedLiveEditPin?.text.includes("generated CTA") &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditTarget?.targetId ===
         "self-test-canvas-reply";
+    const previousLiveEditWritebackForOutcome = structuredClone(
+      state.serverStatus.liveEditWriteback || null,
+    );
+    const previousLiveEditTargetStatus =
+      frameForCanvasReply.liveEditTarget?.status || "";
+    if (frameForCanvasReply.liveEditTarget) {
+      frameForCanvasReply.liveEditTarget.status = "accepted";
+    }
+    state.serverStatus = {
+      ...state.serverStatus,
+      liveEditWriteback: {
+        executed: true,
+        status: "source-discovered",
+        targetId: "self-test-canvas-reply",
+        targetLabel: "Self-test output",
+        variantLabel: "Clarity",
+        sourceDiscovered: true,
+        sourceDiscoveryCandidateCount: 2,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+    renderWorkbenchOutput();
+    const liveEditOutcomeRendered = Boolean(
+      dom.workbenchOutputSurface
+        .querySelector(".workbench-live-edit-outcome")
+        ?.textContent.includes("Source candidates"),
+    );
+    state.serverStatus = {
+      ...state.serverStatus,
+      liveEditWriteback: previousLiveEditWritebackForOutcome,
+    };
+    if (frameForCanvasReply.liveEditTarget) {
+      frameForCanvasReply.liveEditTarget.status = previousLiveEditTargetStatus;
+    }
+    renderWorkbenchOutput();
     const createdLiveEditVariants = createLiveEditVariants();
     const firstLiveEditVariantTitle =
       dom.workbenchOutputSurface.querySelector(
@@ -31170,6 +31407,7 @@ async function runSelfTest() {
           canvasReplyBinding?.branchFrameId === frameForCanvasReply.id &&
           canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html") &&
           liveEditOutputRendered &&
+          liveEditOutcomeRendered &&
           outputPickStaysOnOutput &&
           outputPickFocusSelected &&
           liveEditVariantsHotSwap &&
@@ -31184,6 +31422,7 @@ async function runSelfTest() {
             canvasReplyBinding?.href.includes("/workspace/artifacts/preview/self-test/index.html"),
           ),
           liveEditOutputRendered,
+          liveEditOutcomeRendered,
           outputPickStaysOnOutput,
           outputPickFocusSelected,
           sameCanvasLiveEditPicked,
@@ -32030,11 +32269,14 @@ async function runSelfTest() {
       },
       patchExecution: {
         executed: true,
+        status: "source-discovered",
         taskPath:
           "artifacts/preview/codex-rewrite/frames/selftest/codex-patch-task.json",
         resultPath: "artifacts/canvax/applied-patches/latest/result.json",
         changedFileCount: 0,
         changedFiles: [],
+        sourceDiscovered: true,
+        sourceDiscoveryCandidateCount: 2,
         sourceDiscovery: {
           kind: "canvax-live-edit-source-discovery-result",
           status: "candidates-found",
@@ -32063,6 +32305,7 @@ async function runSelfTest() {
           status: "candidates-found",
           candidateCount: 2,
         },
+        updatedAt: new Date().toISOString(),
       },
     };
     const liveEditSourceDiscoveryCheckpoint = buildCheckpointPayload(
@@ -32072,6 +32315,10 @@ async function runSelfTest() {
         markdownPath: "exports/canvax-live-latest.md",
         voiceMarkdownPath: "exports/canvax-voice-latest.md",
       },
+    );
+    const liveEditSourceDiscoveryAgentLog = buildWorkbenchAgentLogItems();
+    const liveEditSourceDiscoveryOutcome = describeLiveEditWritebackOutcome(
+      state.serverStatus.liveEditWriteback,
     );
     state.serverStatus = {
       ...state.serverStatus,
@@ -32086,8 +32333,15 @@ async function runSelfTest() {
           liveEditSourceDiscoveryCheckpoint.liveEditWriteback
             ?.sourceDiscoveryCandidateCount === 2 &&
           liveEditSourceDiscoveryCheckpoint.patchExecution?.sourceDiscovered ===
-            true,
-        "checkpoint payload distinguishes source discovery from applied patch",
+            true &&
+          liveEditSourceDiscoveryOutcome?.label === "Source candidates" &&
+          liveEditSourceDiscoveryAgentLog.some(
+            (item) =>
+              item.kind === "Live Edit" &&
+              item.title.includes("Source candidates") &&
+              item.detail.includes("Codex review"),
+          ),
+        "checkpoint payload distinguishes source discovery from applied patch and Agent log surfaces the outcome",
       ),
     );
 

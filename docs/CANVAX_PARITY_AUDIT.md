@@ -42,7 +42,10 @@ discovery pass: `sourceSearchHints` produce concrete candidate files, line
 matches, confidence, and next-action guidance before any arbitrary production
 mutation is attempted.
 Writeback status distinguishes that state as `source-discovered`, not
-`patched`, until a patch result actually changes files.
+`patched`, until a patch result actually changes files. The same outcome is now
+visible on the picked output surface and in the Workbench Agent log, so the
+designer can see whether Accept patched source, found candidates, searched
+without a candidate, or only wrote a task without opening the manifest JSON.
 
 ## Prompt-To-Artifact Checklist
 

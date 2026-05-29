@@ -1511,7 +1511,10 @@ async function validateLiveEditSourceDiscoveryDryRun() {
     const candidates = payload.sourceDiscovery?.candidates || [];
     const passed = Boolean(
       payload?.ok === true &&
+        payload.status === "source-discovered" &&
         payload.changedFileCount === 0 &&
+        payload.sourceDiscovered === true &&
+        payload.sourceDiscoveryCandidateCount >= 1 &&
         payload.sourceDiscovery?.kind ===
           "canvax-live-edit-source-discovery-result" &&
         payload.sourceDiscovery?.status === "candidates-found" &&
@@ -1520,6 +1523,9 @@ async function validateLiveEditSourceDiscoveryDryRun() {
             candidate.path.endsWith("src/HotelCta.jsx") &&
             candidate.matches?.some((match) => match.searchType === "selector"),
         ) &&
+        result.status === "source-discovered" &&
+        result.sourceDiscovered === true &&
+        result.sourceDiscoveryCandidateCount >= 1 &&
         result.sourceDiscovery?.candidateCount >= 1 &&
         result.sourceDiscovery?.nextAction?.includes("explicit source hints"),
     );

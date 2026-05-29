@@ -2675,6 +2675,66 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     border-color: rgba(255, 255, 255, 0.42);
 }
 
+.workbench-live-edit-outcome {
+    position: absolute;
+    left: 0.72rem;
+    bottom: 0.72rem;
+    z-index: 8;
+    display: grid;
+    gap: 0.12rem;
+    max-width: min(24rem, calc(100% - 1.44rem));
+    padding: 0.46rem 0.62rem;
+    border-radius: 0.68rem;
+    border: 0.0625rem solid rgba(255, 255, 255, 0.18);
+    color: #faf6f0;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
+        rgba(28, 28, 30, 0.84);
+    box-shadow:
+        0 0.72rem 1.55rem rgba(0, 0, 0, 0.24),
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+}
+
+.workbench-live-edit-outcome strong {
+    color: currentColor;
+    font-size: 0.74rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+.workbench-live-edit-outcome small {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.workbench-live-edit-outcome[data-tone="synced"] {
+    border-color: rgba(12, 141, 123, 0.34);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+        rgba(7, 75, 66, 0.86);
+}
+
+.workbench-live-edit-outcome[data-tone="warning"] {
+    border-color: rgba(245, 185, 56, 0.42);
+    color: #fff7db;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+        rgba(82, 57, 12, 0.88);
+}
+
+.workbench-live-edit-outcome[data-tone="danger"] {
+    border-color: rgba(255, 93, 58, 0.46);
+    color: #fff0eb;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+        rgba(86, 32, 22, 0.9);
+}
+
 .workbench-live-edit-outline,
 .workbench-live-edit-pick-draft {
     position: absolute;
@@ -3934,6 +3994,11 @@ body[data-workspace-mode="simple"]:not([data-workbench-tray="collapsed"])
 .workbench-agent-log-item[data-tone="active"] {
     border-color: rgba(255, 93, 58, 0.3);
     background: rgba(255, 93, 58, 0.16);
+}
+
+.workbench-agent-log-item[data-tone="synced"] {
+    border-color: rgba(12, 141, 123, 0.32);
+    background: rgba(12, 141, 123, 0.14);
 }
 
 .workbench-agent-log-item[data-tone="warning"] {
