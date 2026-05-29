@@ -1943,6 +1943,46 @@ body:not([data-workspace-mode="simple"]) .designer-focus-toggle {
     background: rgba(0, 0, 0, 0.04);
 }
 
+body[data-workspace-mode="simple"] .workbench-live-surface-control {
+    flex: 0 1 auto;
+    border-color: rgba(245, 185, 56, 0.28);
+    background:
+        linear-gradient(135deg, rgba(245, 185, 56, 0.13), transparent 58%),
+        rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.06);
+}
+
+.workbench-live-surface-control[hidden],
+body[data-workspace-mode="advanced"] .workbench-live-surface-control {
+    display: none;
+}
+
+.workbench-live-surface-control .segment {
+    min-height: 2.25rem;
+    padding-inline: 0.78rem;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.workbench-live-surface-control .segment.active {
+    color: #1a1714;
+    background: #f5b938;
+    box-shadow: 0 0.45rem 1rem rgba(245, 185, 56, 0.18);
+}
+
+.workbench-live-surface-control .segment:disabled {
+    cursor: not-allowed;
+    opacity: 0.46;
+}
+
+body[data-workspace-mode="simple"]
+    .workbench-live-surface-control
+    .segment.active:hover {
+    color: #1a1714;
+    background: #f5b938;
+}
+
 body[data-workspace-mode="simple"] .segment:hover {
     background: rgba(255, 255, 255, 0.06);
 }
@@ -4685,6 +4725,33 @@ body[data-workspace-mode="simple"][data-workbench-focus="output"]
     .workbench-output-stage::after {
     border-color: rgba(87, 139, 203, 0.34);
     background: rgba(27, 70, 128, 0.78);
+}
+
+.device-shell[data-live-edit-surface-state="picking"],
+.workbench-output-stage[data-live-edit-surface-state="picking"] {
+    border-color: rgba(245, 185, 56, 0.72);
+    box-shadow:
+        inset 0 0 0 0.15rem rgba(245, 185, 56, 0.34),
+        0 1rem 2.4rem rgba(245, 185, 56, 0.14),
+        var(--shadow-lg);
+}
+
+.device-shell[data-live-edit-surface-state="target"],
+.workbench-output-stage[data-live-edit-surface-state="target"] {
+    border-color: rgba(12, 141, 123, 0.58);
+    box-shadow:
+        inset 0 0 0 0.125rem rgba(12, 141, 123, 0.26),
+        0 0.9rem 2.2rem rgba(12, 141, 123, 0.12),
+        var(--shadow-lg);
+}
+
+.device-shell[data-live-edit-surface-state="accepted"],
+.workbench-output-stage[data-live-edit-surface-state="accepted"] {
+    border-color: rgba(87, 203, 178, 0.62);
+    box-shadow:
+        inset 0 0 0 0.125rem rgba(87, 203, 178, 0.28),
+        0 0.9rem 2.2rem rgba(87, 203, 178, 0.12),
+        var(--shadow-lg);
 }
 
 .device-shell.has-canvas-reply #board-canvas {

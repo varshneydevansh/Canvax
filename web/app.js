@@ -527,6 +527,9 @@ const dom = {
   workspaceModeGuide: document.querySelector("#workspace-mode-guide"),
   toolbar: document.querySelector(".toolbar"),
   workbenchFocusButtons: document.querySelector("#workbench-focus-buttons"),
+  workbenchLiveSurfaceButtons: document.querySelector(
+    "#workbench-live-surface-buttons",
+  ),
   workbenchTrayToggle: document.querySelector("#workbench-tray-toggle"),
   workbenchFocusSummary: document.querySelector("#workbench-focus-summary"),
   workbenchSummaryFrame: document.querySelector("#workbench-summary-frame"),
@@ -1122,6 +1125,13 @@ function bindEvents() {
       return;
     }
     setWorkbenchFocus(button.dataset.workbenchFocus);
+  });
+  dom.workbenchLiveSurfaceButtons.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-live-edit-surface]");
+    if (!button || button.disabled) {
+      return;
+    }
+    startLiveEditSurfacePick(button.dataset.liveEditSurface);
   });
   dom.workbenchTrayToggle.addEventListener("click", toggleWorkbenchTray);
   dom.designerStartActions.addEventListener("click", (event) => {
@@ -2742,6 +2752,7 @@ function hydrateState() {
       outputCheckpointInFlight: false,
       outputAnnotationDraft: null,
       liveEditPickActive: false,
+      liveEditPickSurface: "",
       liveEditPickDraft: null,
       liveEditPinPlacement: null,
       liveEditPinDrag: null,
@@ -3273,6 +3284,7 @@ function createInitialState() {
     outputCheckpointInFlight: false,
     outputAnnotationDraft: null,
     liveEditPickActive: false,
+    liveEditPickSurface: "",
     liveEditPickDraft: null,
     liveEditPinPlacement: null,
     liveEditPinDrag: null,
@@ -10688,6 +10700,13 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     target,
     targetUrl,
   );
+  const activeEditSurface = renderLiveEditSurfaceButtons({
+    frame,
+    target,
+    targetUrl,
+    liveTarget,
+    hasCanvasPickSurface,
+  });
   const drawingToolActive = ["pen", "marker", "erase"].includes(state.tool);
   const drawModeActive = Boolean(
     liveTarget &&
@@ -10755,7 +10774,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     (target ? designerOutputTargetLabelFromItem(target, frame.title) : "") ||
     "Generated output";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
-    ? liveEditPickTargetsCanvasSurface(target)
+    ? activeEditSurface === "canvas"
       ? "Pick a target on the canvas"
       : "Pick a target in the output"
     : selectedVariant
@@ -10953,6 +10972,170 @@ function liveEditPickTargetsCanvasSurface(
         !targetUrl ||
         ["sketch", "split"].includes(state.workbenchFocus)),
   );
+}
+
+function normalizeLiveEditPickSurface(surface) {
+  return surface === "output" ? "output" : surface === "canvas" ? "canvas" : "";
+}
+
+function liveEditTargetSurfaceChoice(
+  liveTarget,
+  target = currentWorkbenchTarget(),
+) {
+  const normalized = normalizeLiveEditTarget(liveTarget);
+  if (!normalized) {
+    return "";
+  }
+  if (liveEditTargetIsSpatialMapObject(normalized)) {
+    return "map";
+  }
+  if (liveEditTargetUsesCanvasSurface(normalized, currentFrame())) {
+    return "canvas";
+  }
+  if (
+    liveEditTargetDrawsOnOutput(
+      normalized,
+      target,
+      resolveWorkbenchTargetUrl(target),
+    )
+  ) {
+    return "output";
+  }
+  const surface = cleanString(normalized.surface).toLowerCase();
+  if (
+    surface.includes("canvas") ||
+    surface.includes("scratch") ||
+    surface.includes("asset") ||
+    surface.includes("image")
+  ) {
+    return "canvas";
+  }
+  if (surface.includes("output") || surface.includes("preview")) {
+    return "output";
+  }
+  return "";
+}
+
+function currentLiveEditSurfaceChoice({ frame, target, liveTarget } = {}) {
+  const resolvedFrame = frame || currentFrame();
+  const resolvedTarget = target || currentWorkbenchTarget();
+  if (state.liveEditPickActive) {
+    const explicitSurface = normalizeLiveEditPickSurface(
+      state.liveEditPickSurface,
+    );
+    if (explicitSurface) {
+      return explicitSurface;
+    }
+    return liveEditPickTargetsCanvasSurface(resolvedTarget)
+      ? "canvas"
+      : "output";
+  }
+  const targetSurface = liveEditTargetSurfaceChoice(
+    liveTarget || resolvedFrame?.liveEditTarget,
+    resolvedTarget,
+  );
+  if (targetSurface === "canvas" || targetSurface === "output") {
+    return targetSurface;
+  }
+  return state.workbenchFocus === "output" ? "output" : "canvas";
+}
+
+function startLiveEditSurfacePick(surfaceId) {
+  const preferredSurface = surfaceId === "output" ? "output" : "canvas";
+  const target = currentWorkbenchTarget();
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  if (preferredSurface === "output" && !targetUrl) {
+    renderStatus("Make or attach an output before picking the output canvas");
+    renderLiveEditControls({
+      frame: currentFrame(),
+      target,
+      targetUrl,
+    });
+    return false;
+  }
+  setLiveEditPickMode(true, { preferredSurface });
+  return true;
+}
+
+function liveEditSurfaceState(surfaceId, { activeSurface, liveTarget, target }) {
+  const targetSurface = liveEditTargetSurfaceChoice(liveTarget, target);
+  if (state.liveEditPickActive && activeSurface === surfaceId) {
+    return "picking";
+  }
+  if (targetSurface === surfaceId) {
+    return liveTarget?.status === "accepted" ? "accepted" : "target";
+  }
+  return "";
+}
+
+function setLiveEditSurfaceState(node, value) {
+  if (!node) {
+    return;
+  }
+  if (value) {
+    node.dataset.liveEditSurfaceState = value;
+  } else {
+    delete node.dataset.liveEditSurfaceState;
+  }
+}
+
+function renderLiveEditSurfaceButtons({
+  frame,
+  target,
+  targetUrl,
+  liveTarget,
+  hasCanvasPickSurface,
+}) {
+  if (!dom.workbenchLiveSurfaceButtons) {
+    return "";
+  }
+  const hasOutput = Boolean(target && targetUrl);
+  const hasLiveTarget = Boolean(liveTarget);
+  const visible = Boolean(
+    state.workspaceMode === "simple" &&
+      state.viewMode === "frame" &&
+      (state.workbenchFocus === "split" ||
+        state.workbenchFocus === "output" ||
+        state.liveEditPickActive ||
+        hasLiveTarget ||
+        hasOutput),
+  );
+  const activeSurface = currentLiveEditSurfaceChoice({
+    frame,
+    target,
+    liveTarget,
+  });
+  dom.workbenchLiveSurfaceButtons.hidden = !visible;
+  dom.workbenchLiveSurfaceButtons
+    .querySelectorAll("[data-live-edit-surface]")
+    .forEach((button) => {
+      const surface = button.dataset.liveEditSurface;
+      const enabled =
+        surface === "output" ? hasOutput : Boolean(hasCanvasPickSurface);
+      button.disabled = !enabled;
+      button.classList.toggle("active", surface === activeSurface);
+      button.setAttribute("aria-pressed", String(surface === activeSurface));
+      button.title =
+        surface === "output"
+          ? hasOutput
+            ? "Pick or mark the generated output canvas"
+            : "Make or attach an output before picking this canvas"
+          : "Pick or mark the scratch pad canvas";
+    });
+
+  const canvasState = liveEditSurfaceState("canvas", {
+    activeSurface,
+    liveTarget,
+    target,
+  });
+  const outputState = liveEditSurfaceState("output", {
+    activeSurface,
+    liveTarget,
+    target,
+  });
+  setLiveEditSurfaceState(dom.deviceShell, visible ? canvasState : "");
+  setLiveEditSurfaceState(dom.workbenchOutputStage, visible ? outputState : "");
+  return activeSurface;
 }
 
 function currentLiveEditVariants(frame = currentFrame()) {
@@ -11258,6 +11441,7 @@ function startLiveEditFromAssetCandidate(candidateId) {
   frame.liveEditRequest = null;
   frame.liveEditOriginalSnapshot = null;
   state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.liveEditMapDrawActive = false;
@@ -11478,6 +11662,7 @@ function startLiveEditFromSpatialObject(objectId) {
   frame.liveEditOriginalSnapshot = null;
   frame.liveEditMapStrokes = [];
   state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.liveEditMapDrawActive = false;
@@ -12051,6 +12236,7 @@ function setLiveEditPickMode(active, options = {}) {
     frame.liveEditRequest = null;
     frame.liveEditOriginalSnapshot = null;
     state.liveEditPickActive = false;
+    state.liveEditPickSurface = "";
     state.liveEditPickDraft = null;
     state.liveEditPinPlacement = null;
     state.liveEditPinDrag = null;
@@ -12064,6 +12250,7 @@ function setLiveEditPickMode(active, options = {}) {
   }
   if (active && !targetUrl && !pickCanvas) {
     state.liveEditPickActive = false;
+    state.liveEditPickSurface = "";
     renderFocusPad();
     renderStatus(
       "Open the canvas, make or attach an output, or select a Map object before picking a live edit target",
@@ -12071,6 +12258,11 @@ function setLiveEditPickMode(active, options = {}) {
     return;
   }
   state.liveEditPickActive = Boolean(active);
+  state.liveEditPickSurface = state.liveEditPickActive
+    ? pickCanvas
+      ? "canvas"
+      : "output"
+    : "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.liveEditPickDraft = null;
@@ -12104,6 +12296,7 @@ function commitLiveEditTarget(frame, liveTarget, options = {}) {
   frame.liveEditRequest = null;
   frame.liveEditOriginalSnapshot = null;
   state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
   state.liveEditPickDraft = null;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
@@ -12572,6 +12765,7 @@ function activateLiveEditDrawMode() {
   const drawOnMap = liveEditTargetIsSpatialMapObject(liveTarget);
   const drawOnCanvas = liveEditTargetUsesCanvasSurface(liveTarget, frame);
   state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.workspaceMode = "simple";
@@ -12992,6 +13186,7 @@ async function acceptLiveEditTarget() {
     acceptedVariant,
   );
   state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
   const voiceText = [
     acceptedVariant
       ? `Accepted live edit variant ${acceptedVariant.index}: ${acceptedVariant.label}`
@@ -13750,6 +13945,7 @@ function closeLiveEditTarget() {
     frame.updatedAt = new Date().toISOString();
   }
   state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
   state.liveEditPickDraft = null;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
@@ -14686,6 +14882,7 @@ function createLiveEditVariants() {
     status: "variant-ready",
   });
   state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
   touchFrame(frame, {
     capture: false,
     status: `Hot-swapped ${variants.length} live edit variants in the canvas`,
@@ -30920,8 +31117,9 @@ async function runSelfTest() {
           Boolean(dom.workbenchAgentLog) &&
           Boolean(dom.workbenchAgentLogToggle) &&
           Boolean(dom.workbenchAgentLogClose) &&
+          Boolean(dom.workbenchLiveSurfaceButtons) &&
           !document.querySelector("#codex-scratchpad-dock"),
-        "Workbench composer, canvas reply, context import, review controls, voice intent lane, and compact agent log render",
+        "Workbench composer, canvas reply, context import, review controls, voice intent lane, edit surface switch, and compact agent log render",
       ),
     );
     const previousVoiceFallbackState = {
@@ -31133,6 +31331,11 @@ async function runSelfTest() {
     setLiveEditPickMode(true, { preferredSurface: "output" });
     const outputPickFocusSelected =
       state.liveEditPickActive === true && state.workbenchFocus === "output";
+    const outputSurfacePickHighlighted =
+      dom.workbenchLiveSurfaceButtons
+        ?.querySelector("[data-live-edit-surface='output']")
+        ?.classList.contains("active") &&
+      dom.workbenchOutputStage?.dataset.liveEditSurfaceState === "picking";
     setLiveEditPickMode(false);
     state.workbenchFocus = "sketch";
     setLiveEditPickMode(true);
@@ -31168,6 +31371,11 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditTarget?.surface === "same-canvas-reply" &&
       state.workbenchFocus === "sketch" &&
       state.liveEditPickActive === false;
+    const canvasSurfaceTargetHighlighted =
+      dom.workbenchLiveSurfaceButtons
+        ?.querySelector("[data-live-edit-surface='canvas']")
+        ?.classList.contains("active") &&
+      dom.deviceShell?.dataset.liveEditSurfaceState === "target";
     const sameCanvasLiveEditDrawModeArmed =
       activateLiveEditDrawMode() &&
       state.workbenchFocus === "sketch" &&
@@ -31535,6 +31743,8 @@ async function runSelfTest() {
           liveEditOutcomeRendered &&
           outputPickStaysOnOutput &&
           outputPickFocusSelected &&
+          outputSurfacePickHighlighted &&
+          canvasSurfaceTargetHighlighted &&
           liveEditVariantsHotSwap &&
           liveEditDiscarded &&
           outputDragPicked &&
@@ -31550,6 +31760,8 @@ async function runSelfTest() {
           liveEditOutcomeRendered,
           outputPickStaysOnOutput,
           outputPickFocusSelected,
+          outputSurfacePickHighlighted,
+          canvasSurfaceTargetHighlighted,
           sameCanvasLiveEditPicked,
           sameCanvasLiveEditDrawModeArmed,
           sameCanvasLiveEditMarkCount: sameCanvasLiveEditMarks.length,
