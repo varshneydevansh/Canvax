@@ -51,13 +51,24 @@ for (const file of plan.files) {
   } else if (
     file.kind === "standalone-html" ||
     file.kind === "html-route" ||
-    file.kind === "project-html-route"
+    file.kind === "project-html-route" ||
+    file.kind === "source-hinted-html"
   ) {
     changes.push(await patchStandaloneHtml(file, plan));
-  } else if (file.kind === "jsx-component" || file.kind === "project-component") {
+  } else if (
+    file.kind === "jsx-component" ||
+    file.kind === "project-component" ||
+    file.kind === "source-hinted-component"
+  ) {
     changes.push(await patchStaticJsx(file, plan));
-  } else if (file.kind === "css" || file.kind === "project-css") {
+  } else if (
+    file.kind === "css" ||
+    file.kind === "project-css" ||
+    file.kind === "source-hinted-css"
+  ) {
     changes.push(await patchCss(file, plan));
+  } else if (file.kind === "source-hinted-task-note") {
+    changes.push(await patchTaskNote(file, plan));
   }
 }
 
@@ -77,6 +88,7 @@ const result = {
   targetIds: plan.targetIds,
   motion: plan.motion,
   projectLinkExpansion: plan.projectLinkExpansion,
+  sourceHintExpansion: plan.sourceHintExpansion,
   changedFiles: changedFiles.map((change) => ({
     path: change.path,
     kind: change.kind,
@@ -91,7 +103,7 @@ const result = {
       reason: change.reason || "No matching target found.",
     })),
   noApiBoundary:
-    "This executor applies a local deterministic patch to Canvax-generated, production-like proof, or explicit project-linked implementation files. It does not call paid APIs, ChatGPT, image generation, or browser automation.",
+    "This executor applies a local deterministic patch to Canvax-generated, production-like proof, explicit source-hinted, or explicit project-linked implementation files. It does not call paid APIs, ChatGPT, image generation, or browser automation.",
 };
 
 await mkdir(resultRoot, { recursive: true });
@@ -113,6 +125,7 @@ const output = {
   changedFileCount: changedFiles.length,
   changedFiles: result.changedFiles,
   projectLinkExpansion: result.projectLinkExpansion,
+  sourceHintExpansion: result.sourceHintExpansion,
   published: Boolean(publishResult),
   manifestPath: publishResult?.manifestPath || "",
 };
@@ -134,7 +147,7 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
   const note = cleanString(task.trigger?.note || task.affectedRegions?.[0]?.note);
   const targetIds = selectPatchTargetIds(task, note);
   const motion = inferMotion(note);
-  const { files, projectLinkExpansion } = classifyPatchFiles(
+  const { files, projectLinkExpansion, sourceHintExpansion } = classifyPatchFiles(
     task.suggestedFiles || [],
     projectLink,
     {
@@ -144,7 +157,7 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
   );
   if (!files.length) {
     fail(
-      `Patch task has no local Canvax-generated, production-proof, or project-linked implementation files: ${toProjectRelative(absoluteTaskPath)}`,
+      `Patch task has no local Canvax-generated, production-proof, source-hinted, or project-linked implementation files: ${toProjectRelative(absoluteTaskPath)}`,
     );
   }
   if (!targetIds.length) {
@@ -157,6 +170,7 @@ function buildPatchPlan(task, absoluteTaskPath, projectLink) {
     motion,
     files,
     projectLinkExpansion,
+    sourceHintExpansion,
     patchState: "applied",
     patchNote: note || "Applied Canvax patch task.",
   };
@@ -227,17 +241,32 @@ function inferMotion(note) {
 function classifyPatchFiles(files, projectLink, context = {}) {
   const seen = new Set();
   const linkedFiles = collectProjectLinkedFiles(projectLink);
+  const sourceHintExpansion = {
+    enabled: true,
+    sources: [],
+    addedFiles: [],
+  };
   const classifiedFiles = files
-    .map((file) => cleanString(file.path || file))
-    .filter(Boolean)
-    .map((path) => {
+    .map(normalizePatchFileCandidate)
+    .filter((candidate) => candidate.path)
+    .map((candidate) => {
+      const path = candidate.path;
       const isGeneratedBundle = path.startsWith("artifacts/preview/codex-build/");
       const isProductionProof = path.startsWith(
         "artifacts/canvax/production-port-proof/",
       ) || path.startsWith(".canvax/production-port-proof/");
       const linkedFile = findProjectLinkedFile(path, linkedFiles);
       if (!isGeneratedBundle && !isProductionProof) {
-        return linkedFile ? classifyProjectLinkedFile(linkedFile) : null;
+        if (linkedFile) {
+          return classifyProjectLinkedFile(linkedFile);
+        }
+        const sourceHintFile = classifyLiveEditSourceHintFile(candidate);
+        if (sourceHintFile) {
+          sourceHintExpansion.sources.push(candidate.source || candidate.role);
+          sourceHintExpansion.addedFiles.push(sourceHintFile.path);
+          return sourceHintFile;
+        }
+        return null;
       }
       if (isGeneratedBundle && path.endsWith("/implementation/CanvaxScreen.jsx")) {
         return { path, kind: "react-screen" };
@@ -278,7 +307,101 @@ function classifyPatchFiles(files, projectLink, context = {}) {
   return {
     files: [...classifiedFiles, ...projectLinkExpansion.files],
     projectLinkExpansion: projectLinkExpansion.summary,
+    sourceHintExpansion: {
+      ...sourceHintExpansion,
+      sources: [...new Set(sourceHintExpansion.sources.filter(Boolean))],
+      addedFiles: [...new Set(sourceHintExpansion.addedFiles)],
+    },
   };
+}
+
+function normalizePatchFileCandidate(file) {
+  if (typeof file === "string") {
+    return {
+      path: cleanString(file),
+      role: "",
+      source: "",
+    };
+  }
+  if (!file || typeof file !== "object" || Array.isArray(file)) {
+    return {
+      path: "",
+      role: "",
+      source: "",
+    };
+  }
+  return {
+    path: cleanString(file.path || file.file),
+    role: cleanString(file.role),
+    source: cleanString(file.source),
+  };
+}
+
+function classifyLiveEditSourceHintFile(candidate) {
+  if (!isLiveEditSourceHintCandidate(candidate)) {
+    return null;
+  }
+  const absolutePath = resolveMaybeProjectPath(candidate.path);
+  if (!isPatchableSourceHintPath(absolutePath)) {
+    return null;
+  }
+  const path = toProjectRelative(absolutePath);
+  const lowerPath = path.toLowerCase();
+  if (lowerPath.endsWith(".html")) {
+    return { path, kind: "source-hinted-html" };
+  }
+  if (
+    lowerPath.endsWith(".jsx") ||
+    lowerPath.endsWith(".tsx") ||
+    lowerPath.endsWith(".js") ||
+    lowerPath.endsWith(".ts")
+  ) {
+    return { path, kind: "source-hinted-component" };
+  }
+  if (lowerPath.endsWith(".css")) {
+    return { path, kind: "source-hinted-css" };
+  }
+  if (
+    lowerPath.endsWith(".md") ||
+    lowerPath.endsWith(".mdx") ||
+    lowerPath.endsWith(".txt")
+  ) {
+    return { path, kind: "source-hinted-task-note" };
+  }
+  return null;
+}
+
+function isLiveEditSourceHintCandidate(candidate) {
+  const source = cleanString(candidate.source).toLowerCase();
+  const role = cleanString(candidate.role).toLowerCase();
+  return (
+    source === "accepted-live-edit-target" ||
+    source === "accepted-live-edit-task" ||
+    source === "accepted-live-edit-source-hint" ||
+    source === "component-target-source-hint" ||
+    role.includes("source hint") ||
+    role.includes("picked target") ||
+    role.includes("component source") ||
+    role.includes("component task")
+  );
+}
+
+function isPatchableSourceHintPath(absolutePath) {
+  const relativePath = toProjectRelative(absolutePath);
+  const lowerAbsolute = absolutePath.toLowerCase();
+  const lowerRelative = relativePath.toLowerCase();
+  if (
+    lowerAbsolute.includes("/node_modules/") ||
+    lowerAbsolute.includes("/.git/") ||
+    lowerRelative.startsWith("node_modules/") ||
+    lowerRelative.startsWith(".git/")
+  ) {
+    return false;
+  }
+  if (/^[a-z]+:\/\//i.test(relativePath)) {
+    return false;
+  }
+  return absolutePath.startsWith(`${projectRoot}/`);
 }
 
 function collectProjectLinkedFiles(projectLink) {
@@ -511,6 +634,29 @@ async function patchCss(file, plan) {
   return changed(file, "Added applied-patch visual affordance styles.", plan.targetIds);
 }
 
+async function patchTaskNote(file, plan) {
+  const absolutePath = resolve(projectRoot, file.path);
+  const raw = await readFile(absolutePath, "utf8");
+  const marker = `canvax-live-edit:${plan.task.trigger?.id || plan.task.frameId || "patch"}`;
+  if (raw.includes(marker)) {
+    return skipped(file, "Live Edit task note already exists.");
+  }
+  const nextRaw = `${raw.trimEnd()}
+
+## Canvax Live Edit
+
+<!-- ${marker} -->
+- Frame: ${plan.task.frameTitle || plan.task.frameId || "Canvax frame"}
+- Targets: ${plan.targetIds.join(", ")}
+- Note: ${plan.patchNote}
+- Motion: ${plan.motion.reason}
+`;
+  if (!wantsDryRun) {
+    await writeFile(absolutePath, nextRaw, "utf8");
+  }
+  return changed(file, "Appended Live Edit task note.", plan.targetIds);
+}
+
 function patchNodeModel(node, plan) {
   return {
     ...node,
@@ -730,6 +876,14 @@ function buildMarkdown(result) {
       "",
     );
   }
+  if (result.sourceHintExpansion?.addedFiles?.length) {
+    lines.push(
+      "## Source Hint Targets",
+      "",
+      ...result.sourceHintExpansion.addedFiles.map((file) => `- ${file}`),
+      "",
+    );
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -819,7 +973,7 @@ Usage:
   node scripts/execute-patch-task.mjs --task artifacts/.../codex-patch-task.json --result-root artifacts/canvax/applied-patches/custom
 
 Applies a deterministic no-API patch to Canvax-generated implementation files,
-production-like proof files, or explicit files listed in
+production-like proof files, explicit source-hinted Live Edit files, or files listed in
 exports/canvax-project-link-latest.json and referenced by a
 codex-patch-task.json. By default, a frame-bound patch task can also expand
 through the latest project-link contract when its component target ids match

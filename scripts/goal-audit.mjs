@@ -604,10 +604,21 @@ const checks = [
           "canvax-applied-patch-result",
           "canvax-codex-patch-task",
           "project-linked implementation files",
+          "source-hinted-component",
+          "source-hinted-task-note",
           "buildProjectLinkExpansion",
+          "sourceHintExpansion",
           "data-canvax-patch-state",
           "codex-build",
           "requiresOpenAiApiKey: false",
+        ],
+      },
+      {
+        path: "scripts/regression-check.mjs",
+        includes: [
+          "Live Edit source-hinted patch task targets local source files",
+          "accepted-live-edit-target",
+          "source-hinted files patched",
         ],
       },
       {

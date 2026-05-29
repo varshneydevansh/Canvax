@@ -129,6 +129,7 @@ await validateVisualSnapshotReviewDryRun();
 await validateDesignJuryReviewDryRun();
 await validateDesignKitLibraryPackageDryRun();
 await validateProjectLinkDryRun();
+await validateLiveEditSourceHintPatchDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
@@ -1073,6 +1074,133 @@ async function validateProjectLinkDryRun() {
   } catch (error) {
     results.push({
       name: "project link dry-run and saved manifest are valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLiveEditSourceHintPatchDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "source-hint-fixture");
+  const componentPath = resolve(fixtureRoot, "src", "SourceHintHero.jsx");
+  const cssPath = resolve(fixtureRoot, "src", "source-hint.css");
+  const taskNotePath = resolve(fixtureRoot, "TASKS.md");
+  const patchTaskPath = resolve(fixtureRoot, "codex-patch-task.json");
+  const patchTaskRelativePath = ".canvax/source-hint-fixture/codex-patch-task.json";
+  try {
+    await mkdir(dirname(componentPath), { recursive: true });
+    await writeFile(
+      componentPath,
+      'export function SourceHintHero(){return <section data-canvax-node-id="hint-cta" className="source-hint-card"><button>Book</button></section>}',
+    );
+    await writeFile(
+      cssPath,
+      ".source-hint-card{display:grid;gap:12px;transition:transform .2s ease}",
+    );
+    await writeFile(taskNotePath, "# Source Hint Tasks\n");
+    await writeFile(
+      patchTaskPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-codex-patch-task",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          frameId: "frame-source-hint",
+          frameTitle: "Source hint Live Edit fixture",
+          trigger: {
+            kind: "canvax-live-edit-accepted-variant",
+            id: "source-hint-live-edit",
+            note:
+              "Move the hinted CTA slightly right and tighten spacing from the accepted Live Edit.",
+          },
+          affectedRegions: [
+            {
+              source: "live-edit-accepted-variant",
+              note:
+                "Move the hinted CTA slightly right and tighten spacing from the accepted Live Edit.",
+              componentTargetIds: ["hint-cta"],
+            },
+          ],
+          componentTargets: [
+            {
+              id: "hint-cta",
+              type: "button",
+              label: "Hinted CTA",
+              selector: '[data-canvax-node-id="hint-cta"]',
+              sourceFile: ".canvax/source-hint-fixture/src/SourceHintHero.jsx",
+              sourceComponent: "SourceHintHero",
+              taskFile: ".canvax/source-hint-fixture/TASKS.md",
+              taskId: "task-source-hint-live-edit",
+            },
+          ],
+          suggestedFiles: [
+            {
+              path: ".canvax/source-hint-fixture/src/SourceHintHero.jsx",
+              role: "picked target source",
+              source: "accepted-live-edit-target",
+            },
+            {
+              path: ".canvax/source-hint-fixture/src/source-hint.css",
+              role: "component source hint",
+              source: "component-target-source-hint",
+            },
+            {
+              path: ".canvax/source-hint-fixture/TASKS.md",
+              role: "picked target task",
+              source: "accepted-live-edit-task",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const patchResult = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-patch-task.mjs",
+          "--task",
+          patchTaskRelativePath,
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const rawComponent = await readFile(componentPath, "utf8");
+    const rawCss = await readFile(cssPath, "utf8");
+    const rawTaskNote = await readFile(taskNotePath, "utf8");
+    const passed = Boolean(
+      patchResult?.ok === true &&
+        patchResult.sourceHintExpansion?.addedFiles?.some((file) =>
+          file.endsWith("src/SourceHintHero.jsx"),
+        ) &&
+        patchResult.sourceHintExpansion?.addedFiles?.some((file) =>
+          file.endsWith("TASKS.md"),
+        ) &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("src/SourceHintHero.jsx"),
+        ) &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("src/source-hint.css"),
+        ) &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("TASKS.md"),
+        ) &&
+        rawComponent.includes('data-canvax-patch-state="applied"') &&
+        rawComponent.includes('style={{ transform: "translate(5%, -3%)" }}') &&
+        rawCss.includes("canvax-applied-patch-highlight") &&
+        rawTaskNote.includes("canvax-live-edit:source-hint-live-edit"),
+    );
+    results.push({
+      name: "Live Edit source-hinted patch task targets local source files",
+      passed,
+      detail: passed
+        ? `${patchResult.changedFileCount} source-hinted files patched`
+        : "source-hinted patch result did not update expected files",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit source-hinted patch task targets local source files",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });
