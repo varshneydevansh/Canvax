@@ -12996,11 +12996,26 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
       }
     }
 
+    const patchApplied = Boolean(
+      patchResult?.executed && Number(patchResult?.changedFileCount) > 0,
+    );
+    const sourceDiscovery = patchResult?.sourceDiscovery || null;
+    const sourceDiscoveryCandidateCount =
+      Number(sourceDiscovery?.candidateCount) || 0;
+    const sourceDiscovered = Boolean(sourceDiscovery);
+    const writebackStatus = patchApplied
+      ? "patched"
+      : sourceDiscovered
+        ? "source-discovered"
+        : patchResult?.executed
+          ? "task-written"
+          : "saved";
     state.serverStatus = {
       ...state.serverStatus,
       patchExecution: patchResult,
       liveEditWriteback: {
         executed: true,
+        status: writebackStatus,
         targetId: liveTarget.targetId,
         targetLabel: liveTarget.targetLabel,
         variantLabel: label,
@@ -13009,10 +13024,12 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         patchResultPath: patchResult?.resultPath || "",
         manifestPath: patchResult?.manifestPath || "",
         changedFileCount: Number(patchResult?.changedFileCount) || 0,
-        patchApplied: Boolean(patchResult?.executed),
+        patchApplied,
         patchError: patchResult?.error || "",
         sourceHintExpansion: patchResult?.sourceHintExpansion || null,
-        sourceDiscovery: patchResult?.sourceDiscovery || null,
+        sourceDiscovery,
+        sourceDiscovered,
+        sourceDiscoveryCandidateCount,
         projectLinkExpansion: patchResult?.projectLinkExpansion || null,
       },
     };
@@ -13021,12 +13038,16 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
     renderWorkbenchAgentLog();
     renderWorkbenchOutput();
     scheduleLivePreviewSync();
-    dom.workspaceStatus.textContent = patchResult?.executed
+    dom.workspaceStatus.textContent = patchApplied
       ? `Accepted Live Edit applied and patched ${patchResult.changedFileCount || 0} file${patchResult.changedFileCount === 1 ? "" : "s"}.`
+      : sourceDiscovered
+        ? `Accepted Live Edit found ${sourceDiscoveryCandidateCount} source candidate${sourceDiscoveryCandidateCount === 1 ? "" : "s"} for Codex review.`
       : `Accepted Live Edit wrote a rewrite task at ${rewriteResult?.patchTaskPath || "the latest patch task"}.`;
     renderStatus(
-      patchResult?.executed
+      patchApplied
         ? "Accepted Live Edit patched the bound target"
+        : sourceDiscovered
+          ? "Accepted Live Edit found source candidates"
         : "Accepted Live Edit wrote a patch task",
     );
     return state.serverStatus.liveEditWriteback;
@@ -13061,10 +13082,16 @@ async function saveLiveEditWritebackCheckpoint(frame, writebackResult) {
     return null;
   }
   const changedFileCount = Number(writebackResult.changedFileCount) || 0;
+  const sourceDiscoveryCandidateCount =
+    Number(writebackResult.sourceDiscoveryCandidateCount) ||
+    Number(writebackResult.sourceDiscovery?.candidateCount) ||
+    0;
   const note = writebackResult.error
     ? `Accepted Live Edit saved for ${frame.title}, but writeback failed: ${writebackResult.error}`
     : writebackResult.patchApplied
       ? `Accepted Live Edit patched ${changedFileCount} file${changedFileCount === 1 ? "" : "s"} for ${frame.title}.`
+      : writebackResult.sourceDiscovered || writebackResult.sourceDiscovery
+        ? `Accepted Live Edit found ${sourceDiscoveryCandidateCount} source candidate${sourceDiscoveryCandidateCount === 1 ? "" : "s"} for ${frame.title}; Codex should review before mutating production files.`
       : `Accepted Live Edit wrote a patch task for ${frame.title}.`;
   const exportResult = await saveExportToWorkspace({ silent: true });
   return saveCheckpointToWorkspace("live-edit-writeback", {
@@ -13379,15 +13406,19 @@ function normalizeLiveEditManifestWriteback(value) {
   }
   return {
     kind: "canvax-live-edit-writeback",
-    status: value.error
-      ? "error"
-      : value.skipped
-        ? "skipped"
-        : value.patchApplied
-          ? "patched"
-          : value.executed
-            ? "task-written"
-            : "saved",
+    status:
+      cleanString(value.status) ||
+      (value.error
+        ? "error"
+        : value.skipped
+          ? "skipped"
+          : value.patchApplied
+            ? "patched"
+            : value.sourceDiscovered || value.sourceDiscovery
+              ? "source-discovered"
+              : value.executed
+                ? "task-written"
+                : "saved"),
     executed: Boolean(value.executed),
     skipped: Boolean(value.skipped),
     reason: cleanString(value.reason),
@@ -13403,6 +13434,11 @@ function normalizeLiveEditManifestWriteback(value) {
     patchError: cleanString(value.patchError || value.error),
     sourceHintExpansion: value.sourceHintExpansion || null,
     sourceDiscovery: value.sourceDiscovery || null,
+    sourceDiscovered: Boolean(value.sourceDiscovered || value.sourceDiscovery),
+    sourceDiscoveryCandidateCount:
+      Number(value.sourceDiscoveryCandidateCount) ||
+      Number(value.sourceDiscovery?.candidateCount) ||
+      0,
     projectLinkExpansion: value.projectLinkExpansion || null,
   };
 }
@@ -28369,6 +28405,7 @@ function summarizePatchExecutionStatus(value) {
     : [];
   return {
     executed: Boolean(value.executed),
+    status: cleanString(value.status),
     dryRun: Boolean(value.dryRun),
     taskPath: cleanString(value.taskPath),
     resultPath: cleanString(value.resultPath),
@@ -28381,6 +28418,7 @@ function summarizePatchExecutionStatus(value) {
     projectLinkExpansion: value.projectLinkExpansion || null,
     sourceHintExpansion: value.sourceHintExpansion || null,
     sourceDiscovery: value.sourceDiscovery || null,
+    sourceDiscovered: Boolean(value.sourceDiscovery),
     error: cleanString(value.error),
   };
 }
@@ -28391,6 +28429,7 @@ function summarizeLiveEditWritebackStatus(value) {
   }
   return {
     executed: Boolean(value.executed),
+    status: cleanString(value.status),
     skipped: Boolean(value.skipped),
     inFlight: Boolean(value.inFlight),
     reason: cleanString(value.reason),
@@ -28408,6 +28447,11 @@ function summarizeLiveEditWritebackStatus(value) {
     projectLinkExpansion: value.projectLinkExpansion || null,
     sourceHintExpansion: value.sourceHintExpansion || null,
     sourceDiscovery: value.sourceDiscovery || null,
+    sourceDiscovered: Boolean(value.sourceDiscovered || value.sourceDiscovery),
+    sourceDiscoveryCandidateCount:
+      Number(value.sourceDiscoveryCandidateCount) ||
+      Number(value.sourceDiscovery?.candidateCount) ||
+      0,
   };
 }
 
@@ -31969,6 +32013,81 @@ async function runSelfTest() {
           liveEditWritebackCheckpoint.rewriteExecution
             ?.acceptedLiveEditIncluded === true,
         "checkpoint payload records accepted Live Edit writeback and source patch status",
+      ),
+    );
+    state.serverStatus = {
+      ...state.serverStatus,
+      rewriteExecution: {
+        executed: true,
+        trigger: "live-edit-accept",
+        frameId: state.activeFrameId,
+        previewPath: "artifacts/preview/codex-rewrite/frames/selftest/index.html",
+        patchTaskPath:
+          "artifacts/preview/codex-rewrite/frames/selftest/codex-patch-task.json",
+        acceptedLiveEditIncluded: true,
+        affectedRegionCount: 1,
+        componentTargetCount: 1,
+      },
+      patchExecution: {
+        executed: true,
+        taskPath:
+          "artifacts/preview/codex-rewrite/frames/selftest/codex-patch-task.json",
+        resultPath: "artifacts/canvax/applied-patches/latest/result.json",
+        changedFileCount: 0,
+        changedFiles: [],
+        sourceDiscovery: {
+          kind: "canvax-live-edit-source-discovery-result",
+          status: "candidates-found",
+          candidateCount: 2,
+          candidates: [
+            {
+              path: "src/SelfTest.jsx",
+              confidence: "high",
+              matchCount: 2,
+            },
+          ],
+        },
+      },
+      liveEditWriteback: {
+        executed: true,
+        status: "source-discovered",
+        targetId: "selftest-target",
+        targetLabel: "Self-test target",
+        variantLabel: "Clarity",
+        patchApplied: false,
+        changedFileCount: 0,
+        sourceDiscovered: true,
+        sourceDiscoveryCandidateCount: 2,
+        sourceDiscovery: {
+          kind: "canvax-live-edit-source-discovery-result",
+          status: "candidates-found",
+          candidateCount: 2,
+        },
+      },
+    };
+    const liveEditSourceDiscoveryCheckpoint = buildCheckpointPayload(
+      "live-edit-writeback",
+      {
+        jsonPath: "exports/canvax-live-latest.json",
+        markdownPath: "exports/canvax-live-latest.md",
+        voiceMarkdownPath: "exports/canvax-voice-latest.md",
+      },
+    );
+    state.serverStatus = {
+      ...state.serverStatus,
+      ...previousCheckpointExecutionState,
+    };
+    results.push(
+      assert(
+        liveEditSourceDiscoveryCheckpoint.liveEditWriteback?.status ===
+          "source-discovered" &&
+          liveEditSourceDiscoveryCheckpoint.liveEditWriteback?.patchApplied ===
+            false &&
+          liveEditSourceDiscoveryCheckpoint.liveEditWriteback
+            ?.sourceDiscoveryCandidateCount === 2 &&
+          liveEditSourceDiscoveryCheckpoint.patchExecution?.sourceDiscovered ===
+            true,
+        "checkpoint payload distinguishes source discovery from applied patch",
       ),
     );
 

@@ -41,6 +41,8 @@ Unhinted output-backed picks now also get a local `execute-patch` source
 discovery pass: `sourceSearchHints` produce concrete candidate files, line
 matches, confidence, and next-action guidance before any arbitrary production
 mutation is attempted.
+Writeback status distinguishes that state as `source-discovered`, not
+`patched`, until a patch result actually changes files.
 
 ## Prompt-To-Artifact Checklist
 
