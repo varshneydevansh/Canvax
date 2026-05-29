@@ -2656,7 +2656,8 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     border-color: rgba(255, 255, 255, 0.42);
 }
 
-.workbench-live-edit-outline {
+.workbench-live-edit-outline,
+.workbench-live-edit-pick-draft {
     position: absolute;
     z-index: 2;
     display: block;
@@ -2669,7 +2670,16 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     pointer-events: none;
 }
 
-.workbench-live-edit-outline span {
+.workbench-live-edit-pick-draft {
+    border-style: dashed;
+    background: rgba(245, 185, 56, 0.08);
+    box-shadow:
+        0 0 0 0.2rem rgba(28, 28, 30, 0.38),
+        0 0 0 0.36rem rgba(245, 185, 56, 0.18);
+}
+
+.workbench-live-edit-outline span,
+.workbench-live-edit-pick-draft span {
     position: absolute;
     left: 0.5rem;
     top: -0.8rem;
