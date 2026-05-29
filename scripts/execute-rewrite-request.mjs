@@ -436,6 +436,8 @@ function buildCodexPatchTask({
       componentTargetIds: region.componentTargetIds || [],
       liveEditTarget: region.liveEditTarget || null,
       liveEditVariant: region.liveEditVariant || null,
+      liveEditRequest: region.liveEditRequest || null,
+      liveEditSurfaceOperations: region.liveEditSurfaceOperations || [],
       liveEditPins: region.liveEditPins || [],
       liveEditCanvasMarks: region.liveEditCanvasMarks || [],
       targetSourceHint: region.liveEditTarget?.targetSourceHint || null,
@@ -646,6 +648,8 @@ function buildAffectedRegions(
           target: acceptedLiveEdit.target,
           liveEditTarget: acceptedLiveEdit.target,
           liveEditVariant: acceptedLiveEdit.variant,
+          liveEditRequest: acceptedLiveEdit.liveEditRequest,
+          liveEditSurfaceOperations: acceptedLiveEdit.surfaceOperations,
           liveEditPins: acceptedLiveEdit.pins,
           liveEditCanvasMarks: acceptedLiveEdit.canvasMarks,
           left: denormalize(bounds.x, viewport.width, 96),
@@ -879,6 +883,8 @@ function buildPatchTaskTrigger({ acceptedLiveEdit, previewTweak }) {
       note: acceptedLiveEdit.patchNote,
       target: acceptedLiveEdit.target,
       variant: acceptedLiveEdit.variant,
+      request: acceptedLiveEdit.liveEditRequest,
+      surfaceOperations: acceptedLiveEdit.surfaceOperations,
       pins: acceptedLiveEdit.pins,
       canvasMarks: acceptedLiveEdit.canvasMarks,
       outputEditBinding: acceptedLiveEdit.outputEditBinding,
@@ -905,22 +911,36 @@ function buildAcceptedLiveEditContext(selected) {
   const taskFrame = selected.frame || {};
   const outputEditBinding =
     requestFrame.outputEditBinding || taskFrame.outputEditBinding || null;
+  const liveEditRequest = normalizeAcceptedLiveEditRequest(
+    requestFrame.liveEditRequest ||
+      taskFrame.liveEditRequest ||
+      outputEditBinding?.liveEditRequest,
+  );
   const target = normalizeLiveEditTarget(
-    requestFrame.liveEditTarget ||
+    liveEditRequest?.target ||
+      requestFrame.liveEditTarget ||
       taskFrame.liveEditTarget ||
       outputEditBinding?.liveEditTarget,
   );
   const variants = normalizeLiveEditVariants(
-    requestFrame.liveEditVariants || taskFrame.liveEditVariants,
+    liveEditRequest?.variants ||
+      requestFrame.liveEditVariants ||
+      taskFrame.liveEditVariants,
   );
   const variantIndex = Math.max(
     0,
-    Number(requestFrame.liveEditVariantIndex ?? taskFrame.liveEditVariantIndex) ||
+    Number(
+      liveEditRequest?.variantIndex ??
+        requestFrame.liveEditVariantIndex ??
+        taskFrame.liveEditVariantIndex,
+    ) ||
       0,
   );
   const variant =
     normalizeLiveEditVariant(
-      requestFrame.acceptedLiveEditVariant ||
+      liveEditRequest?.acceptedVariant ||
+        liveEditRequest?.activeVariant ||
+        requestFrame.acceptedLiveEditVariant ||
         taskFrame.acceptedLiveEditVariant ||
         outputEditBinding?.liveEditVariant,
       target,
@@ -931,6 +951,7 @@ function buildAcceptedLiveEditContext(selected) {
     Boolean(target?.acceptedAt) ||
     Boolean(target?.acceptedVariantId) ||
     Boolean(variant?.acceptedAt) ||
+    liveEditRequest?.status === "accepted" ||
     Boolean(requestFrame.acceptedLiveEditVariant) ||
     Boolean(taskFrame.acceptedLiveEditVariant);
   if (!target || !accepted) {
@@ -956,6 +977,10 @@ function buildAcceptedLiveEditContext(selected) {
     canvasMarks,
     outputAnnotations: outputAnnotations.slice(0, 12),
     outputEditBinding,
+    liveEditRequest,
+    surfaceOperations: normalizeLiveEditSurfaceOperations(
+      liveEditRequest?.surfaceOperations || variant?.surfaceOperations,
+    ),
   };
   context.patchNote = buildAcceptedLiveEditPatchNote(context);
   return context;
@@ -990,6 +1015,18 @@ function buildAcceptedLiveEditPatchNote(context) {
   const designMoves = Array.isArray(variant?.designMoves)
     ? variant.designMoves.map(cleanString).filter(Boolean).slice(0, 5)
     : [];
+  const surfaceOperations = normalizeLiveEditSurfaceOperations(
+    context.surfaceOperations || variant?.surfaceOperations,
+  );
+  const operationText = surfaceOperations.length
+    ? `Surface operations: ${surfaceOperations
+        .map((operation) =>
+          [operation.label || operation.kind, operation.detail]
+            .filter(Boolean)
+            .join(": "),
+        )
+        .join("; ")}.`
+    : "";
   const sourceHint = formatLiveEditSourceHint(target);
   return [
     variant
@@ -997,10 +1034,14 @@ function buildAcceptedLiveEditPatchNote(context) {
       : "Accepted Live Edit target.",
     `Target: ${target.targetLabel || target.targetId || "picked artifact region"}.`,
     target.note ? `User note: ${target.note}.` : "",
+    context.liveEditRequest?.transcriptText
+      ? `Transcript/text: ${context.liveEditRequest.transcriptText}.`
+      : "",
     variant?.summary || variant?.body
       ? `Variant direction: ${variant.summary || variant.body}.`
       : "",
     designMoves.length ? `Design moves: ${designMoves.join("; ")}.` : "",
+    operationText,
     pins.length
       ? `Comment pins: ${pins.map((pin) => pin.text).filter(Boolean).join("; ")}.`
       : "",
@@ -1243,10 +1284,53 @@ function normalizeLiveEditVariant(value, fallbackTarget = null, index = 0) {
     targetId: cleanString(value.targetId || target.targetId),
     targetLabel: cleanString(value.targetLabel || target.targetLabel),
     note: cleanString(value.note),
+    targetMedium: cleanString(value.targetMedium),
     style: value.style && typeof value.style === "object" ? value.style : {},
+    surfaceOperations: normalizeLiveEditSurfaceOperations(
+      value.surfaceOperations || value.operations,
+    ),
     createdAt: cleanString(value.createdAt),
     acceptedAt: cleanString(value.acceptedAt),
   };
+}
+
+function normalizeLiveEditSurfaceOperations(value) {
+  return Array.isArray(value)
+    ? value
+        .map((operation, index) => {
+          if (typeof operation === "string") {
+            const label = cleanString(operation);
+            return label
+              ? {
+                  kind: `operation-${index + 1}`,
+                  label,
+                  detail: "",
+                }
+              : null;
+          }
+          if (
+            !operation ||
+            typeof operation !== "object" ||
+            Array.isArray(operation)
+          ) {
+            return null;
+          }
+          const kind = cleanString(operation.kind || operation.type);
+          const label = cleanString(operation.label || operation.title);
+          const detail = cleanString(
+            operation.detail || operation.description || operation.note,
+          );
+          return kind || label || detail
+            ? {
+                kind: kind || `operation-${index + 1}`,
+                label: label || kind || `Operation ${index + 1}`,
+                detail,
+              }
+            : null;
+        })
+        .filter(Boolean)
+        .slice(0, 8)
+    : [];
 }
 
 function normalizeLiveEditVariants(value) {
@@ -1256,6 +1340,75 @@ function normalizeLiveEditVariants(value) {
         .filter(Boolean)
         .slice(0, 3)
     : [];
+}
+
+function normalizeAcceptedLiveEditRequest(value, fallbackTarget = null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target =
+    normalizeLiveEditTarget(value.target || value.liveEditTarget) ||
+    fallbackTarget;
+  if (!target) {
+    return null;
+  }
+  const variants = normalizeLiveEditVariants(
+    value.variants || value.liveEditVariants,
+  );
+  const variantIndex = Math.max(0, Number(value.variantIndex) || 0);
+  const acceptedVariant =
+    normalizeLiveEditVariant(
+      value.acceptedVariant || value.acceptedLiveEditVariant,
+      target,
+      variantIndex,
+    ) || null;
+  const activeVariant =
+    acceptedVariant ||
+    normalizeLiveEditVariant(value.activeVariant, target, variantIndex) ||
+    normalizeLiveEditVariant(variants[variantIndex], target, variantIndex);
+  return {
+    kind: "canvax-live-edit-request",
+    id: cleanString(value.id),
+    status: cleanString(value.status),
+    target,
+    targetType: cleanString(value.targetType || target.targetType),
+    targetSelector: cleanString(value.targetSelector || target.targetSelector),
+    targetObjectId: cleanString(value.targetObjectId || target.targetObjectId),
+    targetNodeId: cleanString(value.targetNodeId || target.targetNodeId),
+    normalizedBounds: target.bounds,
+    sourceFrameId: cleanString(value.sourceFrameId || target.sourceFrameId),
+    sourceFrameTitle: cleanString(
+      value.sourceFrameTitle || target.sourceFrameTitle,
+    ),
+    activeDesignKit:
+      value.activeDesignKit &&
+      typeof value.activeDesignKit === "object" &&
+      !Array.isArray(value.activeDesignKit)
+        ? value.activeDesignKit
+        : null,
+    note: cleanString(value.note || target.note),
+    transcriptText: cleanString(value.transcriptText || value.text),
+    pins: normalizeLiveEditPins(value.pins || value.liveEditPins),
+    strokes: Array.isArray(value.strokes)
+      ? value.strokes.slice(0, 24)
+      : [],
+    currentOutputBinding:
+      value.currentOutputBinding &&
+      typeof value.currentOutputBinding === "object" &&
+      !Array.isArray(value.currentOutputBinding)
+        ? value.currentOutputBinding
+        : null,
+    variants,
+    variantIndex,
+    activeVariant,
+    acceptedVariant,
+    surfaceOperations: normalizeLiveEditSurfaceOperations(
+      value.surfaceOperations || activeVariant?.surfaceOperations,
+    ),
+    createdAt: cleanString(value.createdAt),
+    updatedAt: cleanString(value.updatedAt),
+    acceptedAt: cleanString(value.acceptedAt || target.acceptedAt),
+  };
 }
 
 function normalizeLiveEditPins(value) {

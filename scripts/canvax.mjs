@@ -8720,7 +8720,35 @@ function normalizePreviewTarget(entry, index = 0) {
     project: normalizeManifestProject(entry.project),
     projectId: manifestProjectId(entry),
     refinement: normalizeMaterializeRefinement(entry.refinement),
+    liveEditRequest: normalizeManifestJsonObject(entry.liveEditRequest),
   };
+}
+
+function normalizeManifestJsonObject(value, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return cleanString(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeManifestJsonObject(item, depth + 1))
+      .filter((item) => item !== null && item !== "");
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value)
+    .map(([key, item]) => [
+      cleanString(key),
+      normalizeManifestJsonObject(item, depth + 1),
+    ])
+    .filter(([key, item]) => key && item !== null && item !== "");
+  return entries.length ? Object.fromEntries(entries) : null;
 }
 
 function normalizePreviewArtifacts(values) {

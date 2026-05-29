@@ -3716,6 +3716,192 @@ function normalizeLiveEditVariants(value) {
     : [];
 }
 
+function normalizeLiveEditRequestBinding(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target = normalizeLiveEditTarget(value.liveEditTarget || value.target);
+  const variant = normalizeLiveEditVariant(
+    value.liveEditVariant || value.variant,
+  );
+  const objectId = cleanString(value.objectId || value.id);
+  const targetPath = cleanString(value.target || value.path || value.previewPath);
+  const href = cleanString(value.href || value.url);
+  if (!objectId && !targetPath && !href && !target) {
+    return null;
+  }
+  return {
+    kind: "canvax-live-edit-output-binding",
+    objectId,
+    sourceKind: cleanString(value.sourceKind || value.type),
+    target: targetPath,
+    href,
+    sourceFrameId: cleanString(value.sourceFrameId),
+    sourceFrameTitle: cleanString(value.sourceFrameTitle),
+    branchFrameId: cleanString(value.branchFrameId),
+    branchFrameTitle: cleanString(value.branchFrameTitle),
+    branchLabel: cleanString(value.branchLabel || value.label),
+    liveEditTarget: target,
+    liveEditVariant: variant,
+    instruction: cleanString(value.instruction),
+  };
+}
+
+function normalizeLiveEditRequestStrokes(value) {
+  return Array.isArray(value)
+    ? value
+        .map((stroke, index) => {
+          if (!stroke || typeof stroke !== "object" || Array.isArray(stroke)) {
+            return null;
+          }
+          const semantics =
+            stroke.semantics &&
+            typeof stroke.semantics === "object" &&
+            !Array.isArray(stroke.semantics)
+              ? {
+                  intent: cleanString(stroke.semantics.intent),
+                  label: cleanString(stroke.semantics.label),
+                  confidence: Math.max(
+                    0,
+                    Math.min(1, Number(stroke.semantics.confidence) || 0),
+                  ),
+                }
+              : null;
+          const points = Array.isArray(stroke.points)
+            ? stroke.points
+                .map((point) => normalizeOutputAnnotationPoint(point))
+                .filter(Boolean)
+                .slice(0, 48)
+            : [];
+          const bounds = normalizeLiveEditBounds(
+            stroke.bounds || stroke.region || stroke.normalizedBounds,
+          );
+          if (!points.length && !bounds && !semantics) {
+            return null;
+          }
+          return {
+            id: cleanString(stroke.id) || `live-edit-stroke-${index + 1}`,
+            source:
+              cleanString(stroke.source || stroke.kind) || "live-edit-mark",
+            type: cleanString(stroke.type),
+            targetId: cleanString(stroke.targetId),
+            targetLabel: cleanString(stroke.targetLabel),
+            bounds,
+            points,
+            semantics,
+            text: cleanString(stroke.text || stroke.note || stroke.label),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, 24)
+    : [];
+}
+
+function normalizeLiveEditRequestDesignKit(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const sources = Array.isArray(value.sources)
+    ? value.sources
+        .map((source) => ({
+          label: cleanString(source?.label || source?.name),
+          detail: cleanString(source?.detail || source?.summary),
+        }))
+        .filter((source) => source.label || source.detail)
+        .slice(0, 8)
+    : [];
+  return {
+    kind: "canvax-live-edit-design-kit",
+    label: cleanString(value.label || value.statusLabel),
+    statusLabel: cleanString(value.statusLabel || value.label),
+    presetId: cleanString(value.preset?.id || value.presetId),
+    presetLabel: cleanString(value.preset?.label || value.presetLabel),
+    summary: cleanString(value.summary),
+    sources,
+  };
+}
+
+function normalizeLiveEditRequest(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target = normalizeLiveEditTarget(value.target || value.liveEditTarget);
+  if (!target) {
+    return null;
+  }
+  const variants = normalizeLiveEditVariants(
+    value.variants || value.liveEditVariants,
+  );
+  const variantIndex = Math.max(0, Number(value.variantIndex) || 0);
+  const acceptedVariant =
+    normalizeLiveEditVariant(
+      value.acceptedVariant || value.acceptedLiveEditVariant,
+    ) || null;
+  const activeVariant =
+    acceptedVariant || variants[Math.min(variantIndex, variants.length - 1)];
+  const surfaceOperations = normalizeLiveEditSurfaceOperations(
+    value.surfaceOperations || activeVariant?.surfaceOperations,
+  );
+  const status = cleanString(value.status);
+  return {
+    kind: "canvax-live-edit-request",
+    id:
+      cleanString(value.id) ||
+      `live-edit-request-${target.id || target.targetId || target.sourceFrameId}`,
+    status:
+      status === "accepted" ||
+      status === "discarded" ||
+      status === "variant-ready"
+        ? status
+        : "picked",
+    target,
+    targetType: cleanString(value.targetType || target.targetType),
+    targetSelector: cleanString(value.targetSelector || target.targetSelector),
+    targetObjectId: cleanString(value.targetObjectId || target.targetObjectId),
+    targetNodeId: cleanString(value.targetNodeId || target.targetNodeId),
+    normalizedBounds: target.bounds,
+    sourceFrameId: cleanString(value.sourceFrameId || target.sourceFrameId),
+    sourceFrameTitle: cleanString(
+      value.sourceFrameTitle || target.sourceFrameTitle,
+    ),
+    activeDesignKit: normalizeLiveEditRequestDesignKit(
+      value.activeDesignKit || value.designKit,
+    ),
+    note: cleanString(value.note || target.note),
+    transcriptText: cleanString(value.transcriptText || value.text),
+    pins: normalizeLiveEditPins(value.pins || value.liveEditPins),
+    strokes: normalizeLiveEditRequestStrokes(
+      value.strokes || value.canvasMarks || value.outputAnnotations,
+    ),
+    currentOutputBinding: normalizeLiveEditRequestBinding(
+      value.currentOutputBinding || value.outputEditBinding,
+    ),
+    variants,
+    variantIndex: Math.min(variantIndex, Math.max(0, variants.length - 1)),
+    variantCount: variants.length,
+    activeVariant,
+    acceptedVariant,
+    acceptedVariantId: cleanString(
+      value.acceptedVariantId || acceptedVariant?.id || target.acceptedVariantId,
+    ),
+    acceptedVariantLabel: cleanString(
+      value.acceptedVariantLabel ||
+        acceptedVariant?.label ||
+        target.acceptedVariantLabel,
+    ),
+    acceptedVariantRole: cleanString(
+      value.acceptedVariantRole ||
+        acceptedVariant?.role ||
+        target.acceptedVariantRole,
+    ),
+    surfaceOperations,
+    createdAt: cleanString(value.createdAt) || new Date().toISOString(),
+    updatedAt: cleanString(value.updatedAt) || new Date().toISOString(),
+    acceptedAt: cleanString(value.acceptedAt || target.acceptedAt),
+    discardedAt: cleanString(value.discardedAt),
+  };
+}
+
 function createCanvasReplyFromTarget(target, frame = currentFrame()) {
   if (!target) {
     return null;
@@ -3963,6 +4149,7 @@ function frameOutputEditBinding(frame) {
       branchLabel: cleanString(canvasReply.label) || "Canvas reply",
       liveEditTarget,
       liveEditVariant,
+      liveEditRequest: normalizeLiveEditRequest(frame?.liveEditRequest),
       instruction:
         liveEditVariant
           ? "This frame has an accepted or active in-surface live edit variant. Apply that chosen variant to the picked target first, then preserve the surrounding output."
@@ -3987,6 +4174,7 @@ function frameOutputEditBinding(frame) {
       branchLabel: liveEditTarget.targetLabel || "Live edit target",
       liveEditTarget,
       liveEditVariant,
+      liveEditRequest: normalizeLiveEditRequest(frame?.liveEditRequest),
       instruction:
         liveEditVariant
           ? "This frame is a live edit branch with an active chosen variant. Apply that variant to the picked artifact target and keep the target binding intact."
@@ -4021,6 +4209,7 @@ function frameOutputEditBinding(frame) {
     branchLabel: cleanString(variant.label) || "Output edit",
     liveEditTarget,
     liveEditVariant,
+    liveEditRequest: normalizeLiveEditRequest(frame?.liveEditRequest),
     instruction:
       liveEditVariant
         ? "This frame is an editable live edit branch with a chosen in-surface variant. Apply that variant to the referenced generated output."
@@ -4049,6 +4238,7 @@ function normalizeFrame(frame, index) {
     acceptedLiveEditVariant: normalizeLiveEditVariant(
       frame.acceptedLiveEditVariant,
     ),
+    liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
     backgroundImage: frame.backgroundImage || "",
     flowPosition: normalizeFlowPosition(frame.flowPosition, index),
     elements: Array.isArray(frame.elements)
@@ -4152,6 +4342,7 @@ function normalizeElementLiveEditBinding(value) {
     status: cleanString(value.status) || (acceptedAt ? "accepted" : "picked"),
     target,
     acceptedVariant,
+    request: normalizeLiveEditRequest(value.request || value.liveEditRequest),
     pins: normalizeLiveEditPins(value.pins),
     note: cleanString(value.note || target.note),
     acceptedAt,
@@ -4182,6 +4373,7 @@ function createFrame(overrides = {}) {
       liveEditVariants: overrides.liveEditVariants || [],
       liveEditVariantIndex: overrides.liveEditVariantIndex || 0,
       acceptedLiveEditVariant: overrides.acceptedLiveEditVariant || null,
+      liveEditRequest: overrides.liveEditRequest || null,
       backgroundImage: overrides.backgroundImage || "",
       flowPosition: overrides.flowPosition || defaultFlowPosition(index),
       elements: overrides.elements || [],
@@ -10687,6 +10879,7 @@ function setLiveEditPickMode(active) {
     frame.liveEditVariants = [];
     frame.liveEditVariantIndex = 0;
     frame.acceptedLiveEditVariant = null;
+    frame.liveEditRequest = null;
     state.liveEditPickActive = false;
     state.liveEditPinPlacement = null;
     state.liveEditPinDrag = null;
@@ -10732,6 +10925,7 @@ function pickLiveEditTargetFromEvent(event) {
   frame.liveEditVariants = [];
   frame.liveEditVariantIndex = 0;
   frame.acceptedLiveEditVariant = null;
+  frame.liveEditRequest = null;
   state.liveEditPickActive = false;
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
@@ -10753,6 +10947,16 @@ function updateLiveEditTargetNote(value) {
     note: cleanString(value),
     updatedAt: new Date().toISOString(),
   };
+  if (frame.liveEditRequest) {
+    frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+      frame,
+      liveTarget: frame.liveEditTarget,
+      variants: frame.liveEditVariants,
+      note: frame.liveEditTarget.note,
+      status: frame.liveEditRequest.status || "variant-ready",
+      acceptedVariant: frame.acceptedLiveEditVariant,
+    });
+  }
   frame.updatedAt = new Date().toISOString();
   persistState();
   scheduleLivePreviewSync();
@@ -10875,6 +11079,16 @@ function addLiveEditCommentPin(point = null, options = {}) {
     note: text,
     updatedAt: new Date().toISOString(),
   };
+  if (frame.liveEditRequest) {
+    frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+      frame,
+      liveTarget: frame.liveEditTarget,
+      variants: frame.liveEditVariants,
+      note: text,
+      status: frame.liveEditRequest.status || "variant-ready",
+      acceptedVariant: frame.acceptedLiveEditVariant,
+    });
+  }
   state.liveEditPinPlacement = null;
   touchFrame(frame, {
     capture: false,
@@ -11018,6 +11232,16 @@ function finishLiveEditPinDrag(event) {
   event.preventDefault();
   event.stopPropagation();
   if (pin) {
+    if (frame.liveEditRequest) {
+      frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+        frame,
+        liveTarget: frame.liveEditTarget,
+        variants: frame.liveEditVariants,
+        note: frame.liveEditTarget?.note || pin.text,
+        status: frame.liveEditRequest.status || "variant-ready",
+        acceptedVariant: frame.acceptedLiveEditVariant,
+      });
+    }
     touchFrame(frame, {
       capture: false,
       status: "Repositioned live edit comment pin",
@@ -11073,6 +11297,14 @@ async function acceptLiveEditTarget() {
   );
   frame.liveEditVariantIndex = variantIndex;
   frame.acceptedLiveEditVariant = acceptedVariant;
+  frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+    frame,
+    liveTarget: frame.liveEditTarget,
+    variants: frame.liveEditVariants,
+    note,
+    status: "accepted",
+    acceptedVariant,
+  });
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   applyAcceptedLiveEditVariantToSourceTarget(
@@ -11277,6 +11509,7 @@ function applyAcceptedLiveEditVariantToSourceTarget(
     status: "accepted",
     target,
     acceptedVariant,
+    request: frame.liveEditRequest,
     pins: frame.liveEditPins,
     note: target.note,
     acceptedAt,
@@ -11296,6 +11529,10 @@ async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
   const acceptedVariant =
     normalizeLiveEditVariant(frame.acceptedLiveEditVariant) ||
     currentLiveEditVariant(frame);
+  const liveEditRequest = normalizeLiveEditRequest(frame.liveEditRequest);
+  const operationText = liveEditRequest?.surfaceOperations?.length
+    ? `Surface operations: ${liveEditSurfaceOperationsText(liveEditRequest.surfaceOperations)}`
+    : "";
   const variantNote = acceptedVariant
     ? `Accepted variant ${acceptedVariant.index}: ${acceptedVariant.label} (${acceptedVariant.role}). ${acceptedVariant.summary || acceptedVariant.body}`
     : "";
@@ -11317,12 +11554,14 @@ async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
         description:
           variantNote ||
           "Accepted Canvax live edit target awaiting source rewrite.",
-        changeSummary: variantNote,
+        changeSummary: [variantNote, operationText].filter(Boolean).join(" "),
+        liveEditRequest,
         versionTag: acceptedVariant
           ? `${target.targetVersionTag || target.updatedAt || frame.updatedAt}:${acceptedVariant.id}`
           : target.targetVersionTag || target.updatedAt,
         notes: `Live edit target accepted for ${frame.title}: ${[
           variantNote,
+          operationText,
           target.note || target.instruction,
           pinText ? `Pins: ${pinText}` : "",
         ]
@@ -11352,6 +11591,7 @@ function closeLiveEditTarget() {
     frame.liveEditVariants = [];
     frame.liveEditVariantIndex = 0;
     frame.acceptedLiveEditVariant = null;
+    frame.liveEditRequest = null;
     frame.updatedAt = new Date().toISOString();
   }
   state.liveEditPickActive = false;
@@ -11863,6 +12103,106 @@ function liveEditMediumSurfaceOperations({ frame, target, role, actionMode, stro
   ].slice(0, 6);
 }
 
+function liveEditRequestTranscriptText(frame, note = "") {
+  const voiceExport = buildVoiceExport([frame]);
+  const voiceText = Array.isArray(voiceExport.segments)
+    ? voiceExport.segments
+        .map((segment) => cleanString(segment.text))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+  return compactDisplayText([note, ...voiceText].filter(Boolean).join(" "), 900);
+}
+
+function liveEditRequestStrokes(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const targetId = cleanString(target?.targetId);
+  const canvasMarks = liveEditTargetCanvasMarks(frame, target).map((mark) => ({
+    ...mark,
+    source: "canvas-mark",
+  }));
+  const outputMarks = summarizeOutputAnnotations(frame?.outputAnnotations)
+    .filter(
+      (annotation) =>
+        !targetId ||
+        !annotation.targetId ||
+        cleanString(annotation.targetId) === targetId,
+    )
+    .map((annotation, index) => ({
+      id: annotation.id || `output-annotation-${index + 1}`,
+      source: "output-annotation",
+      type: annotation.type || annotation.tool || "",
+      targetId: annotation.targetId || targetId,
+      targetLabel: annotation.targetLabel || target?.targetLabel || "",
+      bounds: annotation.bounds || annotation.region || null,
+      points: annotation.points || [],
+      semantics: annotation.semantics || null,
+      text: annotation.text || annotation.label || "",
+    }));
+  return normalizeLiveEditRequestStrokes([...canvasMarks, ...outputMarks]);
+}
+
+function buildFrameBoundLiveEditRequest({
+  frame,
+  liveTarget,
+  variants = [],
+  note = "",
+  status = "variant-ready",
+  acceptedVariant = null,
+} = {}) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target) {
+    return null;
+  }
+  const normalizedVariants = normalizeLiveEditVariants(variants);
+  const variantIndex = currentLiveEditVariantIndex(frame);
+  const activeVariant =
+    normalizeLiveEditVariant(acceptedVariant) ||
+    normalizedVariants[Math.min(variantIndex, normalizedVariants.length - 1)] ||
+    null;
+  const designKit = buildDesignKitSummary([frame]);
+  const requestId =
+    normalizeLiveEditRequest(frame.liveEditRequest)?.id ||
+    `live-edit-request-${frame.id}-${target.targetId || target.id || "target"}`;
+  return normalizeLiveEditRequest({
+    id: requestId,
+    status,
+    target,
+    targetType: target.targetType,
+    targetSelector: target.targetSelector,
+    targetObjectId: target.targetObjectId,
+    targetNodeId: target.targetNodeId,
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    activeDesignKit: designKit,
+    note,
+    transcriptText: liveEditRequestTranscriptText(frame, note),
+    pins: liveEditTargetPins(frame, target),
+    strokes: liveEditRequestStrokes(frame, target),
+    currentOutputBinding: normalizeLiveEditRequestBinding(
+      frameOutputEditBinding(frame),
+    ),
+    variants: normalizedVariants,
+    variantIndex,
+    activeVariant,
+    acceptedVariant: activeVariant?.acceptedAt ? activeVariant : acceptedVariant,
+    acceptedVariantId:
+      status === "accepted" ? activeVariant?.id || target.acceptedVariantId : "",
+    acceptedVariantLabel:
+      status === "accepted"
+        ? activeVariant?.label || target.acceptedVariantLabel
+        : "",
+    acceptedVariantRole:
+      status === "accepted" ? activeVariant?.role || target.acceptedVariantRole : "",
+    surfaceOperations: activeVariant?.surfaceOperations,
+    createdAt:
+      normalizeLiveEditRequest(frame.liveEditRequest)?.createdAt ||
+      new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    acceptedAt: status === "accepted" ? target.acceptedAt : "",
+  });
+}
+
 function buildLiveEditVariantCandidates(frame, liveTarget, note = "") {
   const target = normalizeLiveEditTarget(liveTarget);
   if (!frame || !target) {
@@ -12025,6 +12365,15 @@ function cycleLiveEditVariant(direction = 1) {
   const nextIndex = (currentIndex + direction + variants.length) % variants.length;
   frame.liveEditVariants = variants;
   frame.liveEditVariantIndex = nextIndex;
+  if (frame.liveEditRequest) {
+    frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+      frame,
+      liveTarget: frame.liveEditTarget,
+      variants,
+      note: cleanString(dom.workbenchLiveEditNote?.value || frame.liveEditTarget?.note),
+      status: "variant-ready",
+    });
+  }
   persistState();
   renderCanvas();
   renderWorkbenchOutput();
@@ -12061,6 +12410,13 @@ function createLiveEditVariants() {
   frame.liveEditVariants = variants;
   frame.liveEditVariantIndex = 0;
   frame.acceptedLiveEditVariant = null;
+  frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+    frame,
+    liveTarget: frame.liveEditTarget,
+    variants,
+    note,
+    status: "variant-ready",
+  });
   state.liveEditPickActive = false;
   touchFrame(frame, {
     capture: false,
@@ -22003,6 +22359,7 @@ function buildPromptMarkdown() {
           `- Live edit variant: ${activeLiveEditVariant.label} (${activeLiveEditVariant.role}) - ${activeLiveEditVariant.summary || activeLiveEditVariant.body}`,
         );
       }
+      appendLiveEditRequestMarkdown(lines, frame.liveEditRequest, "");
     }
 
     const outgoingConnections = state.connections.filter(
@@ -22283,6 +22640,7 @@ async function buildExportPackage(frameSelection = state.frames) {
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       outputEditBinding: frameOutputEditBinding(frame),
       flowPosition: frame.flowPosition,
       updatedAt: frame.updatedAt,
@@ -22406,6 +22764,7 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       captureCount: frame.captureCount,
@@ -22459,6 +22818,7 @@ function buildOutputRevisionGraph(frames, manifest, rewriteQueue = []) {
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       status: status?.label || (relatedTargets.length ? "Output bound" : "No output"),
       stale: status?.label === "Output stale",
       queueReasons: queueItems.map((item) => item.reason),
@@ -23494,6 +23854,7 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
       snapshotPath: frame.snapshotPath || "",
@@ -23870,6 +24231,7 @@ function buildFrameComposition(frame) {
     acceptedLiveEditVariant: normalizeLiveEditVariant(
       frame.acceptedLiveEditVariant,
     ),
+    liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
     outputAnnotations: summarizeOutputAnnotations(frame.outputAnnotations),
   };
 }
@@ -24045,6 +24407,53 @@ function appendSpatialContextMarkdown(lines, spatialContext) {
   });
 }
 
+function liveEditSurfaceOperationsText(operations) {
+  return normalizeLiveEditSurfaceOperations(operations)
+    .map((operation) =>
+      [operation.label || operation.kind, operation.detail]
+        .filter(Boolean)
+        .join(": "),
+    )
+    .join("; ");
+}
+
+function appendLiveEditRequestMarkdown(lines, request, indent = "  ") {
+  const liveRequest = normalizeLiveEditRequest(request);
+  if (!liveRequest) {
+    return;
+  }
+  lines.push(
+    `${indent}- Live edit request: ${liveRequest.status}; target ${liveRequest.targetType || liveRequest.target.targetType || "artifact"} ${liveRequest.targetSelector || liveRequest.targetObjectId || liveRequest.target.targetId || ""} at ${liveRequest.normalizedBounds.x}, ${liveRequest.normalizedBounds.y}, ${liveRequest.normalizedBounds.w}, ${liveRequest.normalizedBounds.h}`,
+  );
+  if (liveRequest.note) {
+    lines.push(`${indent}- Live edit request note: ${liveRequest.note}`);
+  }
+  if (liveRequest.activeDesignKit?.statusLabel) {
+    lines.push(
+      `${indent}- Live edit design kit: ${liveRequest.activeDesignKit.statusLabel}`,
+    );
+  }
+  if (liveRequest.transcriptText) {
+    lines.push(
+      `${indent}- Live edit transcript/text: ${compactDisplayText(liveRequest.transcriptText, 220)}`,
+    );
+  }
+  if (liveRequest.surfaceOperations.length) {
+    lines.push(
+      `${indent}- Live edit surface operations: ${liveEditSurfaceOperationsText(liveRequest.surfaceOperations)}`,
+    );
+  }
+  if (liveRequest.strokes.length) {
+    const strokeLabels = liveRequest.strokes
+      .map((stroke) => stroke.semantics?.label || stroke.semantics?.intent || stroke.type)
+      .filter(Boolean)
+      .slice(0, 8);
+    lines.push(
+      `${indent}- Live edit strokes: ${strokeLabels.join("; ") || liveRequest.strokes.length}`,
+    );
+  }
+}
+
 function buildTaskPackMarkdown(taskPack) {
   if (!taskPack) {
     return "";
@@ -24098,6 +24507,7 @@ function buildTaskPackMarkdown(taskPack) {
         `  - Active live edit variant: ${activeLiveEditVariant.label} (${activeLiveEditVariant.role}) - ${activeLiveEditVariant.summary || activeLiveEditVariant.body}`,
       );
     }
+    appendLiveEditRequestMarkdown(lines, frame.liveEditRequest);
   });
   return lines.join("\n");
 }
@@ -24165,6 +24575,7 @@ function buildRewriteRequestMarkdown(request) {
           `  - Live edit variant: ${activeLiveEditVariant.label} (${activeLiveEditVariant.role}) - ${activeLiveEditVariant.summary || activeLiveEditVariant.body}`,
         );
       }
+      appendLiveEditRequestMarkdown(lines, frame.liveEditRequest);
     }
   });
   return lines.join("\n");
@@ -25013,6 +25424,7 @@ function summarizeFrameForCheckpoint(frame, index) {
     acceptedLiveEditVariant: normalizeLiveEditVariant(
       frame.acceptedLiveEditVariant,
     ),
+    liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
     outputEditBinding: frameOutputEditBinding(frame),
     updatedAt: frame.updatedAt,
     captureCount: frame.captures.length,
@@ -25527,6 +25939,8 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
           url: target.url || target.resolvedUrl || "",
           source: target.source || "",
           description: target.description || "",
+          liveEditRequest:
+            target.liveEditRequest || normalizeLiveEditRequest(frame?.liveEditRequest),
         }
       : null,
     outputDigest: state.serverStatus.outputDigest || null,
@@ -26959,6 +27373,7 @@ function frameHasMeaningfulHandoff(frame) {
     cleanString(frame.backgroundImage) ||
     Boolean(frame.canvasReply) ||
     Boolean(frame.liveEditTarget) ||
+    Boolean(frame.liveEditRequest) ||
     cleanString(frame.objective) ||
     cleanString(frame.layout) ||
     cleanString(frame.motion) ||
@@ -27006,11 +27421,20 @@ function buildRewriteQueue(
         ? describeManifestFreshness(specificTarget, frame)
         : "";
       const liveEditTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+      const liveEditRequest = normalizeLiveEditRequest(frame.liveEditRequest);
 
-      if (liveEditTarget) {
+      if (liveEditTarget || liveEditRequest) {
+        const requestTarget = liveEditRequest?.target || liveEditTarget;
         const liveEditVariant =
+          liveEditRequest?.acceptedVariant ||
+          liveEditRequest?.activeVariant ||
           normalizeLiveEditVariant(frame.acceptedLiveEditVariant) ||
           currentLiveEditVariant(frame);
+        const operationSummary = liveEditRequest?.surfaceOperations?.length
+          ? ` Operations: ${liveEditRequest.surfaceOperations
+              .map((operation) => operation.label || operation.kind)
+              .join(", ")}.`
+          : "";
         return {
           id: `${frame.id}-live-edit`,
           frameId: frame.id,
@@ -27019,7 +27443,8 @@ function buildRewriteQueue(
           reason: "live-edit-target",
           priority: 0,
           updatedAt: frame.updatedAt,
-          detail: `Apply the next rewrite to ${liveEditTarget.targetLabel || liveEditTarget.targetId || "the picked region"} at ${liveEditTarget.bounds.x}, ${liveEditTarget.bounds.y}, ${liveEditTarget.bounds.w}, ${liveEditTarget.bounds.h}.${liveEditVariant ? ` Use selected variant ${liveEditVariant.index}: ${liveEditVariant.label} (${liveEditVariant.role}).` : ""}`,
+          detail: `Apply the next rewrite to ${requestTarget.targetLabel || requestTarget.targetId || "the picked region"} at ${requestTarget.bounds.x}, ${requestTarget.bounds.y}, ${requestTarget.bounds.w}, ${requestTarget.bounds.h}.${liveEditVariant ? ` Use selected variant ${liveEditVariant.index}: ${liveEditVariant.label} (${liveEditVariant.role}).` : ""}${operationSummary}`,
+          liveEditRequest,
         };
       }
 
@@ -27676,6 +28101,9 @@ async function runSelfTest() {
     const previousAcceptedLiveEditVariant = structuredClone(
       frameForCanvasReply.acceptedLiveEditVariant || null,
     );
+    const previousLiveEditRequest = structuredClone(
+      frameForCanvasReply.liveEditRequest || null,
+    );
     const previousWorkspaceModeForLiveEdit = state.workspaceMode;
     state.workspaceMode = "simple";
     frameForCanvasReply.liveEditTarget = createLiveEditTargetFromPoint(
@@ -27765,6 +28193,20 @@ async function runSelfTest() {
       liveEditVariantOperationRoles.size === 3 &&
       liveEditVariantOperationKinds.size >= 10 &&
       firstLiveEditOperationChipCount >= 4;
+    const createdLiveEditRequest = normalizeLiveEditRequest(
+      frameForCanvasReply.liveEditRequest,
+    );
+    const liveEditRequestMaterial =
+      createdLiveEditRequest?.status === "variant-ready" &&
+      createdLiveEditRequest.target?.targetId === "self-test-canvas-reply" &&
+      createdLiveEditRequest.normalizedBounds?.w > 0 &&
+      createdLiveEditRequest.activeDesignKit?.statusLabel &&
+      createdLiveEditRequest.transcriptText.includes("generated CTA") &&
+      createdLiveEditRequest.pins.length === 1 &&
+      createdLiveEditRequest.variantCount === 3 &&
+      createdLiveEditRequest.surfaceOperations.length >= 4 &&
+      createdLiveEditRequest.currentOutputBinding?.objectId ===
+        "self-test-canvas-reply";
     cycleLiveEditVariant(1);
     const secondLiveEditVariantTitle =
       dom.workbenchOutputSurface.querySelector(
@@ -27782,8 +28224,9 @@ async function runSelfTest() {
       Boolean(firstLiveEditVariantTitle) &&
       Boolean(secondLiveEditVariantTitle) &&
       firstLiveEditVariantTitle !== secondLiveEditVariantTitle &&
-      liveEditVariantOperationsMaterial &&
-      secondLiveEditOperationChipCount >= 4 &&
+          liveEditVariantOperationsMaterial &&
+          liveEditRequestMaterial &&
+          secondLiveEditOperationChipCount >= 4 &&
       dom.workbenchLiveEditCounter.textContent.includes("2 / 3 variants") &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
         "Taste";
@@ -27791,7 +28234,8 @@ async function runSelfTest() {
     const liveEditDiscarded =
       frameForCanvasReply.liveEditTarget === null &&
       currentLiveEditVariants(frameForCanvasReply).length === 0 &&
-      !frameForCanvasReply.acceptedLiveEditVariant;
+      !frameForCanvasReply.acceptedLiveEditVariant &&
+      !frameForCanvasReply.liveEditRequest;
     const domCaptureSurface = document.createElement("section");
     domCaptureSurface.setAttribute("data-workbench-output-surface", "selftest");
     domCaptureSurface.style.cssText =
@@ -27860,6 +28304,7 @@ async function runSelfTest() {
     frameForCanvasReply.liveEditVariantIndex = previousLiveEditVariantIndex;
     frameForCanvasReply.acceptedLiveEditVariant =
       previousAcceptedLiveEditVariant;
+    frameForCanvasReply.liveEditRequest = previousLiveEditRequest;
     state.workspaceMode = previousWorkspaceModeForLiveEdit;
     frameForCanvasReply.canvasReply = previousCanvasReply;
     state.viewMode = previousViewModeForReply;
@@ -27887,6 +28332,7 @@ async function runSelfTest() {
           movedPinDragged: Boolean(movedLiveEditPin?.draggedAt),
           liveEditVariantsHotSwap,
           liveEditVariantOperationsMaterial,
+          liveEditRequestMaterial,
           firstLiveEditOperationChipCount,
           secondLiveEditOperationChipCount,
           liveEditDiscarded,
@@ -27905,6 +28351,7 @@ async function runSelfTest() {
       acceptedLiveEditVariant: structuredClone(
         frameForCanvasReply.acceptedLiveEditVariant || null,
       ),
+      liveEditRequest: structuredClone(frameForCanvasReply.liveEditRequest || null),
       selectedElementIds: [...state.selectedElementIds],
       selectedElementId: state.selectedElementId,
       workspaceMode: state.workspaceMode,
@@ -27942,6 +28389,7 @@ async function runSelfTest() {
     frameForCanvasReply.liveEditVariants = [];
     frameForCanvasReply.liveEditVariantIndex = 0;
     frameForCanvasReply.acceptedLiveEditVariant = null;
+    frameForCanvasReply.liveEditRequest = null;
     state.serverStatus.previewManifest = null;
     state.workspaceMode = "simple";
     state.viewMode = "frame";
@@ -27971,11 +28419,18 @@ async function runSelfTest() {
       canvasObjectVariants.length === 3 &&
       frameForCanvasReply.liveEditVariantIndex === 2 &&
       canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
+      canvasObjectElement?.liveEdit?.request?.status === "accepted" &&
       canvasObjectCompositionElement?.liveEdit?.acceptedVariant?.label ===
         "Clarity" &&
+      canvasObjectComposition.liveEditRequest?.status === "accepted" &&
+      canvasObjectComposition.liveEditRequest?.strokes?.some(
+        (stroke) => stroke.semantics?.intent === "move-or-flow",
+      ) &&
       canvasObjectComposition.liveEditCanvasMarks.some(
         (mark) => mark.semantics?.intent === "move-or-flow",
       ) &&
+      frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest?.status ===
+        "accepted" &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
         "Clarity";
     frameForCanvasReply.canvasReply =
@@ -27993,6 +28448,8 @@ async function runSelfTest() {
       previousCanvasObjectLiveEditState.liveEditVariantIndex;
     frameForCanvasReply.acceptedLiveEditVariant =
       previousCanvasObjectLiveEditState.acceptedLiveEditVariant;
+    frameForCanvasReply.liveEditRequest =
+      previousCanvasObjectLiveEditState.liveEditRequest;
     state.selectedElementIds =
       previousCanvasObjectLiveEditState.selectedElementIds;
     state.selectedElementId = previousCanvasObjectLiveEditState.selectedElementId;
@@ -30706,6 +31163,15 @@ function assertSpatialObjectsFromOutputManifest() {
       acceptedVariantLabel:
         editableOutputFrame.acceptedLiveEditVariant?.label,
       acceptedVariantRole: editableOutputFrame.acceptedLiveEditVariant?.role,
+      acceptedAt: "2026-04-01T00:00:06.000Z",
+    });
+    editableOutputFrame.liveEditRequest = buildFrameBoundLiveEditRequest({
+      frame: editableOutputFrame,
+      liveTarget: editableOutputFrame.liveEditTarget,
+      variants: editableOutputFrame.liveEditVariants,
+      note: "Make the selected hero panel clearer",
+      status: "accepted",
+      acceptedVariant: editableOutputFrame.acceptedLiveEditVariant,
     });
   }
   const editableOutputBranchExported = buildSpatialWorkspaceExport().variantBranches.some(
@@ -30736,6 +31202,7 @@ function assertSpatialObjectsFromOutputManifest() {
         liveEditVariantIndex: editableOutputFrame.liveEditVariantIndex,
         acceptedLiveEditVariant:
           editableOutputFrame.acceptedLiveEditVariant,
+        liveEditRequest: editableOutputFrame.liveEditRequest,
         updatedAt: editableOutputFrame.updatedAt,
         captureCount: editableOutputFrame.captures.length,
         outputAnnotationCount: editableOutputFrame.outputAnnotations.length,
@@ -30783,8 +31250,14 @@ function assertSpatialObjectsFromOutputManifest() {
       "CTA copy",
     ) &&
     editableOutputTaskPack?.frames?.[0]?.liveEditVariants?.length === 3 &&
+    editableOutputTaskPack?.frames?.[0]?.liveEditRequest?.status ===
+      "accepted" &&
+    editableOutputTaskPack?.frames?.[0]?.liveEditRequest?.surfaceOperations
+      ?.length >= 4 &&
     editableOutputTaskPack?.frames?.[0]?.acceptedLiveEditVariant?.label ===
       "Clarity" &&
+    editableOutputTaskPack?.frames?.[0]?.outputEditBinding?.liveEditRequest
+      ?.acceptedVariantLabel === "Clarity" &&
     editableOutputTaskPack?.frames?.[0]?.outputEditBinding?.liveEditVariant
       ?.label === "Clarity" &&
     editableOutputTaskPack?.frames?.[0]?.composition?.liveEditTarget?.note?.includes(
@@ -30798,6 +31271,10 @@ function assertSpatialObjectsFromOutputManifest() {
       generatedTargetObject.id &&
     editableOutputRewriteRequest?.frames?.[0]?.liveEditPins?.[0]?.targetId ===
       generatedTargetObject.id &&
+    editableOutputRewriteRequest?.frames?.[0]?.liveEditRequest?.targetSelector ===
+      "" &&
+    editableOutputRewriteRequest?.frames?.[0]?.liveEditRequest
+      ?.currentOutputBinding?.objectId === generatedTargetObject.id &&
     editableOutputRewriteRequest?.frames?.[0]?.liveEditVariants?.[2]?.label ===
       "Clarity" &&
     editableOutputRewriteRequest?.frames?.[0]?.acceptedLiveEditVariant
@@ -30806,6 +31283,8 @@ function assertSpatialObjectsFromOutputManifest() {
       ?.intent === "emphasize" &&
     editableOutputRewriteRequest?.revisionGraph?.frames?.[0]?.liveEditTarget
       ?.targetId === generatedTargetObject.id &&
+    editableOutputRewriteRequest?.revisionGraph?.frames?.[0]
+      ?.liveEditRequest?.surfaceOperations?.length >= 4 &&
     editableOutputRewriteRequest?.revisionGraph?.frames?.[0]
       ?.acceptedLiveEditVariant?.label === "Clarity" &&
     editableOutputLiveQueue[0]?.reason === "live-edit-target" &&
