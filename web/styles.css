@@ -2701,6 +2701,126 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface iframe {
     pointer-events: none;
 }
 
+.workbench-output-surface.has-live-edit-variant .workbench-live-edit-outline {
+    z-index: 5;
+}
+
+.workbench-output-surface.has-live-edit-variant .workbench-live-edit-pin {
+    z-index: 6;
+}
+
+.workbench-output-surface.has-live-edit-variant .workbench-output-draw-hint {
+    z-index: 7;
+}
+
+.workbench-live-edit-variant-swap {
+    position: absolute;
+    z-index: 4;
+    display: grid;
+    align-content: start;
+    gap: 0.36rem;
+    min-width: 9.5rem;
+    min-height: 7.25rem;
+    padding: clamp(0.65rem, 1.6vw, 1rem);
+    overflow: hidden;
+    border-radius: 0.95rem;
+    border: 0.125rem solid var(--live-variant-accent, #f5b938);
+    color: var(--live-variant-fg, #18110e);
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.54), transparent 58%),
+        var(--live-variant-bg, #fff7e6);
+    box-shadow:
+        0 1rem 2.25rem rgba(0, 0, 0, 0.28),
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.62);
+    pointer-events: none;
+    animation: live-variant-swap-in 180ms ease-out;
+}
+
+.workbench-live-edit-variant-swap::before {
+    content: "";
+    position: absolute;
+    inset: 0.45rem;
+    border: 0.0625rem dashed color-mix(
+        in srgb,
+        var(--live-variant-accent, #f5b938) 62%,
+        transparent
+    );
+    border-radius: 0.72rem;
+    opacity: 0.42;
+}
+
+.workbench-live-edit-variant-swap span,
+.workbench-live-edit-variant-swap strong,
+.workbench-live-edit-variant-swap p,
+.workbench-live-edit-variant-swap em,
+.workbench-live-edit-variant-swap small {
+    position: relative;
+    z-index: 1;
+}
+
+.workbench-live-edit-variant-swap span {
+    color: var(--live-variant-accent, #0c8d7b);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.workbench-live-edit-variant-swap strong {
+    max-width: 18rem;
+    color: var(--live-variant-fg, #18110e);
+    font-family: var(--font-display);
+    font-size: clamp(1rem, 1.2vw, 1.35rem);
+    line-height: 1.02;
+}
+
+.workbench-live-edit-variant-swap p {
+    max-width: 27ch;
+    margin: 0;
+    color: color-mix(
+        in srgb,
+        var(--live-variant-fg, #18110e) 78%,
+        transparent
+    );
+    font-size: clamp(0.78rem, 1vw, 0.94rem);
+    line-height: 1.32;
+}
+
+.workbench-live-edit-variant-swap em {
+    justify-self: start;
+    min-height: 2rem;
+    padding: 0.46rem 0.66rem;
+    border-radius: 999px;
+    color: #ffffff;
+    background: var(--live-variant-accent, #0c8d7b);
+    font-size: 0.74rem;
+    font-style: normal;
+    font-weight: 900;
+}
+
+.workbench-live-edit-variant-swap small {
+    max-width: 28ch;
+    color: color-mix(
+        in srgb,
+        var(--live-variant-fg, #18110e) 68%,
+        transparent
+    );
+    font-size: 0.68rem;
+    line-height: 1.28;
+}
+
+@keyframes live-variant-swap-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.35rem) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 .workbench-live-edit-bar {
     display: grid;
     grid-template-columns: minmax(9rem, 0.8fr) minmax(12rem, 1fr) auto;
