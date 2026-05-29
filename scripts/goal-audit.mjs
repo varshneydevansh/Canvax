@@ -564,6 +564,10 @@ const checks = [
           "surfaceOperations",
           "liveEditMediumSurfaceOperations",
           "buildFrameBoundLiveEditRequest",
+          "startLiveEditFromAssetCandidate",
+          "createLiveEditTargetFromAssetCandidate",
+          "applyAcceptedLiveEditVariantToAssetCandidate",
+          "generated-asset-candidate",
           "liveEditRequest",
           "canvax-live-edit-request",
           "workbench-live-edit-operation",
@@ -693,7 +697,15 @@ const checks = [
       },
       {
         path: "web/app.js",
-        includes: ["renderAssetCandidateTray", "Copy prompt", "Attach path"],
+        includes: [
+          "renderAssetCandidateTray",
+          "data-asset-candidate-live-edit",
+          "generated-asset-candidate",
+          "applyAcceptedLiveEditVariantToAssetCandidate",
+          "### Live Edit Binding",
+          "Copy prompt",
+          "Attach path",
+        ],
       },
       {
         path: "scripts/import-image-results.mjs",
@@ -718,7 +730,7 @@ const checks = [
       },
     ],
     remainingGap:
-      "Direct ChatGPT image generation and editing are host-provided, not locally provided by Canvax; returned files now have a no-API import contract that binds them back to candidate slots.",
+      "Direct ChatGPT image generation and editing are host-provided, not locally provided by Canvax; returned files now have a no-API import contract, and candidate cards can be picked for local Live Edit binding before or after returned assets are attached.",
   },
   {
     id: "no-api-key-core",

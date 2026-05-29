@@ -8717,6 +8717,10 @@ function normalizePreviewTarget(entry, index = 0) {
     sourceFrameTitle: cleanString(entry.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(entry.sourceFrameUpdatedAt),
     changeSummary: cleanString(entry.changeSummary),
+    targetSelector: cleanString(entry.targetSelector),
+    targetObjectId: cleanString(entry.targetObjectId),
+    targetNodeId: cleanString(entry.targetNodeId),
+    normalizedBounds: normalizeManifestJsonObject(entry.normalizedBounds),
     project: normalizeManifestProject(entry.project),
     projectId: manifestProjectId(entry),
     refinement: normalizeMaterializeRefinement(entry.refinement),
@@ -8924,7 +8928,12 @@ function buildPreviewTargetFromPayload(payload) {
     sourceFrameTitle: cleanString(source.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(source.sourceFrameUpdatedAt),
     changeSummary: cleanString(source.changeSummary),
+    targetSelector: cleanString(source.targetSelector),
+    targetObjectId: cleanString(source.targetObjectId),
+    targetNodeId: cleanString(source.targetNodeId),
+    normalizedBounds: normalizeManifestJsonObject(source.normalizedBounds),
     refinement: normalizeMaterializeRefinement(source.refinement),
+    liveEditRequest: normalizeManifestJsonObject(source.liveEditRequest),
   };
 }
 

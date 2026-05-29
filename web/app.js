@@ -1320,6 +1320,15 @@ function bindEvents() {
       );
       return;
     }
+    const liveEditButton = event.target.closest(
+      "[data-asset-candidate-live-edit]",
+    );
+    if (liveEditButton) {
+      startLiveEditFromAssetCandidate(
+        liveEditButton.dataset.assetCandidateLiveEdit,
+      );
+      return;
+    }
     const acceptButton = event.target.closest("[data-asset-candidate-accept]");
     if (acceptButton) {
       acceptAssetCandidate(acceptButton.dataset.assetCandidateAccept);
@@ -5754,6 +5763,8 @@ function normalizeAssetCandidate(candidate) {
       describeBounds(placementMap.normalizedBounds),
     placementMap,
     outputSlots,
+    liveEdit: normalizeElementLiveEditBinding(candidate.liveEdit),
+    liveEditRequest: normalizeLiveEditRequest(candidate.liveEditRequest),
   };
 }
 
@@ -5956,6 +5967,8 @@ function normalizeAssetCandidateOutputSlots(slots, candidate, placementMap) {
       attached,
       attachedAt: slot.attachedAt || "",
       acceptedAt: slot.acceptedAt || "",
+      liveEdit: normalizeElementLiveEditBinding(slot.liveEdit),
+      liveEditRequest: normalizeLiveEditRequest(slot.liveEditRequest),
       notes:
         slot.notes ||
         "Empty local slot. Generate externally through the host image lane when available, then attach the result here.",
@@ -9297,6 +9310,9 @@ function summarizeAssetCandidateReviewItem(candidate, status) {
     imageElementId: slot?.imageElementId || "",
     imagePath: slot?.imagePath || "",
     accepted: Boolean(slot?.accepted),
+    liveEdit: normalizeElementLiveEditBinding(
+      candidate.liveEdit || slot?.liveEdit,
+    ),
   };
 }
 
@@ -9411,6 +9427,7 @@ function renderAssetCandidateTray() {
           const title = candidate.title || "Untitled candidate";
           const placement = candidate.placement || "whole frame";
           const review = assetCandidateReviewState(candidate);
+          const liveEdit = normalizeElementLiveEditBinding(candidate.liveEdit);
           const previewImage =
             review.previewSrc ||
             review.attached?.element?.imageDataUrl ||
@@ -9433,6 +9450,7 @@ function renderAssetCandidateTray() {
               </div>
               <div class="asset-candidate-review-row">
                 <span class="asset-candidate-status" data-tone="${escapeHtml(review.tone)}">${escapeHtml(review.label)}</span>
+                ${liveEdit ? `<span class="asset-candidate-status" data-tone="attached">Live edit ${escapeHtml(liveEdit.status)}</span>` : ""}
                 ${review.attached ? `<button class="ghost-button compact" type="button" data-asset-candidate-select="${escapeHtml(candidate.id)}">Select</button>` : ""}
                 ${!review.attached && review.imported ? `<span class="asset-candidate-status" data-tone="attached">Imported result</span>` : ""}
               </div>
@@ -9452,6 +9470,9 @@ function renderAssetCandidateTray() {
                 </button>
                 <button class="ghost-button compact" type="button" data-asset-candidate-host-task="${escapeHtml(candidate.id)}">
                   Copy host task
+                </button>
+                <button class="ghost-button compact" type="button" data-asset-candidate-live-edit="${escapeHtml(candidate.id)}">
+                  Pick
                 </button>
                 <button class="ghost-button compact" type="button" data-asset-candidate-place="${escapeHtml(candidate.id)}">
                   Place slot
@@ -10449,6 +10470,108 @@ function createLiveEditTargetFromCanvasElement(element, frame = currentFrame()) 
   });
 }
 
+function createLiveEditTargetFromAssetCandidate(candidate) {
+  const normalizedCandidate = normalizeAssetCandidate(candidate);
+  if (!normalizedCandidate) {
+    return null;
+  }
+  const frame =
+    currentFrameById(normalizedCandidate.sourceFrameId) || currentFrame();
+  const placementMap =
+    normalizedCandidate.placementMap ||
+    buildAssetCandidatePlacementMap(normalizedCandidate, frame);
+  const bounds = normalizeLiveEditBounds(placementMap.normalizedBounds);
+  const slotSource = assetCandidateSlotImageSource(normalizedCandidate);
+  const slot =
+    normalizedCandidate.outputSlots?.find((item) => item.accepted) ||
+    normalizedCandidate.outputSlots?.find((item) => item.attached) ||
+    normalizedCandidate.outputSlots?.[0] ||
+    {};
+  const targetPath = cleanString(
+    slotSource?.source?.imagePath ||
+      slot.imagePath ||
+      slotSource?.result?.imagePath ||
+      "",
+  );
+  const targetHref =
+    slotSource?.source?.src && !/^data:image\//i.test(slotSource.source.src)
+      ? slotSource.source.src
+      : "";
+  if (!frame || !bounds) {
+    return null;
+  }
+  return normalizeLiveEditTarget({
+    id: uid("live-edit"),
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    targetId: normalizedCandidate.id,
+    targetObjectId: normalizedCandidate.id,
+    targetLabel: normalizedCandidate.title || "Asset candidate",
+    targetType: "generated-asset-candidate",
+    targetSource: "canvax-asset-candidate",
+    targetSelector: placementMap.targetSelector,
+    targetPath,
+    targetHref,
+    targetVersionTag: slot.slotId || placementMap.slotId || "",
+    surface: "image/composition region",
+    bounds,
+    note:
+      cleanString(dom.workbenchLiveEditNote?.value) ||
+      normalizedCandidate.liveEdit?.note ||
+      `Asset candidate: ${compactDisplayText(
+        normalizedCandidate.prompt || normalizedCandidate.placement || "",
+        160,
+      )}`,
+    status: "picked",
+    pickedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function startLiveEditFromAssetCandidate(candidateId) {
+  const candidate = assetCandidateById(candidateId);
+  const liveTarget = createLiveEditTargetFromAssetCandidate(candidate);
+  if (!candidate || !liveTarget) {
+    renderStatus("Asset candidate could not be picked for Live Edit");
+    return false;
+  }
+  const frame = currentFrameById(liveTarget.sourceFrameId) || currentFrame();
+  if (!frame) {
+    renderStatus("Asset candidate source frame is no longer available");
+    return false;
+  }
+  const normalizedCandidate = normalizeAssetCandidate(candidate);
+  if (normalizedCandidate) {
+    candidate.placementMap = normalizedCandidate.placementMap;
+    candidate.outputSlots = normalizedCandidate.outputSlots;
+  }
+  state.activeFrameId = frame.id;
+  state.viewMode = "frame";
+  state.workspaceMode = "simple";
+  state.workbenchFocus = "sketch";
+  setSelectedElements([], "");
+  if (
+    dom.workbenchLiveEditNote &&
+    !cleanString(dom.workbenchLiveEditNote.value)
+  ) {
+    dom.workbenchLiveEditNote.value = liveTarget.note;
+  }
+  frame.liveEditTarget = liveTarget;
+  frame.liveEditPins = [];
+  frame.liveEditVariants = [];
+  frame.liveEditVariantIndex = 0;
+  frame.acceptedLiveEditVariant = null;
+  frame.liveEditRequest = null;
+  state.liveEditPickActive = false;
+  state.liveEditPinPlacement = null;
+  state.liveEditPinDrag = null;
+  touchFrame(frame, {
+    capture: false,
+    status: `Picked asset candidate ${liveTarget.targetLabel} for Live Edit`,
+  });
+  return true;
+}
+
 function liveEditTargetStyle(bounds) {
   const normalized = normalizeLiveEditBounds(bounds);
   if (!normalized) {
@@ -11355,12 +11478,17 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
   }
   const hasExternalTarget = Boolean(liveTarget.targetPath || liveTarget.targetHref);
   if (!hasExternalTarget) {
+    const reason =
+      liveTarget.targetSource === "canvax-asset-candidate" ||
+      liveTarget.targetType === "generated-asset-candidate"
+        ? "asset-candidate-local-binding"
+        : "canvas-object-local-binding";
     state.serverStatus = {
       ...state.serverStatus,
       liveEditWriteback: {
         executed: false,
         skipped: true,
-        reason: "canvas-object-local-binding",
+        reason,
         targetId: liveTarget.targetId,
         targetLabel: liveTarget.targetLabel,
       },
@@ -11501,8 +11629,15 @@ function applyAcceptedLiveEditVariantToSourceTarget(
 ) {
   const target = normalizeLiveEditTarget(liveTarget);
   const sourceElement = liveEditTargetCanvasElement(frame, target);
-  if (!frame || !target || !sourceElement) {
+  if (!frame || !target) {
     return null;
+  }
+  if (!sourceElement) {
+    return applyAcceptedLiveEditVariantToAssetCandidate(
+      frame,
+      target,
+      acceptedVariant,
+    );
   }
   const acceptedAt = target.acceptedAt || new Date().toISOString();
   sourceElement.liveEdit = normalizeElementLiveEditBinding({
@@ -11516,6 +11651,66 @@ function applyAcceptedLiveEditVariantToSourceTarget(
     updatedAt: acceptedAt,
   });
   return sourceElement.liveEdit;
+}
+
+function applyAcceptedLiveEditVariantToAssetCandidate(
+  frame,
+  liveTarget,
+  acceptedVariant,
+) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (
+    !frame ||
+    !target ||
+    (target.targetSource !== "canvax-asset-candidate" &&
+      target.targetType !== "generated-asset-candidate")
+  ) {
+    return null;
+  }
+  const candidateId = target.targetObjectId || target.targetId;
+  const candidate = assetCandidateById(candidateId);
+  if (!candidate) {
+    return null;
+  }
+  const acceptedAt = target.acceptedAt || new Date().toISOString();
+  const binding = normalizeElementLiveEditBinding({
+    status: "accepted",
+    target,
+    acceptedVariant,
+    request: frame.liveEditRequest,
+    pins: frame.liveEditPins,
+    note: target.note,
+    acceptedAt,
+    updatedAt: acceptedAt,
+  });
+  if (!binding) {
+    return null;
+  }
+  candidate.placementMap =
+    candidate.placementMap || buildAssetCandidatePlacementMap(candidate, frame);
+  candidate.outputSlots = normalizeAssetCandidateOutputSlots(
+    candidate.outputSlots,
+    candidate,
+    candidate.placementMap,
+  ).map((slot, index) =>
+    index === 0
+      ? {
+          ...slot,
+          liveEdit: binding,
+          liveEditRequest: binding.request,
+          notes:
+            slot.notes ||
+            "Accepted Live Edit variant is bound to this generated asset candidate slot.",
+        }
+      : slot,
+  );
+  candidate.liveEdit = binding;
+  candidate.liveEditRequest = binding.request;
+  candidate.acceptedLiveEditVariant = binding.acceptedVariant;
+  candidate.liveEditStatus = binding.status;
+  candidate.updatedAt = acceptedAt;
+  refreshCurrentAssetCandidatePackReview();
+  return binding;
 }
 
 async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
@@ -11547,6 +11742,10 @@ async function saveLiveEditTargetToPreviewManifest(frame, liveTarget) {
         type: target.targetType || "live-edit-target",
         url: target.targetHref,
         previewPath: target.targetPath,
+        targetSelector: target.targetSelector,
+        targetObjectId: target.targetObjectId,
+        targetNodeId: target.targetNodeId,
+        normalizedBounds: target.bounds,
         frameIds: [frame.id],
         sourceFrameId: frame.id,
         sourceFrameTitle: frame.title,
@@ -25144,6 +25343,22 @@ function buildAssetCandidatePackMarkdown(pack) {
         );
       });
     }
+    const liveEdit = normalizeElementLiveEditBinding(
+      candidate.liveEdit || slots.find((slot) => slot.liveEdit)?.liveEdit,
+    );
+    if (liveEdit) {
+      const request = normalizeLiveEditRequest(liveEdit.request);
+      lines.push("", "### Live Edit Binding", "");
+      lines.push(`- Status: ${liveEdit.status}`);
+      lines.push(`- Target type: ${liveEdit.target?.targetType || "generated-asset-candidate"}`);
+      lines.push(`- Target selector: \`${liveEdit.target?.targetSelector || ""}\``);
+      lines.push(`- Accepted variant: ${liveEdit.acceptedVariant?.label || "none"}`);
+      if (request?.surfaceOperations?.length) {
+        lines.push(
+          `- Surface operations: ${liveEditSurfaceOperationsText(request.surfaceOperations)}`,
+        );
+      }
+    }
     lines.push("");
     lines.push(candidate.prompt || "No prompt provided.");
   });
@@ -32941,6 +33156,18 @@ async function assertAssetCandidateTrayPlacement() {
   const previousSelectedElementId = state.selectedElementId;
   const previousAssetCandidatePack = structuredClone(state.assetCandidatePack);
   const previousImageResultPack = structuredClone(state.imageResultPack);
+  const previousLiveEditTarget = structuredClone(frame.liveEditTarget || null);
+  const previousLiveEditPins = structuredClone(frame.liveEditPins || []);
+  const previousLiveEditVariants = structuredClone(frame.liveEditVariants || []);
+  const previousLiveEditVariantIndex = frame.liveEditVariantIndex || 0;
+  const previousAcceptedLiveEditVariant = structuredClone(
+    frame.acceptedLiveEditVariant || null,
+  );
+  const previousLiveEditRequest = structuredClone(frame.liveEditRequest || null);
+  const previousLiveEditNote = dom.workbenchLiveEditNote?.value || "";
+  const previousWorkspaceMode = state.workspaceMode;
+  const previousWorkbenchFocus = state.workbenchFocus;
+  const previousViewMode = state.viewMode;
   const history = ensureHistory(frame.id);
   const previousHistory = {
     past: structuredClone(history.past),
@@ -33038,6 +33265,11 @@ async function assertAssetCandidateTrayPlacement() {
       `[data-asset-candidate-path="${pathCandidateId}"]`,
     ),
   );
+  const liveEditButtonRendered = Boolean(
+    dom.assetCandidateTray.querySelector(
+      `[data-asset-candidate-live-edit="${candidateId}"]`,
+    ),
+  );
   const hostedResultReview = assetCandidateReviewState(
     assetCandidateById(resultCandidateId),
   );
@@ -33045,6 +33277,71 @@ async function assertAssetCandidateTrayPlacement() {
     hostedResultReview?.tone === "attached" &&
     hostedResultReview?.previewSrc?.startsWith("data:image/svg+xml") &&
     dom.assetCandidateTray.innerHTML.includes("Imported result");
+  if (dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value =
+      "Make this asset region feel like an editorial book illustration";
+  }
+  const assetCandidateLiveEditStarted =
+    startLiveEditFromAssetCandidate(candidateId);
+  renderCanvas();
+  const assetLiveTarget = normalizeLiveEditTarget(frame.liveEditTarget);
+  const assetLiveOverlayBounds = denormalizeLiveEditBounds(
+    assetLiveTarget?.bounds,
+    frame,
+  );
+  const assetLiveEditOverlayRendered = canvasRegionHasGoldPixel(
+    dom.canvas,
+    assetLiveOverlayBounds,
+  );
+  const assetLivePin = addLiveEditCommentPin(null, {
+    text: "Keep the region but make the image direction clearer",
+  });
+  const assetLiveVariants = createLiveEditVariants();
+  cycleLiveEditVariant(1);
+  await acceptLiveEditTarget();
+  const liveEditedCandidate = assetCandidateById(candidateId);
+  const assetLiveEditBinding = normalizeElementLiveEditBinding(
+    liveEditedCandidate?.liveEdit,
+  );
+  const assetLiveVariantOperationKinds = new Set(
+    assetLiveVariants.flatMap((variant) =>
+      normalizeLiveEditSurfaceOperations(variant.surfaceOperations).map(
+        (operation) => operation.kind,
+      ),
+    ),
+  );
+  const assetLiveEditMarkdown =
+    buildAssetCandidatePackMarkdown(state.assetCandidatePack);
+  const assetCandidateLiveEditBound =
+    assetCandidateLiveEditStarted &&
+    liveEditButtonRendered &&
+    assetLiveTarget?.targetType === "generated-asset-candidate" &&
+    assetLiveTarget?.targetSource === "canvax-asset-candidate" &&
+    assetLiveTarget?.targetSelector?.includes(candidateId) &&
+    assetLiveTarget?.bounds?.x === 0.2 &&
+    assetLiveTarget?.bounds?.w === 0.24 &&
+    assetLiveEditOverlayRendered &&
+    assetLivePin?.targetId === candidateId &&
+    assetLiveVariants.length === 3 &&
+    assetLiveVariants.every(
+      (variant) =>
+        variant.targetMedium === "image/composition region" &&
+        normalizeLiveEditSurfaceOperations(variant.surfaceOperations).length >=
+          4,
+    ) &&
+    assetLiveVariantOperationKinds.has("composition-crop") &&
+    assetLiveVariantOperationKinds.has("palette-light") &&
+    assetLiveVariantOperationKinds.has("subject-separation") &&
+    assetLiveEditBinding?.status === "accepted" &&
+    assetLiveEditBinding?.target?.targetType ===
+      "generated-asset-candidate" &&
+    assetLiveEditBinding?.request?.status === "accepted" &&
+    assetLiveEditBinding?.request?.targetSelector?.includes(candidateId) &&
+    assetLiveEditBinding?.request?.surfaceOperations?.length >= 4 &&
+    liveEditedCandidate?.outputSlots?.[0]?.liveEdit?.request?.status ===
+      "accepted" &&
+    assetLiveEditMarkdown.includes("### Live Edit Binding") &&
+    assetLiveEditMarkdown.includes("generated-asset-candidate");
   const element = placeAssetCandidatePlaceholder(candidateId);
   const file = await createSelfTestImageFile();
   const imageElement = await placeAssetCandidateImage(candidateId, file);
@@ -33077,6 +33374,7 @@ async function assertAssetCandidateTrayPlacement() {
     clipboardHostTaskText.includes("Output slot:") &&
     clipboardHostTaskText.includes("Requires OpenAI API key: no") &&
     pathImportInputRendered &&
+    assetCandidateLiveEditBound &&
     hostedResultRendered &&
     normalizedCandidate?.placementMap?.kind === "canvax-asset-placement" &&
     normalizedCandidate?.outputSlots?.[0]?.slotId ===
@@ -33122,17 +33420,29 @@ async function assertAssetCandidateTrayPlacement() {
   window.clearTimeout(state.captureTimer);
   state.captureTimer = null;
   frame.elements = previousElements;
+  frame.liveEditTarget = previousLiveEditTarget;
+  frame.liveEditPins = previousLiveEditPins;
+  frame.liveEditVariants = previousLiveEditVariants;
+  frame.liveEditVariantIndex = previousLiveEditVariantIndex;
+  frame.acceptedLiveEditVariant = previousAcceptedLiveEditVariant;
+  frame.liveEditRequest = previousLiveEditRequest;
   history.past = previousHistory.past;
   history.future = previousHistory.future;
   state.assetCandidatePack = previousAssetCandidatePack;
   state.imageResultPack = previousImageResultPack;
+  state.workspaceMode = previousWorkspaceMode;
+  state.workbenchFocus = previousWorkbenchFocus;
+  state.viewMode = previousViewMode;
+  if (dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value = previousLiveEditNote;
+  }
   setSelectedElements(previousSelection, previousSelectedElementId);
   persistState();
   renderAll();
 
   return assert(
     placed,
-    "asset candidate tray copies prompts, places, imports by path, attaches, accepts, and summarizes editable image slots",
+    "asset candidate tray copies prompts, starts Live Edit/Pick, places, imports by path, attaches, accepts, and summarizes editable image slots",
   );
 }
 
