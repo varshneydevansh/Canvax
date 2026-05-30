@@ -887,6 +887,7 @@ let outputAnnotationRenderFrameId = 0;
 let liveEditPickDraftOverlayFrameId = 0;
 let interactionPerformanceActive = false;
 let scrollPerformanceTimer = 0;
+let previewManifestPreservation = null;
 const state = hydrateState();
 
 init();
@@ -11411,6 +11412,68 @@ function describeDesignJuryReview(review, target) {
   };
 }
 
+function previewManifestHasRenderableTarget(manifest, frameId = state.activeFrameId) {
+  const target = resolveManifestTargetEntry(manifest, frameId);
+  return Boolean(target && resolveWorkbenchTargetUrl(target));
+}
+
+function armPreviewManifestPreservation(
+  manifest = state.serverStatus.previewManifest,
+  { frameId = state.activeFrameId, reason = "preserve-output" } = {},
+) {
+  if (!previewManifestHasRenderableTarget(manifest, frameId)) {
+    return false;
+  }
+  previewManifestPreservation = {
+    manifest: structuredClone(manifest),
+    frameId,
+    reason,
+    expiresAt: Date.now() + 12000,
+  };
+  return true;
+}
+
+function previewManifestFromServerOrPreserved(
+  manifest,
+  { frameId = state.activeFrameId } = {},
+) {
+  if (previewManifestHasRenderableTarget(manifest, frameId)) {
+    previewManifestPreservation = null;
+    return manifest;
+  }
+  if (
+    previewManifestPreservation &&
+    Date.now() <= previewManifestPreservation.expiresAt &&
+    previewManifestHasRenderableTarget(
+      previewManifestPreservation.manifest,
+      previewManifestPreservation.frameId || frameId,
+    )
+  ) {
+    return structuredClone(previewManifestPreservation.manifest);
+  }
+  if (previewManifestPreservation?.expiresAt < Date.now()) {
+    previewManifestPreservation = null;
+  }
+  return manifest || null;
+}
+
+function restorePreservedPreviewManifestIfOutputMissing(
+  { frameId = state.activeFrameId } = {},
+) {
+  if (previewManifestHasRenderableTarget(state.serverStatus.previewManifest, frameId)) {
+    return false;
+  }
+  const preserved = previewManifestFromServerOrPreserved(null, { frameId });
+  if (!previewManifestHasRenderableTarget(preserved, frameId)) {
+    return false;
+  }
+  state.serverStatus = {
+    ...state.serverStatus,
+    previewManifest: preserved,
+  };
+  return true;
+}
+
 function currentWorkbenchTarget() {
   const frame = currentFrame();
   const canvasReplyTarget = canvasReplyTargetForFrame(frame);
@@ -13797,6 +13860,15 @@ async function acceptLiveEditTarget() {
     status: "accepted",
     acceptedVariant,
   });
+  const localLiveEditAccept = !(
+    frame.liveEditTarget.targetHref || frame.liveEditTarget.targetPath
+  );
+  if (localLiveEditAccept) {
+    armPreviewManifestPreservation(state.serverStatus.previewManifest, {
+      frameId: frame.id,
+      reason: "local-live-edit-accept",
+    });
+  }
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   applyAcceptedLiveEditVariantToSourceTarget(
@@ -13841,6 +13913,15 @@ async function acceptLiveEditTarget() {
   await saveLiveEditTargetToPreviewManifest(frame, frame.liveEditTarget, {
     writebackResult,
   });
+  if (writebackResult?.skipped || localLiveEditAccept) {
+    const restoredOutput = restorePreservedPreviewManifestIfOutputMissing({
+      frameId: frame.id,
+    });
+    if (restoredOutput) {
+      renderWorkbenchOutput();
+      renderServerStatus();
+    }
+  }
   await saveLiveEditWritebackCheckpoint(frame, writebackResult);
 }
 
@@ -26162,7 +26243,9 @@ async function refreshPreviewStateFromServer() {
     );
     state.serverStatus = {
       ...state.serverStatus,
-      previewManifest: data.previewManifest || null,
+      previewManifest: previewManifestFromServerOrPreserved(
+        data.previewManifest || null,
+      ),
       workspaceFollow: data.workspaceFollow || null,
       transport: buildTransportDescriptor(data.transport),
       hostCapabilities:
@@ -30832,7 +30915,12 @@ async function publishWorkspaceOutput(options = {}) {
     state.serverStatus = {
       ...state.serverStatus,
       previewManifest:
-        data.previewManifest || state.serverStatus.previewManifest || null,
+        previewManifestFromServerOrPreserved(
+          data.previewManifest || null,
+          { frameId },
+        ) ||
+        state.serverStatus.previewManifest ||
+        null,
     };
     syncSpatialObjectsFromHandoffs();
     renderCodexOutput();
@@ -32966,7 +33054,25 @@ async function runSelfTest() {
     frameForCanvasReply.liveEditRequest = null;
     frameForCanvasReply.liveEditOriginalSnapshot = null;
     frameForCanvasReply.liveEditRegionBindings = [];
-    state.serverStatus.previewManifest = null;
+    state.serverStatus.previewManifest = {
+      kind: "canvax-preview-manifest",
+      targets: [
+        {
+          id: "selftest-preserved-output",
+          label: "Self-test generated output",
+          type: "generated-screen-preview",
+          source: "canvax-self-test",
+          url: "data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Chtml%3E%3Cbody%3EPreserved%20output%3C/body%3E%3C/html%3E",
+          resolvedUrl:
+            "data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Chtml%3E%3Cbody%3EPreserved%20output%3C/body%3E%3C/html%3E",
+          previewPath: "",
+          frameIds: [frameForCanvasReply.id],
+          sourceFrameId: frameForCanvasReply.id,
+          sourceFrameTitle: frameForCanvasReply.title,
+          sourceFrameUpdatedAt: frameForCanvasReply.updatedAt,
+        },
+      ],
+    };
     state.workspaceMode = "simple";
     state.workbenchFocus = "sketch";
     state.viewMode = "frame";
@@ -33004,6 +33110,11 @@ async function runSelfTest() {
     updateLiveEditTargetNote(dom.workbenchLiveEditNote.value);
     const canvasRegionVariants = createLiveEditVariants();
     await acceptLiveEditTarget();
+    await new Promise((resolve) => window.setTimeout(resolve, 50));
+    const outputTargetAfterCanvasAccept = currentWorkbenchTarget();
+    const canvasRegionAcceptPreservedOutput =
+      outputTargetAfterCanvasAccept?.id === "selftest-preserved-output" &&
+      Boolean(resolveWorkbenchTargetUrl(outputTargetAfterCanvasAccept));
     const canvasRegionBinding =
       normalizeLiveEditRegionBindings(frameForCanvasReply.liveEditRegionBindings)
         .at(-1) || null;
@@ -33011,6 +33122,7 @@ async function runSelfTest() {
       canvasRegionDirectTarget?.targetType === "canvas-region" &&
       canvasRegionDirectTarget?.targetSource === "canvax-canvas" &&
       canvasRegionVariants.length === 3 &&
+      canvasRegionAcceptPreservedOutput &&
       canvasRegionBinding?.target?.targetId === canvasRegionDirectTarget.targetId &&
       canvasRegionBinding?.request?.status === "accepted" &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest?.target
@@ -33139,6 +33251,7 @@ async function runSelfTest() {
           canvasObjectDirectPicked,
           canvasRegionDragPicked,
           canvasRegionDirectPickAccepted,
+          canvasRegionAcceptPreservedOutput,
           canvasObjectVariantCount: canvasObjectVariants.length,
           canvasLiveEditDrawModeArmed,
           liveEditVariantIndex: frameForCanvasReply.liveEditVariantIndex,
