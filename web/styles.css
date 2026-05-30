@@ -3177,6 +3177,16 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     pointer-events: none;
 }
 
+.workbench-live-edit-outline {
+    cursor: grab;
+    pointer-events: auto;
+    touch-action: none;
+}
+
+.workbench-live-edit-outline:active {
+    cursor: grabbing;
+}
+
 .workbench-live-edit-pick-draft {
     border-style: dashed;
     background: rgba(245, 185, 56, 0.08);
@@ -3185,7 +3195,7 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
         0 0 0 0.36rem rgba(245, 185, 56, 0.18);
 }
 
-.workbench-live-edit-outline span,
+.workbench-live-edit-outline-label,
 .workbench-live-edit-pick-draft span {
     position: absolute;
     left: 0.5rem;
@@ -3203,6 +3213,49 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     text-transform: uppercase;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.workbench-live-edit-resize-handle {
+    position: absolute;
+    z-index: 2;
+    display: block;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 999px;
+    border: 0.125rem solid rgba(24, 17, 14, 0.82);
+    background: #f5b938;
+    box-shadow:
+        0 0.35rem 0.9rem rgba(0, 0, 0, 0.24),
+        0 0 0 0.15rem rgba(245, 185, 56, 0.26);
+    pointer-events: auto;
+}
+
+.workbench-live-edit-resize-handle[data-live-edit-target-resize="nw"] {
+    left: 0;
+    top: 0;
+    cursor: nwse-resize;
+    transform: translate(-50%, -50%);
+}
+
+.workbench-live-edit-resize-handle[data-live-edit-target-resize="ne"] {
+    right: 0;
+    top: 0;
+    cursor: nesw-resize;
+    transform: translate(50%, -50%);
+}
+
+.workbench-live-edit-resize-handle[data-live-edit-target-resize="sw"] {
+    left: 0;
+    bottom: 0;
+    cursor: nesw-resize;
+    transform: translate(-50%, 50%);
+}
+
+.workbench-live-edit-resize-handle[data-live-edit-target-resize="se"] {
+    right: 0;
+    bottom: 0;
+    cursor: nwse-resize;
+    transform: translate(50%, 50%);
 }
 
 .workbench-live-edit-pin {

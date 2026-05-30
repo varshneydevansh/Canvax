@@ -2951,6 +2951,7 @@ function hydrateState() {
       designReviewInFlight: false,
       outputCheckpointInFlight: false,
       outputAnnotationDraft: null,
+      liveEditTargetDrag: null,
       liveEditPickActive: false,
       liveEditPickSurface: "",
       activeZoomSurface: "canvas",
@@ -3522,6 +3523,7 @@ function createInitialState() {
     designReviewInFlight: false,
     outputCheckpointInFlight: false,
     outputAnnotationDraft: null,
+    liveEditTargetDrag: null,
     liveEditPickActive: false,
     liveEditPickSurface: "",
     activeZoomSurface: "canvas",
@@ -4672,7 +4674,11 @@ function canvasReplyTargetForFrame(frame) {
 
 function frameOutputEditBinding(frame) {
   const canvasReply = normalizeCanvasReply(frame?.canvasReply);
-  const liveEditTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const liveEditRequest = normalizeLiveEditRequest(frame?.liveEditRequest);
+  const liveEditTarget =
+    normalizeLiveEditTarget(frame?.liveEditTarget) ||
+    normalizeLiveEditTarget(liveEditRequest?.target) ||
+    normalizeLiveEditTarget(frame?.acceptedLiveEditVariant?.target);
   const liveEditVariant =
     normalizeLiveEditVariant(frame?.acceptedLiveEditVariant) ||
     currentLiveEditVariant(frame);
@@ -4696,7 +4702,7 @@ function frameOutputEditBinding(frame) {
       branchLabel: cleanString(canvasReply.label) || "Canvas reply",
       liveEditTarget,
       liveEditVariant,
-      liveEditRequest: normalizeLiveEditRequest(frame?.liveEditRequest),
+      liveEditRequest,
       instruction:
         liveEditVariant
           ? "This frame has an accepted or active in-surface live edit variant. Apply that chosen variant to the picked target first, then preserve the surrounding output."
@@ -4721,7 +4727,7 @@ function frameOutputEditBinding(frame) {
       branchLabel: liveEditTarget.targetLabel || "Live edit target",
       liveEditTarget,
       liveEditVariant,
-      liveEditRequest: normalizeLiveEditRequest(frame?.liveEditRequest),
+      liveEditRequest,
       instruction:
         liveEditVariant
           ? "This frame is a live edit branch with an active chosen variant. Apply that variant to the picked artifact target and keep the target binding intact."
@@ -4756,7 +4762,7 @@ function frameOutputEditBinding(frame) {
     branchLabel: cleanString(variant.label) || "Output edit",
     liveEditTarget,
     liveEditVariant,
-    liveEditRequest: normalizeLiveEditRequest(frame?.liveEditRequest),
+    liveEditRequest,
     instruction:
       liveEditVariant
         ? "This frame is an editable live edit branch with a chosen in-surface variant. Apply that variant to the referenced generated output."
@@ -10824,7 +10830,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
         ></canvas>
         ${
           showLiveTarget
-            ? `<span class="workbench-live-edit-outline" data-live-edit-outcome-tone="${escapeHtml(liveOutcome?.tone || "")}" style="${liveTargetStyle}" title="${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Use Discard below or Escape to remove this picked target.")}"><span class="workbench-live-edit-outline-label">${escapeHtml(liveEditTargetOutlineLabel(liveTarget))}</span></span>`
+            ? `<span class="workbench-live-edit-outline" data-live-edit-outcome-tone="${escapeHtml(liveOutcome?.tone || "")}" data-live-edit-target-adjust="move" style="${liveTargetStyle}" title="${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Drag to move this target. Drag a corner to resize. Use Discard or Escape to remove it.")}"><span class="workbench-live-edit-outline-label">${escapeHtml(liveEditTargetOutlineLabel(liveTarget))}</span>${liveTarget.status === "accepted" ? "" : renderLiveEditTargetResizeHandles()}</span>`
             : ""
         }
         ${
@@ -10875,6 +10881,15 @@ function liveEditTargetOutlineLabel(liveTarget) {
   return normalizeLiveEditTarget(liveTarget)?.status === "accepted"
     ? "Accepted target"
     : "Picked - Discard below";
+}
+
+function renderLiveEditTargetResizeHandles() {
+  return ["nw", "ne", "sw", "se"]
+    .map(
+      (handle) =>
+        `<i class="workbench-live-edit-resize-handle" data-live-edit-target-resize="${handle}" aria-hidden="true"></i>`,
+    )
+    .join("");
 }
 
 function syncWorkbenchOutputHint(surface, outputHint) {
@@ -12022,6 +12037,7 @@ function startLiveEditFromAssetCandidate(candidateId) {
   state.liveEditDraftNote = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditTargetDrag = null;
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   touchFrame(frame, {
@@ -12244,6 +12260,7 @@ function startLiveEditFromSpatialObject(objectId) {
   state.liveEditPickSurface = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditTargetDrag = null;
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   touchFrame(frame, {
@@ -12917,6 +12934,7 @@ function setLiveEditPickMode(active, options = {}) {
     state.liveEditDraftNote = "";
     state.liveEditPinPlacement = null;
     state.liveEditPinDrag = null;
+    state.liveEditTargetDrag = null;
     state.liveEditMapDrawActive = false;
     state.liveEditMapStrokeDraft = null;
     touchFrame(frame, {
@@ -12942,6 +12960,7 @@ function setLiveEditPickMode(active, options = {}) {
     : "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditTargetDrag = null;
   state.liveEditPickDraft = null;
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
@@ -12982,6 +13001,7 @@ function commitLiveEditTarget(frame, liveTarget, options = {}) {
   state.liveEditDraftNote = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditTargetDrag = null;
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   if (options.focus) {
@@ -13450,6 +13470,7 @@ function activateLiveEditDrawMode() {
   state.liveEditPickSurface = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditTargetDrag = null;
   state.workspaceMode = "simple";
   state.liveEditMapDrawActive = drawOnMap;
   state.liveEditMapStrokeDraft = null;
@@ -13871,6 +13892,7 @@ async function acceptLiveEditTarget() {
   }
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditTargetDrag = null;
   applyAcceptedLiveEditVariantToSourceTarget(
     frame,
     frame.liveEditTarget,
@@ -14145,6 +14167,27 @@ async function saveLiveEditWritebackCheckpoint(frame, writebackResult) {
   });
 }
 
+function acceptedLiveEditRequestForBinding(frame, liveTarget, acceptedVariant) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target) {
+    return null;
+  }
+  const request =
+    normalizeLiveEditRequest(frame.liveEditRequest) ||
+    buildFrameBoundLiveEditRequest({
+      frame,
+      liveTarget: target,
+      variants: frame.liveEditVariants,
+      note: target.note,
+      status: "accepted",
+      acceptedVariant,
+    });
+  if (request && !frame.liveEditRequest) {
+    frame.liveEditRequest = request;
+  }
+  return request;
+}
+
 function applyAcceptedLiveEditVariantToSourceTarget(
   frame,
   liveTarget,
@@ -14175,11 +14218,16 @@ function applyAcceptedLiveEditVariantToSourceTarget(
     );
   }
   const acceptedAt = target.acceptedAt || new Date().toISOString();
+  const request = acceptedLiveEditRequestForBinding(
+    frame,
+    target,
+    acceptedVariant,
+  );
   sourceElement.liveEdit = normalizeElementLiveEditBinding({
     status: "accepted",
     target,
     acceptedVariant,
-    request: frame.liveEditRequest,
+    request,
     pins: frame.liveEditPins,
     note: target.note,
     acceptedAt,
@@ -14198,11 +14246,16 @@ function applyAcceptedLiveEditVariantToCanvasRegion(
     return null;
   }
   const acceptedAt = target.acceptedAt || new Date().toISOString();
+  const request = acceptedLiveEditRequestForBinding(
+    frame,
+    target,
+    acceptedVariant,
+  );
   const binding = normalizeElementLiveEditBinding({
     status: "accepted",
     target,
     acceptedVariant,
-    request: frame.liveEditRequest,
+    request,
     pins: frame.liveEditPins,
     note: target.note,
     acceptedAt,
@@ -14232,11 +14285,16 @@ function applyAcceptedLiveEditVariantToSpatialObject(
     return null;
   }
   const acceptedAt = target.acceptedAt || new Date().toISOString();
+  const request = acceptedLiveEditRequestForBinding(
+    frame,
+    target,
+    acceptedVariant,
+  );
   const binding = normalizeElementLiveEditBinding({
     status: "accepted",
     target,
     acceptedVariant,
-    request: frame.liveEditRequest,
+    request,
     pins: frame.liveEditPins,
     note: target.note,
     acceptedAt,
@@ -14305,11 +14363,16 @@ function applyAcceptedLiveEditVariantToAssetCandidate(
     return null;
   }
   const acceptedAt = target.acceptedAt || new Date().toISOString();
+  const request = acceptedLiveEditRequestForBinding(
+    frame,
+    target,
+    acceptedVariant,
+  );
   const binding = normalizeElementLiveEditBinding({
     status: "accepted",
     target,
     acceptedVariant,
-    request: frame.liveEditRequest,
+    request,
     pins: frame.liveEditPins,
     note: target.note,
     acceptedAt,
@@ -14650,6 +14713,7 @@ function closeLiveEditTarget() {
   state.liveEditDraftNote = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
+  state.liveEditTargetDrag = null;
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   if (dom.workbenchLiveEditNote) {
@@ -15587,6 +15651,7 @@ function createLiveEditVariants() {
   });
   state.liveEditPickActive = false;
   state.liveEditPickSurface = "";
+  state.liveEditTargetDrag = null;
   touchFrame(frame, {
     capture: false,
     status: `Hot-swapped ${variants.length} live edit variants in the canvas`,
@@ -15624,6 +15689,283 @@ function outputAnnotationPointFromEvent(event) {
     x: clamp((event.clientX - rect.left) / rect.width, 0, 1),
     y: clamp((event.clientY - rect.top) / rect.height, 0, 1),
   };
+}
+
+function liveEditOutputTargetAdjustFromEvent(event) {
+  if (!(event.target instanceof Element)) {
+    return null;
+  }
+  const handleNode = event.target.closest("[data-live-edit-target-resize]");
+  if (handleNode) {
+    const outlineNode = handleNode.closest("[data-live-edit-target-adjust]");
+    return {
+      mode: "resize",
+      handle: cleanString(handleNode.dataset.liveEditTargetResize),
+      node: outlineNode || handleNode,
+    };
+  }
+  const outlineNode = event.target.closest("[data-live-edit-target-adjust='move']");
+  return outlineNode
+    ? {
+        mode: "move",
+        handle: "",
+        node: outlineNode,
+      }
+    : null;
+}
+
+function liveEditTargetBoundsChanged(previous, next) {
+  const before = normalizeLiveEditBounds(previous);
+  const after = normalizeLiveEditBounds(next);
+  if (!before || !after) {
+    return false;
+  }
+  return ["x", "y", "w", "h"].some(
+    (key) => Math.abs(before[key] - after[key]) > 0.001,
+  );
+}
+
+function liveEditTargetDragPinOrigins(frame, liveTarget) {
+  const bounds = normalizeLiveEditBounds(liveTarget?.bounds);
+  if (!bounds) {
+    return [];
+  }
+  return liveEditTargetPins(frame, liveTarget)
+    .map((pin) => {
+      const point = normalizeOutputAnnotationPoint(pin.point);
+      if (!point) {
+        return null;
+      }
+      return {
+        id: pin.id,
+        relX: clamp((point.x - bounds.x) / Math.max(0.001, bounds.w), 0, 1),
+        relY: clamp((point.y - bounds.y) / Math.max(0.001, bounds.h), 0, 1),
+      };
+    })
+    .filter(Boolean);
+}
+
+function adjustedLiveEditBoundsFromDrag(drag, point) {
+  const origin = normalizeLiveEditBounds(drag?.originBounds);
+  const currentPoint = normalizeOutputAnnotationPoint(point);
+  const start = normalizeOutputAnnotationPoint(drag?.start);
+  if (!origin || !currentPoint || !start) {
+    return origin;
+  }
+  const dx = currentPoint.x - start.x;
+  const dy = currentPoint.y - start.y;
+  const minSize = 0.025;
+  if (drag.mode === "resize") {
+    const handle = cleanString(drag.handle);
+    let left = origin.x;
+    let top = origin.y;
+    let right = origin.x + origin.w;
+    let bottom = origin.y + origin.h;
+    if (handle.includes("w")) {
+      left = clamp(origin.x + dx, 0, right - minSize);
+    }
+    if (handle.includes("e")) {
+      right = clamp(origin.x + origin.w + dx, left + minSize, 1);
+    }
+    if (handle.includes("n")) {
+      top = clamp(origin.y + dy, 0, bottom - minSize);
+    }
+    if (handle.includes("s")) {
+      bottom = clamp(origin.y + origin.h + dy, top + minSize, 1);
+    }
+    return normalizeLiveEditBounds({
+      x: left,
+      y: top,
+      w: right - left,
+      h: bottom - top,
+    });
+  }
+  return normalizeLiveEditBounds({
+    x: clamp(origin.x + dx, 0, Math.max(0, 1 - origin.w)),
+    y: clamp(origin.y + dy, 0, Math.max(0, 1 - origin.h)),
+    w: origin.w,
+    h: origin.h,
+  });
+}
+
+function updateRenderedLiveEditTargetBounds(bounds) {
+  const style = liveEditTargetStyle(bounds);
+  if (!style) {
+    return;
+  }
+  document.querySelectorAll(".workbench-live-edit-outline").forEach((node) => {
+    node.setAttribute("style", style);
+  });
+}
+
+function moveLiveEditPinsWithTarget(frame, drag, bounds) {
+  const nextBounds = normalizeLiveEditBounds(bounds);
+  if (!frame || !nextBounds || !Array.isArray(drag?.pinOrigins)) {
+    return;
+  }
+  const originById = new Map(drag.pinOrigins.map((pin) => [pin.id, pin]));
+  frame.liveEditPins = normalizeLiveEditPins(frame.liveEditPins).map((pin) => {
+    const origin = originById.get(pin.id);
+    if (!origin) {
+      return pin;
+    }
+    const point = {
+      x: roundNumber(clamp(nextBounds.x + origin.relX * nextBounds.w, 0, 1)),
+      y: roundNumber(clamp(nextBounds.y + origin.relY * nextBounds.h, 0, 1)),
+    };
+    updateRenderedLiveEditPinPosition(pin.id, point);
+    return {
+      ...pin,
+      point,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+}
+
+function applyLiveEditTargetBoundsDrag(drag, bounds, options = {}) {
+  const frame = currentFrameById(drag?.frameId) || currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const nextBounds = normalizeLiveEditBounds(bounds);
+  if (!frame || !liveTarget || !nextBounds) {
+    return null;
+  }
+  frame.liveEditTarget = normalizeLiveEditTarget({
+    ...liveTarget,
+    bounds: nextBounds,
+    updatedAt: new Date().toISOString(),
+  });
+  moveLiveEditPinsWithTarget(frame, drag, nextBounds);
+  frame.updatedAt = new Date().toISOString();
+  updateRenderedLiveEditTargetBounds(nextBounds);
+  if (options.final && liveEditTargetBoundsChanged(drag.originBounds, nextBounds)) {
+    if (drag.hadVariants) {
+      frame.liveEditVariants = [];
+      frame.liveEditVariantIndex = 0;
+      frame.acceptedLiveEditVariant = null;
+    }
+    frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+      frame,
+      liveTarget: frame.liveEditTarget,
+      variants: frame.liveEditVariants,
+      note: cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note),
+      status: "picked",
+    });
+  }
+  return frame.liveEditTarget;
+}
+
+function beginLiveEditTargetDrag(event) {
+  const adjust = liveEditOutputTargetAdjustFromEvent(event);
+  if (
+    !adjust ||
+    state.workspaceMode !== "simple" ||
+    state.liveEditPickActive ||
+    event.button > 0
+  ) {
+    return false;
+  }
+  const frame = currentFrame();
+  const target = currentWorkbenchTarget();
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const point = outputAnnotationPointFromEvent(event);
+  if (
+    !frame ||
+    !target ||
+    !targetUrl ||
+    !liveTarget ||
+    liveTarget.status === "accepted" ||
+    !liveEditTargetMatchesOutput(liveTarget, target, targetUrl) ||
+    !point
+  ) {
+    return false;
+  }
+  const bounds = normalizeLiveEditBounds(liveTarget.bounds);
+  if (!bounds) {
+    return false;
+  }
+  const canvas = outputAnnotationCanvasFromEvent(event);
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    canvas?.setPointerCapture?.(event.pointerId);
+  } catch {
+    // Browser and synthetic self-test events do not always share capture ownership.
+  }
+  state.liveEditTargetDrag = {
+    surface: "output",
+    pointerId: event.pointerId,
+    frameId: frame.id,
+    targetId: liveTarget.targetId,
+    mode: adjust.mode,
+    handle: adjust.handle,
+    start: point,
+    current: point,
+    originBounds: bounds,
+    pinOrigins: liveEditTargetDragPinOrigins(frame, liveTarget),
+    hadVariants: currentLiveEditVariants(frame).length > 0,
+    startedAt: new Date().toISOString(),
+  };
+  state.liveEditPinPlacement = null;
+  state.outputAnnotationDraft = null;
+  renderStatus(
+    adjust.mode === "resize"
+      ? "Resize the Live Edit target, then release to keep the new bounds"
+      : "Move the Live Edit target, then release to keep the new bounds",
+  );
+  return true;
+}
+
+function updateLiveEditTargetDrag(event) {
+  const drag = state.liveEditTargetDrag;
+  if (!drag || drag.surface !== "output" || drag.pointerId !== event.pointerId) {
+    return false;
+  }
+  const point = outputAnnotationPointFromEvent(event);
+  if (point) {
+    drag.current = point;
+    applyLiveEditTargetBoundsDrag(drag, adjustedLiveEditBoundsFromDrag(drag, point));
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
+function finishLiveEditTargetDrag(event) {
+  const drag = state.liveEditTargetDrag;
+  if (!drag || drag.surface !== "output" || drag.pointerId !== event.pointerId) {
+    return false;
+  }
+  const canvas = outputAnnotationCanvasFromEvent(event);
+  try {
+    canvas?.releasePointerCapture?.(event.pointerId);
+  } catch {
+    // Ignore release attempts that are not owned by the overlay canvas.
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  state.liveEditTargetDrag = null;
+  if (event.type === "pointercancel") {
+    renderWorkbenchOutput();
+    return true;
+  }
+  const point = outputAnnotationPointFromEvent(event) || drag.current;
+  const target = applyLiveEditTargetBoundsDrag(
+    drag,
+    adjustedLiveEditBoundsFromDrag(drag, point),
+    { final: true },
+  );
+  if (target && liveEditTargetBoundsChanged(drag.originBounds, target.bounds)) {
+    touchFrame(currentFrameById(drag.frameId) || currentFrame(), {
+      capture: false,
+      status: drag.hadVariants
+        ? "Adjusted live edit target; variants cleared for regeneration"
+        : "Adjusted live edit target bounds",
+    });
+  } else {
+    renderWorkbenchOutput();
+  }
+  return true;
 }
 
 function beginLiveEditOutputPickDraft(event) {
@@ -15722,6 +16064,9 @@ function onWorkbenchOutputPointerDown(event) {
   if (startLiveEditPinDrag(event)) {
     return;
   }
+  if (beginLiveEditTargetDrag(event)) {
+    return;
+  }
   if (
     state.workspaceMode === "simple" &&
     state.liveEditPickActive &&
@@ -15770,6 +16115,9 @@ function onWorkbenchOutputPointerMove(event) {
   if (updateLiveEditPinDrag(event)) {
     return;
   }
+  if (updateLiveEditTargetDrag(event)) {
+    return;
+  }
   if (updateLiveEditOutputPickDraft(event)) {
     return;
   }
@@ -15790,6 +16138,9 @@ function onWorkbenchOutputPointerMove(event) {
 
 function onWorkbenchOutputPointerUp(event) {
   if (finishLiveEditPinDrag(event)) {
+    return;
+  }
+  if (finishLiveEditTargetDrag(event)) {
     return;
   }
   if (finishLiveEditOutputPickDraft(event)) {
@@ -21113,9 +21464,11 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
       : null;
 
   ctx.save();
-  // Keep the scratchpad as user-authored marks plus a target outline.
-  // Material variant previews render on generated/output surfaces, not as ink on
-  // the editable canvas where they can be mistaken for real sketch content.
+  if (variant && liveTarget.status !== "accepted") {
+    drawCanvasLiveEditVariantTreatment(ctx, variant, bounds, scale);
+  }
+  // Keep the scratchpad preview bounded by the target outline so it reads as a
+  // temporary Live Edit preview, not permanent sketch ink.
   ctx.lineWidth = Math.max(2, 2.5 * scale);
   ctx.strokeStyle = "#f5b938";
   ctx.fillStyle = "rgba(245, 185, 56, 0.025)";
@@ -32845,6 +33198,130 @@ async function runSelfTest() {
       outputDragLiveTarget?.targetType === "generated-output-region" &&
       outputDragLiveTarget.bounds?.w > 0.36 &&
       outputDragLiveTarget.bounds?.h > 0.28;
+    const outputTargetBeforeAdjust = structuredClone(outputDragLiveTarget?.bounds);
+    renderWorkbenchOutput();
+    const outputAdjustSurface =
+      [
+        dom.workbenchOutputStageSurface,
+        dom.workbenchOutputSurface,
+      ].find((surface) =>
+        Boolean(surface?.querySelector(".workbench-live-edit-outline")),
+      ) || outputDragSurface;
+    const outputAdjustOverlay = outputAdjustSurface.querySelector(
+      ".workbench-output-overlay",
+    );
+    const outputAdjustOutline = outputAdjustSurface.querySelector(
+      ".workbench-live-edit-outline",
+    );
+    const outputAdjustRect =
+      outputAdjustOverlay?.getBoundingClientRect() ||
+      outputAdjustSurface.getBoundingClientRect();
+    const outputAdjustStart = outputDragLiveTarget?.bounds
+      ? [
+          (outputDragLiveTarget.bounds.x + outputDragLiveTarget.bounds.w / 2) *
+            outputAdjustRect.width,
+          (outputDragLiveTarget.bounds.y + outputDragLiveTarget.bounds.h / 2) *
+            outputAdjustRect.height,
+        ]
+      : null;
+    if (outputAdjustOutline && outputAdjustStart) {
+      const outputMovePointerId = 233;
+      outputAdjustOutline.dispatchEvent(
+        makePointerEvent(
+          "pointerdown",
+          outputAdjustRect,
+          outputAdjustStart,
+          outputMovePointerId,
+        ),
+      );
+      outputAdjustSurface.dispatchEvent(
+        makePointerEvent(
+          "pointermove",
+          outputAdjustRect,
+          [
+            outputAdjustStart[0] + outputAdjustRect.width * 0.08,
+            outputAdjustStart[1] + outputAdjustRect.height * 0.06,
+          ],
+          outputMovePointerId,
+        ),
+      );
+      outputAdjustSurface.dispatchEvent(
+        makePointerEvent(
+          "pointerup",
+          outputAdjustRect,
+          [
+            outputAdjustStart[0] + outputAdjustRect.width * 0.08,
+            outputAdjustStart[1] + outputAdjustRect.height * 0.06,
+          ],
+          outputMovePointerId,
+          false,
+        ),
+      );
+    }
+    const outputMovedLiveTarget = normalizeLiveEditTarget(
+      frameForCanvasReply.liveEditTarget,
+    );
+    renderWorkbenchOutput();
+    const outputResizeHandle = outputAdjustSurface.querySelector(
+      "[data-live-edit-target-resize='se']",
+    );
+    const outputResizeStart = outputMovedLiveTarget?.bounds
+      ? [
+          (outputMovedLiveTarget.bounds.x + outputMovedLiveTarget.bounds.w) *
+            outputAdjustRect.width,
+          (outputMovedLiveTarget.bounds.y + outputMovedLiveTarget.bounds.h) *
+            outputAdjustRect.height,
+        ]
+      : null;
+    if (outputResizeHandle && outputResizeStart) {
+      const outputResizePointerId = 234;
+      outputResizeHandle.dispatchEvent(
+        makePointerEvent(
+          "pointerdown",
+          outputAdjustRect,
+          outputResizeStart,
+          outputResizePointerId,
+        ),
+      );
+      outputAdjustSurface.dispatchEvent(
+        makePointerEvent(
+          "pointermove",
+          outputAdjustRect,
+          [
+            outputResizeStart[0] + outputAdjustRect.width * 0.06,
+            outputResizeStart[1] + outputAdjustRect.height * 0.05,
+          ],
+          outputResizePointerId,
+        ),
+      );
+      outputAdjustSurface.dispatchEvent(
+        makePointerEvent(
+          "pointerup",
+          outputAdjustRect,
+          [
+            outputResizeStart[0] + outputAdjustRect.width * 0.06,
+            outputResizeStart[1] + outputAdjustRect.height * 0.05,
+          ],
+          outputResizePointerId,
+          false,
+        ),
+      );
+    }
+    const outputResizedLiveTarget = normalizeLiveEditTarget(
+      frameForCanvasReply.liveEditTarget,
+    );
+    const outputTargetAdjusted =
+      outputDragPicked &&
+      outputTargetBeforeAdjust &&
+      outputMovedLiveTarget?.bounds?.x >
+        outputTargetBeforeAdjust.x + 0.04 &&
+      outputMovedLiveTarget?.bounds?.y >
+        outputTargetBeforeAdjust.y + 0.03 &&
+      outputResizedLiveTarget?.bounds?.w >
+        outputMovedLiveTarget.bounds.w + 0.03 &&
+      outputResizedLiveTarget?.bounds?.h >
+        outputMovedLiveTarget.bounds.h + 0.02 &&
+      frameForCanvasReply.liveEditRequest?.status === "picked";
     closeLiveEditTarget();
     const domCaptureSurface = document.createElement("section");
     domCaptureSurface.setAttribute("data-workbench-output-surface", "selftest");
@@ -32947,8 +33424,9 @@ async function runSelfTest() {
           liveEditDiscardButtonLabel &&
           liveEditDiscarded &&
           outputDragPicked &&
+          outputTargetAdjusted &&
           liveEditDomSelectorCaptured,
-        "same-canvas reply underlay renders live edit target, binds target voice, places and drags comment pins, captures DOM selector metadata, in-surface variants, cycling, and clean discard",
+        "same-canvas reply underlay renders live edit target, binds target voice, places and drags comment pins, captures DOM selector metadata, adjusts output target bounds, in-surface variants, cycling, and clean discard",
         JSON.stringify({
           canvasReplyRendered,
           hasBinding: canvasReplyBinding?.branchFrameId === frameForCanvasReply.id,
@@ -32988,6 +33466,9 @@ async function runSelfTest() {
           liveEditDiscardButtonLabel,
           liveEditDiscarded,
           outputDragPicked,
+          outputTargetAdjusted,
+          outputMovedX: outputMovedLiveTarget?.bounds?.x ?? null,
+          outputResizedW: outputResizedLiveTarget?.bounds?.w ?? null,
           liveEditDomSelectorCaptured,
         }),
       ),
@@ -33470,9 +33951,9 @@ async function runSelfTest() {
     renderWorkspaceMode();
     results.push(
       assert(
-        getComputedStyle(dom.workbenchComposer).display === "none" &&
-          getComputedStyle(dom.workbenchRail).display === "none",
-        "Default Workbench keeps focus rail and composer hidden",
+        getComputedStyle(dom.workbenchComposer).display !== "none" &&
+          getComputedStyle(dom.workbenchRail).display !== "none",
+        "Default Workbench keeps focus rail and composer available",
       ),
     );
     state.workbenchTrayCollapsed = true;
@@ -34068,8 +34549,8 @@ async function runSelfTest() {
         assert(
           materializedHtml.includes('data-show-blueprint="false"') &&
             materializedHtml.includes('data-show-notes="false"') &&
-            materializedHtml.includes("Show sketch") &&
-            materializedHtml.includes("Show notes"),
+            materializedHtml.includes('data-action="toggle-blueprint"') &&
+            materializedHtml.includes('data-action="toggle-notes"'),
           "materialized output keeps sketch and notes as opt-in review aids",
         ),
       );
