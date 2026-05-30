@@ -661,15 +661,15 @@
                                     >Pick a target</strong
                                 >
                                 <span id="workbench-live-edit-detail"
-                                    >Click the generated output to bind the next
-                                    rewrite to a region.</span
+                                    >Click the generated output to make the next
+                                    change affect that exact area.</span
                                 >
                                 <div class="workbench-live-edit-chips">
                                     <button
                                         id="workbench-live-edit-pick"
                                         class="workbench-live-edit-pick-chip"
                                         type="button"
-                                        title="Pick or retarget the artifact region for Live Edit"
+                                        title="Pick or change the artifact region for Live Edit"
                                     >
                                         Pick
                                     </button>
@@ -1145,21 +1145,26 @@
                                 aria-label="Live Edit surface"
                                 hidden
                             >
+                                <span
+                                    class="workbench-live-surface-label"
+                                    aria-hidden="true"
+                                    >Pick on</span
+                                >
                                 <button
                                     class="segment"
                                     data-live-edit-surface="canvas"
                                     aria-pressed="false"
-                                    title="Pick or mark the scratch pad canvas"
+                                    title="Pick or mark the sketch pad"
                                 >
-                                    Scratch
+                                    Sketch pad
                                 </button>
                                 <button
                                     class="segment"
                                     data-live-edit-surface="output"
                                     aria-pressed="false"
-                                    title="Pick or mark the generated output canvas"
+                                    title="Pick or mark the generated output"
                                 >
-                                    Output
+                                    Generated output
                                 </button>
                             </div>
                             <div
@@ -1304,8 +1309,8 @@
                                 id="device-shell"
                                 class="device-shell"
                                 data-edit-surface="scratchpad"
-                                data-surface-label="Scratch pad"
-                                aria-label="Scratch pad canvas surface"
+                                data-surface-label="Sketch pad"
+                                aria-label="Sketch pad canvas surface"
                             >
                                 <div
                                     id="brush-preview"
@@ -1350,8 +1355,8 @@
                                 <canvas
                                     id="board-canvas"
                                     data-edit-surface="scratchpad"
-                                    data-surface-label="Scratch pad"
-                                    aria-label="Scratch pad canvas"
+                                    data-surface-label="Sketch pad"
+                                    aria-label="Sketch pad canvas"
                                 ></canvas>
                             </div>
                             <div
@@ -2702,6 +2707,7 @@
                     <div class="help-status-grid" aria-label="Current Canvax state">
                         <span><strong>Mode</strong><b id="help-current-mode">Workbench</b></span>
                         <span><strong>Frame</strong><b id="help-current-frame">Frame 1</b></span>
+                        <span><strong>Surface</strong><b id="help-current-surface">Sketch</b></span>
                         <span><strong>Output</strong><b id="help-current-output">Not generated</b></span>
                         <span><strong>Live Edit</strong><b id="help-current-live-edit">No target</b></span>
                     </div>
@@ -2732,7 +2738,7 @@
                     <section class="help-card">
                         <h3>Surfaces</h3>
                         <ul class="help-list">
-                            <li><strong>Sketch</strong> is your scratchpad. Draw, paste images, place notes, and rough out ideas here.</li>
+                            <li><strong>Sketch</strong> is the sketch pad. Draw, paste images, place notes, and rough out ideas here.</li>
                             <li><strong>Split</strong> shows sketch and generated output together for comparison.</li>
                             <li><strong>Output</strong> focuses the generated result so you can mark corrections directly on it.</li>
                             <li><strong>Map</strong> is the project table: frames, references, generated outputs, files, and checkpoints.</li>
@@ -2743,8 +2749,27 @@
                         <ul class="help-list">
                             <li><strong>Pick target</strong> means click or drag the exact thing you want changed.</li>
                             <li><strong>Change target</strong> clears the old selection and lets you pick a better one.</li>
-                            <li><strong>Scratch / Output</strong> only appears while picking. It chooses where the next pick happens.</li>
+                            <li><strong>Sketch pad / Generated output</strong> only appears while picking. It chooses which visible surface receives the next pick.</li>
                             <li><strong>Go</strong> creates variants for the selected target. <strong>Accept</strong> keeps the chosen one. <strong>Discard</strong> removes it.</li>
+                        </ul>
+                    </section>
+                    <section class="help-card">
+                        <h3>Live Edit Actions</h3>
+                        <ul class="help-list">
+                            <li><strong>Freeform</strong> follows your note as written.</li>
+                            <li><strong>Layout</strong> changes placement, spacing, and structure.</li>
+                            <li><strong>Typeset</strong> improves hierarchy, copy rhythm, and readability.</li>
+                            <li><strong>Colorize</strong> changes palette and contrast.</li>
+                            <li><strong>Clarify</strong>, <strong>Bolder</strong>, <strong>Quieter</strong>, and <strong>Animate</strong> steer the mood of the variants.</li>
+                        </ul>
+                    </section>
+                    <section class="help-card">
+                        <h3>Picked Target</h3>
+                        <ul class="help-list">
+                            <li>The yellow outline is only the selected area for Live Edit. It is not a new design element.</li>
+                            <li>Use <strong>Discard</strong> or press <strong>Escape</strong> to remove the target and temporary variants.</li>
+                            <li>If a yellow mark was drawn with the pen or marker, use <strong>Undo</strong>, <strong>Erase</strong>, or <strong>Clear marks</strong>.</li>
+                            <li><strong>Accept</strong> keeps the chosen version with the current screen and saves it for Codex.</li>
                         </ul>
                     </section>
                     <section class="help-card">
@@ -2762,7 +2787,7 @@
                         <ul class="help-list">
                             <li>Scroll inside the sketch, output, or map surface to move around large work.</li>
                             <li>Use <strong>Cmd/Ctrl + wheel</strong> over the surface you want to zoom.</li>
-                            <li>The zoom buttons follow the surface you last touched in Split mode.</li>
+                            <li>The zoom label says <strong>Sketch</strong> or <strong>Output</strong> so you know which surface the buttons affect.</li>
                             <li><strong>Reset</strong> returns the active surface to 100%.</li>
                         </ul>
                     </section>

@@ -2196,7 +2196,11 @@ body:not([data-workspace-mode="simple"]) .designer-focus-toggle {
     cursor: pointer;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: all 0.2s var(--ease-out);
+    transition:
+        background-color 140ms ease,
+        color 140ms ease,
+        box-shadow 140ms ease,
+        transform 120ms ease;
 }
 
 .segment:hover {
@@ -2229,8 +2233,9 @@ body[data-workspace-mode="simple"] .workbench-focus-control {
 }
 
 body[data-workspace-mode="simple"] .workbench-live-surface-control {
-    flex: 0 1 17rem;
-    max-width: min(17rem, 100%);
+    flex: 0 1 28rem;
+    grid-template-columns: auto minmax(6.25rem, 0.9fr) minmax(8.75rem, 1.2fr);
+    max-width: min(28rem, 100%);
 }
 
 .workbench-live-surface-control[hidden],
@@ -2246,6 +2251,21 @@ body[data-workspace-mode="advanced"] .workbench-live-surface-control {
     font-weight: 800;
 }
 
+.workbench-live-surface-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.25rem;
+    padding-inline: 0.65rem 0.35rem;
+    color: rgba(255, 255, 255, 0.58);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
 .workbench-live-surface-control .segment.active {
     color: #1a1714;
     background: #f5b938;
@@ -2255,6 +2275,20 @@ body[data-workspace-mode="advanced"] .workbench-live-surface-control {
 .workbench-live-surface-control .segment:disabled {
     cursor: not-allowed;
     opacity: 0.46;
+}
+
+@media (max-width: 42rem) {
+    body[data-workspace-mode="simple"] .workbench-live-surface-control {
+        grid-template-columns: 1fr 1fr;
+        flex-basis: 100%;
+    }
+
+    .workbench-live-surface-label {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+        min-height: 1.35rem;
+        padding: 0.1rem 0.7rem 0;
+    }
 }
 
 body[data-workspace-mode="simple"]
@@ -3120,6 +3154,8 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     position: absolute;
     left: 0.5rem;
     top: -0.8rem;
+    max-width: min(18rem, calc(100vw - 2rem));
+    overflow: hidden;
     padding: 0.22rem 0.48rem;
     border-radius: 999px;
     color: #18110e;
@@ -3129,6 +3165,7 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     font-weight: 900;
     letter-spacing: 0.05em;
     text-transform: uppercase;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
@@ -4982,7 +5019,7 @@ input.color-hex-input[data-invalid="true"] {
 }
 
 .zoom-value {
-    min-width: 3.8rem;
+    min-width: 5.4rem;
     text-align: center;
     font-family: var(--font-mono);
     font-size: 0.8rem;
@@ -7785,8 +7822,15 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
 .help-status-grid,
 .help-workflow {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.6rem;
+}
+
+.help-status-grid {
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+
+.help-workflow {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .help-status-grid span,
@@ -9807,7 +9851,7 @@ body[data-workspace-mode="simple"][data-workbench-focus="output"]
 body[data-workspace-mode="simple"] .stage-actions .zoom-controls[data-view-scope="frame"] {
     display: inline-flex !important;
     flex: 0 0 auto;
-    min-width: 10.25rem;
+    min-width: 12.25rem;
     border-color: rgba(255, 255, 255, 0.14);
     background: rgba(255, 255, 255, 0.08);
     color: var(--ink-on-dark);

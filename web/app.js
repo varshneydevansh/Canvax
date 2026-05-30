@@ -91,7 +91,7 @@ const workspaceModes = [
   {
     id: "advanced",
     label: "Advanced",
-    description: "Same sketch canvas with frame, flow, handoff, and debug tools open.",
+    description: "Same sketch pad with frame, flow, handoff, and debug tools open.",
     guide: [
       ["Project rail", "Frames, captures, and workspace actions."],
       ["Canvas deck", "Frame tools, Flow map, Map objects, and generated output cards."],
@@ -104,7 +104,7 @@ const workbenchFocusModes = [
   {
     id: "sketch",
     label: "Sketch",
-    description: "Use the sketch canvas as the primary surface.",
+    description: "Use the sketch pad as the primary surface.",
   },
   {
     id: "split",
@@ -855,6 +855,7 @@ const dom = {
   helpClose: document.querySelector("#help-close"),
   helpCurrentMode: document.querySelector("#help-current-mode"),
   helpCurrentFrame: document.querySelector("#help-current-frame"),
+  helpCurrentSurface: document.querySelector("#help-current-surface"),
   helpCurrentOutput: document.querySelector("#help-current-output"),
   helpCurrentLiveEdit: document.querySelector("#help-current-live-edit"),
   helpCheckSketch: document.querySelector("#help-check-sketch"),
@@ -5130,7 +5131,7 @@ function renderWorkspaceMode() {
     : "Hide brief";
   dom.workbenchTrayToggle.title = state.workbenchTrayCollapsed
     ? "Show project, surface, action, and quick-start controls"
-    : "Hide the brief and return to the canvas-first scratchpad";
+    : "Hide the brief and return to the canvas-first sketch pad";
   dom.workbenchTrayToggle.setAttribute(
     "aria-pressed",
     String(state.workbenchTrayCollapsed),
@@ -5856,6 +5857,11 @@ function setWorkbenchFocus(focusMode) {
     ? focusMode
     : "sketch";
   state.workbenchFocus = nextFocus;
+  if (nextFocus === "output") {
+    state.activeZoomSurface = "output";
+  } else if (nextFocus === "sketch") {
+    state.activeZoomSurface = "canvas";
+  }
   state.viewMode = nextFocus === "map" ? "flow" : "frame";
   persistState();
   renderWorkspaceMode();
@@ -10651,27 +10657,22 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
             ? liveOutcome.label
             : `${annotationCount} correction mark${annotationCount === 1 ? "" : "s"}`
       : "";
+  if (surface.className !== nextClassName) {
+    surface.className = nextClassName;
+  }
   const nextSignature = JSON.stringify([
     compact,
     framedUrl,
     target.id || "",
     target.versionTag || "",
-    annotationCount,
-    state.liveEditPickActive,
-    pickDraftStyle,
     showLiveTarget ? liveTargetStyle : "",
     livePins.map((pin) => [pin.id, pin.point?.x, pin.point?.y, pin.text]),
     liveVariant?.id || "",
     liveVariant?.role || "",
     liveOutcome?.label || "",
-    outputHint,
   ]);
-  if (
-    surface.dataset.renderSignature !== nextSignature ||
-    surface.className !== nextClassName
-  ) {
+  if (surface.dataset.renderSignature !== nextSignature) {
     surface.dataset.renderSignature = nextSignature;
-    surface.className = nextClassName;
     surface.innerHTML = `
     <div class="workbench-output-zoom-plane">
       <div class="workbench-output-zoom-content">
@@ -10686,7 +10687,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
         ></canvas>
         ${
           showLiveTarget
-            ? `<span class="workbench-live-edit-outline" data-live-edit-outcome-tone="${escapeHtml(liveOutcome?.tone || "")}" style="${liveTargetStyle}"><span class="workbench-live-edit-outline-label">${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Picked target")}</span></span>`
+            ? `<span class="workbench-live-edit-outline" data-live-edit-outcome-tone="${escapeHtml(liveOutcome?.tone || "")}" style="${liveTargetStyle}" title="${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Use Discard below or Escape to remove this picked target.")}"><span class="workbench-live-edit-outline-label">${escapeHtml(liveEditTargetOutlineLabel(liveTarget))}</span></span>`
             : ""
         }
         ${
@@ -10706,14 +10707,13 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
             ? `<span class="workbench-live-edit-outcome" data-tone="${escapeHtml(liveOutcome.tone)}"><strong>${escapeHtml(liveOutcome.label)}</strong><small>${escapeHtml(liveOutcome.detail)}</small></span>`
             : ""
         }
-        ${
-          outputHint
-            ? `<span class="workbench-output-draw-hint">${escapeHtml(outputHint)}</span>`
-            : ""
-        }
       </div>
     </div>
   `;
+  }
+  syncWorkbenchOutputHint(surface, outputHint);
+  if (pickDraftStyle) {
+    renderLiveEditPickDraftOverlays();
   }
   const baseMeta =
     freshness ||
@@ -10723,7 +10723,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
   metaNode.textContent = annotationCount
     ? `${baseMeta} ${annotationCount} correction mark(s) are attached to this output.`
     : liveVariant
-      ? `${baseMeta} Variant ${currentLiveEditVariantIndex(frame) + 1}/${currentLiveEditVariants(frame).length} is hot-swapped in this surface. Cycle variants, Accept to bind it, or Close/Escape to restore the original.`
+      ? `${baseMeta} Variant ${currentLiveEditVariantIndex(frame) + 1}/${currentLiveEditVariants(frame).length} is previewing in place. Cycle variants, Accept to keep it, or Discard/Escape to restore the original.`
     : showLiveTarget
       ? placingLivePin
         ? `${baseMeta} Click inside the selected target to place the comment pin; existing pins can be dragged.`
@@ -10731,6 +10731,32 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
           ? `${baseMeta} ${liveOutcome.detail}`
         : `${baseMeta} Live edit target is bound to the next rewrite. Sketch, speak, place pins, or create variants from that region.`
       : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
+}
+
+function liveEditTargetOutlineLabel(liveTarget) {
+  return normalizeLiveEditTarget(liveTarget)?.status === "accepted"
+    ? "Accepted target"
+    : "Picked - Discard below";
+}
+
+function syncWorkbenchOutputHint(surface, outputHint) {
+  if (!surface) {
+    return;
+  }
+  const host = surface.querySelector(".workbench-output-zoom-content") || surface;
+  let hint = host.querySelector(".workbench-output-draw-hint");
+  if (!outputHint) {
+    hint?.remove();
+    return;
+  }
+  if (!hint) {
+    hint = document.createElement("span");
+    hint.className = "workbench-output-draw-hint";
+    host.append(hint);
+  }
+  if (hint.textContent !== outputHint) {
+    hint.textContent = outputHint;
+  }
 }
 
 function renderLiveEditPickDraftOverlays() {
@@ -11054,8 +11080,8 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
       : "Pick target";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
     ? activeEditSurface === "canvas"
-      ? "Pick a target on the canvas"
-      : "Pick a target in the output"
+      ? "Pick a target on the sketch pad"
+      : "Pick a target in the generated output"
     : selectedVariant
       ? `${selectedVariant.label}: ${label}`
       : liveTarget
@@ -11069,10 +11095,10 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     : placingLivePin
       ? "Click inside the outlined target to place this comment pin. Drag pins to refine the exact point."
     : liveTarget
-      ? `Target selected on ${liveEditTargetSurfaceChoice(liveTarget, target) || "this surface"}. Mark it, add a comment, talk, then Go for variants.`
+      ? `Target selected on ${designerLiveEditSurfaceLabel(liveEditTargetSurfaceChoice(liveTarget, target))}. Mark it, add a comment, talk, then Go for variants.`
       : hasOutput
-        ? "Pick the output or scratch canvas, then mark, comment, talk, generate variants, and accept in place."
-        : "Pick a scratchpad object, image, or drawn region, then mark, comment, talk, generate variants, and accept in place.";
+        ? "Pick the generated output or sketch pad, then mark, comment, talk, generate variants, and accept in place."
+        : "Pick a sketch object, image, or drawn area, then mark, comment, talk, generate variants, and accept in place.";
   dom.workbenchLiveEditDetail.textContent = detail;
   dom.workbenchLiveEditAction.textContent = actionIntent.label;
   dom.workbenchLiveEditAction.title = actionIntent.description;
@@ -11138,7 +11164,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
       variants.length,
   );
   dom.workbenchLiveEditClose.textContent = hasDiscardableLiveEdit
-    ? "Discard"
+    ? "Discard target"
     : "Close";
   dom.workbenchLiveEditClose.title = hasDiscardableLiveEdit
     ? "Discard the temporary pick or variants and restore the original target"
@@ -11315,6 +11341,16 @@ function liveEditTargetSurfaceChoice(
   return "";
 }
 
+function designerLiveEditSurfaceLabel(surface) {
+  if (surface === "output") {
+    return "generated output";
+  }
+  if (surface === "map") {
+    return "map";
+  }
+  return "sketch pad";
+}
+
 function currentLiveEditSurfaceChoice({ frame, target, liveTarget } = {}) {
   const resolvedFrame = frame || currentFrame();
   const resolvedTarget = target || currentWorkbenchTarget();
@@ -11344,7 +11380,7 @@ function startLiveEditSurfacePick(surfaceId) {
   const target = currentWorkbenchTarget();
   const targetUrl = resolveWorkbenchTargetUrl(target);
   if (preferredSurface === "output" && !targetUrl) {
-    renderStatus("Make or attach an output before picking the output canvas");
+    renderStatus("Make or attach an output before picking generated output");
     renderLiveEditControls({
       frame: currentFrame(),
       target,
@@ -11352,6 +11388,7 @@ function startLiveEditSurfacePick(surfaceId) {
     });
     return false;
   }
+  state.activeZoomSurface = preferredSurface === "output" ? "output" : "canvas";
   setLiveEditPickMode(true, { preferredSurface });
   return true;
 }
@@ -11419,9 +11456,9 @@ function renderLiveEditSurfaceButtons({
       button.title =
         surface === "output"
           ? hasOutput
-            ? "Pick or mark the generated output canvas"
-            : "Make or attach an output before picking this canvas"
-          : "Pick or mark the scratch pad canvas";
+            ? "Pick or mark the generated output"
+            : "Make or attach an output before picking generated output"
+          : "Pick or mark the sketch pad";
     });
 
   const canvasState = liveEditSurfaceState("canvas", {
@@ -11604,12 +11641,7 @@ function createLiveEditTargetFromCanvasElement(element, frame = currentFrame()) 
     sourceFrameId: frame.id,
     sourceFrameTitle: frame.title,
     targetId: element.id || "",
-    targetLabel:
-      element.type === "label"
-        ? `Label: ${compactDisplayText(element.text || element.id, 42)}`
-        : element.type === "image"
-          ? `Image region: ${compactDisplayText(element.sourceName || element.id, 42)}`
-          : `${element.type || "Canvas object"} ${element.id || ""}`.trim(),
+    targetLabel: canvasElementLiveEditLabel(element),
     targetType,
     targetSource: "canvax-canvas",
     surface: targetType,
@@ -11619,6 +11651,31 @@ function createLiveEditTargetFromCanvasElement(element, frame = currentFrame()) 
     pickedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
+}
+
+function canvasElementLiveEditLabel(element) {
+  const type = cleanString(element?.type);
+  const name =
+    type === "label"
+      ? compactDisplayText(element.text || element.id || "text", 42)
+      : type === "image"
+        ? compactDisplayText(element.sourceName || element.id || "image", 42)
+        : "";
+  if (type === "label") {
+    return `Text: ${name}`;
+  }
+  if (type === "image") {
+    return `Image: ${name}`;
+  }
+  const labels = {
+    arrow: "Arrow",
+    ellipse: "Circle or oval",
+    line: "Line",
+    marker: "Marker stroke",
+    path: "Sketch stroke",
+    rect: "Rectangle",
+  };
+  return labels[type] || "Sketch object";
 }
 
 function createLiveEditTargetFromCanvasRegion(point, frame = currentFrame()) {
@@ -11640,7 +11697,7 @@ function createLiveEditTargetFromCanvasRegionBounds(
     sourceFrameId: frame.id,
     sourceFrameTitle: frame.title,
     targetId: uid(`canvas-region-${frame.id}`),
-    targetLabel: `Canvas region: ${compactDisplayText(frame.title || frame.id, 42)}`,
+    targetLabel: `Sketch area: ${compactDisplayText(frame.title || frame.id, 42)}`,
     targetType: "canvas-region",
     targetSource: "canvax-canvas",
     surface: "canvas-region",
@@ -12167,7 +12224,7 @@ function createLiveEditTargetFromOutputBounds(
     sourceFrameTitle: frame.title,
     targetId: cleanString(target.id) || uid(`output-region-${frame.id}`),
     targetObjectId: cleanString(target.id),
-    targetLabel: `Selected output region: ${compactDisplayText(
+    targetLabel: `Generated output area: ${compactDisplayText(
       designerOutputTargetLabelFromItem(target, frame.title),
       48,
     )}`,
@@ -12583,8 +12640,8 @@ function setLiveEditPickMode(active, options = {}) {
     state.viewMode = "frame";
     renderStatus(
       pickCanvas
-        ? "Pick a scratchpad object, image region, or blank canvas region for Live Edit"
-        : "Pick a region inside the output canvas",
+        ? "Pick a sketch object, image region, or blank sketch area for Live Edit"
+        : "Pick a region inside the generated output",
     );
   } else {
     renderStatus("Live edit picker closed");
@@ -15637,7 +15694,10 @@ function renderZoom() {
     "--canvax-output-zoom",
     String(state.outputZoom || 1),
   );
-  dom.zoomValue.textContent = `${Math.round(activeZoom.value * 100)}%`;
+  dom.zoomValue.textContent =
+    state.workspaceMode === "simple"
+      ? `${activeZoom.target === "output" ? "Output" : "Sketch"} ${Math.round(activeZoom.value * 100)}%`
+      : `${Math.round(activeZoom.value * 100)}%`;
   dom.zoomOut.disabled = activeZoom.value <= activeZoom.min;
   dom.zoomIn.disabled = activeZoom.value >= activeZoom.max;
   dom.flowZoomValue.textContent = `${Math.round(state.flowZoom * 100)}%`;
@@ -18943,7 +19003,7 @@ function renderMapSelectionActions() {
   dom.mapLivePick.disabled = !canLivePick;
   dom.mapLivePick.classList.toggle("active", Boolean(activeMapLiveTarget));
   dom.mapLivePick.setAttribute("aria-pressed", String(Boolean(activeMapLiveTarget)));
-  dom.mapLivePick.textContent = activeMapLiveTarget ? "Retarget" : "Live Edit";
+  dom.mapLivePick.textContent = activeMapLiveTarget ? "Change target" : "Live Edit";
   dom.mapPinObject.disabled = !hasSelection;
   dom.mapPinObject.textContent =
     hasSelection && selectedObjects.every(isSpatialObjectPinned) ? "Unpin" : "Pin";
@@ -20707,10 +20767,10 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   const pins = liveEditTargetPins(frame, liveTarget);
   const label =
     liveTarget.status === "accepted"
-      ? "Accepted target"
+      ? liveEditTargetOutlineLabel(liveTarget)
       : variant?.label
         ? `${variant.label} target`
-        : "Picked target";
+        : liveEditTargetOutlineLabel(liveTarget);
   const outcome =
     liveTarget.status === "accepted"
       ? describeLiveEditWritebackOutcome(
@@ -24007,6 +24067,19 @@ function renderHelpOverlayState() {
   }
   if (dom.helpCurrentFrame) {
     dom.helpCurrentFrame.textContent = frame?.title || "Frame";
+  }
+  if (dom.helpCurrentSurface) {
+    const surfaceLabel =
+      state.workbenchFocus === "map"
+        ? "Map"
+        : state.workbenchFocus === "output"
+          ? "Output"
+          : state.workbenchFocus === "split"
+            ? activeFrameZoomState().target === "output"
+              ? "Split: output"
+              : "Split: sketch"
+            : "Sketch";
+    dom.helpCurrentSurface.textContent = surfaceLabel;
   }
   if (dom.helpCurrentOutput) {
     dom.helpCurrentOutput.textContent = hasOutput
@@ -32025,6 +32098,11 @@ async function runSelfTest() {
         ?.querySelector("[data-live-edit-surface='output']")
         ?.classList.contains("active") &&
       dom.workbenchOutputStage?.dataset.liveEditSurfaceState === "picking";
+    const liveSurfacePickerExplained =
+      !dom.workbenchLiveSurfaceButtons.hidden &&
+      dom.workbenchLiveSurfaceButtons.textContent.includes("Pick on") &&
+      dom.workbenchLiveSurfaceButtons.textContent.includes("Sketch pad") &&
+      dom.workbenchLiveSurfaceButtons.textContent.includes("Generated output");
     setLiveEditPickMode(false);
     state.workbenchFocus = "sketch";
     setLiveEditPickMode(true);
@@ -32448,6 +32526,7 @@ async function runSelfTest() {
           outputPickStaysOnOutput &&
           outputPickFocusSelected &&
           outputSurfacePickHighlighted &&
+          liveSurfacePickerExplained &&
           canvasSurfaceTargetHighlighted &&
           liveEditVariantsHotSwap &&
           liveEditDiscardButtonLabel &&
@@ -32466,6 +32545,7 @@ async function runSelfTest() {
           outputPickStaysOnOutput,
           outputPickFocusSelected,
           outputSurfacePickHighlighted,
+          liveSurfacePickerExplained,
           canvasSurfaceTargetHighlighted,
           sameCanvasLiveEditPicked,
           sameCanvasLiveEditDrawModeArmed,
@@ -35062,6 +35142,9 @@ async function assertWorkbenchSpatialMap() {
       "Make this picked Map object clearer without moving the surrounding board";
   }
   const mapLiveEditStarted = startLiveEditFromSelectedSpatialObject();
+  const mapLivePickButtonExplained =
+    dom.mapLivePick.textContent.includes("Change target") &&
+    !dom.mapLivePick.textContent.includes("Retarget");
   const mapLiveFrame = currentFrame();
   const mapLiveTarget = normalizeLiveEditTarget(mapLiveFrame.liveEditTarget);
   const mapLiveBounds = normalizeLiveEditBounds(mapLiveTarget?.bounds);
@@ -35143,6 +35226,7 @@ async function assertWorkbenchSpatialMap() {
   const mapLiveEditBound =
     mapLivePickButtonRendered &&
     mapLiveEditStarted &&
+    mapLivePickButtonExplained &&
     mapLiveTarget?.targetType === "spatial-map-object" &&
     mapLiveTarget?.targetSource === "canvax-map" &&
     mapLiveTarget?.targetSelector?.includes("spatial-selftest-asset") &&
@@ -35212,6 +35296,7 @@ async function assertWorkbenchSpatialMap() {
     mapTextPasteWorks,
     mapLivePickButtonRendered,
     mapLiveEditStarted,
+    mapLivePickButtonExplained,
     mapLiveOutlined,
     mapLivePinRendered,
     mapLiveStrokeRendered,
