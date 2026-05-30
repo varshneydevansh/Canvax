@@ -227,6 +227,14 @@
                         >
                             Show brief
                         </button>
+                        <button
+                            id="workbench-help-button"
+                            class="ghost-button designer-help-toggle"
+                            type="button"
+                            title="Open the Canvax designer guide"
+                        >
+                            Help
+                        </button>
                     </div>
                     <div
                         id="workspace-mode-guide"
@@ -563,7 +571,7 @@
                             <button
                                 id="focus-live-pick"
                                 class="ghost-button live-edit-command"
-                                title="Pick a region inside the connected output, then sketch or speak the rewrite for that exact target"
+                                title="Enter Live Edit target picking. Choose a sketch or output region, then mark, speak, generate variants, accept, or discard."
                             >
                                 Live Edit
                             </button>
@@ -784,6 +792,7 @@
                                 class="ghost-button compact live-edit-command"
                                 type="button"
                                 hidden
+                                title="Enter Live Edit target picking for this generated output"
                             >
                                 Live Edit
                             </button>
@@ -922,7 +931,7 @@
                         id="workbench-composer-pick"
                         class="composer-button live-edit-command"
                         type="button"
-                        title="Pick a generated-output region for the next rewrite"
+                        title="Enter or change Live Edit target picking. This switches to Select so drawing tools do not stay armed."
                     >
                         Live Edit
                     </button>
@@ -2747,8 +2756,10 @@
                     <section class="help-card">
                         <h3>Live Edit</h3>
                         <ul class="help-list">
+                            <li><strong>Live Edit button</strong> opens target picking. It is the entry point, not the editing area itself.</li>
+                            <li><strong>Amber Live Edit dock</strong> is the active target editor. Amber means the pick is temporary until you Accept or Discard.</li>
                             <li><strong>Pick target</strong> means click or drag the exact thing you want changed.</li>
-                            <li><strong>Change target</strong> clears the old selection and lets you pick a better one.</li>
+                            <li><strong>Change target</strong> switches to Select and lets you pick or drag a better region.</li>
                             <li><strong>Sketch pad / Generated output</strong> only appears while picking. It chooses which visible surface receives the next pick.</li>
                             <li><strong>Go</strong> creates variants for the selected target. Use the small controller on the outlined output to cycle, accept, or discard without leaving the canvas.</li>
                             <li><strong>Accept</strong> keeps the chosen one. <strong>Discard</strong> removes the temporary target and restores the original.</li>

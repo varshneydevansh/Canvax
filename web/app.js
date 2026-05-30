@@ -53,6 +53,9 @@ const SELECTION_HANDLE_SIZE = 14;
 const PREVIEW_WINDOW_NAME = "canvax-preview-window";
 const urlParams = new URLSearchParams(window.location.search);
 const shouldRunSelfTest = urlParams.get("selftest") === "1";
+const shouldOpenHelpOverlay = ["1", "true", "open"].includes(
+  cleanString(urlParams.get("help")).toLowerCase(),
+);
 const visualFixtureMode = cleanString(urlParams.get("visualfixture"));
 const hostSurfaceMode = normalizeHostSurfaceMode(
   urlParams.get("host") || urlParams.get("surface") || urlParams.get("embed"),
@@ -526,6 +529,7 @@ const dom = {
   workspaceModeDescription: document.querySelector("#workspace-mode-description"),
   workspaceModeGuide: document.querySelector("#workspace-mode-guide"),
   toolbar: document.querySelector(".toolbar"),
+  workbenchHelpButton: document.querySelector("#workbench-help-button"),
   workbenchFocusButtons: document.querySelector("#workbench-focus-buttons"),
   workbenchLiveSurfaceButtons: document.querySelector(
     "#workbench-live-surface-buttons",
@@ -905,6 +909,9 @@ function init() {
   initProcreateAndOnboarding();
   if (visualFixtureMode === "project-browser") {
     openProjectBrowser();
+  }
+  if (shouldOpenHelpOverlay) {
+    openHelpOverlay();
   }
   const projectSwitchNotice = window.sessionStorage.getItem(
     "canvax-project-switch-notice",
@@ -1887,6 +1894,7 @@ function bindEvents() {
     void writeStarterDesignContext();
   });
   dom.helpButton.addEventListener("click", openHelpOverlay);
+  dom.workbenchHelpButton?.addEventListener("click", openHelpOverlay);
   dom.helpClose.addEventListener("click", closeHelpOverlay);
   dom.helpOverlay.addEventListener("click", (event) => {
     if (event.target === dom.helpOverlay) {
@@ -11143,6 +11151,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.focusLivePick.textContent = state.liveEditPickActive
     ? "Cancel"
     : liveEditIdleLabel;
+  dom.focusLivePick.title = liveTarget
+    ? "Change the active Live Edit target. Canvax switches to Select so the pen does not stay armed."
+    : "Enter Live Edit target picking. Pick a sketch, output, image, or canvas region.";
   dom.workbenchComposerPick.disabled = !canPick;
   dom.workbenchComposerPick.classList.toggle("active", state.liveEditPickActive);
   dom.workbenchComposerPick.setAttribute(
@@ -11154,6 +11165,11 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     : liveTarget
       ? "Change target"
       : "Live Edit";
+  dom.workbenchComposerPick.title = state.liveEditPickActive
+    ? "Cancel Live Edit target picking"
+    : liveTarget
+      ? "Change the active Live Edit target. Canvax switches to Select so the pen does not stay armed."
+      : "Enter Live Edit target picking. Pick a sketch, output, image, or canvas region.";
   dom.workbenchLivePickOutput.disabled = !canPick;
   dom.workbenchOutputStageLivePick.disabled = !canPick;
   dom.workbenchLivePickOutput.classList.toggle(
@@ -11207,6 +11223,11 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     : liveTarget
       ? "Change target"
       : "Pick target";
+  dom.workbenchLiveEditPick.title = state.liveEditPickActive
+    ? "Cancel target picking"
+    : liveTarget
+      ? "Change the active Live Edit target; the old target stays until you pick a new one or discard."
+      : "Pick an exact sketch or output region for Live Edit.";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
     ? activeEditSurface === "canvas"
       ? "Pick a target on the sketch pad"
@@ -12862,6 +12883,7 @@ function setLiveEditPickMode(active, options = {}) {
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
   if (state.liveEditPickActive) {
+    state.tool = "select";
     state.workbenchFocus = pickCanvas ? "sketch" : "output";
     state.viewMode = "frame";
     renderStatus(
@@ -38732,17 +38754,24 @@ function buildLargeSessionFrame(index) {
 
 function buildLargeSessionPreviewManifest(frames) {
   return {
-    targets: frames.slice(0, 10).map((frame, index) => ({
-      id: `large-target-${index + 1}`,
-      label: `${frame.title} generated screen`,
-      type: index % 2 === 0 ? "generated-screen-preview" : "materialized-preview",
-      source: index % 2 === 0 ? "canvax-generate-screen" : "canvax-materialize",
-      previewPath: `artifacts/preview/large-session/${frame.id}/index.html`,
-      frameIds: [frame.id],
-      sourceFrameId: frame.id,
-      sourceFrameUpdatedAt: frame.updatedAt,
-      changeSummary: `Generated screen for ${frame.title}`,
-    })),
+    targets: frames.slice(0, 10).map((frame, index) => {
+      const url = buildLargeSessionPreviewDataUrl(frame, index);
+      return {
+        id: `large-target-${index + 1}`,
+        label: `${frame.title} generated screen`,
+        type:
+          index % 2 === 0 ? "generated-screen-preview" : "materialized-preview",
+        source:
+          index % 2 === 0 ? "canvax-generate-screen" : "canvax-materialize",
+        url,
+        resolvedUrl: url,
+        previewPath: "",
+        frameIds: [frame.id],
+        sourceFrameId: frame.id,
+        sourceFrameUpdatedAt: frame.updatedAt,
+        changeSummary: `Generated screen for ${frame.title}`,
+      };
+    }),
     artifacts: frames.slice(0, 8).map((frame, index) => ({
       id: `large-artifact-${index + 1}`,
       label: `${frame.title} spec artifact`,
@@ -38760,6 +38789,66 @@ function buildLargeSessionPreviewManifest(frames) {
       summary: `Updated generated implementation for ${frame.title}`,
     })),
   };
+}
+
+function buildLargeSessionPreviewDataUrl(frame, index) {
+  const safeTitle = escapeHtml(frame.title || `Frame ${index + 1}`);
+  const accent = palette[index % Math.max(1, palette.length - 1)] || "#ff5d3a";
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: #111827;
+      background:
+        linear-gradient(90deg, rgba(255, 93, 58, 0.11) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(17, 24, 39, 0.07) 1px, transparent 1px),
+        radial-gradient(circle at 86% 20%, rgba(255, 93, 58, 0.16), transparent 25rem),
+        #f8fbff;
+      background-size: 5.8rem 5.8rem, 5.8rem 5.8rem, auto, auto;
+    }
+    main { min-height: 100vh; padding: clamp(2rem, 6vw, 6rem); display: grid; align-content: center; gap: 2rem; }
+    nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .brand { display: inline-flex; align-items: center; gap: .8rem; font-weight: 900; letter-spacing: -.03em; }
+    .mark { width: 2rem; height: 2rem; border-radius: 999px; background: ${accent}; box-shadow: 0 .8rem 2rem rgba(255, 93, 58, .24); }
+    .links { display: flex; gap: 1.2rem; color: #64748b; font-size: .9rem; }
+    section { display: grid; grid-template-columns: minmax(0, .95fr) minmax(18rem, .68fr); gap: clamp(2rem, 5vw, 5rem); align-items: center; }
+    h1 { max-width: 12ch; margin: 0; font-size: clamp(3rem, 8vw, 7.2rem); line-height: .82; letter-spacing: -.07em; }
+    p { max-width: 34rem; margin: 1.25rem 0 0; color: #475569; font-size: clamp(1rem, 1.7vw, 1.25rem); line-height: 1.5; }
+    button { margin-top: 1.7rem; border: 0; border-radius: 999px; padding: .95rem 1.3rem; color: white; background: ${accent}; font: inherit; font-weight: 850; box-shadow: 0 1rem 2rem rgba(255, 93, 58, .18); }
+    .preview { min-height: 20rem; border-radius: 2rem; padding: 1rem; background: rgba(17, 24, 39, .33); box-shadow: 0 2rem 5rem rgba(15, 23, 42, .18); }
+    .panel { height: 100%; border-radius: 1.35rem; background: linear-gradient(135deg, ${accent}, #111827); padding: 1.4rem; display: grid; align-content: end; color: white; }
+    .panel span { display: block; width: 55%; height: .85rem; border-radius: 999px; margin-top: .8rem; background: rgba(255,255,255,.28); }
+    @media (max-width: 760px) { section { grid-template-columns: 1fr; } .links { display: none; } }
+  </style>
+</head>
+<body>
+  <main data-canvax-source-file="fixture:large-session-preview" data-canvax-source-symbol="${safeTitle}">
+    <nav>
+      <div class="brand"><span class="mark"></span>${safeTitle}</div>
+      <div class="links"><span>Workflows</span><span>Preview</span><span>Export</span></div>
+    </nav>
+    <section>
+      <div>
+        <small>PRODUCT UI - STUDIO - FIXTURE</small>
+        <h1>Generated surface for ${safeTitle}</h1>
+        <p>Fixture preview for direct Live Edit picking, correction marks, variant cycling, and accepted writeback in the same Canvax surface.</p>
+        <button type="button">Start from sketch</button>
+      </div>
+      <div class="preview" aria-label="Generated app preview">
+        <div class="panel"><strong>Generated app preview</strong><span></span><span></span></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>`;
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
 function buildLargeSessionCheckpointHistory(frames) {

@@ -272,7 +272,7 @@ body[data-workspace-mode="simple"][data-workbench-tray="collapsed"] .toolbar {
 body[data-workspace-mode="simple"][data-workbench-tray="collapsed"] .mode-strip {
     display: flex;
     justify-content: flex-end;
-    gap: 0;
+    gap: 0.35rem;
     padding: 0;
     border: 0;
     border-radius: 0;
@@ -306,6 +306,42 @@ body[data-workspace-mode="simple"][data-workbench-tray="collapsed"]
         inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.05),
         0 0.8rem 1.8rem rgba(0, 0, 0, 0.24);
     color: #faf6f0;
+    backdrop-filter: blur(0.9rem);
+    -webkit-backdrop-filter: blur(0.9rem);
+}
+
+.designer-help-toggle {
+    min-height: 2.75rem;
+    padding: 0.55rem 0.85rem;
+    white-space: nowrap;
+}
+
+body[data-workspace-mode="advanced"] .designer-help-toggle {
+    display: none;
+}
+
+body[data-workspace-mode="simple"] .designer-help-toggle {
+    color: #faf6f0;
+    border-color: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+body[data-workspace-mode="simple"] .designer-help-toggle:hover,
+body[data-workspace-mode="simple"] .designer-help-toggle:focus-visible {
+    color: #18110e;
+    background: #f5b938;
+    border-color: rgba(245, 185, 56, 0.4);
+}
+
+body[data-workspace-mode="simple"][data-workbench-tray="collapsed"]
+    .designer-help-toggle {
+    min-width: 2.75rem;
+    padding-inline: 0.82rem;
+    border-color: rgba(245, 185, 56, 0.28);
+    background: rgba(28, 28, 30, 0.86);
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.05),
+        0 0.8rem 1.8rem rgba(0, 0, 0, 0.24);
     backdrop-filter: blur(0.9rem);
     -webkit-backdrop-filter: blur(0.9rem);
 }
