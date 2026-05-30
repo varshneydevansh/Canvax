@@ -15,7 +15,7 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 ## Live Edit Terms
 
 - `Pick target`: choose the exact object, output region, image area, or canvas region to change.
-- `Change target`: replace the current picked target with a better one. For output targets, the selected outline can also be moved or resized directly before variants are generated.
+- `Change target`: replace the current picked target with a better one. Picked scratchpad and output outlines can also be moved from their border or resized from corner handles before variants are generated.
 - `Sketch pad / Generated output`: appears only while picking. It chooses which visible surface receives the next pick.
 - `Go`: create variants for the picked target.
 - Variant controller: after `Go`, output-backed targets show a small in-canvas controller for previous/next, variant count, Accept, and Discard.
@@ -27,7 +27,7 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 ## Visual Target Rules
 
 - Picked targets render as a thin outline with a small label, not as a filled shape that covers the design.
-- Output-backed target outlines are direct manipulation controls: drag the outline to move and drag corner dots to resize. Pins should remain attached to the same relative point inside the target.
+- Target outlines are direct manipulation controls: drag the outline border to move and drag corner dots to resize. Pins should remain attached to the same relative point inside the target.
 - Canvas pill labels must clamp their radius; a label like `Clarity target` must never expand into a large yellow canvas object.
 - Comment pins stay inside or near the selected target and are draggable where supported.
 - Variants may preview in place on output, map, or object surfaces, but the sketch pad must remain editable and readable.

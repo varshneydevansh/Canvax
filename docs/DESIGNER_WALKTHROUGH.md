@@ -108,7 +108,7 @@ local rewrite preview updates
 - `Pick target`: click or drag the exact area to change.
 - `Sketch pad / Generated output`: appears only while picking; it chooses where the next pick happens.
 - Yellow outline: the picked area for Live Edit, not a new design object.
-- On generated output, drag the yellow outline to move the picked area. Drag a corner dot to resize it before `Go` or `Accept`.
+- On scratchpad or generated output, drag the yellow outline border to move the picked area. Drag a corner dot to resize it before `Go` or `Accept`.
 - Yellow target pill: a small label for the picked area. It should never paint over or become part of the scratchpad.
 - `Go`: preview three different directions in place.
 - Variant controller: after `Go`, a small control appears on the picked output target so you can cycle `1/3`, `2/3`, `3/3`, then Accept or Discard right where you are looking.
