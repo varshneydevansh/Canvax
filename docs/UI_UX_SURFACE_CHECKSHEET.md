@@ -18,6 +18,7 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 - `Change target`: replace the current picked target with a better one.
 - `Sketch pad / Generated output`: appears only while picking. It chooses which visible surface receives the next pick.
 - `Go`: create variants for the picked target.
+- Variant controller: after `Go`, output-backed targets show a small in-canvas controller for previous/next, variant count, Accept, and Discard.
 - `Accept`: keep the selected version with the current screen and save it for Codex.
 - `Discard`: remove the temporary pick or variants and restore the original surface.
 - Action chips:
@@ -26,8 +27,10 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 ## Visual Target Rules
 
 - Picked targets render as a thin outline with a small label, not as a filled shape that covers the design.
+- Canvas pill labels must clamp their radius; a label like `Clarity target` must never expand into a large yellow canvas object.
 - Comment pins stay inside or near the selected target and are draggable where supported.
 - Variants may preview in place on output, map, or object surfaces, but the sketch pad must remain editable and readable.
+- Output variants must expose the in-canvas controller near the selected target; the dock may mirror controls but should not be the only way to choose a variant.
 - Escape, Close, or Discard must leave no stale target overlay.
 - The picked target outline must explain removal in plain language: use `Discard` or `Escape` for the target, and `Undo` / `Erase` / `Clear marks` for drawn strokes.
 

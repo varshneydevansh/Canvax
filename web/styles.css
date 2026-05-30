@@ -3218,6 +3218,104 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     z-index: 7;
 }
 
+.workbench-live-edit-variant-controller {
+    position: absolute;
+    z-index: 8;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    max-width: min(30rem, calc(100% - 1rem));
+    min-height: 2.4rem;
+    padding: 0.26rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(245, 185, 56, 0.62);
+    color: #faf6f0;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
+        rgba(17, 17, 18, 0.92);
+    box-shadow:
+        0 0.82rem 1.8rem rgba(0, 0, 0, 0.34),
+        0 0 0 0.2rem rgba(245, 185, 56, 0.16),
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.08);
+    pointer-events: auto;
+    transform: translate(-50%, var(--live-variant-controller-y, 0%));
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+.workbench-live-edit-variant-controller span {
+    display: inline-grid;
+    align-content: center;
+    min-width: 4.4rem;
+    padding: 0 0.3rem;
+    line-height: 1;
+    text-align: center;
+}
+
+.workbench-live-edit-variant-controller b {
+    color: #f5b938;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+
+.workbench-live-edit-variant-controller small {
+    overflow: hidden;
+    max-width: 7.5rem;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.64rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workbench-live-edit-variant-controller button {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2rem;
+    min-height: 1.9rem;
+    padding: 0 0.62rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 255, 255, 0.08);
+    font: inherit;
+    font-size: 0.74rem;
+    font-weight: 900;
+    cursor: pointer;
+    transition:
+        color 140ms ease,
+        background 140ms ease,
+        border-color 140ms ease,
+        transform 140ms ease;
+}
+
+.workbench-live-edit-variant-controller button:hover,
+.workbench-live-edit-variant-controller button:focus-visible {
+    color: #18110e;
+    background: #f5b938;
+    border-color: rgba(245, 185, 56, 0.84);
+    outline: none;
+}
+
+.workbench-live-edit-variant-controller button:active {
+    transform: translateY(0.0625rem);
+}
+
+.workbench-live-edit-variant-controller .accept {
+    color: #0d241f;
+    background: #9ee6d4;
+    border-color: rgba(158, 230, 212, 0.72);
+}
+
+.workbench-live-edit-variant-controller .discard {
+    color: #ffe8dc;
+    background: rgba(255, 93, 58, 0.28);
+    border-color: rgba(255, 93, 58, 0.44);
+}
+
 .workbench-live-edit-variant-swap {
     position: absolute;
     z-index: 4;
@@ -3451,6 +3549,30 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 42rem) {
+    .workbench-live-edit-variant-controller {
+        gap: 0.22rem;
+        max-width: calc(100% - 0.65rem);
+        min-height: 2.15rem;
+        padding: 0.2rem;
+    }
+
+    .workbench-live-edit-variant-controller span {
+        min-width: 3.2rem;
+    }
+
+    .workbench-live-edit-variant-controller small {
+        display: none;
+    }
+
+    .workbench-live-edit-variant-controller button {
+        min-width: 1.85rem;
+        min-height: 1.72rem;
+        padding: 0 0.46rem;
+        font-size: 0.68rem;
     }
 }
 

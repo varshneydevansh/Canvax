@@ -963,6 +963,7 @@ function applyVisualFixture(mode) {
     ![
       "advanced-map",
       "workbench-map",
+      "workbench-live-edit",
       "project-browser",
       "workbench-agent-log",
       "codex-sidecar",
@@ -996,14 +997,22 @@ function applyVisualFixture(mode) {
   state.mapObjectSearch = "";
   state.flowZoom = 0.8;
   state.viewMode =
-    mode === "workbench-agent-log" || mode === "codex-sidecar"
+    mode === "workbench-agent-log" ||
+    mode === "codex-sidecar" ||
+    mode === "workbench-live-edit"
       ? "frame"
       : "flow";
   state.workbenchFocus =
-    mode === "workbench-agent-log" || mode === "codex-sidecar" ? "sketch" : "map";
+    mode === "workbench-agent-log" || mode === "codex-sidecar"
+      ? "sketch"
+      : mode === "workbench-live-edit"
+        ? "split"
+        : "map";
   state.workspaceMode = mode === "advanced-map" ? "advanced" : "simple";
   state.workbenchTrayCollapsed =
-    mode === "workbench-agent-log" || mode === "codex-sidecar";
+    mode === "workbench-agent-log" ||
+    mode === "codex-sidecar" ||
+    mode === "workbench-live-edit";
   state.workbenchAgentLogOpen = mode === "workbench-agent-log";
   state.serverStatus = {
     ...state.serverStatus,
@@ -1044,6 +1053,124 @@ function applyVisualFixture(mode) {
     },
   };
   syncSpatialObjectsFromHandoffs();
+  if (mode === "workbench-live-edit") {
+    applyWorkbenchLiveEditFixture();
+  }
+}
+
+function applyWorkbenchLiveEditFixture() {
+  const frame = currentFrame();
+  if (!frame) {
+    return;
+  }
+  const heroId = "fixture-live-hero";
+  const detailId = "fixture-live-detail";
+  frame.title = "Live Edit frame";
+  frame.viewport = "desktop";
+  frame.objective =
+    "Public fixture showing direct target editing on a Canvax sketch surface.";
+  frame.layout =
+    "A clean hero region, supporting copy block, and directional correction arrow.";
+  frame.canvasReply = null;
+  frame.outputAnnotations = [];
+  frame.backgroundImage = "";
+  frame.thumbnail = "";
+  frame.captures = [];
+  frame.elements = [
+    {
+      id: heroId,
+      type: "rect",
+      start: { x: 180, y: 150 },
+      end: { x: 760, y: 340 },
+      color: "#ff503a",
+      size: 6,
+      alpha: 1,
+      composite: "source-over",
+      groupId: "",
+    },
+    {
+      id: detailId,
+      type: "rect",
+      start: { x: 210, y: 470 },
+      end: { x: 720, y: 740 },
+      color: "#18110e",
+      size: 5,
+      alpha: 1,
+      composite: "source-over",
+      groupId: "",
+    },
+    {
+      id: "fixture-live-arrow",
+      type: "arrow",
+      start: { x: 780, y: 600 },
+      end: { x: 1050, y: 510 },
+      color: "#ff503a",
+      size: 7,
+      alpha: 1,
+      composite: "source-over",
+      groupId: "",
+    },
+    {
+      id: "fixture-live-label",
+      type: "label",
+      text: "Hero region",
+      x: 215,
+      y: 202,
+      color: "#18110e",
+      size: 24,
+      attachedTo: heroId,
+      anchor: { xRatio: 0.08, yRatio: 0.24 },
+    },
+  ];
+  const note =
+    "Make this hero area clearer, stronger, and easier to implement.";
+  state.selectedElementId = heroId;
+  state.selectedElementIds = [heroId];
+  state.liveEditPickActive = false;
+  state.liveEditPickSurface = "";
+  state.liveEditDraftNote = "";
+  state.activeZoomSurface = "canvas";
+  state.tool = "pen";
+  state.size = 14;
+  state.zoom = 0.7;
+  frame.liveEditTarget = createLiveEditTargetFromCanvasElement(
+    frame.elements[0],
+    frame,
+  );
+  if (!frame.liveEditTarget) {
+    return;
+  }
+  frame.liveEditTarget.note = note;
+  frame.liveEditPins = [
+    normalizeLiveEditPin({
+      id: "fixture-live-pin-1",
+      targetId: heroId,
+      targetLabel: frame.liveEditTarget.targetLabel,
+      placement: "target",
+      point: { x: 0.42, y: 0.24 },
+      text: "Clarify the primary message here.",
+    }),
+  ].filter(Boolean);
+  frame.liveEditOriginalSnapshot = buildLiveEditOriginalSnapshot(
+    frame,
+    frame.liveEditTarget,
+  );
+  frame.liveEditVariants = buildLiveEditVariantCandidates(
+    frame,
+    frame.liveEditTarget,
+    note,
+    frame.liveEditOriginalSnapshot,
+  );
+  frame.liveEditVariantIndex = 2;
+  frame.acceptedLiveEditVariant = null;
+  frame.liveEditRequest = buildFrameBoundLiveEditRequest({
+    frame,
+    liveTarget: frame.liveEditTarget,
+    variants: frame.liveEditVariants,
+    note,
+    status: "variant-ready",
+  });
+  frame.updatedAt = new Date().toISOString();
 }
 
 function applyProjectBrowserFixture() {
@@ -1523,6 +1650,7 @@ function bindEvents() {
       surface.addEventListener("focusin", () =>
         setActiveFrameZoomSurface("output"),
       );
+      surface.addEventListener("click", onLiveEditVariantControlClick);
       surface.addEventListener("pointerdown", onWorkbenchOutputPointerDown);
       surface.addEventListener("pointermove", onWorkbenchOutputPointerMove);
       surface.addEventListener("pointerup", onWorkbenchOutputPointerUp);
@@ -10702,6 +10830,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
           )
           .join("")}
         ${liveVariant ? renderLiveEditVariantMarkup(liveVariant, liveTarget) : ""}
+        ${liveVariant ? renderLiveEditVariantControllerMarkup(frame, liveTarget) : ""}
         ${
           liveOutcome
             ? `<span class="workbench-live-edit-outcome" data-tone="${escapeHtml(liveOutcome.tone)}"><strong>${escapeHtml(liveOutcome.label)}</strong><small>${escapeHtml(liveOutcome.detail)}</small></span>`
@@ -12077,6 +12206,23 @@ function liveEditVariantOverlayStyle(liveTarget) {
   ].join(";");
 }
 
+function liveEditVariantControllerStyle(liveTarget) {
+  const normalized = normalizeLiveEditBounds(liveTarget?.bounds);
+  if (!normalized) {
+    return "";
+  }
+  const anchorX = clamp(normalized.x + normalized.w / 2, 0.08, 0.92);
+  const fitsBelow = normalized.y + normalized.h <= 0.78;
+  const anchorY = fitsBelow
+    ? clamp(normalized.y + normalized.h + 0.025, 0.08, 0.94)
+    : clamp(normalized.y - 0.025, 0.08, 0.94);
+  return [
+    `left:${(anchorX * 100).toFixed(3)}%`,
+    `top:${(anchorY * 100).toFixed(3)}%`,
+    `--live-variant-controller-y:${fitsBelow ? "0%" : "-100%"}`,
+  ].join(";");
+}
+
 function renderLiveEditVariantMarkup(variant, liveTarget) {
   const normalized = normalizeLiveEditVariant(variant);
   if (!normalized || !liveTarget) {
@@ -12135,6 +12281,86 @@ function renderLiveEditVariantMarkup(variant, liveTarget) {
       }
     </article>
   `;
+}
+
+function renderLiveEditVariantControllerMarkup(frame, liveTarget) {
+  const variants = currentLiveEditVariants(frame);
+  const variant = currentLiveEditVariant(frame);
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target || target.status === "accepted" || !variant || variants.length < 2) {
+    return "";
+  }
+  const variantIndex = currentLiveEditVariantIndex(frame);
+  return `
+    <nav
+      class="workbench-live-edit-variant-controller"
+      style="${liveEditVariantControllerStyle(target)}"
+      aria-label="Live Edit variants for picked target"
+    >
+      <button
+        type="button"
+        data-live-edit-variant-action="prev"
+        aria-label="Previous Live Edit variant"
+        title="Previous variant"
+      >&lsaquo;</button>
+      <span>
+        <b>${escapeHtml(`${variantIndex + 1}/${variants.length}`)}</b>
+        <small>${escapeHtml(variant.label || "Variant")}</small>
+      </span>
+      <button
+        type="button"
+        data-live-edit-variant-action="next"
+        aria-label="Next Live Edit variant"
+        title="Next variant"
+      >&rsaquo;</button>
+      <button
+        type="button"
+        class="accept"
+        data-live-edit-variant-action="accept"
+        title="Accept this variant"
+      >Accept</button>
+      <button
+        type="button"
+        class="discard"
+        data-live-edit-variant-action="discard"
+        title="Discard variants and restore the original target"
+      >Discard</button>
+    </nav>
+  `;
+}
+
+function liveEditVariantControlButtonFromEvent(event) {
+  return event?.target instanceof Element
+    ? event.target.closest("[data-live-edit-variant-action]")
+    : null;
+}
+
+function onLiveEditVariantControlClick(event) {
+  const button = liveEditVariantControlButtonFromEvent(event);
+  if (!button) {
+    return;
+  }
+  const action = cleanString(button.dataset.liveEditVariantAction);
+  if (!action) {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  if (action === "prev") {
+    cycleLiveEditVariant(-1);
+    return;
+  }
+  if (action === "next") {
+    cycleLiveEditVariant(1);
+    return;
+  }
+  if (action === "accept") {
+    void acceptLiveEditTarget();
+    return;
+  }
+  if (action === "discard") {
+    closeLiveEditTarget();
+  }
 }
 
 function selectionBoundsFromPoint(point) {
@@ -15385,6 +15611,11 @@ function finishLiveEditOutputPickDraft(event) {
 }
 
 function onWorkbenchOutputPointerDown(event) {
+  if (liveEditVariantControlButtonFromEvent(event)) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
   if (startLiveEditPinDrag(event)) {
     return;
   }
@@ -20779,6 +21010,9 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
       : null;
 
   ctx.save();
+  // Keep the scratchpad as user-authored marks plus a target outline.
+  // Material variant previews render on generated/output surfaces, not as ink on
+  // the editable canvas where they can be mistaken for real sketch content.
   ctx.lineWidth = Math.max(2, 2.5 * scale);
   ctx.strokeStyle = "#f5b938";
   ctx.fillStyle = "rgba(245, 185, 56, 0.025)";
@@ -20841,16 +21075,17 @@ function drawCanvasLiveEditVariantTreatment(
   ctx.setLineDash([]);
   roundRect(ctx, x, y, width, height, radius);
   ctx.clip();
-  ctx.globalAlpha = 0.82;
+  ctx.globalAlpha = 0.16;
   ctx.fillStyle = background;
   ctx.fillRect(x, y, width, height);
   ctx.globalAlpha = 1;
 
   if (normalized.role === "structure-layout") {
-    const columnWidth = Math.max(26 * scale, (width - inset * 2) / 3);
+    const innerWidth = Math.max(20 * scale, width - inset * 2);
+    const columnWidth = Math.max(26 * scale, innerWidth / 3);
     ctx.strokeStyle = accent;
-    ctx.lineWidth = Math.max(2, 2 * scale);
-    ctx.globalAlpha = 0.72;
+    ctx.lineWidth = Math.max(1.5, 1.75 * scale);
+    ctx.globalAlpha = 0.5;
     for (let index = 0; index < 4; index += 1) {
       const columnX = x + inset + columnWidth * index;
       ctx.beginPath();
@@ -20860,41 +21095,62 @@ function drawCanvasLiveEditVariantTreatment(
     }
     ctx.globalAlpha = 1;
     ctx.fillStyle = accent;
-    roundRect(ctx, x + inset, y + inset, Math.max(42 * scale, width * 0.32), 9 * scale, 999);
+    roundRect(ctx, x + inset, y + inset, Math.max(42 * scale, innerWidth * 0.32), 7 * scale, 999);
     ctx.fill();
     ctx.fillStyle = foreground;
+    ctx.globalAlpha = 0.72;
     for (let index = 0; index < 3; index += 1) {
       const rowY = y + inset + 26 * scale + index * 20 * scale;
+      if (rowY > y + height - inset - 6 * scale) {
+        break;
+      }
       roundRect(
         ctx,
         x + inset,
         rowY,
-        Math.max(36 * scale, width - inset * 2 - index * 24 * scale),
-        7 * scale,
+        Math.max(36 * scale, innerWidth - index * 24 * scale),
+        6 * scale,
         999,
       );
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
   } else if (normalized.role === "visual-taste") {
     ctx.fillStyle = accent;
     ctx.globalAlpha = 0.82;
-    const stripeWidth = Math.max(18 * scale, width * 0.16);
-    for (let index = -1; index < 5; index += 1) {
-      ctx.save();
-      ctx.translate(x + width * 0.18 + index * stripeWidth * 1.45, y + height / 2);
-      ctx.rotate(-Math.PI / 8);
-      roundRect(ctx, -stripeWidth / 2, -height, stripeWidth, height * 2, 999);
+    const swatchSize = Math.max(12 * scale, Math.min(width, height) * 0.12);
+    for (let index = 0; index < 3; index += 1) {
+      const swatchX = x + inset + index * (swatchSize + 8 * scale);
+      const swatchY = y + inset;
+      if (swatchX + swatchSize > x + width - inset) {
+        break;
+      }
+      roundRect(ctx, swatchX, swatchY, swatchSize, swatchSize, 6 * scale);
       ctx.fill();
-      ctx.restore();
     }
     ctx.globalAlpha = 1;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = Math.max(2, 2 * scale);
+    ctx.setLineDash([8 * scale, 7 * scale]);
+    roundRect(
+      ctx,
+      x + inset,
+      y + inset,
+      Math.max(20 * scale, width - inset * 2),
+      Math.max(20 * scale, height - inset * 2),
+      Math.min(radius, 14 * scale),
+    );
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.fillStyle = foreground;
-    roundRect(ctx, x + inset, y + height - inset - 13 * scale, width - inset * 2, 13 * scale, 999);
+    ctx.globalAlpha = 0.74;
+    roundRect(ctx, x + inset, y + height - inset - 10 * scale, width - inset * 2, 10 * scale, 999);
     ctx.fill();
+    ctx.globalAlpha = 1;
   } else {
     ctx.strokeStyle = accent;
     ctx.lineWidth = Math.max(3, 3 * scale);
-    ctx.globalAlpha = 0.92;
+    ctx.globalAlpha = 0.9;
     roundRect(
       ctx,
       x + inset,
@@ -20906,6 +21162,16 @@ function drawCanvasLiveEditVariantTreatment(
     ctx.stroke();
     ctx.globalAlpha = 1;
     ctx.fillStyle = accent;
+    const markerY = Math.min(
+      y + height - inset - 8 * scale,
+      y + inset + 38 * scale,
+    );
+    ctx.fillRect(
+      x + inset,
+      markerY,
+      Math.max(32 * scale, Math.min(width - inset * 2, 72 * scale)),
+      Math.max(5 * scale, 6 * scale),
+    );
     for (let index = 0; index < 4; index += 1) {
       const rowY = y + inset + 13 * scale + index * 18 * scale;
       if (rowY > y + height - inset - 5 * scale) {
@@ -21489,12 +21755,22 @@ function drawArrow(ctx, element, scale) {
 }
 
 function roundRect(ctx, x, y, width, height, radius) {
+  const safeWidth = Number(width) || 0;
+  const safeHeight = Number(height) || 0;
+  const safeRadius = Math.max(
+    0,
+    Math.min(
+      Number(radius) || 0,
+      Math.abs(safeWidth) / 2,
+      Math.abs(safeHeight) / 2,
+    ),
+  );
   ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.arcTo(x + width, y, x + width, y + height, radius);
-  ctx.arcTo(x + width, y + height, x, y + height, radius);
-  ctx.arcTo(x, y + height, x, y, radius);
-  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.moveTo(x + safeRadius, y);
+  ctx.arcTo(x + safeWidth, y, x + safeWidth, y + safeHeight, safeRadius);
+  ctx.arcTo(x + safeWidth, y + safeHeight, x, y + safeHeight, safeRadius);
+  ctx.arcTo(x, y + safeHeight, x, y, safeRadius);
+  ctx.arcTo(x, y, x + safeWidth, y, safeRadius);
   ctx.closePath();
 }
 
@@ -32345,7 +32621,27 @@ async function runSelfTest() {
       createdLiveEditRequest.surfaceOperations.length >= 4 &&
       createdLiveEditRequest.currentOutputBinding?.objectId ===
         "self-test-canvas-reply";
-    cycleLiveEditVariant(1);
+    const liveEditSurfaceVariantController =
+      dom.workbenchOutputSurface.querySelector(
+        ".workbench-live-edit-variant-controller",
+      );
+    const liveEditSurfaceVariantControllerActions = [
+      "prev",
+      "next",
+      "accept",
+      "discard",
+    ].every((action) =>
+      liveEditSurfaceVariantController?.querySelector(
+        `[data-live-edit-variant-action='${action}']`,
+      ),
+    );
+    const liveEditSurfaceVariantControllerRendered =
+      liveEditSurfaceVariantController?.textContent.includes("1/3") &&
+      liveEditSurfaceVariantController?.textContent.includes("Structure") &&
+      liveEditSurfaceVariantControllerActions;
+    liveEditSurfaceVariantController
+      ?.querySelector("[data-live-edit-variant-action='next']")
+      ?.click();
     const secondLiveEditVariantTitle =
       dom.workbenchOutputSurface.querySelector(
         ".workbench-live-edit-variant-swap strong",
@@ -32354,6 +32650,13 @@ async function runSelfTest() {
       dom.workbenchOutputSurface.querySelectorAll(
         ".workbench-live-edit-operation",
       ).length;
+    const liveEditSurfaceVariantControllerUpdated =
+      dom.workbenchOutputSurface
+        .querySelector(".workbench-live-edit-variant-controller")
+        ?.textContent.includes("2/3") &&
+      dom.workbenchOutputSurface
+        .querySelector(".workbench-live-edit-variant-controller")
+        ?.textContent.includes("Taste");
     const liveEditVariantsHotSwap =
       createdLiveEditVariants.length === 3 &&
       currentLiveEditVariants(frameForCanvasReply).length === 3 &&
@@ -32366,6 +32669,8 @@ async function runSelfTest() {
       firstLiveEditVariantTitle !== secondLiveEditVariantTitle &&
           liveEditVariantOperationsMaterial &&
           liveEditRequestMaterial &&
+          liveEditSurfaceVariantControllerRendered &&
+          liveEditSurfaceVariantControllerUpdated &&
           secondLiveEditOperationChipCount >= 4 &&
       dom.workbenchLiveEditCounter.textContent.includes("2 / 3 variants") &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
@@ -32559,6 +32864,12 @@ async function runSelfTest() {
           liveEditActionChipSelected: Boolean(liveEditActionChipSelected),
           liveEditActionIntentExported,
           liveEditOriginalSnapshotCaptured,
+          liveEditSurfaceVariantControllerRendered: Boolean(
+            liveEditSurfaceVariantControllerRendered,
+          ),
+          liveEditSurfaceVariantControllerUpdated: Boolean(
+            liveEditSurfaceVariantControllerUpdated,
+          ),
           liveEditVoiceIntentCaptured,
           liveEditVoiceTargetId: liveEditVoiceSegment?.liveEditTargetId || "",
           liveEditRequestMaterial,
