@@ -170,6 +170,8 @@ It hides advanced panels and keeps only:
 - direct file/image drop onto `Map`, which creates a movable spatial reference card at the drop point
 - direct text paste/drop onto `Map`, which pins the idea as a movable spatial note instead of making the user rewrite it in an inspector
 - correction marks drawn directly over generated output
+- Live Edit for picking an exact scratchpad/output/map target, marking it,
+  generating variants with `Go`, then using `Accept` or `Discard`
 - pasted or dropped images as movable/resizable image assets on the frame
 - `Add image` as the visible Workbench file-picker path for editable reference images, generated candidates, book/storyboard art, or UI assets
 - a bottom floating designer rail for the main tools, undo/redo, brush `-` / `+`, `Talk`, `Pin`, `Make`, `Image`, and `Apply` when `Open scratchpad` is active
@@ -179,6 +181,12 @@ It hides advanced panels and keeps only:
 - eraser behavior that only removes drawn ink, not the paper/grid base, and does not export as black prompt/materialize geometry
 - `Open scratchpad` / `Show brief` for canvas-first designer focus
 - `Apply to Codex`
+
+The in-app `Help` dialog is the designer-facing guide. It explains Sketch,
+Split, Output, Map, Live Edit, and the current workflow checklist without using
+implementation terms. Keep the audit checklist in
+[`docs/UI_UX_SURFACE_CHECKSHEET.md`](UI_UX_SURFACE_CHECKSHEET.md) aligned with
+the shipped UI.
 
 For the Codex in-app browser board, open:
 
@@ -1417,8 +1425,8 @@ That means the compare window can now point out which parts of the sketch change
 The generated materialized preview also includes a few lightweight interaction affordances:
 
 - clickable generated components
-- `Show sketch overlay` as an opt-in transparent review overlay
-- `Show note overlay` as an opt-in display for free labels and interpretation notes
+- `Show sketch` as an opt-in transparent compare overlay
+- `Show notes` as an opt-in display for free labels and interpretation notes
 
 If Preview says the output is stale, it means the current sketch `updatedAt` is newer than the materialized target metadata. Rematerialize that frame to bring the generated surface back in sync.
 

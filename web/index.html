@@ -222,10 +222,10 @@
                             id="workbench-tray-toggle"
                             class="ghost-button designer-focus-toggle"
                             type="button"
-                            aria-pressed="false"
-                            title="Open the canvas-first scratchpad while keeping frame, surface, action, and focus context visible"
+                            aria-pressed="true"
+                            title="Show project, surface, action, and quick-start controls"
                         >
-                            Open scratchpad
+                            Show brief
                         </button>
                     </div>
                     <div
@@ -871,11 +871,11 @@
                     aria-label="Workbench command composer"
                 >
                     <label class="workbench-composer-input-wrap">
-                        <span>Sketch instruction</span>
+                        <span>Instruction</span>
                         <textarea
                             id="workbench-composer-input"
                             rows="1"
-                            placeholder="Say what to change while you sketch. Example: move the hero image right and make the headline bolder."
+                            placeholder="Say or type the change."
                         ></textarea>
                     </label>
                     <button
@@ -1021,22 +1021,6 @@
                     </button>
                     <button
                         class="rail-button"
-                        data-rail-action="voice"
-                        type="button"
-                        title="Start or stop dictation"
-                    >
-                        Talk
-                    </button>
-                    <button
-                        class="rail-button"
-                        data-rail-action="pin-note"
-                        type="button"
-                        title="Pin the current instruction as a Map note"
-                    >
-                        Pin
-                    </button>
-                    <button
-                        class="rail-button"
                         data-rail-action="image-import"
                         type="button"
                         title="Import an image as an editable canvas object"
@@ -1050,46 +1034,6 @@
                         title="Save a no-API image prompt pack for Codex host image generation"
                     >
                         Image
-                    </button>
-                    <button
-                        class="rail-button rail-button-strong"
-                        data-rail-action="generate"
-                        type="button"
-                        title="Make the current sketch real"
-                    >
-                        Make
-                    </button>
-                    <button
-                        class="rail-button"
-                        data-rail-action="build-real"
-                        type="button"
-                        title="Create a Codex-ready real implementation request"
-                    >
-                        Build
-                    </button>
-                    <button
-                        class="rail-button"
-                        data-rail-action="create-variants"
-                        type="button"
-                        title="Create editable variant frames from this sketch"
-                    >
-                        Variants
-                    </button>
-                    <button
-                        class="rail-button live-edit-command"
-                        data-rail-action="live-pick"
-                        type="button"
-                        title="Pick a region inside the generated output for live edit"
-                    >
-                        Live
-                    </button>
-                    <button
-                        class="rail-button rail-button-strong"
-                        data-rail-action="apply"
-                        type="button"
-                        title="Apply sketch and voice context to Codex"
-                    >
-                        Apply
                     </button>
                 </nav>
 
@@ -1356,135 +1300,6 @@
 
                     <div class="stage-body">
                         <div id="frame-workspace" class="workspace-panel">
-                            <!-- Chronological workflow onboarding guide -->
-                            <div class="canvax-onboarding-card" id="canvax-onboarding-card" aria-label="Design Workflow Onboarding Guide">
-                                <div class="onboarding-header">
-                                    <div class="onboarding-header-title">
-                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <circle cx="12" cy="12" r="10"></circle>
-                                            <polyline points="12 6 12 12 16 14"></polyline>
-                                        </svg>
-                                        <h4>Design Workflow</h4>
-                                    </div>
-                                    <button class="onboarding-minimize-btn" id="onboarding-minimize-btn" type="button" title="Toggle guide collapse">
-                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="18 15 12 9 6 15"></polyline>
-                                        </svg>
-                                    </button>
-                                </div>
-                                <div class="onboarding-body" id="onboarding-body">
-                                    <p class="onboarding-subtitle">Follow these steps to create your UI:</p>
-                                    <ul class="onboarding-steps">
-                                        <li class="onboarding-step" id="step-sketch">
-                                            <span class="step-checkbox"></span>
-                                            <span class="step-text"><strong>Step 1:</strong> Sketch layout on canvas</span>
-                                        </li>
-                                        <li class="onboarding-step" id="step-prompt">
-                                            <span class="step-checkbox"></span>
-                                            <span class="step-text"><strong>Step 2:</strong> Describe design in words</span>
-                                        </li>
-                                        <li class="onboarding-step" id="step-make">
-                                            <span class="step-checkbox"></span>
-                                            <span class="step-text"><strong>Step 3:</strong> Click <strong>Make real</strong></span>
-                                        </li>
-                                        <li class="onboarding-step" id="step-apply">
-                                            <span class="step-checkbox"></span>
-                                            <span class="step-text"><strong>Step 4:</strong> Click <strong>Apply to Codex</strong></span>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <!-- Procreate-style canvas integrated toolbar -->
-                            <div class="procreate-canvas-toolbar" id="procreate-canvas-toolbar" aria-label="Procreate canvas controls">
-                                <!-- Top floating toolbar -->
-                                <div class="procreate-top-bar">
-                                    <button class="procreate-tool-btn" data-procreate-tool="pen" type="button" title="Pen (Brush sketch)">
-                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M12 20h9"></path>
-                                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
-                                        </svg>
-                                    </button>
-                                    <button class="procreate-tool-btn" data-procreate-tool="marker" type="button" title="Marker (Soft translucent stroke)">
-                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="m14 3-4.9 4.9"></path>
-                                            <path d="m8.5 10.5-2.79 2.79c-.78.78-.78 2.05 0 2.83l3.17 3.17c.78.78 2.05.78 2.83 0l2.79-2.79"></path>
-                                            <path d="m18 8 3 3-9 9H9v-3Z"></path>
-                                        </svg>
-                                    </button>
-                                    <button class="procreate-tool-btn" data-procreate-tool="rect" type="button" title="Rectangle (Shape element)">
-                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                        </svg>
-                                    </button>
-                                    <button class="procreate-tool-btn" data-procreate-tool="arrow" type="button" title="Arrow (Flow direction)">
-                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                            <polyline points="12 5 19 12 12 19"></polyline>
-                                        </svg>
-                                    </button>
-                                    <button class="procreate-tool-btn" data-procreate-tool="label" type="button" title="Text label">
-                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <polyline points="4 7 4 4 20 4 20 7"></polyline>
-                                            <line x1="9" y1="20" x2="15" y2="20"></line>
-                                            <line x1="12" y1="4" x2="12" y2="20"></line>
-                                        </svg>
-                                    </button>
-                                    <button class="procreate-tool-btn" data-procreate-tool="erase" type="button" title="Eraser">
-                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21Z"></path>
-                                            <path d="M22 21H7"></path>
-                                            <path d="m5 11 9 9"></path>
-                                        </svg>
-                                    </button>
-                                    <div class="procreate-divider"></div>
-                                    <div class="procreate-color-dot-container" style="position: relative; display: flex; align-items: center;">
-                                        <button class="procreate-color-dot" id="procreate-color-dot" type="button" title="Active color palette selector">
-                                            <span class="color-dot-inner" id="procreate-color-dot-inner"></span>
-                                        </button>
-                                        <!-- Floating color quick palette -->
-                                        <div class="procreate-color-palette" id="procreate-color-palette" hidden>
-                                            <p class="procreate-palette-title">Palette</p>
-                                            <div class="procreate-palette-grid" id="procreate-palette-grid"></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Side tactile controls -->
-                                <div class="procreate-side-dock">
-                                    <div class="procreate-slider-group" id="procreate-size-slider-group" title="Brush stroke size selection">
-                                        <div class="procreate-slider-track">
-                                            <div class="procreate-slider-fill" id="procreate-size-fill"></div>
-                                            <input type="range" min="4" max="48" value="14" class="procreate-range-input" id="procreate-size-range" aria-label="Brush size slider">
-                                        </div>
-                                        <span class="procreate-slider-value" id="procreate-size-label">14px</span>
-                                    </div>
-
-                                    <div class="procreate-slider-group" id="procreate-opacity-slider-group" title="Brush opacity and marker translucency selector">
-                                        <div class="procreate-slider-track">
-                                            <div class="procreate-slider-fill" id="procreate-opacity-fill"></div>
-                                            <input type="range" min="10" max="100" value="100" class="procreate-range-input" id="procreate-opacity-range" aria-label="Brush opacity slider">
-                                        </div>
-                                        <span class="procreate-slider-value" id="procreate-opacity-label">100%</span>
-                                    </div>
-
-                                    <div class="procreate-side-actions">
-                                        <button class="procreate-side-btn" id="procreate-undo" type="button" title="Undo visual canvas action">
-                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M3 7v6h6"></path>
-                                                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
-                                            </svg>
-                                        </button>
-                                        <button class="procreate-side-btn" id="procreate-redo" type="button" title="Redo visual canvas action">
-                                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M21 7v6h-6"></path>
-                                                <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
                             <div
                                 id="device-shell"
                                 class="device-shell"
@@ -2880,185 +2695,94 @@
                 </div>
                 <div class="help-intro">
                     <p class="help-summary">
-                        Use Frame view to sketch and annotate a screen. Use Flow
-                        view to arrange frames and define how the experience
-                        moves between them.
+                        Canvax has one job: let you point, sketch, speak, and
+                        accept changes without translating everything into a
+                        long prompt.
                     </p>
-                    <div class="help-shortcuts" aria-label="Quick shortcuts">
-                        <span class="shortcut-chip"
-                            ><kbd>Shift</kbd><span>multi-select</span></span
-                        >
-                        <span class="shortcut-chip"
-                            ><kbd>Cmd/Ctrl</kbd><kbd>D</kbd
-                            ><span>duplicate</span></span
-                        >
-                        <span class="shortcut-chip"
-                            ><kbd>Cmd/Ctrl</kbd><kbd>Z</kbd
-                            ><span>undo</span></span
-                        >
-                        <span class="shortcut-chip"
-                            ><kbd>Shift</kbd><kbd>Cmd/Ctrl</kbd><kbd>Z</kbd
-                            ><span>redo</span></span
-                        >
-                        <span class="shortcut-chip"
-                            ><kbd>Cmd/Ctrl</kbd><kbd>]</kbd
-                            ><span>bring front</span></span
-                        >
-                        <span class="shortcut-chip"
-                            ><kbd>Cmd/Ctrl</kbd><kbd>[</kbd
-                            ><span>send back</span></span
-                        >
-                        <span class="shortcut-chip"
-                            ><kbd>Space</kbd><span>pan canvas</span></span
-                        >
+                    <div class="help-status-grid" aria-label="Current Canvax state">
+                        <span><strong>Mode</strong><b id="help-current-mode">Workbench</b></span>
+                        <span><strong>Frame</strong><b id="help-current-frame">Frame 1</b></span>
+                        <span><strong>Output</strong><b id="help-current-output">Not generated</b></span>
+                        <span><strong>Live Edit</strong><b id="help-current-live-edit">No target</b></span>
                     </div>
+                </div>
+                <div class="help-workflow" aria-label="Primary designer workflow">
+                    <article>
+                        <span>1</span>
+                        <strong>Sketch</strong>
+                        <p>Draw the rough layout, page, screen, panel, or image direction.</p>
+                    </article>
+                    <article>
+                        <span>2</span>
+                        <strong>Say intent</strong>
+                        <p>Type, paste, or dictate what should change while the sketch is visible.</p>
+                    </article>
+                    <article>
+                        <span>3</span>
+                        <strong>Make</strong>
+                        <p>Generate a local output bound to the current frame.</p>
+                    </article>
+                    <article>
+                        <span>4</span>
+                        <strong>Live Edit</strong>
+                        <p>Pick the exact area, mark it, generate variants, then accept or discard.</p>
+                    </article>
                 </div>
                 <div class="help-grid">
                     <section class="help-card">
-                        <h3>Workbench</h3>
+                        <h3>Surfaces</h3>
                         <ul class="help-list">
-                            <li>
-                                Use <strong>Surface</strong> to choose desktop,
-                                mobile, tablet, poster, square, or a large free
-                                canvas.
-                            </li>
-                            <li>
-                                <strong>New frame</strong> creates another
-                                screen or state. <strong>New section</strong>
-                                creates a connected continuation frame.
-                            </li>
-                            <li>
-                                <strong>Make real</strong> turns the current
-                                sketch into a local generated surface.
-                            </li>
-                            <li>
-                                <strong>Open scratchpad</strong> switches into
-                                designer focus so the canvas becomes the main
-                                surface. Use <strong>Show brief</strong> to
-                                bring the controls back.
-                            </li>
-                            <li>
-                                The floating designer rail keeps Select, Pen,
-                                Rect, Arrow, Erase, Undo, Redo, Talk, Make, and
-                                Apply available even when the tray is hidden.
-                            </li>
-                            <li>
-                                Draw over the generated surface to save visual
-                                correction marks that Codex can read with the
-                                frame.
-                            </li>
-                            <li>
-                                <strong>Apply to Codex</strong> saves one clear
-                                sketch + voice checkpoint for this chat.
-                            </li>
+                            <li><strong>Sketch</strong> is your scratchpad. Draw, paste images, place notes, and rough out ideas here.</li>
+                            <li><strong>Split</strong> shows sketch and generated output together for comparison.</li>
+                            <li><strong>Output</strong> focuses the generated result so you can mark corrections directly on it.</li>
+                            <li><strong>Map</strong> is the project table: frames, references, generated outputs, files, and checkpoints.</li>
                         </ul>
                     </section>
                     <section class="help-card">
-                        <h3>Canvas basics</h3>
+                        <h3>Live Edit</h3>
                         <ul class="help-list">
-                            <li>
-                                <strong>Pen</strong> and
-                                <strong>Marker</strong> are freehand tools.
-                            </li>
-                            <li>
-                                <strong>Line</strong>, <strong>Rect</strong>,
-                                <strong>Oval</strong>, and
-                                <strong>Arrow</strong> create structured shapes.
-                            </li>
-                            <li>
-                                <strong>Freeze frame</strong> saves now.
-                                <strong>Autosnap</strong> updates the live
-                                handoff after two seconds idle.
-                            </li>
+                            <li><strong>Pick target</strong> means click or drag the exact thing you want changed.</li>
+                            <li><strong>Change target</strong> clears the old selection and lets you pick a better one.</li>
+                            <li><strong>Scratch / Output</strong> only appears while picking. It chooses where the next pick happens.</li>
+                            <li><strong>Go</strong> creates variants for the selected target. <strong>Accept</strong> keeps the chosen one. <strong>Discard</strong> removes it.</li>
                         </ul>
                     </section>
                     <section class="help-card">
-                        <h3>Selection and grouping</h3>
+                        <h3>What Marks Mean</h3>
                         <ul class="help-list">
-                            <li>
-                                Use <strong>Select</strong> to click an element,
-                                drag to move it, or drag corner handles to
-                                resize it.
-                            </li>
-                            <li>
-                                Hold <strong>Shift</strong> and click to build a
-                                multi-selection.
-                            </li>
-                            <li>
-                                <strong>Group</strong> makes that relationship
-                                persistent so clicking one grouped item selects
-                                the full set.
-                            </li>
-                            <li>
-                                In <strong>Map</strong>, <strong>Group</strong>
-                                wraps selected Map objects in a region.
-                                <strong>Ungroup</strong> removes the region
-                                without deleting the objects inside.
-                                <strong>Select contents</strong> points back to
-                                the contained Map objects, and
-                                <strong>Fit group</strong> resizes the region
-                                around its contents.
-                            </li>
-                            <li>
-                                <strong>Duplicate sel</strong> creates an offset
-                                copy. <strong>Send back</strong> and
-                                <strong>Bring front</strong> change layer order.
-                            </li>
+                            <li><strong>Circle</strong> asks Canvax to improve that component or region.</li>
+                            <li><strong>Arrow</strong> means move, direction, or flow.</li>
+                            <li><strong>Scratch/cross</strong> means remove or reduce.</li>
+                            <li><strong>Underline</strong> means emphasize.</li>
+                            <li><strong>Pin</strong> adds a written comment to an exact spot.</li>
                         </ul>
                     </section>
                     <section class="help-card">
-                        <h3>Labels</h3>
+                        <h3>Zoom and Scroll</h3>
                         <ul class="help-list">
-                            <li>Click empty canvas to place a free note.</li>
-                            <li>
-                                Click over a shape to attach the label to that
-                                element so it follows move and resize.
-                            </li>
-                            <li>
-                                Type inline on the canvas.
-                                <strong>Enter</strong> places it,
-                                <strong>Shift+Enter</strong> adds a new line,
-                                and <strong>Esc</strong> cancels.
-                            </li>
+                            <li>Scroll inside the sketch, output, or map surface to move around large work.</li>
+                            <li>Use <strong>Cmd/Ctrl + wheel</strong> over the surface you want to zoom.</li>
+                            <li>The zoom buttons follow the surface you last touched in Split mode.</li>
+                            <li><strong>Reset</strong> returns the active surface to 100%.</li>
                         </ul>
                     </section>
-                    <section class="help-card">
-                        <h3>Voice notes</h3>
-                        <ul class="help-list">
-                            <li>
-                                Use <strong>Current frame</strong> to tie spoken
-                                notes to the active screen, or
-                                <strong>Whole board</strong> for broader
-                                direction.
-                            </li>
-                            <li>
-                                <strong>Start dictation</strong> uses browser
-                                speech recognition when supported.
-                            </li>
-                            <li>
-                                If browser voice is unavailable, paste macOS
-                                dictation or type into
-                                <strong>Manual voice note</strong> and press
-                                <strong>Add note</strong>.
-                            </li>
-                        </ul>
+                    <section class="help-card help-card-wide">
+                        <h3>Designer Checklist</h3>
+                        <div class="help-checklist" aria-label="Canvax workflow checklist">
+                            <span id="help-check-sketch" class="check-state">Sketch has visible direction</span>
+                            <span id="help-check-intent" class="check-state">Intent note or voice exists</span>
+                            <span id="help-check-output" class="check-state">Generated output is attached</span>
+                            <span id="help-check-target" class="check-state">Live Edit target is selected</span>
+                            <span id="help-check-variants" class="check-state">Variants are ready</span>
+                            <span id="help-check-apply" class="check-state">Applied or checkpointed for Codex</span>
+                        </div>
                     </section>
-                    <section class="help-card">
-                        <h3>Flow and captures</h3>
+                    <section class="help-card help-card-wide">
+                        <h3>Keep It Simple</h3>
                         <ul class="help-list">
-                            <li>
-                                <strong>Flow view</strong> arranges frames and
-                                connects them with arrows and transition labels.
-                            </li>
-                            <li>
-                                <strong>Reference underlay</strong> places a
-                                screenshot below your sketch.
-                            </li>
-                            <li>
-                                <strong>Captures</strong> are saved frame
-                                snapshots. Remove one capture at a time or clear
-                                them all from the Captures section.
-                            </li>
+                            <li>If the target outline is wrong, press <strong>Change target</strong> or <strong>Discard</strong>.</li>
+                            <li>If a view feels cramped, use <strong>Show brief</strong> only when you need project controls.</li>
+                            <li>Use <strong>Apply</strong> when the sketch, notes, and target represent the next thing Codex should implement.</li>
                         </ul>
                     </section>
                 </div>

@@ -320,6 +320,22 @@ function buildWorkbenchMapSmokeExpression() {
     const outputLane = rect(".spatial-lane-output");
     const firstPromptChip = document.querySelector("[data-workbench-prompt]");
     const mapCards = document.querySelectorAll("[data-flow-frame-id], [data-spatial-object-id]");
+    const overflowOffenders = [...document.querySelectorAll("body *")]
+      .map((node) => {
+        const box = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        const classLabel = node.className
+          ? "." + String(node.className).split(/\\s+/).filter(Boolean).slice(0, 2).join(".")
+          : "";
+        return {
+          label: node.tagName.toLowerCase() + (node.id ? "#" + node.id : "") + classLabel + ":" + Math.round(box.left) + "-" + Math.round(box.right),
+          right: box.right,
+          width: box.width,
+          visible: box.width > 0 && box.height > 0 && style.display !== "none" && style.visibility !== "hidden"
+        };
+      })
+      .filter((item) => item.visible && item.right > window.innerWidth + 16)
+      .slice(0, 8);
     if (document.readyState !== "complete") failures.push("document not complete");
     if (document.body?.dataset?.workspaceMode !== "simple") failures.push("workbench mode not active");
     if (document.body?.dataset?.workbenchFocus !== "map") failures.push("workbench map focus not active");
@@ -338,6 +354,8 @@ function buildWorkbenchMapSmokeExpression() {
       focus: document.body?.dataset?.workbenchFocus || "",
       viewMode: document.body?.dataset?.viewMode || "",
       cardCount: mapCards.length,
+      scrollWidth: document.documentElement.scrollWidth,
+      overflowOffenders,
       width: window.innerWidth,
       height: window.innerHeight
     };
@@ -423,6 +441,7 @@ function buildCodexSidecarSmokeExpression() {
     const toolbar = rect(".toolbar");
     const focusPad = rect("#focus-pad");
     const stage = rect(".stage-panel");
+    const deviceShell = rect("#device-shell");
     const canvas = rect("#board-canvas");
     const composer = rect("#workbench-composer");
     const rail = rect("#workbench-rail");
@@ -444,6 +463,8 @@ function buildCodexSidecarSmokeExpression() {
     if (composer && composer.bottom > window.innerHeight + 2) failures.push("composer clips below viewport");
     if (rail && rail.bottom > window.innerHeight + 2) failures.push("rail clips below viewport");
     if (composer && rail && composer.bottom > rail.top - 2) failures.push("composer overlaps the tool rail");
+    if (composer && deviceShell && composer.top < deviceShell.bottom - 2) failures.push("composer overlaps the canvas surface");
+    if (rail && deviceShell && rail.top < deviceShell.bottom - 2) failures.push("rail overlaps the canvas surface");
     if (canvas && canvas.height < Math.min(300, window.innerHeight * 0.34)) failures.push("canvas too short for sketching");
     if (firstComposerButton && firstComposerButton.height < 40) failures.push("composer touch target too small");
     if (firstRailButton && firstRailButton.height < 40) failures.push("rail touch target too small");
@@ -457,6 +478,7 @@ function buildCodexSidecarSmokeExpression() {
       workbenchExportSurface: exportedWorkbench?.hostSurface || "",
       shell,
       stage,
+      deviceShell,
       composer,
       rail,
       width: window.innerWidth,
@@ -578,7 +600,7 @@ async function validateResponsiveSmoke({
           ? `${viewport.width}x${viewport.height}${screenshot ? ` -> ${screenshot}` : " (screenshot failed)"}`
           : `${viewport.width}x${viewport.height}: ${
               state?.failures?.join("; ") || "responsive smoke failed"
-            }`,
+            }${state?.overflowOffenders?.length ? `; overflow=${state.overflowOffenders.map((item) => item.label).join(", ")}` : ""}`,
       });
     } finally {
       await browser.close();
@@ -658,8 +680,13 @@ function buildBoardResponsiveSmokeExpression() {
     const shell = rect(".shell");
     const toolbar = rect(".toolbar");
     const stage = rect(".stage-panel");
+    const deviceShell = rect("#device-shell");
     const canvas = rect("#board-canvas");
+    const composer = rect("#workbench-composer");
+    const rail = rect("#workbench-rail");
     const mode = document.body?.dataset?.workspaceMode || "";
+    const focus = document.body?.dataset?.workbenchFocus || "";
+    const tray = document.body?.dataset?.workbenchTray || "";
     if (document.readyState !== "complete") failures.push("document not complete");
     if (!["simple", "advanced"].includes(mode)) failures.push("workspace mode not set");
     if (!shell?.visible) failures.push("shell missing");
@@ -672,11 +699,24 @@ function buildBoardResponsiveSmokeExpression() {
     if (stage && stage.width < Math.min(300, window.innerWidth * 0.56)) failures.push("stage collapsed");
     if (stage && window.innerWidth <= 480 && stage.top > window.innerHeight * 0.72) failures.push("narrow Workbench hides the canvas below controls");
     if (canvas && canvas.height < 240) failures.push("canvas too short");
+    if (mode === "simple" && ["sketch", "split"].includes(focus)) {
+      if (!composer?.visible || !rail?.visible) failures.push("scratchpad composer or rail missing");
+      if (composer && deviceShell && composer.top < deviceShell.bottom - 2) failures.push("composer overlaps canvas surface");
+      if (rail && deviceShell && rail.top < deviceShell.bottom - 2) failures.push("tool rail overlaps canvas surface");
+    }
+    if (mode === "simple" && focus === "map" && (composer?.visible || rail?.visible)) {
+      failures.push("scratchpad controls visible in map focus");
+    }
+    if (mode === "simple" && focus === "output") {
+      if (composer?.visible) failures.push("instruction composer visible in output focus");
+      if (!rail?.visible) failures.push("output focus missing marking rail");
+    }
     return {
       passed: failures.length === 0,
       failures,
       readyState: document.readyState,
       mode,
+      focus,
       width: window.innerWidth,
       height: window.innerHeight
     };

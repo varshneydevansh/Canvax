@@ -103,7 +103,7 @@ Status: In progress
 - [x] Advanced command deck is a solid inspector header using the same Workbench visual language, so frame/map content does not blur through the controls during long sessions
 - [x] Advanced mode collapses to a single-column inspector layout on narrower windows so the Workbench/Advanced switch and deck controls do not clip off-screen
 - [x] Spatial generated-output cards use designer-readable labels/body text instead of raw manifest jargon, including legacy materialized/generated-target records; the frame rail uses compact `Made` badges for connected generated output
-- [x] Collapsed Workbench keeps a compact frame/surface/action/focus summary visible while the tray is hidden
+- [x] Collapsed Workbench is now scratchpad-first: the brief tray, project summary chips, onboarding card, decorative sketch toolbar, and spatial Map surface stay hidden until the designer explicitly opens `Show brief` or switches to `Map`
 - [x] Preview manifest normalization deduplicates/caps old notes, targets, artifacts, and change entries before the board renders output context
 - [x] Browser regression includes headless board/Preview responsive smoke at 1440, 1024, 768, and 430 pixel widths
 - [x] Browser regression writes visual review snapshots for board and Preview at those responsive widths
@@ -129,7 +129,7 @@ Status: In progress
 - [x] Live Edit Pick can now drag-select exact rectangular target bounds on the sketch canvas or output preview before generating variants, so book/poster/storyboard/image regions are not forced into a fixed click-sized target
 - [x] Live Edit now has first-class action chips (`Freeform`, `Layout`, `Typeset`, `Colorize`, `Delight`, `Clarify`, `Bolder`, `Quieter`, `Animate`) that steer the three in-surface variants and export into rewrite/patch context instead of being a passive label
 - [x] Workbench Live Edit is now visibly promoted as a `Live Edit` command across the command row, composer, floating rail, output footer, Output focus, and Map selection inspector instead of being hidden behind a generic `Pick target` label
-- [x] Workbench now keeps the Live Edit dock visible as the primary edit loop, with a real `Pick` control, action chip, pre-target rewrite note field, variant counter, `Talk`, `+ Comment`, `Draw`, `Go`, `Accept`, and `Close` states
+- [x] Workbench now keeps the Live Edit dock visible as the primary edit loop, with a real `Pick` control, action chip, pre-target rewrite note field, variant counter, `Talk`, `+ Comment`, `Draw`, `Go`, `Accept`, and `Discard` / `Close` states
 - [x] Live Edit now has target-bound `Talk` in the picker bar: spoken/dictated intent appends to the selected target note, exports as `voiceIntents`, and is included in rewrite/patch context for the outlined artifact
 - [x] Workbench Split mode is now a first-class scratchpad/output editing choice: `Reply in canvas` and `Make real` land in Split, the scratch canvas and output canvas are labeled, canvas Pick still targets the correction layer, and output-pane Pick targets the preview surface even when the output is mounted as a same-canvas reply
 - [x] Workbench Split mode now exposes an explicit Live Edit surface switch for `Scratch` versus `Output`; choosing either starts Pick on that surface and the matching canvas glows while picking, while a bound or accepted target keeps the correct surface highlighted
@@ -137,6 +137,9 @@ Status: In progress
 - [x] `npm run execute-patch` now turns those unhinted Live Edit `sourceSearchHints` into a no-API `canvax-live-edit-source-discovery-result` with concrete local candidate files, line excerpts, confidence, and next-action guidance instead of failing before Codex has source evidence
 - [x] Live Edit writeback status now distinguishes `source-discovered` from `patched`, so an accepted unhinted pick with candidate files is not reported as a production mutation until files actually change
 - [x] Live Edit variants now carry a `liveEditOriginalSnapshot` restore anchor for the picked target/output binding, render an `Original locked` affordance inside the hot-swapped surface, preserve that snapshot into rewrite/patch tasks, and clear it with the rest of the temporary picker state on Close/Escape discard
+- [x] Live Edit now labels the destructive temporary-state exit as `Discard` while a pick or variant is active, and Escape/Discard clears the draft note plus picker state so the restored original surface does not leave stale target intent in the dock
+- [x] Workbench drag/pick performance now avoids rebuilding the generated-output iframe on every Live Edit region-drag move; it updates only the target overlay, coalesces canvas/output mark repaint work into animation frames, and drops expensive glass blur while the user is actively drawing or dragging
+- [x] The experimental Procreate-style sketch toolbar and onboarding card are hidden in Workbench/Advanced, leaving the bottom rail as the single drawing control surface so it no longer sits on top of the `Sketch` / `Split` / `Output` / `Map` controls or the `Scratch` / `Output` Live Edit surface switch
 - [x] Accepted output-backed Live Edit targets now write a first-class `canvax-live-edit-manifest-binding` into `exports/canvax-preview-manifest.json`, including the target, accepted variant, original restore snapshot, pins, action intent, request, source-binding/search status, and post-writeback patch/task status instead of relying only on manifest prose notes
 - [x] Accepted Live Edit targets now surface their writeback outcome directly on the picked output surface and in the Workbench Agent log, so `patched`, `source-discovered`, `source-search-empty`, and `task-written` states are visible beside the artifact instead of only inside JSON metadata
 - [x] Local-only Live Edit accepts on canvas objects, blank canvas regions, generated asset candidates, and spatial Map objects now refresh the visible surface immediately with an `Accepted locally` outcome instead of waiting for a later rerender
@@ -166,7 +169,7 @@ Status: In progress
 
 ```text
 done now:
-  focus pad, board, tools, selection, editable image assets, flow, collapsed Workbench context summary, Workbench Map with momentum pan, movable group containers, selected/multi-selected/lasso-selected/nudged/aligned/distributed/duplicated/copied-pasted/deleted/pinned/locked Map objects, selected-set Map dragging/resizing, structured Map object inspectors with custom properties and type-detail overrides, no-API selected-object/selection context copy, group duplication with contained unlocked Map object copies, manual context objects, readable generated output reference objects, generated-output shelf lane with collapse/expand, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof with context-themed build output, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
+  focus pad, board, tools, selection, editable image assets, flow, scratchpad-first collapsed Workbench, Workbench Map with momentum pan, movable group containers, selected/multi-selected/lasso-selected/nudged/aligned/distributed/duplicated/copied-pasted/deleted/pinned/locked Map objects, selected-set Map dragging/resizing, structured Map object inspectors with custom properties and type-detail overrides, no-API selected-object/selection context copy, group duplication with contained unlocked Map object copies, manual context objects, readable generated output reference objects, generated-output shelf lane with collapse/expand, collapsible checkpoint history lane, Map object focus filter, optional live rewrite, preview button, cached frame renders, responsive smoke, visual snapshot artifacts, long-session browser stress, no-API e2e workflow proof with context-themed build output, runtime health validation, stale-runtime recovery, occupied-port diagnostics, isolated lifecycle regression
 still open:
   arbitrary schema-specific property panels and full arbitrary-object infinite canvas behavior
 ```
@@ -425,10 +428,10 @@ flowchart LR
 The next work should not add more exposed controls to the current UI. It should make the default surface feel like a designer's live workbench:
 
 ```text
-sketch card + generated output card + transcript/command composer
+scratchpad + generated output surface + transcript/command composer
         -> Codex task pack
         -> generated surface
-        -> draw corrections over output
+        -> mark corrections in the same surface
         -> Codex refines
 ```
 

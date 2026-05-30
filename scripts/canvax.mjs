@@ -6084,16 +6084,16 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         <div class="note-layer">
           ${noteMarkup}
         </div>
-        <div class="toolbar" aria-label="Optional review overlays">
-          <span class="toolbar-kicker">Review overlays</span>
+        <div class="toolbar" aria-label="Optional reference overlays">
+          <span class="toolbar-kicker">Compare</span>
           ${
             sketchSrc
-              ? '<button type="button" data-action="toggle-blueprint" data-on-label="Hide sketch overlay" data-off-label="Show sketch overlay" aria-pressed="false" title="Optional review overlay: compare the generated output against the original Canvax sketch. This is not product UI.">Show sketch overlay</button>'
+              ? '<button type="button" data-action="toggle-blueprint" data-on-label="Hide sketch" data-off-label="Show sketch" aria-pressed="false" title="Compare this generated output against the original Canvax sketch. This is not product UI.">Show sketch</button>'
               : ""
           }
           ${
             noteMarkup
-              ? '<button type="button" data-action="toggle-notes" data-on-label="Hide note overlay" data-off-label="Show note overlay" aria-pressed="false" title="Optional review overlay: show free labels and interpretation notes captured from the sketch. These notes guide Codex but are not product UI.">Show note overlay</button>'
+              ? '<button type="button" data-action="toggle-notes" data-on-label="Hide notes" data-off-label="Show notes" aria-pressed="false" title="Show labels and interpretation notes captured from the sketch. These notes guide Codex but are not product UI.">Show notes</button>'
               : ""
           }
         </div>

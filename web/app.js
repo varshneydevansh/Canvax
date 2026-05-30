@@ -1,7 +1,7 @@
 const STORAGE_KEY = "canvax-studio-v1";
 const PROJECT_REGISTRY_KEY = "canvax-project-registry-v1";
 const PROJECT_SNAPSHOT_PREFIX = "canvax-project-v1:";
-const STORAGE_VERSION = 4;
+const STORAGE_VERSION = 8;
 const HANDOFF_SCHEMA_VERSION = 1;
 const FRAME_RENDERER_VERSION = 5;
 const LIVE_PREVIEW_STORAGE_KEY = "canvax-preview-live-v1";
@@ -853,6 +853,16 @@ const dom = {
   flowList: document.querySelector("#flow-list"),
   helpOverlay: document.querySelector("#help-overlay"),
   helpClose: document.querySelector("#help-close"),
+  helpCurrentMode: document.querySelector("#help-current-mode"),
+  helpCurrentFrame: document.querySelector("#help-current-frame"),
+  helpCurrentOutput: document.querySelector("#help-current-output"),
+  helpCurrentLiveEdit: document.querySelector("#help-current-live-edit"),
+  helpCheckSketch: document.querySelector("#help-check-sketch"),
+  helpCheckIntent: document.querySelector("#help-check-intent"),
+  helpCheckOutput: document.querySelector("#help-check-output"),
+  helpCheckTarget: document.querySelector("#help-check-target"),
+  helpCheckVariants: document.querySelector("#help-check-variants"),
+  helpCheckApply: document.querySelector("#help-check-apply"),
 };
 
 const imageCache = new Map();
@@ -867,6 +877,11 @@ const livePreviewChannel =
     ? new BroadcastChannel(LIVE_PREVIEW_CHANNEL_NAME)
     : null;
 let voiceRecognition = null;
+let canvasRenderFrameId = 0;
+let outputAnnotationRenderFrameId = 0;
+let liveEditPickDraftOverlayFrameId = 0;
+let interactionPerformanceActive = false;
+let scrollPerformanceTimer = 0;
 const state = hydrateState();
 
 init();
@@ -1068,6 +1083,9 @@ function applyProjectBrowserFixture() {
 }
 
 function bindEvents() {
+  window.addEventListener("scroll", markScrollPerformanceActive, {
+    passive: true,
+  });
   dom.boardProject.addEventListener("input", () =>
     updateBoard("project", dom.boardProject.value),
   );
@@ -1498,11 +1516,23 @@ function bindEvents() {
   });
   [dom.workbenchOutputSurface, dom.workbenchOutputStageSurface].forEach(
     (surface) => {
+      surface.addEventListener("pointerenter", () =>
+        setActiveFrameZoomSurface("output"),
+      );
+      surface.addEventListener("focusin", () =>
+        setActiveFrameZoomSurface("output"),
+      );
       surface.addEventListener("pointerdown", onWorkbenchOutputPointerDown);
       surface.addEventListener("pointermove", onWorkbenchOutputPointerMove);
       surface.addEventListener("pointerup", onWorkbenchOutputPointerUp);
       surface.addEventListener("pointerleave", onWorkbenchOutputPointerUp);
       surface.addEventListener("pointercancel", onWorkbenchOutputPointerUp);
+      surface.addEventListener("wheel", onWorkbenchOutputWheel, {
+        passive: false,
+      });
+      surface.addEventListener("scroll", markScrollPerformanceActive, {
+        passive: true,
+      });
     },
   );
   dom.focusManualInput.addEventListener("input", () => {
@@ -1549,9 +1579,9 @@ function bindEvents() {
   dom.deleteSelection.addEventListener("click", deleteSelectedElement);
   dom.sendBackward.addEventListener("click", sendSelectionBackward);
   dom.bringForward.addEventListener("click", bringSelectionForward);
-  dom.zoomOut.addEventListener("click", () => updateZoom(-0.1));
-  dom.zoomIn.addEventListener("click", () => updateZoom(0.1));
-  dom.zoomReset.addEventListener("click", () => setZoom(1));
+  dom.zoomOut.addEventListener("click", () => updateActiveFrameZoom(-0.1));
+  dom.zoomIn.addEventListener("click", () => updateActiveFrameZoom(0.1));
+  dom.zoomReset.addEventListener("click", () => resetActiveFrameZoom());
   dom.flowZoomOut.addEventListener("click", () => updateFlowZoom(-0.1));
   dom.flowZoomIn.addEventListener("click", () => updateFlowZoom(0.1));
   dom.flowZoomReset.addEventListener("click", () => setFlowZoom(1));
@@ -1559,6 +1589,9 @@ function bindEvents() {
     fitFlowMapToContent();
   });
   dom.flowShell.addEventListener("scroll", renderFlowNavigatorViewport, {
+    passive: true,
+  });
+  dom.flowShell.addEventListener("scroll", markScrollPerformanceActive, {
     passive: true,
   });
   dom.flowShell.addEventListener("dragover", onMapFileDragOver);
@@ -1973,7 +2006,19 @@ function bindEvents() {
   dom.canvas.addEventListener("pointerenter", onCanvasPointerEnter);
   dom.canvas.addEventListener("pointerleave", onPointerUp);
   dom.canvas.addEventListener("pointercancel", onPointerUp);
+  dom.deviceShell.addEventListener("pointerenter", () =>
+    setActiveFrameZoomSurface("canvas"),
+  );
+  dom.deviceShell.addEventListener("focusin", () =>
+    setActiveFrameZoomSurface("canvas"),
+  );
   dom.deviceShell.addEventListener("pointerdown", onDeviceShellPointerDown);
+  dom.deviceShell.addEventListener("wheel", onDeviceShellWheel, {
+    passive: false,
+  });
+  dom.deviceShell.addEventListener("scroll", markScrollPerformanceActive, {
+    passive: true,
+  });
 
   dom.flowBoard.addEventListener("click", onFlowBoardClick);
   dom.flowBoard.addEventListener("pointerdown", onFlowBoardPointerDown);
@@ -2687,6 +2732,9 @@ function hydrateState() {
       zoom: Number.isFinite(migrated.zoom)
         ? Math.max(0.5, Math.min(3, migrated.zoom))
         : empty.zoom,
+      outputZoom: Number.isFinite(migrated.outputZoom)
+        ? Math.max(0.35, Math.min(3, migrated.outputZoom))
+        : empty.outputZoom,
       flowZoom: Number.isFinite(migrated.flowZoom)
         ? Math.max(0.35, Math.min(2.25, migrated.flowZoom))
         : empty.flowZoom,
@@ -2704,7 +2752,10 @@ function hydrateState() {
         ? migrated.workbenchFocus
         : empty.workbenchFocus,
       designKitSearch: cleanString(migrated.designKitSearch),
-      workbenchTrayCollapsed: Boolean(migrated.workbenchTrayCollapsed),
+      workbenchTrayCollapsed:
+        typeof migrated.workbenchTrayCollapsed === "boolean"
+          ? migrated.workbenchTrayCollapsed
+          : empty.workbenchTrayCollapsed,
       workbenchAgentLogOpen: false,
       outputLaneCollapsed: Boolean(
         migrated.outputLaneCollapsed ?? empty.outputLaneCollapsed,
@@ -2764,6 +2815,7 @@ function hydrateState() {
       outputAnnotationDraft: null,
       liveEditPickActive: false,
       liveEditPickSurface: "",
+      activeZoomSurface: "canvas",
       liveEditPickDraft: null,
       liveEditDraftNote: "",
       liveEditPinPlacement: null,
@@ -2824,6 +2876,42 @@ function migratePersistedSnapshot(snapshot, empty) {
     const activeMapFilter = normalizeMapObjectFilter(snapshot.mapObjectFilter);
     nextSnapshot.outputLaneCollapsed = activeMapFilter !== "outputs";
     nextSnapshot.historyLaneCollapsed = activeMapFilter !== "history";
+  }
+
+  if (previousVersion < 5) {
+    nextSnapshot.workbenchTrayCollapsed = true;
+  }
+
+  if (previousVersion < 6) {
+    nextSnapshot.workspaceMode = "simple";
+    nextSnapshot.workbenchFocus = "sketch";
+    nextSnapshot.viewMode = "frame";
+    nextSnapshot.workbenchTrayCollapsed = true;
+    nextSnapshot.workbenchAgentLogOpen = false;
+  }
+
+  if (previousVersion < 7) {
+    nextSnapshot.workspaceMode = "simple";
+    nextSnapshot.workbenchFocus = "sketch";
+    nextSnapshot.viewMode = "frame";
+    nextSnapshot.workbenchTrayCollapsed = true;
+    nextSnapshot.workbenchAgentLogOpen = false;
+    nextSnapshot.liveEditPickActive = false;
+    nextSnapshot.liveEditPickSurface = "";
+    nextSnapshot.liveEditPickDraft = null;
+    nextSnapshot.liveEditDraftNote = "";
+  }
+
+  if (previousVersion < 8) {
+    nextSnapshot.workspaceMode = "simple";
+    nextSnapshot.workbenchFocus = "sketch";
+    nextSnapshot.viewMode = "frame";
+    nextSnapshot.workbenchTrayCollapsed = true;
+    nextSnapshot.workbenchAgentLogOpen = false;
+    nextSnapshot.liveEditPickActive = false;
+    nextSnapshot.liveEditPickSurface = "";
+    nextSnapshot.liveEditPickDraft = null;
+    nextSnapshot.liveEditDraftNote = "";
   }
 
   return nextSnapshot;
@@ -3239,11 +3327,12 @@ function createInitialState() {
     autoSnap: true,
     autoRewrite: false,
     zoom: 1,
+    outputZoom: 1,
     flowZoom: 1,
     viewMode: "frame",
     workspaceMode: "simple",
     workbenchFocus: "sketch",
-    workbenchTrayCollapsed: false,
+    workbenchTrayCollapsed: true,
     workbenchAgentLogOpen: false,
     outputLaneCollapsed: true,
     historyLaneCollapsed: true,
@@ -3297,6 +3386,7 @@ function createInitialState() {
     outputAnnotationDraft: null,
     liveEditPickActive: false,
     liveEditPickSurface: "",
+    activeZoomSurface: "canvas",
     liveEditPickDraft: null,
     liveEditDraftNote: "",
     liveEditPinPlacement: null,
@@ -4909,6 +4999,73 @@ function renderAll() {
   renderBusyState();
 }
 
+function isInteractionPerformanceActive() {
+  return Boolean(
+    state.isDrawing ||
+      state.draftElement ||
+      state.elementTransform ||
+      state.liveEditPickDraft ||
+      state.liveEditPinDrag ||
+      state.liveEditMapStrokeDraft ||
+      state.outputAnnotationDraft ||
+      state.shellPan ||
+      state.flowLasso ||
+      state.flowPan ||
+      state.flowDrag ||
+      state.flowConnectionDraft,
+  );
+}
+
+function renderInteractionPerformanceMode() {
+  const active = isInteractionPerformanceActive();
+  if (interactionPerformanceActive === active) {
+    return;
+  }
+  interactionPerformanceActive = active;
+  document.body.classList.toggle("canvax-interacting", active);
+}
+
+function markScrollPerformanceActive() {
+  document.body.classList.add("canvax-scrolling");
+  window.clearTimeout(scrollPerformanceTimer);
+  scrollPerformanceTimer = window.setTimeout(() => {
+    document.body.classList.remove("canvax-scrolling");
+  }, 140);
+}
+
+function requestCanvasRender() {
+  renderInteractionPerformanceMode();
+  if (canvasRenderFrameId) {
+    return;
+  }
+  canvasRenderFrameId = window.requestAnimationFrame(() => {
+    canvasRenderFrameId = 0;
+    renderCanvas();
+  });
+}
+
+function requestWorkbenchOutputAnnotationsRender() {
+  renderInteractionPerformanceMode();
+  if (outputAnnotationRenderFrameId) {
+    return;
+  }
+  outputAnnotationRenderFrameId = window.requestAnimationFrame(() => {
+    outputAnnotationRenderFrameId = 0;
+    renderWorkbenchOutputAnnotations();
+  });
+}
+
+function requestLiveEditPickDraftOverlayRender() {
+  renderInteractionPerformanceMode();
+  if (liveEditPickDraftOverlayFrameId) {
+    return;
+  }
+  liveEditPickDraftOverlayFrameId = window.requestAnimationFrame(() => {
+    liveEditPickDraftOverlayFrameId = 0;
+    renderLiveEditPickDraftOverlays();
+  });
+}
+
 function currentUiBusyState() {
   return Boolean(
     state.focusApplyInFlight ||
@@ -4933,16 +5090,22 @@ function renderBusyState() {
   dom.statusPill?.classList.toggle("is-busy", busy);
 }
 
+function normalizeWorkspaceViewMode() {
+  if (state.workspaceMode !== "simple") {
+    return;
+  }
+  const nextViewMode = state.workbenchFocus === "map" ? "flow" : "frame";
+  if (state.viewMode !== nextViewMode) {
+    state.viewMode = nextViewMode;
+  }
+}
+
 function renderWorkspaceMode() {
   const mode = workspaceModes.some((entry) => entry.id === state.workspaceMode)
     ? state.workspaceMode
     : "simple";
   state.workspaceMode = mode;
-  if (mode === "simple" && state.workbenchFocus === "map") {
-    state.viewMode = "flow";
-  } else if (mode === "simple" && state.viewMode !== "frame") {
-    state.viewMode = "frame";
-  }
+  normalizeWorkspaceViewMode();
   if (mode === "simple" && state.voice.scope !== "frame") {
     state.voice.scope = "frame";
   }
@@ -4964,7 +5127,10 @@ function renderWorkspaceMode() {
   dom.workbenchTrayToggle.hidden = mode !== "simple";
   dom.workbenchTrayToggle.textContent = state.workbenchTrayCollapsed
     ? "Show brief"
-    : "Open scratchpad";
+    : "Hide brief";
+  dom.workbenchTrayToggle.title = state.workbenchTrayCollapsed
+    ? "Show project, surface, action, and quick-start controls"
+    : "Hide the brief and return to the canvas-first scratchpad";
   dom.workbenchTrayToggle.setAttribute(
     "aria-pressed",
     String(state.workbenchTrayCollapsed),
@@ -5431,7 +5597,7 @@ function applyDesignerStartAction(action) {
 
   state.workbenchFocus = nextAction === "make" ? "split" : "sketch";
   state.viewMode = "frame";
-  state.workbenchTrayCollapsed = nextAction === "sketch";
+  state.workbenchTrayCollapsed = true;
   if (nextAction === "sketch") {
     state.tool = "pen";
   } else if (!["pen", "rect", "arrow", "erase"].includes(state.tool)) {
@@ -5955,7 +6121,7 @@ function renderFocusPad() {
       "Browser dictation is unavailable here. Paste macOS dictation below, then apply.";
   } else {
     dom.focusStatus.textContent =
-      "Draw rough placement, start talking or paste a note, then Apply to Codex.";
+      "Sketch or dictate a change, then apply it to Codex.";
   }
 
   renderBusyState();
@@ -10403,9 +10569,19 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
   } = context;
   const stageClass = compact ? "" : " workbench-output-stage-surface";
   if (!target || !targetUrl) {
-    surface.className =
-      `workbench-output-surface${stageClass} empty-state`;
-    surface.innerHTML = `
+    const nextClassName = `workbench-output-surface${stageClass} empty-state`;
+    const nextSignature = JSON.stringify([
+      "empty",
+      compact,
+      annotationCount,
+    ]);
+    if (
+      surface.dataset.renderSignature !== nextSignature ||
+      surface.className !== nextClassName
+    ) {
+      surface.dataset.renderSignature = nextSignature;
+      surface.className = nextClassName;
+      surface.innerHTML = `
       <span class="workbench-output-mark">Make real</span>
       <p>${
         compact
@@ -10413,6 +10589,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
           : "Use Split or Output focus after Make to inspect generated surfaces at a usable size."
       }</p>
     `;
+    }
     metaNode.textContent = annotationCount
       ? `${annotationCount} output correction mark(s) are saved, but no generated surface is currently attached.`
       : "Ready for UI, image prompt, book spread, poster, app screen, deck, or spec work.";
@@ -10453,7 +10630,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
   const pickDraftStyle = pickDraft
     ? liveEditTargetStyle(liveEditPickDraftBounds(pickDraft))
     : "";
-  surface.className = [
+  const nextClassName = [
     `workbench-output-surface${stageClass}`,
     annotationCount ? "has-annotations" : "",
     state.liveEditPickActive ? "live-pick-active" : "",
@@ -10464,50 +10641,80 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
   ]
     .filter(Boolean)
     .join(" ");
-  surface.innerHTML = `
-    <iframe
-      src="${escapeHtml(framedUrl)}"
-      title="${escapeHtml(targetLabel)}"
-      loading="lazy"
-    ></iframe>
-    <canvas
-      class="workbench-output-overlay"
-      aria-label="Draw correction marks over the generated output"
-    ></canvas>
-    ${
-      showLiveTarget
-        ? `<span class="workbench-live-edit-outline" data-live-edit-outcome-tone="${escapeHtml(liveOutcome?.tone || "")}" style="${liveTargetStyle}"><span class="workbench-live-edit-outline-label">${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Picked target")}</span></span>`
-        : ""
-    }
-    ${
-      pickDraftStyle
-        ? `<span class="workbench-live-edit-pick-draft" style="${pickDraftStyle}"><span>Selecting target</span></span>`
-        : ""
-    }
-    ${livePins
-      .map(
-        (pin, index) =>
-          `<span class="workbench-live-edit-pin" data-live-edit-pin-id="${escapeHtml(pin.id)}" data-live-edit-target-id="${escapeHtml(pin.targetId || "")}" style="left:${(pin.point.x * 100).toFixed(3)}%; top:${(pin.point.y * 100).toFixed(3)}%;" title="${escapeHtml(`${pin.text} - drag to reposition`)}" role="button" aria-label="${escapeHtml(`Comment pin ${index + 1}: ${pin.text}`)}" tabindex="0">${index + 1}</span>`,
-      )
-      .join("")}
-    ${liveVariant ? renderLiveEditVariantMarkup(liveVariant, liveTarget) : ""}
-    ${
-      liveOutcome
-        ? `<span class="workbench-live-edit-outcome" data-tone="${escapeHtml(liveOutcome.tone)}"><strong>${escapeHtml(liveOutcome.label)}</strong><small>${escapeHtml(liveOutcome.detail)}</small></span>`
-        : ""
-    }
-    <span class="workbench-output-draw-hint">${
-      state.liveEditPickActive
+  const outputHint =
+    state.liveEditPickActive || placingLivePin || liveOutcome || annotationCount
+      ? state.liveEditPickActive
         ? "Click to pick target"
         : placingLivePin
           ? "Click selected target to place pin"
-        : liveOutcome
-          ? liveOutcome.label
-        : annotationCount
-        ? `${annotationCount} correction mark${annotationCount === 1 ? "" : "s"}`
-        : "Draw corrections here"
-    }</span>
+          : liveOutcome
+            ? liveOutcome.label
+            : `${annotationCount} correction mark${annotationCount === 1 ? "" : "s"}`
+      : "";
+  const nextSignature = JSON.stringify([
+    compact,
+    framedUrl,
+    target.id || "",
+    target.versionTag || "",
+    annotationCount,
+    state.liveEditPickActive,
+    pickDraftStyle,
+    showLiveTarget ? liveTargetStyle : "",
+    livePins.map((pin) => [pin.id, pin.point?.x, pin.point?.y, pin.text]),
+    liveVariant?.id || "",
+    liveVariant?.role || "",
+    liveOutcome?.label || "",
+    outputHint,
+  ]);
+  if (
+    surface.dataset.renderSignature !== nextSignature ||
+    surface.className !== nextClassName
+  ) {
+    surface.dataset.renderSignature = nextSignature;
+    surface.className = nextClassName;
+    surface.innerHTML = `
+    <div class="workbench-output-zoom-plane">
+      <div class="workbench-output-zoom-content">
+        <iframe
+          src="${escapeHtml(framedUrl)}"
+          title="${escapeHtml(targetLabel)}"
+          loading="lazy"
+        ></iframe>
+        <canvas
+          class="workbench-output-overlay"
+          aria-label="Draw correction marks over the generated output"
+        ></canvas>
+        ${
+          showLiveTarget
+            ? `<span class="workbench-live-edit-outline" data-live-edit-outcome-tone="${escapeHtml(liveOutcome?.tone || "")}" style="${liveTargetStyle}"><span class="workbench-live-edit-outline-label">${escapeHtml(liveTarget.status === "accepted" ? "Accepted target" : "Picked target")}</span></span>`
+            : ""
+        }
+        ${
+          pickDraftStyle
+            ? `<span class="workbench-live-edit-pick-draft" style="${pickDraftStyle}"><span>Selecting target</span></span>`
+            : ""
+        }
+        ${livePins
+          .map(
+            (pin, index) =>
+              `<span class="workbench-live-edit-pin" data-live-edit-pin-id="${escapeHtml(pin.id)}" data-live-edit-target-id="${escapeHtml(pin.targetId || "")}" style="left:${(pin.point.x * 100).toFixed(3)}%; top:${(pin.point.y * 100).toFixed(3)}%;" title="${escapeHtml(`${pin.text} - drag to reposition`)}" role="button" aria-label="${escapeHtml(`Comment pin ${index + 1}: ${pin.text}`)}" tabindex="0">${index + 1}</span>`,
+          )
+          .join("")}
+        ${liveVariant ? renderLiveEditVariantMarkup(liveVariant, liveTarget) : ""}
+        ${
+          liveOutcome
+            ? `<span class="workbench-live-edit-outcome" data-tone="${escapeHtml(liveOutcome.tone)}"><strong>${escapeHtml(liveOutcome.label)}</strong><small>${escapeHtml(liveOutcome.detail)}</small></span>`
+            : ""
+        }
+        ${
+          outputHint
+            ? `<span class="workbench-output-draw-hint">${escapeHtml(outputHint)}</span>`
+            : ""
+        }
+      </div>
+    </div>
   `;
+  }
   const baseMeta =
     freshness ||
     refinement ||
@@ -10524,6 +10731,37 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
           ? `${baseMeta} ${liveOutcome.detail}`
         : `${baseMeta} Live edit target is bound to the next rewrite. Sketch, speak, place pins, or create variants from that region.`
       : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
+}
+
+function renderLiveEditPickDraftOverlays() {
+  renderInteractionPerformanceMode();
+  const frame = currentFrame();
+  const pickDraft = liveEditPickDraftForSurface("output", frame);
+  const pickDraftStyle = pickDraft
+    ? liveEditTargetStyle(liveEditPickDraftBounds(pickDraft))
+    : "";
+  [dom.workbenchOutputSurface, dom.workbenchOutputStageSurface]
+    .filter(Boolean)
+    .forEach((surface) => {
+      surface.classList.toggle(
+        "has-live-edit-pick-draft",
+        Boolean(pickDraftStyle),
+      );
+      let node = surface.querySelector(".workbench-live-edit-pick-draft");
+      if (!pickDraftStyle) {
+        node?.remove();
+        return;
+      }
+      if (!node) {
+        node = document.createElement("span");
+        node.className = "workbench-live-edit-pick-draft";
+        node.innerHTML = "<span>Selecting target</span>";
+        (surface.querySelector(".workbench-output-zoom-content") || surface).append(
+          node,
+        );
+      }
+      node.setAttribute("style", pickDraftStyle);
+    });
 }
 
 function liveEditWritebackForTarget(frame, liveTarget, outputTarget = null) {
@@ -10683,12 +10921,20 @@ function renderLiveEditActionOptions(frame = currentFrame()) {
     return;
   }
   const active = currentLiveEditActionIntent(frame);
+  const signature = [
+    active.id,
+    ...liveEditActionChips.map((chip) => `${chip.id}:${chip.label}`),
+  ].join("|");
+  if (dom.workbenchLiveEditActionOptions.dataset.renderSignature === signature) {
+    return;
+  }
   dom.workbenchLiveEditActionOptions.innerHTML = liveEditActionChips
     .map(
       (chip) =>
         `<button class="workbench-live-edit-action-option${chip.id === active.id ? " active" : ""}" type="button" data-live-edit-action="${escapeHtml(chip.id)}" aria-pressed="${chip.id === active.id ? "true" : "false"}" title="${escapeHtml(chip.description)}">${escapeHtml(chip.label)}</button>`,
     )
     .join("");
+  dom.workbenchLiveEditActionOptions.dataset.renderSignature = signature;
 }
 
 function renderLiveEditControls({ frame, target, targetUrl }) {
@@ -10738,9 +10984,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.focusLivePick.disabled = !canPick;
   dom.focusLivePick.classList.toggle("active", state.liveEditPickActive);
   dom.focusLivePick.setAttribute("aria-pressed", String(state.liveEditPickActive));
-  const liveEditIdleLabel = liveTarget ? "Retarget" : "Live Edit";
+  const liveEditIdleLabel = liveTarget ? "Change target" : "Live Edit";
   dom.focusLivePick.textContent = state.liveEditPickActive
-    ? "Picking..."
+    ? "Cancel"
     : liveEditIdleLabel;
   dom.workbenchComposerPick.disabled = !canPick;
   dom.workbenchComposerPick.classList.toggle("active", state.liveEditPickActive);
@@ -10749,9 +10995,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     String(state.liveEditPickActive),
   );
   dom.workbenchComposerPick.textContent = state.liveEditPickActive
-    ? "Picking"
+    ? "Cancel"
     : liveTarget
-      ? "Retarget"
+      ? "Change target"
       : "Live Edit";
   dom.workbenchLivePickOutput.disabled = !canPick;
   dom.workbenchOutputStageLivePick.disabled = !canPick;
@@ -10764,14 +11010,14 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     state.liveEditPickActive,
   );
   dom.workbenchLivePickOutput.textContent = state.liveEditPickActive
-    ? "Picking..."
+    ? "Cancel"
     : liveTarget
-      ? "Retarget"
+      ? "Change target"
       : "Live Edit";
   dom.workbenchOutputStageLivePick.textContent = state.liveEditPickActive
-    ? "Picking..."
+    ? "Cancel"
     : liveTarget
-      ? "Retarget"
+      ? "Change target"
       : "Live Edit";
   dom.workbenchRail
     .querySelectorAll("[data-rail-action='live-pick']")
@@ -10780,9 +11026,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
       button.classList.toggle("active", state.liveEditPickActive);
       button.setAttribute("aria-pressed", String(state.liveEditPickActive));
       button.textContent = state.liveEditPickActive
-        ? "Picking"
+        ? "Cancel"
         : liveTarget
-          ? "Retarget"
+          ? "Target"
           : "Live";
     });
 
@@ -10802,10 +11048,10 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     String(state.liveEditPickActive),
   );
   dom.workbenchLiveEditPick.textContent = state.liveEditPickActive
-    ? "Picking..."
+    ? "Cancel"
     : liveTarget
-      ? "Retarget"
-      : "Pick";
+      ? "Change target"
+      : "Pick target";
   dom.workbenchLiveEditTitle.textContent = state.liveEditPickActive
     ? activeEditSurface === "canvas"
       ? "Pick a target on the canvas"
@@ -10823,11 +11069,7 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     : placingLivePin
       ? "Click inside the outlined target to place this comment pin. Drag pins to refine the exact point."
     : liveTarget
-      ? `Region ${Math.round(liveTarget.bounds.x * 100)}%, ${Math.round(
-          liveTarget.bounds.y * 100,
-        )}% / ${Math.round(liveTarget.bounds.w * 100)}x${Math.round(
-          liveTarget.bounds.h * 100,
-        )}%`
+      ? `Target selected on ${liveEditTargetSurfaceChoice(liveTarget, target) || "this surface"}. Mark it, add a comment, talk, then Go for variants.`
       : hasOutput
         ? "Pick the output or scratch canvas, then mark, comment, talk, generate variants, and accept in place."
         : "Pick a scratchpad object, image, or drawn region, then mark, comment, talk, generate variants, and accept in place.";
@@ -10890,6 +11132,17 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
       : "Go"
     : "Pick first";
   dom.workbenchLiveEditAccept.disabled = !liveTarget;
+  const hasDiscardableLiveEdit = Boolean(
+    state.liveEditPickActive ||
+      (liveTarget && liveTarget.status !== "accepted") ||
+      variants.length,
+  );
+  dom.workbenchLiveEditClose.textContent = hasDiscardableLiveEdit
+    ? "Discard"
+    : "Close";
+  dom.workbenchLiveEditClose.title = hasDiscardableLiveEdit
+    ? "Discard the temporary pick or variants and restore the original target"
+    : "Close the Live Edit controls";
   dom.workbenchLiveEditClose.disabled = !(
     state.liveEditPickActive ||
     liveTarget ||
@@ -11137,21 +11390,23 @@ function renderLiveEditSurfaceButtons({
   }
   const hasOutput = Boolean(target && targetUrl);
   const hasLiveTarget = Boolean(liveTarget);
-  const visible = Boolean(
+  const controlsVisible = Boolean(
     state.workspaceMode === "simple" &&
       state.viewMode === "frame" &&
-      (state.workbenchFocus === "split" ||
-        state.workbenchFocus === "output" ||
-        state.liveEditPickActive ||
-        hasLiveTarget ||
-        hasOutput),
+      state.liveEditPickActive &&
+      (hasOutput || hasCanvasPickSurface),
+  );
+  const surfaceStateVisible = Boolean(
+    state.workspaceMode === "simple" &&
+      state.viewMode === "frame" &&
+      (state.liveEditPickActive || hasLiveTarget),
   );
   const activeSurface = currentLiveEditSurfaceChoice({
     frame,
     target,
     liveTarget,
   });
-  dom.workbenchLiveSurfaceButtons.hidden = !visible;
+  dom.workbenchLiveSurfaceButtons.hidden = !controlsVisible;
   dom.workbenchLiveSurfaceButtons
     .querySelectorAll("[data-live-edit-surface]")
     .forEach((button) => {
@@ -11179,8 +11434,14 @@ function renderLiveEditSurfaceButtons({
     liveTarget,
     target,
   });
-  setLiveEditSurfaceState(dom.deviceShell, visible ? canvasState : "");
-  setLiveEditSurfaceState(dom.workbenchOutputStage, visible ? outputState : "");
+  setLiveEditSurfaceState(
+    dom.deviceShell,
+    surfaceStateVisible ? canvasState : "",
+  );
+  setLiveEditSurfaceState(
+    dom.workbenchOutputStage,
+    surfaceStateVisible ? outputState : "",
+  );
   return activeSurface;
 }
 
@@ -12417,7 +12678,7 @@ function updateLiveEditCanvasPickDraft(event) {
   const point = canvasLiveEditPointFromEvent(event, currentFrame());
   if (point) {
     draft.current = point;
-    renderCanvas();
+    requestCanvasRender();
   }
   event.preventDefault();
   event.stopPropagation();
@@ -14000,10 +14261,14 @@ function closeLiveEditTarget() {
   state.liveEditPickActive = false;
   state.liveEditPickSurface = "";
   state.liveEditPickDraft = null;
+  state.liveEditDraftNote = "";
   state.liveEditPinPlacement = null;
   state.liveEditPinDrag = null;
   state.liveEditMapDrawActive = false;
   state.liveEditMapStrokeDraft = null;
+  if (dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value = "";
+  }
   persistState();
   renderAll();
   renderStatus(
@@ -15022,7 +15287,7 @@ function updateLiveEditOutputPickDraft(event) {
   const point = outputAnnotationPointFromEvent(event);
   if (point) {
     draft.current = point;
-    renderWorkbenchOutput();
+    requestLiveEditPickDraftOverlayRender();
   }
   event.preventDefault();
   event.stopPropagation();
@@ -15128,7 +15393,7 @@ function onWorkbenchOutputPointerMove(event) {
   const previous = draft.points.at(-1);
   if (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) > 0.002) {
     draft.points.push(point);
-    renderWorkbenchOutputAnnotations();
+    requestWorkbenchOutputAnnotationsRender();
   }
 }
 
@@ -15170,6 +15435,37 @@ function onWorkbenchOutputPointerUp(event) {
     capture: false,
     status: "Output correction mark saved",
   });
+}
+
+function onWorkbenchOutputWheel(event) {
+  if (
+    state.workspaceMode !== "simple" ||
+    event.target.closest("textarea, input, select")
+  ) {
+    return;
+  }
+  const surface = event.currentTarget?.closest?.(
+    "[data-workbench-output-surface]",
+  );
+  if (!surface) {
+    return;
+  }
+  setActiveFrameZoomSurface("output");
+  markScrollPerformanceActive();
+  if (!event.ctrlKey && !event.metaKey) {
+    return;
+  }
+
+  event.preventDefault();
+  const previousZoom = state.outputZoom || 1;
+  const rect = surface.getBoundingClientRect();
+  const anchorX = event.clientX - rect.left + surface.scrollLeft;
+  const anchorY = event.clientY - rect.top + surface.scrollTop;
+  const zoomDelta = event.deltaY > 0 ? -0.1 : 0.1;
+  setOutputZoom(previousZoom + zoomDelta);
+  const zoomRatio = (state.outputZoom || 1) / previousZoom;
+  surface.scrollLeft = anchorX * zoomRatio - (event.clientX - rect.left);
+  surface.scrollTop = anchorY * zoomRatio - (event.clientY - rect.top);
 }
 
 function isOutputAnnotationMeaningful(annotation) {
@@ -15242,6 +15538,7 @@ function rectsOverlap(a, b) {
 }
 
 function renderWorkbenchOutputAnnotations() {
+  renderInteractionPerformanceMode();
   const canvases = Array.from(
     document.querySelectorAll(".workbench-output-overlay"),
   );
@@ -15334,12 +15631,50 @@ function renderToolHint() {
 }
 
 function renderZoom() {
-  dom.zoomValue.textContent = `${Math.round(state.zoom * 100)}%`;
-  dom.zoomOut.disabled = state.zoom <= 0.5;
-  dom.zoomIn.disabled = state.zoom >= 3;
+  const activeZoom = activeFrameZoomState();
+  document.documentElement.style.setProperty("--canvax-zoom", String(state.zoom));
+  document.documentElement.style.setProperty(
+    "--canvax-output-zoom",
+    String(state.outputZoom || 1),
+  );
+  dom.zoomValue.textContent = `${Math.round(activeZoom.value * 100)}%`;
+  dom.zoomOut.disabled = activeZoom.value <= activeZoom.min;
+  dom.zoomIn.disabled = activeZoom.value >= activeZoom.max;
   dom.flowZoomValue.textContent = `${Math.round(state.flowZoom * 100)}%`;
   dom.flowZoomOut.disabled = state.flowZoom <= 0.35;
   dom.flowZoomIn.disabled = state.flowZoom >= 2.25;
+}
+
+function activeFrameZoomState() {
+  const target =
+    state.workspaceMode === "simple" &&
+    (state.workbenchFocus === "output" ||
+      state.liveEditPickSurface === "output" ||
+      (state.workbenchFocus === "split" && state.activeZoomSurface === "output"))
+      ? "output"
+      : "canvas";
+  return target === "output"
+    ? {
+        target,
+        value: Number.isFinite(state.outputZoom) ? state.outputZoom : 1,
+        min: 0.35,
+        max: 3,
+      }
+    : {
+        target,
+        value: Number.isFinite(state.zoom) ? state.zoom : 1,
+        min: 0.5,
+        max: 3,
+      };
+}
+
+function setActiveFrameZoomSurface(surface) {
+  const nextSurface = surface === "output" ? "output" : "canvas";
+  if (state.activeZoomSurface === nextSurface) {
+    return;
+  }
+  state.activeZoomSurface = nextSurface;
+  renderZoom();
 }
 
 function setZoom(nextZoom) {
@@ -15351,6 +15686,30 @@ function setZoom(nextZoom) {
 
 function updateZoom(delta) {
   setZoom(state.zoom + delta);
+}
+
+function setOutputZoom(nextZoom) {
+  state.outputZoom = Math.max(0.35, Math.min(3, Number(nextZoom.toFixed(2))));
+  persistState();
+  renderZoom();
+  requestWorkbenchOutputAnnotationsRender();
+}
+
+function updateActiveFrameZoom(delta) {
+  const activeZoom = activeFrameZoomState();
+  if (activeZoom.target === "output") {
+    setOutputZoom(activeZoom.value + delta);
+    return;
+  }
+  setZoom(activeZoom.value + delta);
+}
+
+function resetActiveFrameZoom() {
+  if (activeFrameZoomState().target === "output") {
+    setOutputZoom(1);
+    return;
+  }
+  setZoom(1);
 }
 
 function setFlowZoom(nextZoom) {
@@ -15546,6 +15905,7 @@ function renderSelectionActions() {
 }
 
 function renderViewMode() {
+  normalizeWorkspaceViewMode();
   dom.viewModeButtons.innerHTML = viewModes
     .map(
       (mode) => `
@@ -15701,14 +16061,26 @@ function renderFrameForm() {
     const subtitleParts = [
       `${viewport.label} canvas`,
       `${viewport.width}×${viewport.height}`,
-      frame.backgroundImage
-        ? "reference underlay loaded"
-        : "blank sketch sheet",
+      state.workspaceMode === "simple"
+        ? viewport.label
+        : `${viewport.label} canvas`,
     ];
+    if (state.workspaceMode !== "simple") {
+      subtitleParts.push(`${viewport.width}×${viewport.height}`);
+    }
+    subtitleParts.push(
+      frame.backgroundImage
+        ? state.workspaceMode === "simple"
+          ? "reference loaded"
+          : "reference underlay loaded"
+        : state.workspaceMode === "simple"
+          ? "blank sketch"
+          : "blank sketch sheet",
+    );
     if (frame.variant?.label) {
       subtitleParts.push(`variant: ${frame.variant.label}`);
     }
-    if (outputStatus?.label) {
+    if (outputStatus?.label && state.workspaceMode !== "simple") {
       subtitleParts.push(outputStatus.label.toLowerCase());
     }
     dom.stageSubtitle.textContent = subtitleParts.join(" • ");
@@ -16963,6 +17335,8 @@ function buildWorkbenchExport(options = {}) {
     focusLabel: workbenchFocus.label,
     focusDescription: workbenchFocus.description,
     startPath: "1 Sketch -> 2 Talk -> 3 Make -> 4 Map",
+    canvasZoom: Number(state.zoom || 1),
+    outputZoom: Number(state.outputZoom || 1),
     actionMode: actionMode.id,
     actionModeLabel: actionMode.label,
     actionModeDescription: actionMode.description,
@@ -20160,6 +20534,7 @@ function syncCanvasSize() {
 }
 
 function renderCanvas() {
+  renderInteractionPerformanceMode();
   syncCanvasSize();
   const frame = currentFrame();
   dom.canvas.classList.toggle("select-mode", state.tool === "select");
@@ -20331,8 +20706,11 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   const variant = currentLiveEditVariant(frame);
   const pins = liveEditTargetPins(frame, liveTarget);
   const label =
-    variant?.label ||
-    (liveTarget.status === "accepted" ? "Accepted target" : "Picked target");
+    liveTarget.status === "accepted"
+      ? "Accepted target"
+      : variant?.label
+        ? `${variant.label} target`
+        : "Picked target";
   const outcome =
     liveTarget.status === "accepted"
       ? describeLiveEditWritebackOutcome(
@@ -20343,11 +20721,8 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   ctx.save();
   ctx.lineWidth = Math.max(2, 2.5 * scale);
   ctx.strokeStyle = "#f5b938";
-  ctx.fillStyle = "rgba(245, 185, 56, 0.08)";
+  ctx.fillStyle = "rgba(245, 185, 56, 0.025)";
   ctx.setLineDash([12 * scale, 8 * scale]);
-  if (variant) {
-    drawCanvasLiveEditVariantTreatment(ctx, variant, bounds, scale);
-  }
   roundRect(
     ctx,
     bounds.left * scale,
@@ -20377,9 +20752,6 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   pins.forEach((pin, index) =>
     drawCanvasLiveEditPin(ctx, pin, index, width, height, scale),
   );
-  if (variant) {
-    drawCanvasLiveEditVariantCard(ctx, variant, bounds, width, height, scale);
-  }
   ctx.restore();
 }
 
@@ -21697,7 +22069,7 @@ function onPointerMove(event) {
     const nextHoverId = hitElement?.id || null;
     if (state.hoverElementId !== nextHoverId) {
       state.hoverElementId = nextHoverId;
-      renderCanvas();
+      requestCanvasRender();
     }
   }
 
@@ -21748,7 +22120,7 @@ function onPointerMove(event) {
         : hitIds;
       setSelectedElements(nextIds, nextIds.at(-1) || null);
       renderSelectionActions();
-      renderCanvas();
+      requestCanvasRender();
       return;
     }
 
@@ -21806,7 +22178,7 @@ function onPointerMove(event) {
       }
     }
 
-    renderCanvas();
+    requestCanvasRender();
     return;
   }
 
@@ -21824,7 +22196,7 @@ function onPointerMove(event) {
   } else {
     state.draftElement.end = point;
   }
-  renderCanvas();
+  requestCanvasRender();
 }
 
 function onPointerUp(event) {
@@ -21926,6 +22298,47 @@ function onDeviceShellPointerDown(event) {
     scrollTop: dom.deviceShell.scrollTop,
   };
   renderCanvas();
+}
+
+function onDeviceShellWheel(event) {
+  if (
+    state.viewMode !== "frame" ||
+    event.target.closest("#label-editor, textarea, input, select")
+  ) {
+    return;
+  }
+
+  const shell = dom.deviceShell;
+  setActiveFrameZoomSurface("canvas");
+  const canScrollX = shell.scrollWidth > shell.clientWidth + 1;
+  const canScrollY = shell.scrollHeight > shell.clientHeight + 1;
+  const wantsZoom = event.ctrlKey || event.metaKey;
+
+  if (wantsZoom) {
+    event.preventDefault();
+    const previousZoom = state.zoom;
+    const rect = shell.getBoundingClientRect();
+    const anchorX = event.clientX - rect.left + shell.scrollLeft;
+    const anchorY = event.clientY - rect.top + shell.scrollTop;
+    const zoomDelta = event.deltaY > 0 ? -0.1 : 0.1;
+    setZoom(previousZoom + zoomDelta);
+    const zoomRatio = state.zoom / previousZoom;
+    shell.scrollLeft = anchorX * zoomRatio - (event.clientX - rect.left);
+    shell.scrollTop = anchorY * zoomRatio - (event.clientY - rect.top);
+    markScrollPerformanceActive();
+    return;
+  }
+
+  if (!canScrollX && !canScrollY) {
+    return;
+  }
+
+  event.preventDefault();
+  const horizontalDelta = event.deltaX + (event.shiftKey ? event.deltaY : 0);
+  const verticalDelta = event.shiftKey ? 0 : event.deltaY;
+  shell.scrollLeft += horizontalDelta;
+  shell.scrollTop += verticalDelta;
+  markScrollPerformanceActive();
 }
 
 function openLabelEditor(point, event, attachTargetId = null) {
@@ -22501,6 +22914,7 @@ function stepFlowPanMomentum(timestamp) {
 }
 
 function onWindowPointerMove(event) {
+  renderInteractionPerformanceMode();
   if (updateLiveEditMapStroke(event)) {
     return;
   }
@@ -22663,6 +23077,7 @@ function onWindowPointerUp(event) {
     const pan = state.flowPan;
     state.flowPan = null;
     dom.flowShell.classList.remove("is-panning");
+    renderInteractionPerformanceMode();
     startFlowPanMomentum(pan);
     return;
   }
@@ -22672,6 +23087,7 @@ function onWindowPointerUp(event) {
     const didMove = state.flowLasso.didMove;
     state.flowLasso = null;
     dom.flowShell.classList.remove("is-lassoing");
+    renderInteractionPerformanceMode();
     renderFlowBoard();
     renderSpec();
     if (didMove) {
@@ -22729,6 +23145,7 @@ function onWindowPointerUp(event) {
       ? reorderVariantBranchesByMapPosition(branchSourceId)
       : false;
   state.flowDrag = null;
+  renderInteractionPerformanceMode();
   if (didMove) {
     persistState();
     renderFlowBoard();
@@ -23534,11 +23951,81 @@ function sendSelectionBackward() {
 }
 
 function openHelpOverlay() {
+  renderHelpOverlayState();
   dom.helpOverlay.hidden = false;
 }
 
 function closeHelpOverlay() {
   dom.helpOverlay.hidden = true;
+}
+
+function setHelpCheckState(node, done) {
+  if (!node) {
+    return;
+  }
+  node.dataset.state = done ? "done" : "todo";
+}
+
+function renderHelpOverlayState() {
+  if (!dom.helpOverlay) {
+    return;
+  }
+  const frame = currentFrame();
+  const target = currentWorkbenchTarget();
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const variants = currentLiveEditVariants(frame);
+  const frameVoiceSegments = (state.voice?.segments || []).filter(
+    (segment) => segment.frameId === frame?.id,
+  );
+  const hasSketch = Boolean(
+    frame?.elements?.some((element) => !isEraserElement(element)) ||
+      frame?.backgroundImage ||
+      frame?.captures?.length ||
+      frame?.canvasReply,
+  );
+  const hasIntent = Boolean(
+    cleanString(dom.workbenchComposerInput?.value) ||
+      cleanString(dom.focusManualInput?.value) ||
+      frameVoiceSegments.length ||
+      cleanString(frame?.objective) ||
+      cleanString(liveTarget?.note),
+  );
+  const hasOutput = Boolean(target && targetUrl);
+  const hasApplied = Boolean(
+    frame?.captures?.length ||
+      frame?.acceptedLiveEditVariant ||
+      frame?.liveEditRequest?.status === "accepted" ||
+      state.saveNotice,
+  );
+  if (dom.helpCurrentMode) {
+    const focusLabel =
+      workbenchFocusModes.find((mode) => mode.id === state.workbenchFocus)
+        ?.label || state.workbenchFocus || "Sketch";
+    dom.helpCurrentMode.textContent =
+      state.workspaceMode === "simple" ? focusLabel : "Advanced";
+  }
+  if (dom.helpCurrentFrame) {
+    dom.helpCurrentFrame.textContent = frame?.title || "Frame";
+  }
+  if (dom.helpCurrentOutput) {
+    dom.helpCurrentOutput.textContent = hasOutput
+      ? compactDisplayText(target.label || target.title || "Output attached", 34)
+      : "Not generated";
+  }
+  if (dom.helpCurrentLiveEdit) {
+    dom.helpCurrentLiveEdit.textContent = liveTarget
+      ? compactDisplayText(liveTarget.targetLabel || "Target selected", 34)
+      : state.liveEditPickActive
+        ? "Picking target"
+        : "No target";
+  }
+  setHelpCheckState(dom.helpCheckSketch, hasSketch);
+  setHelpCheckState(dom.helpCheckIntent, hasIntent);
+  setHelpCheckState(dom.helpCheckOutput, hasOutput);
+  setHelpCheckState(dom.helpCheckTarget, Boolean(liveTarget));
+  setHelpCheckState(dom.helpCheckVariants, variants.length > 0);
+  setHelpCheckState(dom.helpCheckApply, hasApplied);
 }
 
 function openPreviewWindow(options = {}) {
@@ -30186,6 +30673,7 @@ function buildPersistedSnapshot(source) {
     autoSnap: source.autoSnap,
     autoRewrite: Boolean(source.autoRewrite),
     zoom: source.zoom,
+    outputZoom: source.outputZoom,
     flowZoom: source.flowZoom,
     saveNotice: source.saveNotice,
     statusText: source.statusText,
@@ -31804,17 +32292,32 @@ async function runSelfTest() {
       dom.workbenchLiveEditCounter.textContent.includes("2 / 3 variants") &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
         "Taste";
+    const liveEditDiscardButtonLabel =
+      dom.workbenchLiveEditClose.textContent.includes("Discard");
     closeLiveEditTarget();
     const liveEditDiscarded =
       frameForCanvasReply.liveEditTarget === null &&
       currentLiveEditVariants(frameForCanvasReply).length === 0 &&
       !frameForCanvasReply.acceptedLiveEditVariant &&
       !frameForCanvasReply.liveEditRequest &&
-      !frameForCanvasReply.liveEditOriginalSnapshot;
-    state.liveEditPickActive = true;
-    renderWorkbenchOutput();
-    const outputDragSurface = dom.workbenchOutputSurface;
-    const outputDragRect = outputDragSurface.getBoundingClientRect();
+      !frameForCanvasReply.liveEditOriginalSnapshot &&
+      state.liveEditDraftNote === "" &&
+      dom.workbenchLiveEditNote.value === "";
+    setLiveEditPickMode(true, { preferredSurface: "output" });
+    const outputDragSurface =
+      [
+        dom.workbenchOutputStageSurface,
+        dom.workbenchOutputSurface,
+      ].find((surface) => {
+        const rect = surface?.getBoundingClientRect?.();
+        return rect && rect.width > 20 && rect.height > 20;
+      }) || dom.workbenchOutputSurface;
+    const outputDragOverlay = outputDragSurface.querySelector(
+      ".workbench-output-overlay",
+    );
+    const outputDragRect =
+      outputDragOverlay?.getBoundingClientRect() ||
+      outputDragSurface.getBoundingClientRect();
     const outputDragPointerId = 232;
     outputDragSurface.dispatchEvent(
       makePointerEvent(
@@ -31947,6 +32450,7 @@ async function runSelfTest() {
           outputSurfacePickHighlighted &&
           canvasSurfaceTargetHighlighted &&
           liveEditVariantsHotSwap &&
+          liveEditDiscardButtonLabel &&
           liveEditDiscarded &&
           outputDragPicked &&
           liveEditDomSelectorCaptured,
@@ -31980,6 +32484,7 @@ async function runSelfTest() {
           liveEditRequestMaterial,
           firstLiveEditOperationChipCount,
           secondLiveEditOperationChipCount,
+          liveEditDiscardButtonLabel,
           liveEditDiscarded,
           outputDragPicked,
           liveEditDomSelectorCaptured,
@@ -32214,6 +32719,46 @@ async function runSelfTest() {
         canvasObjectOverlayRendered &&
           canvasObjectLiveEditExported,
         "canvas Live Edit drag-selects arbitrary regions, picks drawn objects directly, hot-swaps inside the target, and accepts back onto the correct Canvax binding",
+        JSON.stringify({
+          canvasObjectOverlayRendered,
+          canvasObjectVariantTreatmentRendered,
+          canvasObjectLocalOutcomeRendered,
+          canvasObjectDirectPicked,
+          canvasRegionDragPicked,
+          canvasRegionDirectPickAccepted,
+          canvasObjectVariantCount: canvasObjectVariants.length,
+          canvasLiveEditDrawModeArmed,
+          liveEditVariantIndex: frameForCanvasReply.liveEditVariantIndex,
+          acceptedVariant:
+            canvasObjectElement?.liveEdit?.acceptedVariant?.label || "",
+          requestStatus: canvasObjectElement?.liveEdit?.request?.status || "",
+          writebackStatus: state.serverStatus.liveEditWriteback?.status || "",
+          localOutcomeLabel: canvasObjectLocalOutcome?.label || "",
+          agentLogAccepted: canvasObjectAgentLog.some(
+            (item) =>
+              item.kind === "Live Edit" &&
+              item.title.includes("Accepted locally"),
+          ),
+          compositionAcceptedVariant:
+            canvasObjectCompositionElement?.liveEdit?.acceptedVariant?.label ||
+            "",
+          compositionRequestStatus:
+            canvasObjectComposition.liveEditRequest?.status || "",
+          compositionHasMoveStroke:
+            canvasObjectComposition.liveEditRequest?.strokes?.some(
+              (stroke) => stroke.semantics?.intent === "move-or-flow",
+            ) || false,
+          compositionHasMoveCanvasMark:
+            canvasObjectComposition.liveEditCanvasMarks.some(
+              (mark) => mark.semantics?.intent === "move-or-flow",
+            ),
+          bindingRequestStatus:
+            frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest
+              ?.status || "",
+          bindingVariant:
+            frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant
+              ?.label || "",
+        }),
       ),
     );
     const previousCanvasReplyRefreshState = {
@@ -32390,7 +32935,11 @@ async function runSelfTest() {
     );
     const previousWorkspaceMode = state.workspaceMode;
     const previousTrayCollapsed = state.workbenchTrayCollapsed;
+    const previousWorkbenchFocus = state.workbenchFocus;
+    const previousViewMode = state.viewMode;
     state.workspaceMode = "simple";
+    state.workbenchFocus = "sketch";
+    state.viewMode = "frame";
     state.workbenchTrayCollapsed = false;
     renderWorkspaceMode();
     results.push(
@@ -32407,16 +32956,16 @@ async function runSelfTest() {
         document.body.dataset.workbenchTray === "collapsed" &&
           getComputedStyle(dom.workbenchComposer).display !== "none" &&
           getComputedStyle(dom.workbenchRail).display !== "none" &&
-          !dom.workbenchFocusSummary.hidden &&
-          dom.workbenchFocusSummary.textContent.includes(currentFrame().title) &&
-          dom.workbenchFocusSummary.textContent.includes(
-            currentActionMode().label,
-          ),
-        "Collapsed Workbench keeps current frame/action context visible",
+          dom.stageTitle.textContent.includes(currentFrame().title) &&
+          dom.stageSubtitle.textContent.includes("canvas") &&
+          dom.workbenchTrayToggle.textContent.includes("Show brief"),
+        "Collapsed Workbench keeps canvas context visible without reopening the brief",
       ),
     );
     state.workspaceMode = previousWorkspaceMode;
     state.workbenchTrayCollapsed = previousTrayCollapsed;
+    state.workbenchFocus = previousWorkbenchFocus;
+    state.viewMode = previousViewMode;
     renderWorkspaceMode();
 
     resetFrameForSelfTest();
@@ -32993,8 +33542,8 @@ async function runSelfTest() {
         assert(
           materializedHtml.includes('data-show-blueprint="false"') &&
             materializedHtml.includes('data-show-notes="false"') &&
-            materializedHtml.includes("Show sketch overlay") &&
-            materializedHtml.includes("Show note overlay"),
+            materializedHtml.includes("Show sketch") &&
+            materializedHtml.includes("Show notes"),
           "materialized output keeps sketch and notes as opt-in review aids",
         ),
       );
@@ -33631,6 +34180,9 @@ function restoreStateAfterSelfTest(snapshot, runtime) {
   state.grid = snapshot.grid;
   state.autoSnap = snapshot.autoSnap;
   state.zoom = snapshot.zoom;
+  state.outputZoom = Number.isFinite(snapshot.outputZoom)
+    ? snapshot.outputZoom
+    : 1;
   state.flowZoom = Number.isFinite(snapshot.flowZoom) ? snapshot.flowZoom : 1;
   state.saveNotice = snapshot.saveNotice;
   state.statusText = snapshot.statusText;
@@ -37371,6 +37923,7 @@ function resetFrameForSelfTest() {
   const frame = currentFrame();
   state.viewMode = "frame";
   state.zoom = 1;
+  state.outputZoom = 1;
   state.connections = [];
   state.selectedConnectionId = null;
   state.pendingConnectionFromFrameId = null;

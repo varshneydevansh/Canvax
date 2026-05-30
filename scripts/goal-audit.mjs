@@ -169,7 +169,7 @@ const checks = [
           "function replayCheckpointAsFrame",
           "Checkpoint replay frame created",
           "Custom Properties",
-          "STORAGE_VERSION = 4",
+          "STORAGE_VERSION = 8",
           "outputLaneCollapsed: true",
           "Map output/history shelves default to compressed designer focus",
           "function isDesignerVisibleMapArtifact",
