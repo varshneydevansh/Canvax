@@ -626,6 +626,9 @@ const dom = {
   workbenchLiveEditActionOptions: document.querySelector(
     "#workbench-live-edit-action-options",
   ),
+  workbenchLiveEditBinding: document.querySelector(
+    "#workbench-live-edit-binding",
+  ),
   workbenchLiveEditCounter: document.querySelector(
     "#workbench-live-edit-counter",
   ),
@@ -11798,6 +11801,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.workbenchLiveEditAction.title = actionIntent.description;
   dom.workbenchLiveEditAction.setAttribute("aria-label", `Live Edit action: ${actionIntent.label}`);
   renderLiveEditActionOptions(frame);
+  renderLiveEditBindingSummary(
+    describeLiveEditTargetBinding(frame, liveTarget, target),
+  );
   dom.workbenchLiveEditCounter.textContent = variants.length
     ? `${variantIndex + 1} / ${variants.length} variants`
     : placingLivePin
@@ -11868,6 +11874,161 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     liveTarget ||
     variants.length
   );
+}
+
+function describeLiveEditTargetBinding(frame, liveTarget, outputTarget = null) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target) {
+    return {
+      label: "No binding yet",
+      tone: "idle",
+      detail:
+        "Pick a sketch, image, output, or map region to bind the next edit.",
+      items: [],
+    };
+  }
+  const writeback =
+    target.status === "accepted"
+      ? liveEditWritebackForTarget(frame, target, outputTarget)
+      : null;
+  const outcome = describeLiveEditWritebackOutcome(writeback);
+  if (outcome) {
+    return {
+      label: outcome.label,
+      tone: outcome.tone,
+      detail: outcome.detail,
+      items: (outcome.candidates || []).map((candidate) => ({
+        label: "Candidate",
+        value: candidate.label,
+      })),
+      nextAction: outcome.nextAction,
+    };
+  }
+  const sourceHint = normalizeLiveEditSourceHint(target);
+  if (sourceHint) {
+    const sourcePath =
+      sourceHint.targetSourceFile || sourceHint.targetSourcePath;
+    const sourceName =
+      sourceHint.targetSourceComponent ||
+      sourceHint.targetSourceSymbol ||
+      sourceHint.targetSourceBinding;
+    return {
+      label: "Source-bound target",
+      tone: "synced",
+      detail:
+        "Accept keeps this exact region tied to the captured source or task handoff.",
+      items: [
+        sourcePath
+          ? {
+              label: "File",
+              value: compactLiveEditSourcePath(sourcePath, 48),
+            }
+          : null,
+        sourceName
+          ? {
+              label: "Symbol",
+              value: compactDisplayText(sourceName, 42),
+            }
+          : null,
+        sourceHint.targetTaskId || sourceHint.targetTaskFile
+          ? {
+              label: "Task",
+              value: compactDisplayText(
+                sourceHint.targetTaskId || sourceHint.targetTaskFile,
+                42,
+              ),
+            }
+          : null,
+      ].filter(Boolean),
+    };
+  }
+  if (target.targetSelector || target.targetNodeId || target.targetText) {
+    return {
+      label: "Preview element",
+      tone: "active",
+      detail:
+        "Selector captured. Accept writes a source-search patch task before mutating production files.",
+      items: [
+        target.targetSelector
+          ? {
+              label: "Selector",
+              value: compactDisplayText(target.targetSelector, 54),
+            }
+          : null,
+        target.targetText
+          ? {
+              label: "Text",
+              value: compactDisplayText(target.targetText, 44),
+            }
+          : null,
+      ].filter(Boolean),
+    };
+  }
+  if (
+    target.targetType === "generated-asset-candidate" ||
+    target.surface === "asset-candidate"
+  ) {
+    return {
+      label: "Asset candidate",
+      tone: "local",
+      detail:
+        "Accept saves the variant and notes back onto this asset slot for image or composition work.",
+      items: [],
+    };
+  }
+  if (liveEditTargetIsSpatialMapObject(target)) {
+    return {
+      label: "Map object",
+      tone: "local",
+      detail:
+        "Accept saves the variant onto this spatial object without opening a detached page.",
+      items: [],
+    };
+  }
+  if (liveEditTargetUsesCanvasSurface(target, frame)) {
+    return {
+      label: "Canvas binding",
+      tone: "local",
+      detail:
+        "Accept saves locally on this sketch/object/region. Make or Build turns it into output.",
+      items: [],
+    };
+  }
+  return {
+    label: "Output binding",
+    tone: "active",
+    detail:
+      "Accept writes this picked output region into the manifest, rewrite request, and checkpoint.",
+    items: [],
+  };
+}
+
+function renderLiveEditBindingSummary(summary) {
+  if (!dom.workbenchLiveEditBinding || !summary) {
+    return;
+  }
+  const items = Array.isArray(summary.items) ? summary.items.slice(0, 3) : [];
+  dom.workbenchLiveEditBinding.hidden = false;
+  dom.workbenchLiveEditBinding.dataset.tone = summary.tone || "idle";
+  dom.workbenchLiveEditBinding.innerHTML = `
+    <strong>${escapeHtml(summary.label || "Target binding")}</strong>
+    <span>${escapeHtml(summary.detail || "")}</span>
+    ${
+      items.length
+        ? `<div>${items
+            .map(
+              (item) =>
+                `<b>${escapeHtml(item.label)}: <i title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</i></b>`,
+            )
+            .join("")}</div>`
+        : ""
+    }
+    ${
+      summary.nextAction
+        ? `<em>${escapeHtml(`Next: ${compactDisplayText(summary.nextAction, 120)}`)}</em>`
+        : ""
+    }
+  `;
 }
 
 function renderDesignReviewControls(target) {
@@ -34372,6 +34533,7 @@ async function runSelfTest() {
           Boolean(dom.workbenchLiveEditPick) &&
           Boolean(dom.workbenchLiveEditAction) &&
           Boolean(dom.workbenchLiveEditActionOptions) &&
+          Boolean(dom.workbenchLiveEditBinding) &&
           Boolean(dom.workbenchLiveEditNote) &&
           Boolean(dom.workbenchLiveEditTalk) &&
           Boolean(dom.workbenchLiveEditPin) &&
@@ -34389,6 +34551,7 @@ async function runSelfTest() {
           Boolean(dom.helpCurrentLiveEditDetail) &&
           !dom.workbenchLiveEditBar.hidden &&
           dom.workbenchLiveEditTitle.textContent.includes("Live Edit ready") &&
+          dom.workbenchLiveEditBinding.textContent.includes("No binding yet") &&
           dom.workbenchLiveEditPick.textContent.includes("Pick") &&
           !dom.workbenchLiveEditNote.disabled &&
           dom.focusLivePick.textContent.includes("Live Edit") &&
@@ -35225,6 +35388,32 @@ async function runSelfTest() {
       domCapturedTarget.bounds.x === 0.2 &&
       domCapturedTarget.bounds.w === 0.4 &&
       domCapturedTarget.targetText.includes("Book now");
+    const previousTargetForBindingSummary = structuredClone(
+      frameForCanvasReply.liveEditTarget || null,
+    );
+    frameForCanvasReply.liveEditTarget = domCapturedTarget;
+    renderLiveEditControls({
+      frame: frameForCanvasReply,
+      target: canvasReplyTargetForFrame(frameForCanvasReply),
+      targetUrl: resolveWorkbenchTargetUrl(
+        canvasReplyTargetForFrame(frameForCanvasReply),
+      ),
+    });
+    const sourceBindingSummaryText =
+      dom.workbenchLiveEditBinding?.textContent || "";
+    const liveEditSourceBindingShown =
+      sourceBindingSummaryText.includes("Source-bound target") &&
+      sourceBindingSummaryText.includes("src/screens/Home.jsx") &&
+      sourceBindingSummaryText.includes("PrimaryBookingButton") &&
+      sourceBindingSummaryText.includes("task-hero-cta");
+    frameForCanvasReply.liveEditTarget = previousTargetForBindingSummary;
+    renderLiveEditControls({
+      frame: frameForCanvasReply,
+      target: canvasReplyTargetForFrame(frameForCanvasReply),
+      targetUrl: resolveWorkbenchTargetUrl(
+        canvasReplyTargetForFrame(frameForCanvasReply),
+      ),
+    });
     const acceptedSameCanvasFallbackState = {
       canvasReply: structuredClone(frameForCanvasReply.canvasReply || null),
       liveEditTarget: structuredClone(frameForCanvasReply.liveEditTarget || null),
@@ -35320,6 +35509,7 @@ async function runSelfTest() {
           outputTemporaryMarkSaved &&
           outputTemporaryMarkDiscarded &&
           liveEditDomSelectorCaptured &&
+          liveEditSourceBindingShown &&
           sameCanvasAcceptedFallbackRendered,
         "same-canvas reply underlay renders live edit target, binds target voice, places and drags comment pins, captures DOM selector metadata, adjusts output target bounds, in-surface variants, cycling, and clean discard without temporary mark residue",
         JSON.stringify({
@@ -35371,6 +35561,11 @@ async function runSelfTest() {
           outputMovedX: outputMovedLiveTarget?.bounds?.x ?? null,
           outputResizedW: outputResizedLiveTarget?.bounds?.w ?? null,
           liveEditDomSelectorCaptured,
+          liveEditSourceBindingShown,
+          sourceBindingSummaryText: compactDisplayText(
+            sourceBindingSummaryText,
+            160,
+          ),
           sameCanvasAcceptedFallbackRendered,
           sameCanvasLocalMirror: Boolean(sameCanvasLocalMirror),
           sameCanvasAcceptedBadge,
