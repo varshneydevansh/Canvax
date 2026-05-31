@@ -4715,13 +4715,18 @@ function canvasReplyTargetForFrame(frame) {
 
 function frameOutputEditBinding(frame) {
   const canvasReply = normalizeCanvasReply(frame?.canvasReply);
-  const liveEditRequest = normalizeLiveEditRequest(frame?.liveEditRequest);
+  const localAcceptedLiveEdit = acceptedLocalLiveEditBinding(frame);
+  const liveEditRequest =
+    normalizeLiveEditRequest(frame?.liveEditRequest) ||
+    normalizeLiveEditRequest(localAcceptedLiveEdit?.request);
   const liveEditTarget =
     normalizeLiveEditTarget(frame?.liveEditTarget) ||
     normalizeLiveEditTarget(liveEditRequest?.target) ||
-    normalizeLiveEditTarget(frame?.acceptedLiveEditVariant?.target);
+    normalizeLiveEditTarget(frame?.acceptedLiveEditVariant?.target) ||
+    normalizeLiveEditTarget(localAcceptedLiveEdit?.target);
   const liveEditVariant =
     normalizeLiveEditVariant(frame?.acceptedLiveEditVariant) ||
+    normalizeLiveEditVariant(localAcceptedLiveEdit?.acceptedVariant) ||
     currentLiveEditVariant(frame);
   if (canvasReply) {
     const sourceFrameId = cleanString(canvasReply.sourceFrameId || frame?.id);
@@ -10682,6 +10687,7 @@ function renderWorkbenchOutput() {
   const frame = currentFrame();
   const target = currentWorkbenchTarget();
   const annotationCount = frame.outputAnnotations?.length || 0;
+  const localLiveEditSummary = acceptedLocalLiveEditSummary(frame);
   const status =
     frame.canvasReply && target?.canvasReply
       ? {
@@ -10695,7 +10701,15 @@ function renderWorkbenchOutput() {
       : describeFrameOutputStatus(frame, {
           includeGlobal: true,
           manifest,
-        });
+        }) ||
+        (localLiveEditSummary
+          ? {
+              label: "Accepted on sketch",
+              tone: "active",
+              detail: localLiveEditSummary.detail,
+              target: null,
+            }
+          : null);
   const targetUrl = resolveWorkbenchTargetUrl(target);
   const targetLabel = target
     ? designerOutputTargetLabelFromItem(target, frame.title)
@@ -10707,7 +10721,9 @@ function renderWorkbenchOutput() {
         ? "Generated screen"
         : target
           ? "Attached"
-          : "No output";
+          : localLiveEditSummary
+            ? "Accepted on sketch"
+            : "No output";
 
   dom.workbenchOutputBadge.textContent = status?.label || targetKind;
   dom.workbenchOutputBadge.dataset.tone = status?.tone || (target ? "synced" : "empty");
@@ -10929,28 +10945,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
 }
 
 function acceptedLocalLiveEditSummary(frame) {
-  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
-  const latestLocalRegionBinding =
-    normalizeLiveEditRegionBindings(frame?.liveEditRegionBindings)
-      .filter(
-        (entry) =>
-          entry?.status === "accepted" &&
-          entry.target &&
-          !entry.target.targetHref &&
-          !entry.target.targetPath,
-      )
-      .at(-1) || null;
-  const binding =
-    liveTarget?.status === "accepted" &&
-    !liveTarget.targetHref &&
-    !liveTarget.targetPath
-      ? {
-          target: liveTarget,
-          acceptedVariant: normalizeLiveEditVariant(
-            frame?.acceptedLiveEditVariant,
-          ),
-        }
-      : latestLocalRegionBinding;
+  const binding = acceptedLocalLiveEditBinding(frame);
   const target = normalizeLiveEditTarget(binding?.target);
   if (!target) {
     return null;
@@ -10967,6 +10962,108 @@ function acceptedLocalLiveEditSummary(frame) {
     detail:
       "This Live Edit is bound to the sketch/canvas object. Output Focus will show a generated surface after Make, Build, or an attached preview.",
   };
+}
+
+function acceptedLocalLiveEditBinding(frame) {
+  if (!frame) {
+    return null;
+  }
+  const candidates = [];
+  const pushCandidate = (value, sourceRank = 0) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return;
+    }
+    const target = normalizeLiveEditTarget(
+      value.target || value.liveEditTarget || value,
+    );
+    if (!target || target.targetHref || target.targetPath) {
+      return;
+    }
+    const variant =
+      normalizeLiveEditVariant(value.acceptedVariant || value.variant) ||
+      normalizeLiveEditVariant(frame.acceptedLiveEditVariant);
+    const acceptedAt = cleanString(
+      value.acceptedAt || variant?.acceptedAt || target.acceptedAt,
+    );
+    const status = cleanString(value.status || target.status);
+    if (status !== "accepted" && !acceptedAt && !variant?.acceptedAt) {
+      return;
+    }
+    candidates.push({
+      target: {
+        ...target,
+        status: "accepted",
+        acceptedAt: acceptedAt || target.acceptedAt,
+      },
+      acceptedVariant: variant,
+      request: normalizeLiveEditRequest(value.request || value.liveEditRequest),
+      acceptedAt,
+      updatedAt: cleanString(value.updatedAt || target.updatedAt),
+      sourceRank,
+    });
+  };
+
+  pushCandidate(
+    {
+      target: frame.liveEditTarget,
+      acceptedVariant: frame.acceptedLiveEditVariant,
+      request: frame.liveEditRequest,
+      status: frame.liveEditTarget?.status,
+      acceptedAt: frame.liveEditTarget?.acceptedAt,
+      updatedAt: frame.liveEditTarget?.updatedAt,
+    },
+    60,
+  );
+  pushCandidate(
+    {
+      target: frame.acceptedLiveEditVariant?.target,
+      acceptedVariant: frame.acceptedLiveEditVariant,
+      request: frame.liveEditRequest,
+      status: frame.liveEditRequest?.status,
+      acceptedAt: frame.acceptedLiveEditVariant?.acceptedAt,
+      updatedAt: frame.liveEditRequest?.updatedAt,
+    },
+    50,
+  );
+  pushCandidate(
+    {
+      target: frame.liveEditRequest?.target,
+      acceptedVariant: frame.liveEditRequest?.acceptedVariant,
+      request: frame.liveEditRequest,
+      status: frame.liveEditRequest?.status,
+      acceptedAt: frame.liveEditRequest?.acceptedAt,
+      updatedAt: frame.liveEditRequest?.updatedAt,
+    },
+    40,
+  );
+  normalizeLiveEditRegionBindings(frame.liveEditRegionBindings).forEach(
+    (binding, index) => pushCandidate(binding, 30 + index / 100),
+  );
+  (Array.isArray(frame.elements) ? frame.elements : []).forEach((element, index) => {
+    const binding = normalizeElementLiveEditBinding(element?.liveEdit);
+    if (binding?.status === "accepted") {
+      pushCandidate(binding, 20 + index / 100);
+    }
+  });
+
+  if (!candidates.length) {
+    return null;
+  }
+  const timestamp = (candidate) => {
+    const value =
+      Date.parse(candidate.updatedAt) ||
+      Date.parse(candidate.acceptedAt) ||
+      Date.parse(candidate.target?.updatedAt) ||
+      Date.parse(candidate.target?.acceptedAt) ||
+      0;
+    return Number.isFinite(value) ? value : 0;
+  };
+  return candidates
+    .sort((left, right) => {
+      const timeDelta = timestamp(left) - timestamp(right);
+      return timeDelta || left.sourceRank - right.sourceRank;
+    })
+    .at(-1);
 }
 
 function liveEditTargetOutlineLabel(liveTarget) {
@@ -34191,6 +34288,37 @@ async function runSelfTest() {
       canvasObjectComposition.elements.find(
         (element) => element.id === canvasLiveEditRect.id,
       );
+    const canvasObjectAcceptedFallbackState = {
+      liveEditTarget: structuredClone(frameForCanvasReply.liveEditTarget || null),
+      acceptedLiveEditVariant: structuredClone(
+        frameForCanvasReply.acceptedLiveEditVariant || null,
+      ),
+      liveEditRequest: structuredClone(frameForCanvasReply.liveEditRequest || null),
+      previewManifest: structuredClone(state.serverStatus.previewManifest),
+    };
+    frameForCanvasReply.liveEditTarget = null;
+    frameForCanvasReply.acceptedLiveEditVariant = null;
+    frameForCanvasReply.liveEditRequest = null;
+    state.serverStatus.previewManifest = null;
+    renderWorkbenchOutput();
+    const canvasObjectAcceptedOutputFallback =
+      dom.workbenchOutputBadge.textContent === "Accepted on sketch" &&
+      dom.workbenchOutputSurface.textContent.includes("Accepted on sketch") &&
+      dom.workbenchOutputSurface.textContent.includes("Clarity is accepted");
+    const canvasObjectAcceptedBindingFallback =
+      frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest?.status ===
+        "accepted" &&
+      frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
+        "Clarity";
+    frameForCanvasReply.liveEditTarget =
+      canvasObjectAcceptedFallbackState.liveEditTarget;
+    frameForCanvasReply.acceptedLiveEditVariant =
+      canvasObjectAcceptedFallbackState.acceptedLiveEditVariant;
+    frameForCanvasReply.liveEditRequest =
+      canvasObjectAcceptedFallbackState.liveEditRequest;
+    state.serverStatus.previewManifest =
+      canvasObjectAcceptedFallbackState.previewManifest;
+    renderWorkbenchOutput();
     const canvasObjectLiveEditExported =
       canvasObjectVariants.length === 3 &&
       canvasLiveEditDrawModeArmed &&
@@ -34223,7 +34351,9 @@ async function runSelfTest() {
       frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest?.status ===
         "accepted" &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
-        "Clarity";
+        "Clarity" &&
+      canvasObjectAcceptedOutputFallback &&
+      canvasObjectAcceptedBindingFallback;
     frameForCanvasReply.canvasReply =
       previousCanvasObjectLiveEditState.canvasReply;
     frameForCanvasReply.elements = previousCanvasObjectLiveEditState.elements;
@@ -34305,6 +34435,8 @@ async function runSelfTest() {
           bindingVariant:
             frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant
               ?.label || "",
+          acceptedOutputFallback: canvasObjectAcceptedOutputFallback,
+          acceptedBindingFallback: canvasObjectAcceptedBindingFallback,
         }),
       ),
     );
