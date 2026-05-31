@@ -18,7 +18,7 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 - `Change target`: replace the current picked target with a better one. Picked scratchpad and output outlines can also be moved from their border or resized from corner handles before variants are generated.
 - `Sketch pad / Generated output`: appears only while picking. It chooses which visible surface receives the next pick.
 - `Go`: create variants for the picked target.
-- Variant controller: after `Go`, output-backed targets show a small in-canvas controller for previous/next, variant count, Accept, and Discard.
+- Variant controller: after `Go`, output-backed and scratchpad targets show a small in-surface controller for previous/next, variant count, Accept, and Discard.
 - `Accept`: keep the selected version with the current screen and save it for Codex.
 - `Discard`: remove the temporary pick, temporary variants, and target-bound marks from that Live Edit pass, then restore the original surface.
 - Action chips:
@@ -32,7 +32,7 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 - Canvas pill labels must clamp their radius; a label like `Clarity target` must never expand into a large yellow canvas object.
 - Comment pins stay inside or near the selected target and are draggable where supported.
 - Variants may preview in place on output, map, or object surfaces, but the sketch pad must remain editable and readable.
-- Output variants must expose the in-canvas controller near the selected target; the dock may mirror controls but should not be the only way to choose a variant.
+- Output and scratchpad variants must expose the in-surface controller near the selected target; the dock may mirror controls but should not be the only way to choose a variant.
 - Escape, Close, or Discard must leave no stale target overlay or unaccepted target-bound correction marks.
 - The picked target outline must explain removal in plain language: use `Discard` or `Escape` for active Live Edit target/variant/mark residue, and `Undo` / `Erase` / `Clear marks` for normal strokes.
 

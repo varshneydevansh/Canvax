@@ -111,7 +111,7 @@ local rewrite preview updates
 - On scratchpad or generated output, drag the yellow outline border to move the picked area. Drag a corner dot to resize it before `Go` or `Accept`.
 - Yellow target pill: a small label for the picked area. It should never paint over or become part of the scratchpad.
 - `Go`: preview three different directions in place.
-- Variant controller: after `Go`, a small control appears on the picked output target so you can cycle `1/3`, `2/3`, `3/3`, then Accept or Discard right where you are looking.
+- Variant controller: after `Go`, a small control appears on the picked scratchpad or output target so you can cycle `1/3`, `2/3`, `3/3`, then Accept or Discard right where you are looking.
 - `Accept`: keep the chosen direction with the current screen and save it for Codex.
 - `Discard` or `Escape`: remove the picked target, temporary variants, and any target-bound marks drawn during that Live Edit pass. If you moved or resized a scratchpad target before accepting, it returns to its original position.
 - `Undo`, `Erase`, or `Clear marks`: remove normal sketch/output strokes that were not part of an active Live Edit pass.

@@ -10982,7 +10982,15 @@ function acceptedLocalLiveEditBinding(frame) {
     const target = normalizeLiveEditTarget(
       value.target || value.liveEditTarget || value,
     );
-    if (!target || target.targetHref || target.targetPath) {
+    const localCanvasTarget =
+      target &&
+      (liveEditTargetUsesCanvasSurface(target, frame) ||
+        liveEditTargetIsSameCanvasReply(target) ||
+        liveEditTargetIsSpatialMapObject(target));
+    if (
+      !target ||
+      ((target.targetHref || target.targetPath) && !localCanvasTarget)
+    ) {
       return;
     }
     const variant =
@@ -22137,7 +22145,238 @@ function drawCanvasLiveEditOverlay(ctx, frame, width, height, scale = 1) {
   pins.forEach((pin, index) =>
     drawCanvasLiveEditPin(ctx, pin, index, width, height, scale),
   );
+  drawCanvasLiveEditVariantController(
+    ctx,
+    frame,
+    liveTarget,
+    bounds,
+    width,
+    height,
+    scale,
+  );
   ctx.restore();
+}
+
+function canvasLiveEditVariantControllerLayout(
+  frame,
+  liveTarget,
+  bounds,
+  width,
+  height,
+  scale = 1,
+) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const variants = currentLiveEditVariants(frame);
+  const variant = currentLiveEditVariant(frame);
+  if (
+    !target ||
+    target.status === "accepted" ||
+    !bounds ||
+    !variant ||
+    variants.length < 2
+  ) {
+    return null;
+  }
+  const canvasWidth = Math.max(1, width * scale);
+  const canvasHeight = Math.max(1, height * scale);
+  const baseWidth = Math.min(
+    Math.max(308 * scale, Math.min(canvasWidth - 24 * scale, 376 * scale)),
+    canvasWidth - 16 * scale,
+  );
+  const controllerHeight = 44 * scale;
+  const gap = 10 * scale;
+  const fitsBelow = bounds.bottom * scale + controllerHeight + 18 * scale < canvasHeight;
+  const centerX = clamp(
+    (bounds.left + bounds.width / 2) * scale,
+    baseWidth / 2 + 8 * scale,
+    canvasWidth - baseWidth / 2 - 8 * scale,
+  );
+  const top = fitsBelow
+    ? Math.min(canvasHeight - controllerHeight - 8 * scale, bounds.bottom * scale + gap)
+    : Math.max(8 * scale, bounds.top * scale - controllerHeight - gap);
+  const left = centerX - baseWidth / 2;
+  const buttonHeight = controllerHeight - 12 * scale;
+  const buttonTop = top + 6 * scale;
+  const buttonGap = 6 * scale;
+  const sideWidth = 34 * scale;
+  const acceptWidth = 68 * scale;
+  const discardWidth = 78 * scale;
+  const labelWidth =
+    baseWidth -
+    sideWidth * 2 -
+    acceptWidth -
+    discardWidth -
+    buttonGap * 4 -
+    12 * scale;
+  let cursor = left + 6 * scale;
+  const addButton = (action, widthValue, label) => {
+    const button = {
+      action,
+      label,
+      bounds: makeBounds(
+        cursor,
+        buttonTop,
+        cursor + widthValue,
+        buttonTop + buttonHeight,
+      ),
+    };
+    cursor += widthValue + buttonGap;
+    return button;
+  };
+  const buttons = [
+    addButton("prev", sideWidth, "‹"),
+    addButton("label", labelWidth, `${currentLiveEditVariantIndex(frame) + 1}/${variants.length}`),
+    addButton("next", sideWidth, "›"),
+    addButton("accept", acceptWidth, "Accept"),
+    addButton("discard", discardWidth, "Discard"),
+  ];
+  return {
+    bounds: makeBounds(left, top, left + baseWidth, top + controllerHeight),
+    buttons,
+    variant,
+    variantIndex: currentLiveEditVariantIndex(frame),
+    variantCount: variants.length,
+  };
+}
+
+function drawCanvasLiveEditVariantController(
+  ctx,
+  frame,
+  liveTarget,
+  bounds,
+  width,
+  height,
+  scale = 1,
+) {
+  const layout = canvasLiveEditVariantControllerLayout(
+    frame,
+    liveTarget,
+    bounds,
+    width,
+    height,
+    scale,
+  );
+  if (!layout) {
+    return;
+  }
+  const { bounds: controllerBounds, buttons, variant } = layout;
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.shadowColor = "rgba(0, 0, 0, 0.22)";
+  ctx.shadowBlur = 18 * scale;
+  ctx.shadowOffsetY = 8 * scale;
+  ctx.fillStyle = "rgba(22, 22, 24, 0.92)";
+  roundRect(
+    ctx,
+    controllerBounds.left,
+    controllerBounds.top,
+    controllerBounds.width,
+    controllerBounds.height,
+    22 * scale,
+  );
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  ctx.lineWidth = 1.25 * scale;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+  ctx.stroke();
+
+  buttons.forEach((button) => {
+    const isLabel = button.action === "label";
+    const isAccept = button.action === "accept";
+    const isDiscard = button.action === "discard";
+    ctx.fillStyle = isAccept
+      ? "#f5b938"
+      : isDiscard
+        ? "rgba(255, 255, 255, 0.08)"
+        : isLabel
+          ? "rgba(255, 255, 255, 0.12)"
+          : "rgba(255, 255, 255, 0.1)";
+    ctx.strokeStyle = isAccept
+      ? "rgba(245, 185, 56, 0.85)"
+      : "rgba(255, 255, 255, 0.14)";
+    ctx.lineWidth = 1 * scale;
+    roundRect(
+      ctx,
+      button.bounds.left,
+      button.bounds.top,
+      button.bounds.width,
+      button.bounds.height,
+      16 * scale,
+    );
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = isAccept ? "#17120f" : "#fff8e7";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font =
+      button.action === "prev" || button.action === "next"
+        ? `${22 * scale}px Inter, system-ui, sans-serif`
+        : `700 ${11 * scale}px Inter, system-ui, sans-serif`;
+    const label =
+      isLabel
+        ? `${layout.variantIndex + 1}/${layout.variantCount} ${variant.label || "Variant"}`
+        : button.label;
+    ctx.fillText(
+      compactDisplayText(label, isLabel ? 18 : 10),
+      button.bounds.left + button.bounds.width / 2,
+      button.bounds.top + button.bounds.height / 2,
+    );
+  });
+  ctx.restore();
+}
+
+function currentCanvasLiveEditTargetBounds(frame = currentFrame()) {
+  const liveTarget = rebaseCanvasLiveEditTargetBounds(
+    frame,
+    frame?.liveEditTarget,
+  );
+  const element = liveEditTargetCanvasElement(frame, liveTarget);
+  const bounds =
+    element && getElementBounds(element, frame)
+      ? getElementBounds(element, frame)
+      : denormalizeLiveEditBounds(liveTarget?.bounds, frame);
+  return { liveTarget, bounds };
+}
+
+function canvasLiveEditVariantControlAtPoint(point, frame = currentFrame()) {
+  const { liveTarget, bounds } = currentCanvasLiveEditTargetBounds(frame);
+  const layout = canvasLiveEditVariantControllerLayout(
+    frame,
+    liveTarget,
+    bounds,
+    dom.canvas.width,
+    dom.canvas.height,
+    1,
+  );
+  if (!point || !layout || !pointInBounds(layout.bounds, point)) {
+    return null;
+  }
+  const button = layout.buttons.find(
+    (item) => item.action !== "label" && pointInBounds(item.bounds, point),
+  );
+  return button ? { action: button.action, layout } : null;
+}
+
+function handleCanvasLiveEditVariantControl(event, point, frame = currentFrame()) {
+  if (event.button > 0 || state.viewMode !== "frame") {
+    return false;
+  }
+  const hit = canvasLiveEditVariantControlAtPoint(point, frame);
+  if (!hit) {
+    return false;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  if (hit.action === "prev") {
+    cycleLiveEditVariant(-1);
+  } else if (hit.action === "next") {
+    cycleLiveEditVariant(1);
+  } else if (hit.action === "accept") {
+    void acceptLiveEditTarget();
+  } else if (hit.action === "discard") {
+    closeLiveEditTarget();
+  }
+  return true;
 }
 
 function drawCanvasLiveEditTargetHandles(ctx, bounds, scale = 1) {
@@ -23365,6 +23604,10 @@ function onPointerDown(event) {
   updateBrushPreviewPosition(event);
   const frame = currentFrame();
   const point = pointFromEvent(event);
+
+  if (handleCanvasLiveEditVariantControl(event, point, frame)) {
+    return;
+  }
 
   if (beginLiveEditCanvasPickDraft(event)) {
     return;
@@ -33563,6 +33806,9 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditTarget?.surface === "same-canvas-reply" &&
       state.workbenchFocus === "sketch" &&
       state.liveEditPickActive === false;
+    const sameCanvasPickedLiveTarget = structuredClone(
+      frameForCanvasReply.liveEditTarget || null,
+    );
     const canvasSurfaceTargetHighlighted =
       dom.workbenchLiveSurfaceButtons
         ?.querySelector("[data-live-edit-surface='canvas']")
@@ -34115,6 +34361,33 @@ async function runSelfTest() {
       domCapturedTarget.bounds.x === 0.2 &&
       domCapturedTarget.bounds.w === 0.4 &&
       domCapturedTarget.targetText.includes("Book now");
+    const acceptedSameCanvasFallbackState = {
+      canvasReply: structuredClone(frameForCanvasReply.canvasReply || null),
+      liveEditTarget: structuredClone(frameForCanvasReply.liveEditTarget || null),
+      previewManifest: structuredClone(state.serverStatus.previewManifest),
+    };
+    if (sameCanvasPickedLiveTarget) {
+      frameForCanvasReply.liveEditTarget = {
+        ...sameCanvasPickedLiveTarget,
+        status: "accepted",
+        acceptedAt: new Date().toISOString(),
+      };
+    }
+    frameForCanvasReply.canvasReply = null;
+    state.serverStatus.previewManifest = null;
+    renderWorkbenchOutput();
+    const sameCanvasAcceptedFallbackRendered =
+      dom.workbenchOutputBadge.textContent === "Accepted on sketch" &&
+      dom.workbenchOutputSurface.textContent.includes("Accepted on sketch") &&
+      dom.workbenchOutputMeta.textContent.includes(
+        "Output Focus will show a generated surface",
+      );
+    frameForCanvasReply.canvasReply =
+      acceptedSameCanvasFallbackState.canvasReply;
+    frameForCanvasReply.liveEditTarget =
+      acceptedSameCanvasFallbackState.liveEditTarget;
+    state.serverStatus.previewManifest =
+      acceptedSameCanvasFallbackState.previewManifest;
     frameForCanvasReply.liveEditTarget = previousLiveEditTarget;
     frameForCanvasReply.liveEditActionIntent = previousLiveEditActionIntent;
     frameForCanvasReply.liveEditPins = previousLiveEditPins;
@@ -34157,7 +34430,8 @@ async function runSelfTest() {
           outputTargetAdjusted &&
           outputTemporaryMarkSaved &&
           outputTemporaryMarkDiscarded &&
-          liveEditDomSelectorCaptured,
+          liveEditDomSelectorCaptured &&
+          sameCanvasAcceptedFallbackRendered,
         "same-canvas reply underlay renders live edit target, binds target voice, places and drags comment pins, captures DOM selector metadata, adjusts output target bounds, in-surface variants, cycling, and clean discard without temporary mark residue",
         JSON.stringify({
           canvasReplyRendered,
@@ -34204,6 +34478,7 @@ async function runSelfTest() {
           outputMovedX: outputMovedLiveTarget?.bounds?.x ?? null,
           outputResizedW: outputResizedLiveTarget?.bounds?.w ?? null,
           liveEditDomSelectorCaptured,
+          sameCanvasAcceptedFallbackRendered,
         }),
       ),
     );
@@ -34492,7 +34767,40 @@ async function runSelfTest() {
     dom.workbenchLiveEditNote.value = "Make this canvas card read like a book-page hero callout";
     addLiveEditCommentPin();
     const canvasObjectVariants = createLiveEditVariants();
-    cycleLiveEditVariant(2);
+    renderCanvas();
+    const canvasObjectControllerInitialBounds = getElementBounds(
+      currentCanvasLiveEditRect(),
+      frameForCanvasReply,
+    );
+    const canvasObjectControllerInitialLayout =
+      canvasLiveEditVariantControllerLayout(
+        frameForCanvasReply,
+        frameForCanvasReply.liveEditTarget,
+        canvasObjectControllerInitialBounds,
+        dom.canvas.width,
+        dom.canvas.height,
+      );
+    const canvasObjectControllerNextButton =
+      canvasObjectControllerInitialLayout?.buttons.find(
+        (button) => button.action === "next",
+      );
+    if (canvasObjectControllerNextButton) {
+      dispatchPointerTap([
+        canvasObjectControllerNextButton.bounds.left +
+          canvasObjectControllerNextButton.bounds.width / 2,
+        canvasObjectControllerNextButton.bounds.top +
+          canvasObjectControllerNextButton.bounds.height / 2,
+      ]);
+    }
+    const canvasObjectVariantControllerRendered = Boolean(
+      canvasObjectControllerInitialLayout?.buttons.some(
+        (button) => button.action === "accept",
+      ),
+    );
+    const canvasObjectVariantControllerClicked =
+      frameForCanvasReply.liveEditVariantIndex === 1 &&
+      frameForCanvasReply.liveEditRequest?.activeVariant?.label === "Taste";
+    cycleLiveEditVariant(1);
     renderCanvas();
     const canvasLiveEditBounds = getElementBounds(
       currentCanvasLiveEditRect(),
@@ -34555,6 +34863,8 @@ async function runSelfTest() {
       canvasObjectVariants.length === 3 &&
       canvasLiveEditDrawModeArmed &&
       frameForCanvasReply.liveEditVariantIndex === 2 &&
+      canvasObjectVariantControllerRendered &&
+      canvasObjectVariantControllerClicked &&
       canvasObjectVariantTreatmentRendered &&
       canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
       canvasObjectElement?.liveEdit?.request?.status === "accepted" &&
@@ -34636,6 +34946,8 @@ async function runSelfTest() {
           canvasObjectDiscardRestored,
           canvasTemporaryMarkSaved,
           canvasTemporaryMarkDiscarded,
+          canvasObjectVariantControllerRendered,
+          canvasObjectVariantControllerClicked,
           adjustedCanvasObjectLeft: adjustedCanvasObjectBounds?.left ?? null,
           canvasObjectVariantCount: canvasObjectVariants.length,
           canvasLiveEditDrawModeArmed,
