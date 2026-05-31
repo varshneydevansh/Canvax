@@ -3676,6 +3676,12 @@ function normalizeOutputAnnotation(annotation, index = 0) {
       typeof annotation.targetVersionTag === "string"
         ? annotation.targetVersionTag.trim()
         : "",
+    liveEditTargetId: cleanString(annotation.liveEditTargetId),
+    liveEditTargetType: cleanString(annotation.liveEditTargetType),
+    liveEditTargetLabel: cleanString(annotation.liveEditTargetLabel),
+    liveEditSurface: cleanString(annotation.liveEditSurface),
+    liveEditTemporary: Boolean(annotation.liveEditTemporary),
+    liveEditAcceptedAt: cleanString(annotation.liveEditAcceptedAt),
     createdAt:
       typeof annotation.createdAt === "string" && annotation.createdAt.trim()
         ? annotation.createdAt.trim()
@@ -13667,6 +13673,21 @@ function liveEditTargetDrawsOnOutput(liveTarget, target, targetUrl = "") {
   );
 }
 
+function liveEditTargetUsesOutputSurface(liveTarget, target, targetUrl = "") {
+  const normalized = normalizeLiveEditTarget(liveTarget);
+  if (!normalized || normalized.status === "accepted" || !target || !targetUrl) {
+    return false;
+  }
+  if (liveEditTargetDrawsOnOutput(normalized, target, targetUrl)) {
+    return true;
+  }
+  return Boolean(
+    !liveEditTargetIsSpatialMapObject(normalized) &&
+      !liveEditTargetIsSameCanvasReply(normalized) &&
+      !liveEditTargetUsesCanvasSurface(normalized, currentFrame()),
+  );
+}
+
 function activateLiveEditDrawMode() {
   const frame = currentFrame();
   const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
@@ -13963,6 +13984,7 @@ function beginLiveEditMapStroke(event) {
     targetId: liveTarget.targetId,
     targetLabel: liveTarget.targetLabel,
     targetVersionTag: liveTarget.targetVersionTag,
+    ...(liveEditTemporaryMarkMetadata(liveTarget, "map") || {}),
     createdAt: new Date().toISOString(),
   };
   renderFlowBoard();
@@ -14090,6 +14112,7 @@ async function acceptLiveEditTarget() {
   );
   frame.liveEditVariantIndex = variantIndex;
   frame.acceptedLiveEditVariant = acceptedVariant;
+  commitTemporaryLiveEditMarks(frame, frame.liveEditTarget, acceptedAt);
   frame.liveEditRequest = buildFrameBoundLiveEditRequest({
     frame,
     liveTarget: frame.liveEditTarget,
@@ -14940,6 +14963,90 @@ function restoreLiveEditOriginalSnapshot(frame, snapshot) {
   return restored;
 }
 
+function liveEditTemporaryMarkMetadata(liveTarget, surface) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target || target.status === "accepted") {
+    return null;
+  }
+  return {
+    liveEditTargetId: target.targetId || target.targetObjectId || "",
+    liveEditTargetType: target.targetType || "",
+    liveEditTargetLabel: target.targetLabel || "",
+    liveEditSurface: cleanString(surface),
+    liveEditTemporary: true,
+  };
+}
+
+function liveEditTemporaryMarkMatchesTarget(mark, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!mark || !target) {
+    return false;
+  }
+  const markTargetId = cleanString(mark.liveEditTargetId || mark.targetId);
+  const targetIds = [
+    target.targetId,
+    target.targetObjectId,
+    target.id,
+    target.targetSelector,
+  ]
+    .map((value) => cleanString(value))
+    .filter(Boolean);
+  return Boolean(mark.liveEditTemporary && markTargetId && targetIds.includes(markTargetId));
+}
+
+function removeTemporaryLiveEditMarks(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target) {
+    return 0;
+  }
+  let removed = 0;
+  const removeFromList = (items = []) =>
+    items.filter((item) => {
+      const shouldRemove = liveEditTemporaryMarkMatchesTarget(item, target);
+      if (shouldRemove) {
+        removed += 1;
+      }
+      return !shouldRemove;
+    });
+  const previousElementIds = new Set((frame.elements || []).map((element) => element.id));
+  frame.elements = removeFromList(frame.elements || []);
+  frame.outputAnnotations = removeFromList(frame.outputAnnotations || []);
+  frame.liveEditMapStrokes = removeFromList(frame.liveEditMapStrokes || []);
+  const removedElementIds = [...previousElementIds].filter(
+    (id) => !(frame.elements || []).some((element) => element.id === id),
+  );
+  if (
+    removedElementIds.some((id) => state.selectedElementIds?.includes(id)) ||
+    removedElementIds.includes(state.selectedElementId)
+  ) {
+    setSelectedElements([], null);
+  }
+  return removed;
+}
+
+function commitTemporaryLiveEditMarks(frame, liveTarget, acceptedAt) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target) {
+    return 0;
+  }
+  let committed = 0;
+  const commitItem = (item) => {
+    if (!liveEditTemporaryMarkMatchesTarget(item, target)) {
+      return item;
+    }
+    committed += 1;
+    return {
+      ...item,
+      liveEditTemporary: false,
+      liveEditAcceptedAt: acceptedAt,
+    };
+  };
+  frame.elements = (frame.elements || []).map(commitItem);
+  frame.outputAnnotations = (frame.outputAnnotations || []).map(commitItem);
+  frame.liveEditMapStrokes = (frame.liveEditMapStrokes || []).map(commitItem);
+  return committed;
+}
+
 function closeLiveEditTarget() {
   const frame = currentFrame();
   const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
@@ -14953,6 +15060,7 @@ function closeLiveEditTarget() {
       frame,
       originalSnapshot,
     );
+    const removedTemporaryMarks = removeTemporaryLiveEditMarks(frame, liveTarget);
     frame.liveEditTarget = null;
     frame.liveEditPins = [];
     frame.liveEditVariants = [];
@@ -14963,6 +15071,10 @@ function closeLiveEditTarget() {
     frame.updatedAt = new Date().toISOString();
     if (restoredOriginal) {
       renderSelectionActions();
+    }
+    if (removedTemporaryMarks) {
+      state.outputAnnotationDraft = null;
+      state.draftElement = null;
     }
   }
   state.liveEditPickActive = false;
@@ -15064,6 +15176,14 @@ function summarizeCanvasLiveEditMark(element, frame = currentFrame()) {
     size: Number(element.size) || 8,
     bounds: normalizedBounds,
     normalizedBounds,
+    targetId: cleanString(element.liveEditTargetId),
+    targetLabel: cleanString(element.liveEditTargetLabel),
+    liveEditTargetId: cleanString(element.liveEditTargetId),
+    liveEditTargetType: cleanString(element.liveEditTargetType),
+    liveEditTargetLabel: cleanString(element.liveEditTargetLabel),
+    liveEditSurface: cleanString(element.liveEditSurface),
+    liveEditTemporary: Boolean(element.liveEditTemporary),
+    liveEditAcceptedAt: cleanString(element.liveEditAcceptedAt),
     createdAt: element.createdAt || "",
   };
   return {
@@ -15548,17 +15668,23 @@ function liveEditRequestStrokes(frame, liveTarget) {
   }));
   const outputMarks = summarizeOutputAnnotations(frame?.outputAnnotations)
     .filter(
-      (annotation) =>
-        !targetId ||
-        !annotation.targetId ||
-        cleanString(annotation.targetId) === targetId,
+      (annotation) => {
+        const annotationTargetId = cleanString(
+          annotation.liveEditTargetId || annotation.targetId,
+        );
+        return !targetId || !annotationTargetId || annotationTargetId === targetId;
+      },
     )
     .map((annotation, index) => ({
       id: annotation.id || `output-annotation-${index + 1}`,
       source: "output-annotation",
       type: annotation.type || annotation.tool || "",
-      targetId: annotation.targetId || targetId,
-      targetLabel: annotation.targetLabel || target?.targetLabel || "",
+      targetId: annotation.liveEditTargetId || annotation.targetId || targetId,
+      targetLabel:
+        annotation.liveEditTargetLabel ||
+        annotation.targetLabel ||
+        target?.targetLabel ||
+        "",
       bounds: annotation.bounds || annotation.region || null,
       points: annotation.points || [],
       semantics: annotation.semantics || null,
@@ -15566,17 +15692,23 @@ function liveEditRequestStrokes(frame, liveTarget) {
     }));
   const mapMarks = summarizeOutputAnnotations(frame?.liveEditMapStrokes)
     .filter(
-      (stroke) =>
-        !targetId ||
-        !stroke.targetId ||
-        cleanString(stroke.targetId) === targetId,
+      (stroke) => {
+        const strokeTargetId = cleanString(
+          stroke.liveEditTargetId || stroke.targetId,
+        );
+        return !targetId || !strokeTargetId || strokeTargetId === targetId;
+      },
     )
     .map((stroke, index) => ({
       id: stroke.id || `map-live-edit-stroke-${index + 1}`,
       source: "spatial-map-mark",
       type: stroke.type || "path",
-      targetId: stroke.targetId || targetId,
-      targetLabel: stroke.targetLabel || target?.targetLabel || "",
+      targetId: stroke.liveEditTargetId || stroke.targetId || targetId,
+      targetLabel:
+        stroke.liveEditTargetLabel ||
+        stroke.targetLabel ||
+        target?.targetLabel ||
+        "",
       bounds: stroke.bounds || stroke.normalizedBounds || null,
       points: stroke.points || [],
       semantics: stroke.semantics || null,
@@ -16575,6 +16707,16 @@ function onWorkbenchOutputPointerDown(event) {
     return;
   }
   const target = currentWorkbenchTarget();
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  const liveEditMark = liveEditTargetUsesOutputSurface(
+    liveTarget,
+    target,
+    targetUrl,
+  )
+    ? liveEditTemporaryMarkMetadata(liveTarget, "output")
+    : null;
   const canvas = outputAnnotationCanvasFromEvent(event);
   const point = outputAnnotationPointFromEvent(event);
   if (!target || !canvas || !point) {
@@ -16594,6 +16736,7 @@ function onWorkbenchOutputPointerDown(event) {
     targetId: target.id || "",
     targetLabel: target.label || "",
     targetVersionTag: target.versionTag || "",
+    ...(liveEditMark || {}),
     pointerId: event.pointerId,
     createdAt: new Date().toISOString(),
   };
@@ -23341,6 +23484,14 @@ function onPointerDown(event) {
   state.isDrawing = true;
   clearElementSelection();
   trySetPointerCapture(event.pointerId);
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const liveEditMark =
+    state.workspaceMode === "simple" &&
+    !state.liveEditPickActive &&
+    state.viewMode === "frame" &&
+    liveEditTargetUsesCanvasSurface(liveTarget, frame)
+      ? liveEditTemporaryMarkMetadata(liveTarget, "canvas")
+      : null;
 
   if (
     state.tool === "pen" ||
@@ -23355,6 +23506,7 @@ function onPointerDown(event) {
       size: state.size,
       alpha: state.tool === "erase" ? 1 : (state.tool === "marker" ? 0.42 * (state.brushOpacity || 1) : (state.brushOpacity || 1)),
       composite: state.tool === "erase" ? "destination-out" : "source-over",
+      ...(liveEditMark || {}),
     };
   } else {
     state.draftElement = {
@@ -23366,6 +23518,7 @@ function onPointerDown(event) {
       size: state.size,
       alpha: 1,
       composite: "source-over",
+      ...(liveEditMark || {}),
     };
   }
 
@@ -30661,6 +30814,12 @@ function summarizeOutputAnnotation(annotation) {
     targetId: annotation.targetId || "",
     targetLabel: annotation.targetLabel || "",
     targetVersionTag: annotation.targetVersionTag || "",
+    liveEditTargetId: annotation.liveEditTargetId || "",
+    liveEditTargetType: annotation.liveEditTargetType || "",
+    liveEditTargetLabel: annotation.liveEditTargetLabel || "",
+    liveEditSurface: annotation.liveEditSurface || "",
+    liveEditTemporary: Boolean(annotation.liveEditTemporary),
+    liveEditAcceptedAt: annotation.liveEditAcceptedAt || "",
     createdAt: annotation.createdAt || "",
   };
 }
@@ -33849,7 +34008,51 @@ async function runSelfTest() {
       outputResizedLiveTarget?.bounds?.h >
         outputMovedLiveTarget.bounds.h + 0.02 &&
       frameForCanvasReply.liveEditRequest?.status === "picked";
+    const outputMarksBeforeDiscard =
+      frameForCanvasReply.outputAnnotations?.length || 0;
+    const outputTemporaryMark = normalizeOutputAnnotation({
+      id: "self-test-output-temporary-live-edit-mark",
+      points: [
+        {
+          x: outputResizedLiveTarget?.bounds?.x || 0.32,
+          y: outputResizedLiveTarget?.bounds?.y || 0.32,
+        },
+        {
+          x:
+            (outputResizedLiveTarget?.bounds?.x || 0.32) +
+            Math.min(outputResizedLiveTarget?.bounds?.w || 0.18, 0.08),
+          y:
+            (outputResizedLiveTarget?.bounds?.y || 0.32) +
+            Math.min(outputResizedLiveTarget?.bounds?.h || 0.16, 0.06),
+        },
+      ],
+      color: palette[0],
+      size: 7,
+      targetId: outputResizedLiveTarget?.targetObjectId || "",
+      targetLabel: outputResizedLiveTarget?.targetLabel || "",
+      ...(liveEditTemporaryMarkMetadata(outputResizedLiveTarget, "output") || {}),
+      createdAt: new Date().toISOString(),
+    });
+    if (outputTemporaryMark) {
+      frameForCanvasReply.outputAnnotations = [
+        ...(frameForCanvasReply.outputAnnotations || []),
+        outputTemporaryMark,
+      ];
+    }
+    const outputTemporaryMarkSaved = (frameForCanvasReply.outputAnnotations || []).some(
+      (annotation) =>
+        annotation.liveEditTemporary &&
+        annotation.liveEditTargetId === outputResizedLiveTarget?.targetId,
+    );
     closeLiveEditTarget();
+    const outputTemporaryMarkDiscarded =
+      (frameForCanvasReply.outputAnnotations?.length || 0) ===
+        outputMarksBeforeDiscard &&
+      !(frameForCanvasReply.outputAnnotations || []).some(
+        (annotation) =>
+          annotation.liveEditTemporary &&
+          annotation.liveEditTargetId === outputResizedLiveTarget?.targetId,
+      );
     const domCaptureSurface = document.createElement("section");
     domCaptureSurface.setAttribute("data-workbench-output-surface", "selftest");
     domCaptureSurface.style.cssText =
@@ -33952,8 +34155,10 @@ async function runSelfTest() {
           liveEditDiscarded &&
           outputDragPicked &&
           outputTargetAdjusted &&
+          outputTemporaryMarkSaved &&
+          outputTemporaryMarkDiscarded &&
           liveEditDomSelectorCaptured,
-        "same-canvas reply underlay renders live edit target, binds target voice, places and drags comment pins, captures DOM selector metadata, adjusts output target bounds, in-surface variants, cycling, and clean discard",
+        "same-canvas reply underlay renders live edit target, binds target voice, places and drags comment pins, captures DOM selector metadata, adjusts output target bounds, in-surface variants, cycling, and clean discard without temporary mark residue",
         JSON.stringify({
           canvasReplyRendered,
           hasBinding: canvasReplyBinding?.branchFrameId === frameForCanvasReply.id,
@@ -33994,6 +34199,8 @@ async function runSelfTest() {
           liveEditDiscarded,
           outputDragPicked,
           outputTargetAdjusted,
+          outputTemporaryMarkSaved,
+          outputTemporaryMarkDiscarded,
           outputMovedX: outputMovedLiveTarget?.bounds?.x ?? null,
           outputResizedW: outputResizedLiveTarget?.bounds?.w ?? null,
           liveEditDomSelectorCaptured,
@@ -34195,10 +34402,33 @@ async function runSelfTest() {
       currentCanvasLiveEditRect(),
       frameForCanvasReply,
     );
+    state.tool = "pen";
+    if (canvasObjectMovedBeforeDiscard) {
+      dispatchPointerSequence(
+        [
+          canvasObjectMovedBeforeDiscard.left + 30,
+          canvasObjectMovedBeforeDiscard.top + 44,
+        ],
+        [
+          canvasObjectMovedBeforeDiscard.left + 110,
+          canvasObjectMovedBeforeDiscard.top + 82,
+        ],
+      );
+    }
+    const canvasTemporaryMarkSaved = frameForCanvasReply.elements.some(
+      (element) =>
+        element.liveEditTemporary &&
+        element.liveEditTargetId === discardTargetBeforeAdjust?.targetId,
+    );
     closeLiveEditTarget();
     const canvasObjectAfterDiscard = getElementBounds(
       currentCanvasLiveEditRect(),
       frameForCanvasReply,
+    );
+    const canvasTemporaryMarkDiscarded = !frameForCanvasReply.elements.some(
+      (element) =>
+        element.liveEditTemporary &&
+        element.liveEditTargetId === discardTargetBeforeAdjust?.targetId,
     );
     const canvasObjectDiscardRestored =
       discardTargetBeforeAdjust?.targetId === canvasLiveEditRect.id &&
@@ -34208,6 +34438,8 @@ async function runSelfTest() {
       canvasObjectMovedBeforeDiscard?.left >
         canvasObjectOriginalBounds.left + 40 &&
       !frameForCanvasReply.liveEditTarget &&
+      canvasTemporaryMarkSaved &&
+      canvasTemporaryMarkDiscarded &&
       Math.abs(canvasObjectAfterDiscard.left - canvasObjectOriginalBounds.left) <
         0.5 &&
       Math.abs(canvasObjectAfterDiscard.top - canvasObjectOriginalBounds.top) <
@@ -34402,6 +34634,8 @@ async function runSelfTest() {
           canvasRegionAcceptPreservedOutput,
           canvasObjectTargetAdjusted,
           canvasObjectDiscardRestored,
+          canvasTemporaryMarkSaved,
+          canvasTemporaryMarkDiscarded,
           adjustedCanvasObjectLeft: adjustedCanvasObjectBounds?.left ?? null,
           canvasObjectVariantCount: canvasObjectVariants.length,
           canvasLiveEditDrawModeArmed,

@@ -20,7 +20,7 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 - `Go`: create variants for the picked target.
 - Variant controller: after `Go`, output-backed targets show a small in-canvas controller for previous/next, variant count, Accept, and Discard.
 - `Accept`: keep the selected version with the current screen and save it for Codex.
-- `Discard`: remove the temporary pick or variants and restore the original surface.
+- `Discard`: remove the temporary pick, temporary variants, and target-bound marks from that Live Edit pass, then restore the original surface.
 - Action chips:
   `Freeform` follows the written note, `Layout` changes placement/spacing/structure, `Typeset` improves type rhythm, `Colorize` changes color and contrast, and `Clarify` / `Bolder` / `Quieter` / `Animate` steer the variant mood.
 
@@ -33,8 +33,8 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 - Comment pins stay inside or near the selected target and are draggable where supported.
 - Variants may preview in place on output, map, or object surfaces, but the sketch pad must remain editable and readable.
 - Output variants must expose the in-canvas controller near the selected target; the dock may mirror controls but should not be the only way to choose a variant.
-- Escape, Close, or Discard must leave no stale target overlay.
-- The picked target outline must explain removal in plain language: use `Discard` or `Escape` for the target, and `Undo` / `Erase` / `Clear marks` for drawn strokes.
+- Escape, Close, or Discard must leave no stale target overlay or unaccepted target-bound correction marks.
+- The picked target outline must explain removal in plain language: use `Discard` or `Escape` for active Live Edit target/variant/mark residue, and `Undo` / `Erase` / `Clear marks` for normal strokes.
 
 ## Surface Checks
 

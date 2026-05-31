@@ -113,8 +113,8 @@ local rewrite preview updates
 - `Go`: preview three different directions in place.
 - Variant controller: after `Go`, a small control appears on the picked output target so you can cycle `1/3`, `2/3`, `3/3`, then Accept or Discard right where you are looking.
 - `Accept`: keep the chosen direction with the current screen and save it for Codex.
-- `Discard` or `Escape`: remove the picked target and temporary variants. If you moved or resized a scratchpad target before accepting, it returns to its original position.
-- `Undo`, `Erase`, or `Clear marks`: remove strokes you actually drew on the sketch or output.
+- `Discard` or `Escape`: remove the picked target, temporary variants, and any target-bound marks drawn during that Live Edit pass. If you moved or resized a scratchpad target before accepting, it returns to its original position.
+- `Undo`, `Erase`, or `Clear marks`: remove normal sketch/output strokes that were not part of an active Live Edit pass.
 - Action chips: `Freeform` follows your note, `Layout` changes placement, `Typeset` improves type, `Colorize` changes color, and `Clarify` / `Bolder` / `Quieter` / `Animate` steer the mood.
 
 When `Live rewrite` is enabled, autosnap/freeze can run the local rewrite executor automatically. If another autosnap/freeze happens while a rewrite is already running, Canvax queues the newest handoff and runs it after the current rewrite finishes.
