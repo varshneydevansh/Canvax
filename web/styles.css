@@ -3950,6 +3950,87 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     background: rgba(35, 73, 70, 0.28);
 }
 
+.workbench-live-edit-capture {
+    display: grid;
+    gap: 0.16rem;
+    padding: 0.34rem 0.46rem;
+    border-radius: 0.62rem;
+    border: 0.0625rem solid rgba(139, 214, 207, 0.22);
+    background: rgba(139, 214, 207, 0.08);
+}
+
+.workbench-live-edit-capture[hidden] {
+    display: none;
+}
+
+.workbench-live-edit-capture strong {
+    color: #dcfffb;
+    font-family: var(--font-body);
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.workbench-live-edit-copy .workbench-live-edit-capture span,
+.workbench-live-edit-capture em {
+    display: block;
+    overflow: hidden;
+    color: rgba(220, 255, 251, 0.7);
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 760;
+    line-height: 1.22;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workbench-live-edit-capture div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.22rem;
+    min-width: 0;
+}
+
+.workbench-live-edit-capture b {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0.15rem 0.3rem;
+    border-radius: 999px;
+    color: rgba(220, 255, 251, 0.78);
+    background: rgba(0, 0, 0, 0.2);
+    font-size: 0.55rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.workbench-live-edit-capture i {
+    display: inline-block;
+    min-width: 0;
+    max-width: 9.5rem;
+    overflow: hidden;
+    color: #faf6f0;
+    font-style: normal;
+    text-overflow: ellipsis;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.workbench-live-edit-capture[data-state="empty"] {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.workbench-live-edit-capture[data-state="empty"] strong,
+.workbench-live-edit-capture[data-state="empty"] span {
+    color: rgba(255, 255, 255, 0.56);
+}
+
 .workbench-live-edit-note {
     display: grid;
     gap: 0.2rem;

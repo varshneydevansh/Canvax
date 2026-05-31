@@ -629,6 +629,9 @@ const dom = {
   workbenchLiveEditBinding: document.querySelector(
     "#workbench-live-edit-binding",
   ),
+  workbenchLiveEditCapture: document.querySelector(
+    "#workbench-live-edit-capture",
+  ),
   workbenchLiveEditCounter: document.querySelector(
     "#workbench-live-edit-counter",
   ),
@@ -11804,6 +11807,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   renderLiveEditBindingSummary(
     describeLiveEditTargetBinding(frame, liveTarget, target),
   );
+  renderLiveEditCaptureSummary(
+    describeLiveEditCaptureSummary(frame, liveTarget),
+  );
   dom.workbenchLiveEditCounter.textContent = variants.length
     ? `${variantIndex + 1} / ${variants.length} variants`
     : placingLivePin
@@ -12026,6 +12032,105 @@ function renderLiveEditBindingSummary(summary) {
     ${
       summary.nextAction
         ? `<em>${escapeHtml(`Next: ${compactDisplayText(summary.nextAction, 120)}`)}</em>`
+        : ""
+    }
+  `;
+}
+
+function describeLiveEditCaptureSummary(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target) {
+    return null;
+  }
+  const note = cleanString(target.note || state.liveEditDraftNote);
+  const voiceCount = liveEditTargetVoiceIntents(frame, target).length;
+  const pinCount = liveEditTargetPins(frame, target).length;
+  const strokes = liveEditRequestStrokes(frame, target);
+  const strokeCount = strokes.length;
+  const variants = currentLiveEditVariants(frame);
+  const semanticLabels = [
+    ...new Set(
+      strokes
+        .map((stroke) => stroke.semantics?.label || stroke.semantics?.intent)
+        .filter(Boolean)
+        .map((label) => compactDisplayText(label, 34)),
+    ),
+  ].slice(0, 3);
+  const items = [
+    note
+      ? {
+          label: "Note",
+          value: compactDisplayText(note, 48),
+        }
+      : null,
+    voiceCount
+      ? {
+          label: "Voice",
+          value: String(voiceCount),
+        }
+      : null,
+    pinCount
+      ? {
+          label: "Comments",
+          value: String(pinCount),
+        }
+      : null,
+    strokeCount
+      ? {
+          label: "Marks",
+          value: String(strokeCount),
+        }
+      : null,
+    variants.length
+      ? {
+          label: "Variants",
+          value: `${currentLiveEditVariantIndex(frame) + 1}/${variants.length}`,
+        }
+      : null,
+  ].filter(Boolean);
+  return {
+    label: items.length ? "Captured intent" : "Nothing captured yet",
+    detail: items.length
+      ? "These notes, pins, voice, and strokes travel with this exact target."
+      : "Add a note, Talk, + Comment, or Draw before Go.",
+    items,
+    semanticLabels,
+  };
+}
+
+function renderLiveEditCaptureSummary(summary) {
+  if (!dom.workbenchLiveEditCapture) {
+    return;
+  }
+  if (!summary) {
+    dom.workbenchLiveEditCapture.hidden = true;
+    dom.workbenchLiveEditCapture.innerHTML = "";
+    return;
+  }
+  const items = Array.isArray(summary.items) ? summary.items.slice(0, 5) : [];
+  const semanticLabels = Array.isArray(summary.semanticLabels)
+    ? summary.semanticLabels.slice(0, 3)
+    : [];
+  dom.workbenchLiveEditCapture.hidden = false;
+  dom.workbenchLiveEditCapture.dataset.state = items.length
+    ? "captured"
+    : "empty";
+  dom.workbenchLiveEditCapture.innerHTML = `
+    <strong>${escapeHtml(summary.label)}</strong>
+    <span>${escapeHtml(summary.detail)}</span>
+    ${
+      items.length
+        ? `<div>${items
+            .map(
+              (item) =>
+                `<b>${escapeHtml(item.label)} <i title="${escapeHtml(item.value)}">${escapeHtml(item.value)}</i></b>`,
+            )
+            .join("")}</div>`
+        : ""
+    }
+    ${
+      semanticLabels.length
+        ? `<em>${escapeHtml(`Strokes: ${semanticLabels.join(" / ")}`)}</em>`
         : ""
     }
   `;
@@ -13932,6 +14037,9 @@ function updateLiveEditTargetNote(value) {
   }
   frame.updatedAt = new Date().toISOString();
   persistState();
+  renderLiveEditCaptureSummary(
+    describeLiveEditCaptureSummary(frame, frame.liveEditTarget),
+  );
   scheduleLivePreviewSync();
 }
 
@@ -34534,6 +34642,7 @@ async function runSelfTest() {
           Boolean(dom.workbenchLiveEditAction) &&
           Boolean(dom.workbenchLiveEditActionOptions) &&
           Boolean(dom.workbenchLiveEditBinding) &&
+          Boolean(dom.workbenchLiveEditCapture) &&
           Boolean(dom.workbenchLiveEditNote) &&
           Boolean(dom.workbenchLiveEditTalk) &&
           Boolean(dom.workbenchLiveEditPin) &&
@@ -34894,6 +35003,22 @@ async function runSelfTest() {
           { final: true },
         )
       : null;
+    renderLiveEditControls({
+      frame: frameForCanvasReply,
+      target: canvasReplyTargetForFrame(frameForCanvasReply),
+      targetUrl: resolveWorkbenchTargetUrl(
+        canvasReplyTargetForFrame(frameForCanvasReply),
+      ),
+    });
+    const liveEditCaptureText =
+      dom.workbenchLiveEditCapture?.textContent || "";
+    const liveEditCaptureShown =
+      !dom.workbenchLiveEditCapture?.hidden &&
+      liveEditCaptureText.includes("Captured intent") &&
+      liveEditCaptureText.includes("Note") &&
+      liveEditCaptureText.includes("Voice") &&
+      liveEditCaptureText.includes("Comments") &&
+      liveEditCaptureText.includes("Marks");
     renderWorkbenchOutput();
     const liveEditOutputRendered =
       dom.workbenchOutputSurface.classList.contains("has-live-edit-target") &&
@@ -34914,6 +35039,7 @@ async function runSelfTest() {
       movedLiveEditPin?.point?.x === 0.52 &&
       Boolean(movedLiveEditPin?.draggedAt) &&
       movedLiveEditPin?.text.includes("generated CTA") &&
+      liveEditCaptureShown &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditTarget?.targetId ===
         "self-test-canvas-reply";
     const previousLiveEditWritebackForOutcome = structuredClone(
@@ -35536,6 +35662,8 @@ async function runSelfTest() {
           placedPinPlacement: placedLiveEditPin?.placement || "",
           movedPinX: movedLiveEditPin?.point?.x ?? null,
           movedPinDragged: Boolean(movedLiveEditPin?.draggedAt),
+          liveEditCaptureShown,
+          liveEditCaptureText: compactDisplayText(liveEditCaptureText, 160),
           liveEditVariantsHotSwap,
           liveEditVariantOperationsMaterial,
           liveEditActionChipSelected: Boolean(liveEditActionChipSelected),
