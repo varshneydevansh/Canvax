@@ -2747,6 +2747,7 @@ function buildProjectHandoffPaths(projectId = state?.projectRegistry?.activeProj
 }
 
 function buildProjectExportMetadata() {
+  const activeFrameId = resolveActiveFrameIdForFrames(state?.frames || []);
   const registry = normalizeProjectRegistry(
     state?.projectRegistry || readProjectRegistry(),
   );
@@ -2763,8 +2764,8 @@ function buildProjectExportMetadata() {
     id: active.id,
     title: cleanString(state?.board?.project) || active.title,
     frameCount: Array.isArray(state?.frames) ? state.frames.length : active.frameCount,
-    activeFrameId: state?.activeFrameId || "",
-    activeFrameTitle: frameTitleById(state?.activeFrameId) || active.activeFrameTitle,
+    activeFrameId,
+    activeFrameTitle: frameTitleById(activeFrameId) || active.activeFrameTitle,
     registryPath: "exports/canvax-project-registry-latest.json",
     handoff,
     compatibilityHandoff: {
@@ -5022,10 +5023,56 @@ function createFrame(overrides = {}) {
 }
 
 function currentFrame() {
-  return (
+  const activeFrameId = resolveActiveFrameIdForFrames(state.frames);
+  if (activeFrameId && activeFrameId !== state.activeFrameId) {
+    state.activeFrameId = activeFrameId;
+  }
+  return state.frames.find((frame) => frame.id === activeFrameId) || state.frames[0];
+}
+
+function resolveActiveFrameIdForFrames(
+  frameSelection = state.frames,
+  preferredId = state.activeFrameId,
+) {
+  const frames = Array.isArray(frameSelection) ? frameSelection.filter(Boolean) : [];
+  if (!frames.length) {
+    return cleanString(preferredId);
+  }
+  const frameIds = new Set(frames.map((frame) => cleanString(frame.id)).filter(Boolean));
+  const preferred = cleanString(preferredId);
+  if (frameIds.has(preferred)) {
+    return preferred;
+  }
+  const entryFrameId = cleanString(state.entryFrameId);
+  if (frameIds.has(entryFrameId)) {
+    return entryFrameId;
+  }
+  const currentStateFrame =
     state.frames.find((frame) => frame.id === state.activeFrameId) ||
-    state.frames[0]
-  );
+    state.frames.find((frame) => frame.id === state.entryFrameId);
+  if (currentStateFrame && frameIds.has(currentStateFrame.id)) {
+    return currentStateFrame.id;
+  }
+  return cleanString(frames[0]?.id) || preferred;
+}
+
+function resolveEntryFrameIdForFrames(
+  frameSelection = state.frames,
+  activeFrameId = resolveActiveFrameIdForFrames(frameSelection),
+) {
+  const frames = Array.isArray(frameSelection) ? frameSelection.filter(Boolean) : [];
+  if (!frames.length) {
+    return cleanString(activeFrameId || state.entryFrameId);
+  }
+  const frameIds = new Set(frames.map((frame) => cleanString(frame.id)).filter(Boolean));
+  const entryFrameId = cleanString(state.entryFrameId);
+  if (frameIds.has(entryFrameId)) {
+    return entryFrameId;
+  }
+  if (frameIds.has(cleanString(activeFrameId))) {
+    return cleanString(activeFrameId);
+  }
+  return cleanString(frames[0]?.id) || cleanString(activeFrameId);
 }
 
 function currentConnection() {
@@ -27854,6 +27901,11 @@ function importTranscriptBridge(transcriptBridge) {
 }
 
 function buildPromptMarkdown() {
+  const activeFrameId = resolveActiveFrameIdForFrames(state.frames);
+  const entryFrameId = resolveEntryFrameIdForFrames(
+    state.frames,
+    activeFrameId,
+  );
   const generationRecipe = generationSummaryText(state.board.generation);
   const actionMode = currentActionMode();
   const designContext = currentDesignContextForExport();
@@ -27975,7 +28027,7 @@ function buildPromptMarkdown() {
 
   lines.push("");
   lines.push("## Flow graph");
-  lines.push(`- Entry frame: ${frameTitleById(state.entryFrameId)}`);
+  lines.push(`- Entry frame: ${frameTitleById(entryFrameId)}`);
   lines.push(
     `- Spatial map zoom: ${Math.round((state.flowZoom || 1) * 100)}%`,
   );
@@ -28000,7 +28052,11 @@ function buildPromptMarkdown() {
     );
   }
 
-  const rewriteQueue = buildRewriteQueue();
+  const rewriteQueue = buildRewriteQueue(
+    state.frames,
+    state.serverStatus.previewManifest,
+    activeFrameId,
+  );
   if (rewriteQueue.length) {
     lines.push("");
     lines.push("## Rewrite queue");
@@ -28210,7 +28266,16 @@ function collapseVoiceTextForMarkdown(value) {
 }
 
 async function buildExportPackage(frameSelection = state.frames) {
-  const rewriteQueue = buildRewriteQueue(frameSelection);
+  const exportActiveFrameId = resolveActiveFrameIdForFrames(frameSelection);
+  const exportEntryFrameId = resolveEntryFrameIdForFrames(
+    frameSelection,
+    exportActiveFrameId,
+  );
+  const rewriteQueue = buildRewriteQueue(
+    frameSelection,
+    state.serverStatus.previewManifest,
+    exportActiveFrameId,
+  );
   const selectedFrames = [];
   for (const [index, frame] of frameSelection.entries()) {
     await ensureImage(frame.backgroundImage);
@@ -28264,11 +28329,25 @@ async function buildExportPackage(frameSelection = state.frames) {
     });
   }
 
-  const taskPack = buildTaskPack(selectedFrames, rewriteQueue);
-  const imagePromptPack = buildImagePromptPack(selectedFrames);
+  const taskPack = buildTaskPack(
+    selectedFrames,
+    rewriteQueue,
+    exportActiveFrameId,
+  );
+  const imagePromptPack = buildImagePromptPack(
+    selectedFrames,
+    exportActiveFrameId,
+  );
   const assetCandidatePack = buildAssetCandidatePack(imagePromptPack);
-  const spatialWorkspace = buildSpatialWorkspaceExport();
-  const rewriteRequest = buildRewriteRequest(selectedFrames, rewriteQueue);
+  const spatialWorkspace = buildSpatialWorkspaceExport(
+    frameSelection,
+    exportActiveFrameId,
+  );
+  const rewriteRequest = buildRewriteRequest(
+    selectedFrames,
+    rewriteQueue,
+    exportActiveFrameId,
+  );
   const project = buildProjectExportMetadata();
 
   return {
@@ -28280,8 +28359,8 @@ async function buildExportPackage(frameSelection = state.frames) {
     workspaceMode: state.workspaceMode,
     workbench: buildWorkbenchExport(),
     board: state.board,
-    activeFrameId: state.activeFrameId,
-    entryFrameId: state.entryFrameId,
+    activeFrameId: exportActiveFrameId,
+    entryFrameId: exportEntryFrameId,
     spatialWorkspace,
     connections: state.connections.map((connection) => ({
       ...connection,
@@ -28299,11 +28378,16 @@ async function buildExportPackage(frameSelection = state.frames) {
   };
 }
 
-function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
-  const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
+function buildRewriteRequest(
+  frames,
+  rewriteQueue = buildRewriteQueue(frames),
+  activeFrameId = resolveActiveFrameIdForFrames(frames),
+) {
+  const normalizedFrames = Array.isArray(frames) ? frames.filter(Boolean) : [];
+  const activeFrame = normalizedFrames.find((frame) => frame.id === activeFrameId);
   const queuedFrameIds = new Set(rewriteQueue.map((item) => item.frameId));
-  const relevantFrames = frames.filter(
-    (frame) => frame.id === state.activeFrameId || queuedFrameIds.has(frame.id),
+  const relevantFrames = normalizedFrames.filter(
+    (frame) => frame.id === activeFrameId || queuedFrameIds.has(frame.id),
   );
   const manifest = state.serverStatus.previewManifest || null;
   const outputManifest = manifest
@@ -28320,8 +28404,8 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
     requiresOpenAiApiKey: false,
     source: "canvax-live-workbench",
     project: buildProjectExportMetadata(),
-    activeFrameId: state.activeFrameId,
-    activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
+    activeFrameId,
+    activeFrameTitle: activeFrame?.title || frameTitleById(activeFrameId),
     board: {
       project: state.board.project,
       goal: state.board.goal,
@@ -28344,7 +28428,7 @@ function buildRewriteRequest(frames, rewriteQueue = buildRewriteQueue()) {
       rewriteQueue,
     ),
     voice: buildVoiceExport(state.frames),
-    spatialContext: buildSpatialHandoffContext(frames),
+    spatialContext: buildSpatialHandoffContext(normalizedFrames),
     frames: relevantFrames.map((frame) => ({
       id: frame.id,
       index: frame.index,
@@ -28524,11 +28608,21 @@ function summarizeOutputChange(change) {
   };
 }
 
-function buildSpatialWorkspaceExport(frameSelection = state.frames) {
-  const frameIds = new Set(frameSelection.map((frame) => frame.id));
-  const bounds = computeFlowSurfaceSize(frameSelection);
+function buildSpatialWorkspaceExport(
+  frameSelection = state.frames,
+  activeFrameId = resolveActiveFrameIdForFrames(frameSelection),
+) {
+  const normalizedFrames = Array.isArray(frameSelection)
+    ? frameSelection.filter(Boolean)
+    : [];
+  const frameIds = new Set(normalizedFrames.map((frame) => frame.id));
+  const entryFrameId = resolveEntryFrameIdForFrames(
+    normalizedFrames,
+    activeFrameId,
+  );
+  const bounds = computeFlowSurfaceSize(normalizedFrames);
   const spatialGrouping = computeSpatialGroupMembership(
-    frameSelection,
+    normalizedFrames,
     state.spatialObjects,
   );
   const selectedObjects = selectedSpatialObjects();
@@ -28555,8 +28649,8 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
       lasso: "shift-drag empty map space",
     },
     viewport: buildSpatialViewportExport(bounds),
-    activeFrameId: state.activeFrameId,
-    entryFrameId: state.entryFrameId,
+    activeFrameId,
+    entryFrameId,
     objectFilter: buildSpatialObjectFilterExport(),
     selectedObjectId: state.selectedSpatialObjectId || "",
     selectedObjectIds: currentSelectedSpatialObjectIds(),
@@ -28566,10 +28660,10 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
     selectedObjects: selectedObjects.map((object) =>
       buildSpatialWorkspaceObject(object, spatialGrouping),
     ),
-    cards: frameSelection.map((frame, index) => {
+    cards: normalizedFrames.map((frame, index) => {
       const viewport = viewportPresets[frame.viewport] || viewportPresets.desktop;
       const status = describeFrameOutputStatus(frame, {
-        includeGlobal: frame.id === state.activeFrameId,
+        includeGlobal: frame.id === activeFrameId,
       });
       return {
         id: frame.id,
@@ -28589,9 +28683,13 @@ function buildSpatialWorkspaceExport(frameSelection = state.frames) {
         groupIds: spatialGrouping.cardGroupIds.get(frame.id) || [],
       };
     }),
-    variantBranches: buildSpatialVariantBranches(frameSelection),
+    variantBranches: buildSpatialVariantBranches(normalizedFrames),
     lanes: buildSpatialWorkspaceLanes(state.spatialObjects),
-    timeline: buildSpatialTimeline(frameSelection, state.spatialObjects),
+    timeline: buildSpatialTimeline(
+      normalizedFrames,
+      state.spatialObjects,
+      activeFrameId,
+    ),
     groupHierarchy: spatialGrouping.groupHierarchy,
     groups: spatialGrouping.groups,
     objects: state.spatialObjects.map((object) =>
@@ -28704,12 +28802,14 @@ function buildSpatialWorkspaceLanes(spatialObjects = state.spatialObjects) {
 function buildSpatialTimeline(
   frameSelection = state.frames,
   spatialObjects = state.spatialObjects,
+  activeFrameId = resolveActiveFrameIdForFrames(frameSelection),
   lanes = buildSpatialWorkspaceLanes(spatialObjects),
 ) {
+  const entryFrameId = resolveEntryFrameIdForFrames(frameSelection, activeFrameId);
   const selectedIds = new Set(currentSelectedSpatialObjectIds());
   const frameItems = frameSelection.map((frame, index) => {
     const status = describeFrameOutputStatus(frame, {
-      includeGlobal: frame.id === state.activeFrameId,
+      includeGlobal: frame.id === activeFrameId,
     });
     return {
       id: `timeline-frame-${frame.id}`,
@@ -28720,8 +28820,8 @@ function buildSpatialTimeline(
       order: index,
       status: status?.label || "",
       kindLabel: frame.variant?.label ? "Variant frame" : "Frame",
-      active: frame.id === state.activeFrameId,
-      entry: frame.id === state.entryFrameId,
+      active: frame.id === activeFrameId,
+      entry: frame.id === entryFrameId,
       linkedCount: countFrameConnections(frame.id),
       position: flowPositionForFrame(frame, index),
     };
@@ -28730,7 +28830,7 @@ function buildSpatialTimeline(
     spatialObjects.filter(isManifestSpatialObject),
   ).map((object, index) => buildSpatialTimelineObjectItem(object, index, selectedIds));
   const branchItems = buildSpatialVariantBranches(frameSelection).map((branch) =>
-    buildSpatialTimelineBranchItem(branch, selectedIds),
+    buildSpatialTimelineBranchItem(branch, selectedIds, activeFrameId, entryFrameId),
   );
   const checkpointItems = sortSpatialLaneObjects(
     spatialObjects.filter(isCheckpointSpatialObject),
@@ -28788,8 +28888,8 @@ function buildSpatialTimeline(
   return {
     kind: "canvax-spatial-timeline",
     schemaVersion: 1,
-    activeFrameId: state.activeFrameId,
-    entryFrameId: state.entryFrameId,
+    activeFrameId,
+    entryFrameId,
     selectedObjectIds: [...selectedIds],
     summary,
     tracks,
@@ -28797,7 +28897,12 @@ function buildSpatialTimeline(
   };
 }
 
-function buildSpatialTimelineBranchItem(branch, selectedIds = new Set()) {
+function buildSpatialTimelineBranchItem(
+  branch,
+  selectedIds = new Set(),
+  activeFrameId = resolveActiveFrameIdForFrames(state.frames),
+  entryFrameId = resolveEntryFrameIdForFrames(state.frames, activeFrameId),
+) {
   const frame = frameById(branch.frameId);
   const sourceTitle =
     branch.sourceFrameTitle || frameTitleById(branch.sourceFrameId) || "Source";
@@ -28820,8 +28925,8 @@ function buildSpatialTimelineBranchItem(branch, selectedIds = new Set()) {
         ? "Output edit"
         : "Variant branch",
     kindLabel: "Branch",
-    active: branch.frameId === state.activeFrameId,
-    entry: branch.frameId === state.entryFrameId,
+    active: branch.frameId === activeFrameId,
+    entry: branch.frameId === entryFrameId,
     selected:
       Boolean(branch.spatialObjectId) && selectedIds.has(branch.spatialObjectId),
     primary: Boolean(branch.primary),
@@ -29440,8 +29545,13 @@ function rectContainsRectCenter(container, child) {
   );
 }
 
-function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
-  const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
+function buildTaskPack(
+  frames,
+  rewriteQueue = buildRewriteQueue(frames),
+  activeFrameId = resolveActiveFrameIdForFrames(frames),
+) {
+  const normalizedFrames = Array.isArray(frames) ? frames.filter(Boolean) : [];
+  const activeFrame = normalizedFrames.find((frame) => frame.id === activeFrameId);
   const actionMode = currentActionMode();
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -29459,15 +29569,15 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
     },
     project: buildProjectExportMetadata(),
     designContext: currentDesignContextForExport(),
-    designKit: buildDesignKitSummary(frames),
+    designKit: buildDesignKitSummary(normalizedFrames),
     board: structuredClone(state.board),
-    activeFrameId: state.activeFrameId,
-    activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
+    activeFrameId,
+    activeFrameTitle: activeFrame?.title || frameTitleById(activeFrameId),
     rewriteQueue,
     voice: buildVoiceExport(state.frames),
-    spatialContext: buildSpatialHandoffContext(frames),
+    spatialContext: buildSpatialHandoffContext(normalizedFrames),
     imagePromptPackPath: "exports/canvax-image-prompt-pack-latest.json",
-    frames: frames.map((frame) => ({
+    frames: normalizedFrames.map((frame) => ({
       id: frame.id,
       index: frame.index,
       title: frame.title,
@@ -29499,11 +29609,15 @@ function buildTaskPack(frames, rewriteQueue = buildRewriteQueue()) {
   };
 }
 
-function buildImagePromptPack(frames) {
-  const activeFrame = frames.find((frame) => frame.id === state.activeFrameId);
+function buildImagePromptPack(
+  frames,
+  activeFrameId = resolveActiveFrameIdForFrames(frames),
+) {
+  const normalizedFrames = Array.isArray(frames) ? frames.filter(Boolean) : [];
+  const activeFrame = normalizedFrames.find((frame) => frame.id === activeFrameId);
   const generationRecipe = generationSummaryText(state.board.generation);
   const actionMode = currentActionMode();
-  const styleLock = buildImageStyleLock(frames, generationRecipe);
+  const styleLock = buildImageStyleLock(normalizedFrames, generationRecipe);
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
     kind: "canvax-image-prompt-pack",
@@ -29515,9 +29629,9 @@ function buildImagePromptPack(frames) {
     actionModeLabel: actionMode.label,
     project: buildProjectExportMetadata(),
     designContext: currentDesignContextForExport(),
-    designKit: buildDesignKitSummary(frames),
-    activeFrameId: state.activeFrameId,
-    activeFrameTitle: activeFrame?.title || frameTitleById(state.activeFrameId),
+    designKit: buildDesignKitSummary(normalizedFrames),
+    activeFrameId,
+    activeFrameTitle: activeFrame?.title || frameTitleById(activeFrameId),
     board: {
       project: state.board.project,
       ask: state.board.goal,
@@ -29525,11 +29639,11 @@ function buildImagePromptPack(frames) {
       mood: state.board.designMood,
       generationRecipe,
     },
-    spatialContext: buildSpatialHandoffContext(frames),
+    spatialContext: buildSpatialHandoffContext(normalizedFrames),
     styleLock,
     usage:
       "Give this prompt pack to ChatGPT image generation. Use the coordinates and HTML/CSS scaffold to preserve placement.",
-    frames: frames.map((frame) => {
+    frames: normalizedFrames.map((frame) => {
       const liveFrame = currentFrameById(frame.id) || frame;
       const composition = buildFrameComposition(liveFrame);
       return {
@@ -31575,12 +31689,18 @@ function summarizeLiveEditWritebackStatus(value) {
 }
 
 function buildCheckpointPayload(reason, exportResult = null, options = {}) {
-  const frame = currentFrame();
+  const activeFrameId = resolveActiveFrameIdForFrames(state.frames);
+  const entryFrameId = resolveEntryFrameIdForFrames(state.frames, activeFrameId);
+  const frame = currentFrameById(activeFrameId) || currentFrame();
   const manifest = state.serverStatus.previewManifest || null;
-  const target = resolveManifestTargetEntry(manifest, state.activeFrameId);
+  const target = resolveManifestTargetEntry(manifest, activeFrameId);
   const artifacts = collectManifestArtifacts(manifest);
   const changes = collectManifestChanges(manifest);
-  const rewriteQueue = buildRewriteQueue();
+  const rewriteQueue = buildRewriteQueue(
+    state.frames,
+    state.serverStatus.previewManifest,
+    activeFrameId,
+  );
   const voice = buildVoiceExport();
   const totalCaptureCount = state.frames.reduce(
     (sum, entry) => sum + entry.captures.length,
@@ -31604,11 +31724,11 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
     workspaceMode: state.workspaceMode,
     project: buildProjectExportMetadata(),
     board: structuredClone(state.board),
-    activeFrameId: state.activeFrameId,
+    activeFrameId,
     activeFrameTitle: frame?.title || "",
-    frameId: state.activeFrameId,
+    frameId: activeFrameId,
     frameTitle: frame?.title || "",
-    entryFrameId: state.entryFrameId,
+    entryFrameId,
     connections: state.connections.map((connection) => ({
       ...structuredClone(connection),
       fromTitle: frameTitleById(connection.fromFrameId),
@@ -32494,7 +32614,13 @@ function publishLivePreviewState() {
 }
 
 function buildLivePreviewPayload() {
-  const rewriteQueue = buildRewriteQueue();
+  const activeFrameId = resolveActiveFrameIdForFrames(state.frames);
+  const entryFrameId = resolveEntryFrameIdForFrames(state.frames, activeFrameId);
+  const rewriteQueue = buildRewriteQueue(
+    state.frames,
+    state.serverStatus.previewManifest,
+    activeFrameId,
+  );
   pruneFrameRenderCache();
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -32515,10 +32641,10 @@ function buildLivePreviewPayload() {
       workbench: buildWorkbenchExport(),
       project: buildProjectExportMetadata(),
       board: structuredClone(state.board),
-      activeFrameId: state.activeFrameId,
-      entryFrameId: state.entryFrameId,
+      activeFrameId,
+      entryFrameId,
       rewriteQueue,
-      spatialWorkspace: buildSpatialWorkspaceExport(),
+      spatialWorkspace: buildSpatialWorkspaceExport(state.frames, activeFrameId),
       voice: buildVoiceExport(),
       connections: state.connections.map((connection) => ({
         ...structuredClone(connection),
@@ -32527,7 +32653,7 @@ function buildLivePreviewPayload() {
       })),
       frames: state.frames.map((frame, index) => {
         const viewport = viewportPresets[frame.viewport];
-        const isActive = frame.id === state.activeFrameId;
+        const isActive = frame.id === activeFrameId;
         return {
           id: frame.id,
           index: index + 1,
@@ -33409,7 +33535,7 @@ function buildAcceptedLiveEditBindingQueueItems(
 function buildRewriteQueue(
   frames = state.frames,
   manifest = state.serverStatus.previewManifest,
-  activeFrameId = state.activeFrameId,
+  activeFrameId = resolveActiveFrameIdForFrames(frames),
 ) {
   const normalizedFrames = Array.isArray(frames) ? frames : [];
   const targets = collectManifestTargets(manifest);
@@ -35903,6 +36029,48 @@ async function runSelfTest() {
               frame.styleLock?.id === exportPackage.imagePromptPack.styleLock.id,
           ),
         "export package includes no-API image prompt pack with style lock",
+      ),
+    );
+    const originalActiveFrameForExport = state.activeFrameId;
+    const originalEntryFrameForExport = state.entryFrameId;
+    let staleActiveExportPackage = null;
+    try {
+      state.activeFrameId = "missing-selftest-active-frame";
+      state.entryFrameId = state.frames[0]?.id || "";
+      staleActiveExportPackage = await buildExportPackage();
+    } finally {
+      state.activeFrameId = originalActiveFrameForExport;
+      state.entryFrameId = originalEntryFrameForExport;
+    }
+    const staleActiveFrameIds = new Set(
+      (staleActiveExportPackage?.frames || []).map((frame) => frame.id),
+    );
+    const staleActiveDetail = JSON.stringify({
+      activeFrameId: staleActiveExportPackage?.activeFrameId,
+      rewriteRequestActiveFrameId:
+        staleActiveExportPackage?.rewriteRequest?.activeFrameId,
+      taskPackActiveFrameId: staleActiveExportPackage?.taskPack?.activeFrameId,
+      imagePromptPackActiveFrameId:
+        staleActiveExportPackage?.imagePromptPack?.activeFrameId,
+      spatialWorkspaceActiveFrameId:
+        staleActiveExportPackage?.spatialWorkspace?.activeFrameId,
+      exportedFrameCount: staleActiveFrameIds.size,
+    });
+    results.push(
+      assert(
+        staleActiveFrameIds.has(staleActiveExportPackage?.activeFrameId) &&
+          staleActiveFrameIds.has(
+            staleActiveExportPackage?.rewriteRequest?.activeFrameId,
+          ) &&
+          staleActiveFrameIds.has(staleActiveExportPackage?.taskPack?.activeFrameId) &&
+          staleActiveFrameIds.has(
+            staleActiveExportPackage?.imagePromptPack?.activeFrameId,
+          ) &&
+          staleActiveFrameIds.has(
+            staleActiveExportPackage?.spatialWorkspace?.activeFrameId,
+          ),
+        "export package resolves stale active frame ids to exported frames",
+        staleActiveDetail,
       ),
     );
     results.push(
