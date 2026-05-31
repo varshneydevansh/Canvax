@@ -33234,6 +33234,7 @@ function frameHasMeaningfulHandoff(frame) {
     Boolean(frame.canvasReply) ||
     Boolean(frame.liveEditTarget) ||
     Boolean(frame.liveEditRequest) ||
+    normalizeLiveEditRegionBindings(frame.liveEditRegionBindings).length ||
     cleanString(frame.objective) ||
     cleanString(frame.layout) ||
     cleanString(frame.motion) ||
@@ -33253,6 +33254,158 @@ function itemHasFrameBinding(item, frameId) {
   );
 }
 
+function liveEditTargetQueueIdentity(liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!target) {
+    return "";
+  }
+  const bounds = target.bounds
+    ? `${target.bounds.x}:${target.bounds.y}:${target.bounds.w}:${target.bounds.h}`
+    : "";
+  return [
+    target.targetId,
+    target.targetObjectId,
+    target.targetNodeId,
+    target.targetSelector,
+    target.targetPath,
+    target.targetHref,
+    target.sourceFrameId,
+    bounds,
+  ]
+    .map((value) => cleanString(value))
+    .filter(Boolean)
+    .join("|");
+}
+
+function rewriteQueueIdSuffix(value, fallback = "target") {
+  return (
+    cleanString(value)
+      .replace(/[^a-z0-9_-]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 72) || fallback
+  );
+}
+
+function formatLiveEditBoundsForQueue(bounds) {
+  const normalized = normalizeLiveEditBounds(bounds);
+  if (!normalized) {
+    return "the selected bounds";
+  }
+  const pct = (value) => `${Math.round(value * 100)}%`;
+  return `${pct(normalized.x)}, ${pct(normalized.y)} / ${pct(normalized.w)}x${pct(normalized.h)}`;
+}
+
+function minimalLiveEditRequestFromBinding(frame, binding) {
+  const normalizedBinding = normalizeElementLiveEditBinding(binding);
+  const target = normalizeLiveEditTarget(normalizedBinding?.target);
+  if (!frame || !target) {
+    return null;
+  }
+  const acceptedVariant = normalizeLiveEditVariant(
+    normalizedBinding.acceptedVariant,
+  );
+  return normalizeLiveEditRequest({
+    id: `live-edit-request-${frame.id}-${target.targetId || target.targetObjectId || target.id || "target"}`,
+    status: "accepted",
+    target,
+    targetType: target.targetType,
+    targetSelector: target.targetSelector,
+    targetObjectId: target.targetObjectId,
+    targetNodeId: target.targetNodeId,
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    note: normalizedBinding.note || target.note,
+    pins: normalizedBinding.pins,
+    acceptedVariant,
+    acceptedVariantId:
+      acceptedVariant?.id || target.acceptedVariantId || "",
+    acceptedVariantLabel:
+      acceptedVariant?.label || target.acceptedVariantLabel || "",
+    acceptedVariantRole:
+      acceptedVariant?.role || target.acceptedVariantRole || "",
+    acceptedAt: normalizedBinding.acceptedAt || target.acceptedAt,
+    updatedAt: normalizedBinding.updatedAt || frame.updatedAt,
+  });
+}
+
+function collectAcceptedLiveEditBindingsForQueue(frame, skippedIdentities = new Set()) {
+  if (!frame) {
+    return [];
+  }
+  const seen = new Set(skippedIdentities);
+  const candidates = [];
+  const pushBinding = (value, source, sourceIndex = 0) => {
+    const binding = normalizeElementLiveEditBinding(value);
+    const target = normalizeLiveEditTarget(binding?.target);
+    if (!binding || !target) {
+      return;
+    }
+    const accepted =
+      binding.status === "accepted" ||
+      target.status === "accepted" ||
+      Boolean(binding.acceptedAt || target.acceptedAt);
+    if (!accepted) {
+      return;
+    }
+    const identity = liveEditTargetQueueIdentity(target);
+    if (!identity || seen.has(identity)) {
+      return;
+    }
+    seen.add(identity);
+    candidates.push({
+      binding,
+      target,
+      identity,
+      source,
+      sourceIndex,
+      request:
+        normalizeLiveEditRequest(binding.request) ||
+        minimalLiveEditRequestFromBinding(frame, binding),
+      variant: normalizeLiveEditVariant(binding.acceptedVariant),
+    });
+  };
+
+  normalizeLiveEditRegionBindings(frame.liveEditRegionBindings).forEach(
+    (binding, index) => pushBinding(binding, "canvas-region", index),
+  );
+  (Array.isArray(frame.elements) ? frame.elements : []).forEach((element, index) => {
+    pushBinding(element?.liveEdit, "canvas-object", index);
+  });
+  return candidates;
+}
+
+function buildAcceptedLiveEditBindingQueueItems(
+  frame,
+  skippedIdentities = new Set(),
+) {
+  return collectAcceptedLiveEditBindingsForQueue(frame, skippedIdentities).map(
+    (entry, index) => {
+      const targetLabel =
+        entry.target.targetLabel ||
+        liveEditTargetMediumLabel(entry.target, frame) ||
+        "picked target";
+      const variantLabel =
+        entry.variant?.label ||
+        entry.target.acceptedVariantLabel ||
+        "accepted variant";
+      const variantRole =
+        entry.variant?.role || entry.target.acceptedVariantRole || "live edit";
+      return {
+        id: `${frame.id}-accepted-live-edit-${rewriteQueueIdSuffix(entry.target.targetId || entry.target.targetObjectId || entry.target.id, `target-${index + 1}`)}`,
+        frameId: frame.id,
+        title: frame.title,
+        label: "Accepted Live Edit",
+        reason: "accepted-live-edit-binding",
+        priority: 0,
+        updatedAt: entry.binding.updatedAt || frame.updatedAt,
+        detail: `${targetLabel} is accepted at ${formatLiveEditBoundsForQueue(entry.target.bounds)}. Use ${variantLabel} (${variantRole}) as a first-class rewrite target even if the picker is closed or the active target changes.`,
+        liveEditRequest: entry.request,
+        liveEditBinding: entry.binding,
+      };
+    },
+  );
+}
+
 function buildRewriteQueue(
   frames = state.frames,
   manifest = state.serverStatus.previewManifest,
@@ -33265,9 +33418,9 @@ function buildRewriteQueue(
   const hasAnyTargets = targets.length > 0;
 
   return normalizedFrames
-    .map((frame, index) => {
+    .flatMap((frame, index) => {
       if (!frameHasMeaningfulHandoff(frame)) {
-        return null;
+        return [];
       }
 
       const specificTarget = findFrameSpecificTarget(manifest, frame.id);
@@ -33282,6 +33435,13 @@ function buildRewriteQueue(
         : "";
       const liveEditTarget = normalizeLiveEditTarget(frame.liveEditTarget);
       const liveEditRequest = normalizeLiveEditRequest(frame.liveEditRequest);
+      const activeLiveEditIdentity = liveEditTargetQueueIdentity(
+        liveEditRequest?.target || liveEditTarget,
+      );
+      const acceptedLiveEditItems = buildAcceptedLiveEditBindingQueueItems(
+        frame,
+        activeLiveEditIdentity ? new Set([activeLiveEditIdentity]) : new Set(),
+      );
 
       if (liveEditTarget || liveEditRequest) {
         const requestTarget = liveEditRequest?.target || liveEditTarget;
@@ -33295,17 +33455,24 @@ function buildRewriteQueue(
               .map((operation) => operation.label || operation.kind)
               .join(", ")}.`
           : "";
-        return {
-          id: `${frame.id}-live-edit`,
-          frameId: frame.id,
-          title: frame.title,
-          label: "Live edit target",
-          reason: "live-edit-target",
-          priority: 0,
-          updatedAt: frame.updatedAt,
-          detail: `Apply the next rewrite to ${requestTarget.targetLabel || requestTarget.targetId || "the picked region"} at ${requestTarget.bounds.x}, ${requestTarget.bounds.y}, ${requestTarget.bounds.w}, ${requestTarget.bounds.h}.${liveEditVariant ? ` Use selected variant ${liveEditVariant.index}: ${liveEditVariant.label} (${liveEditVariant.role}).` : ""}${operationSummary}`,
-          liveEditRequest,
-        };
+        return [
+          {
+            id: `${frame.id}-live-edit`,
+            frameId: frame.id,
+            title: frame.title,
+            label: "Live edit target",
+            reason: "live-edit-target",
+            priority: 0,
+            updatedAt: frame.updatedAt,
+            detail: `Apply the next rewrite to ${requestTarget.targetLabel || requestTarget.targetId || "the picked region"} at ${requestTarget.bounds.x}, ${requestTarget.bounds.y}, ${requestTarget.bounds.w}, ${requestTarget.bounds.h}.${liveEditVariant ? ` Use selected variant ${liveEditVariant.index}: ${liveEditVariant.label} (${liveEditVariant.role}).` : ""}${operationSummary}`,
+            liveEditRequest,
+          },
+          ...acceptedLiveEditItems,
+        ];
+      }
+
+      if (acceptedLiveEditItems.length) {
+        return acceptedLiveEditItems;
       }
 
       if (specificTarget && freshness.startsWith("Current sketch is newer")) {
@@ -33365,7 +33532,7 @@ function buildRewriteQueue(
         };
       }
 
-      return null;
+      return [];
     })
     .filter(Boolean)
     .sort((left, right) => {
@@ -35106,6 +35273,20 @@ async function runSelfTest() {
         "accepted" &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
         "Clarity";
+    const acceptedBindingQueueItems = buildRewriteQueue(
+      [frameForCanvasReply],
+      null,
+      frameForCanvasReply.id,
+    ).filter((item) => item.reason === "accepted-live-edit-binding");
+    const canvasRegionAcceptedRewriteQueued = acceptedBindingQueueItems.some(
+      (item) =>
+        item.liveEditRequest?.target?.targetId ===
+        canvasRegionDirectTarget?.targetId,
+    );
+    const canvasObjectAcceptedRewriteQueued = acceptedBindingQueueItems.some(
+      (item) =>
+        item.liveEditRequest?.target?.targetId === canvasLiveEditRect.id,
+    );
     frameForCanvasReply.liveEditTarget =
       canvasObjectAcceptedFallbackState.liveEditTarget;
     frameForCanvasReply.acceptedLiveEditVariant =
@@ -35151,7 +35332,9 @@ async function runSelfTest() {
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
         "Clarity" &&
       canvasObjectAcceptedOutputFallback &&
-      canvasObjectAcceptedBindingFallback;
+      canvasObjectAcceptedBindingFallback &&
+      canvasRegionAcceptedRewriteQueued &&
+      canvasObjectAcceptedRewriteQueued;
     frameForCanvasReply.canvasReply =
       previousCanvasObjectLiveEditState.canvasReply;
     frameForCanvasReply.elements = previousCanvasObjectLiveEditState.elements;
@@ -35253,6 +35436,9 @@ async function runSelfTest() {
               ?.label || "",
           acceptedOutputFallback: canvasObjectAcceptedOutputFallback,
           acceptedBindingFallback: canvasObjectAcceptedBindingFallback,
+          acceptedBindingQueueCount: acceptedBindingQueueItems.length,
+          canvasRegionAcceptedRewriteQueued,
+          canvasObjectAcceptedRewriteQueued,
         }),
       ),
     );

@@ -2896,6 +2896,11 @@ function frameHasMeaningfulHandoff(frame) {
     return false;
   }
   return Boolean(
+    (Array.isArray(frame.elements) && frame.elements.length) ||
+    Boolean(frame.liveEditTarget) ||
+    Boolean(frame.liveEditRequest) ||
+    (Array.isArray(frame.liveEditRegionBindings) &&
+      frame.liveEditRegionBindings.length) ||
     Number(frame.captureCount) > 0 ||
     cleanString(frame.objective) ||
     cleanString(frame.layout) ||
@@ -2907,6 +2912,150 @@ function frameHasMeaningfulHandoff(frame) {
     cleanString(frame.thumbnailUrl) ||
     cleanString(frame.liveThumbnailDataUrl),
   );
+}
+
+function frameLiveEditTargetIdentity(value) {
+  const target = value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : null;
+  if (!target) {
+    return "";
+  }
+  const bounds = target.bounds || target.normalizedBounds || target.region || null;
+  const boundsKey = bounds && typeof bounds === "object"
+    ? `${bounds.x || 0}:${bounds.y || 0}:${bounds.w || bounds.width || 0}:${bounds.h || bounds.height || 0}`
+    : "";
+  return [
+    target.targetId,
+    target.id,
+    target.targetObjectId,
+    target.targetNodeId,
+    target.targetSelector || target.selector,
+    target.targetPath || target.previewPath,
+    target.targetHref || target.url || target.href,
+    target.sourceFrameId,
+    boundsKey,
+  ]
+    .map((entry) => cleanString(entry))
+    .filter(Boolean)
+    .join("|");
+}
+
+function normalizeFrameLiveEditBinding(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target =
+    value.target && typeof value.target === "object"
+      ? value.target
+      : value.liveEditTarget && typeof value.liveEditTarget === "object"
+        ? value.liveEditTarget
+        : null;
+  if (!target) {
+    return null;
+  }
+  const acceptedVariant =
+    value.acceptedVariant && typeof value.acceptedVariant === "object"
+      ? value.acceptedVariant
+      : value.variant && typeof value.variant === "object"
+        ? value.variant
+        : null;
+  const status = cleanString(value.status || target.status);
+  const acceptedAt = cleanString(
+    value.acceptedAt || acceptedVariant?.acceptedAt || target.acceptedAt,
+  );
+  if (status !== "accepted" && !acceptedAt) {
+    return null;
+  }
+  return {
+    status: "accepted",
+    target,
+    acceptedVariant,
+    request:
+      value.request && typeof value.request === "object"
+        ? value.request
+        : value.liveEditRequest && typeof value.liveEditRequest === "object"
+          ? value.liveEditRequest
+          : null,
+    note: cleanString(value.note || target.note),
+    acceptedAt,
+    updatedAt: cleanString(value.updatedAt || target.updatedAt),
+  };
+}
+
+function frameLiveEditBoundsLabel(bounds) {
+  const normalized = bounds && typeof bounds === "object" ? bounds : null;
+  if (!normalized) {
+    return "the selected bounds";
+  }
+  const x = Number(normalized.x) || 0;
+  const y = Number(normalized.y) || 0;
+  const w = Number(normalized.w || normalized.width) || 0;
+  const h = Number(normalized.h || normalized.height) || 0;
+  const pct = (value) => `${Math.round(value * 100)}%`;
+  return `${pct(x)}, ${pct(y)} / ${pct(w)}x${pct(h)}`;
+}
+
+function buildAcceptedLiveEditPreviewQueueItems(frame, skippedIdentities = new Set()) {
+  if (!frame) {
+    return [];
+  }
+  const seen = new Set(skippedIdentities);
+  const bindings = [];
+  const pushBinding = (value) => {
+    const binding = normalizeFrameLiveEditBinding(value);
+    if (!binding) {
+      return;
+    }
+    const identity = frameLiveEditTargetIdentity(binding.target);
+    if (!identity || seen.has(identity)) {
+      return;
+    }
+    seen.add(identity);
+    bindings.push(binding);
+  };
+  (Array.isArray(frame.liveEditRegionBindings)
+    ? frame.liveEditRegionBindings
+    : []
+  ).forEach(pushBinding);
+  (Array.isArray(frame.elements) ? frame.elements : []).forEach((element) =>
+    pushBinding(element?.liveEdit),
+  );
+  return bindings.map((binding, index) => {
+    const target = binding.target;
+    const variant = binding.acceptedVariant;
+    const targetId =
+      cleanString(target.targetId || target.targetObjectId || target.id) ||
+      `target-${index + 1}`;
+    const label =
+      cleanString(target.targetLabel || target.targetType) || "picked target";
+    const variantLabel = cleanString(variant?.label) || "accepted variant";
+    const variantRole = cleanString(variant?.role) || "live edit";
+    const request =
+      binding.request || {
+        kind: "canvax-live-edit-request",
+        status: "accepted",
+        target,
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
+        note: binding.note,
+        acceptedVariant: variant,
+        acceptedAt: binding.acceptedAt,
+      };
+    return {
+      id: `${frame.id}-accepted-live-edit-${targetId.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 72)}`,
+      frameId: frame.id,
+      title: frame.title,
+      label: "Accepted Live Edit",
+      tone: "active",
+      reason: "accepted-live-edit-binding",
+      priority: 0,
+      updatedAt: binding.updatedAt || frame.updatedAt,
+      detail: `${label} is accepted at ${frameLiveEditBoundsLabel(target.bounds || target.normalizedBounds || target.region)}. Use ${variantLabel} (${variantRole}) as a first-class rewrite target.`,
+      liveEditRequest: request,
+      liveEditBinding: binding,
+    };
+  });
 }
 
 function itemHasFrameBinding(item, frameId) {
@@ -2928,9 +3077,9 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
   const hasAnyTargets = targets.length > 0;
 
   return normalizedFrames
-    .map((frame, index) => {
+    .flatMap((frame, index) => {
       if (!frameHasMeaningfulHandoff(frame)) {
-        return null;
+        return [];
       }
 
       const specificTarget = findFrameSpecificTarget(manifest, frame.id);
@@ -2943,6 +3092,36 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
       const freshness = specificTarget
         ? describeManifestFreshness(specificTarget, frame)
         : null;
+      const activeLiveEditTarget = frame.liveEditRequest?.target || frame.liveEditTarget;
+      const activeLiveEditIdentity = frameLiveEditTargetIdentity(activeLiveEditTarget);
+      const acceptedLiveEditItems = buildAcceptedLiveEditPreviewQueueItems(
+        frame,
+        activeLiveEditIdentity ? new Set([activeLiveEditIdentity]) : new Set(),
+      );
+
+      if (activeLiveEditTarget || frame.liveEditRequest) {
+        return [
+          {
+            id: `${frame.id}-live-edit`,
+            index: index + 1,
+            frameId: frame.id,
+            title: frame.title,
+            label: "Live edit target",
+            tone: "active",
+            reason: "live-edit-target",
+            priority: 0,
+            updatedAt: frame.updatedAt,
+            detail:
+              "Apply the next rewrite to the picked Live Edit target on this frame.",
+            liveEditRequest: frame.liveEditRequest || null,
+          },
+          ...acceptedLiveEditItems,
+        ];
+      }
+
+      if (acceptedLiveEditItems.length) {
+        return acceptedLiveEditItems;
+      }
 
       if (specificTarget && freshness?.stale) {
         return {
@@ -3005,7 +3184,7 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
         };
       }
 
-      return null;
+      return [];
     })
     .filter(Boolean)
     .sort((left, right) => {
