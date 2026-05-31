@@ -3140,6 +3140,57 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     line-height: 1.25;
 }
 
+.workbench-live-edit-source-list {
+    display: grid;
+    gap: 0.16rem;
+    margin-top: 0.08rem;
+}
+
+.workbench-live-edit-source-candidate {
+    display: grid;
+    gap: 0.04rem;
+    min-width: 0;
+    padding: 0.28rem 0.36rem;
+    border: 0.0625rem solid rgba(255, 255, 255, 0.14);
+    border-radius: 0.42rem;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.workbench-live-edit-source-candidate b,
+.workbench-live-edit-source-candidate i,
+.workbench-live-edit-outcome em {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workbench-live-edit-source-candidate b {
+    color: currentColor;
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1.15;
+}
+
+.workbench-live-edit-source-candidate i {
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.6rem;
+    font-style: normal;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+.workbench-live-edit-outcome em {
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.62rem;
+    font-style: normal;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
 .workbench-live-edit-outcome[data-tone="synced"] {
     border-color: rgba(12, 141, 123, 0.34);
     background:

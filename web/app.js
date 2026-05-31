@@ -10951,6 +10951,12 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
     liveVariant?.id || "",
     liveVariant?.role || "",
     liveOutcome?.label || "",
+    liveOutcome?.detail || "",
+    liveOutcome?.nextAction || "",
+    (liveOutcome?.candidates || []).map((candidate) => [
+      candidate.label,
+      candidate.detail,
+    ]),
   ]);
   if (surface.dataset.renderSignature !== nextSignature) {
     surface.dataset.renderSignature = nextSignature;
@@ -10984,11 +10990,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
           .join("")}
         ${liveVariant ? renderLiveEditVariantMarkup(liveVariant, liveTarget) : ""}
         ${liveVariant ? renderLiveEditVariantControllerMarkup(frame, liveTarget) : ""}
-        ${
-          liveOutcome
-            ? `<span class="workbench-live-edit-outcome" data-tone="${escapeHtml(liveOutcome.tone)}"><strong>${escapeHtml(liveOutcome.label)}</strong><small>${escapeHtml(liveOutcome.detail)}</small></span>`
-            : ""
-        }
+        ${renderLiveEditOutcomeMarkup(liveOutcome)}
       </div>
     </div>
   `;
@@ -11010,7 +11012,9 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
       ? placingLivePin
         ? `${baseMeta} Click inside the selected target to place the comment pin; existing pins can be dragged.`
         : liveOutcome
-          ? `${baseMeta} ${liveOutcome.detail}`
+          ? `${baseMeta} ${liveOutcome.detail}${
+              liveOutcome.nextAction ? ` Next: ${liveOutcome.nextAction}` : ""
+            }`
         : `${baseMeta} Live edit target is bound to the next rewrite. Sketch, speak, place pins, or create variants from that region.`
       : `${baseMeta} Use pen, marker, or erase on this surface to mark the next correction.`;
 }
@@ -11368,20 +11372,28 @@ function liveEditWritebackForTarget(frame, liveTarget, outputTarget = null) {
   const targetId = cleanString(target.targetId);
   const targetObjectId = cleanString(target.targetObjectId);
   const candidates = [
+    state.serverStatus.liveEditWriteback,
     outputTarget?.liveEditBinding?.writeback,
     outputTarget?.liveEditWriteback,
-    state.serverStatus.liveEditWriteback,
   ].filter((value) => value && typeof value === "object");
+  const exactTargetMatch = candidates.find((value) => {
+    const valueTargetId = cleanString(value.targetId);
+    return targetId && valueTargetId && targetId === valueTargetId;
+  });
+  if (exactTargetMatch) {
+    return exactTargetMatch;
+  }
+  const exactObjectMatch = candidates.find((value) => {
+    const valueObjectId = cleanString(value.targetObjectId);
+    return targetObjectId && valueObjectId && targetObjectId === valueObjectId;
+  });
+  if (exactObjectMatch) {
+    return exactObjectMatch;
+  }
   return (
     candidates.find((value) => {
       const valueTargetId = cleanString(value.targetId);
       const valueObjectId = cleanString(value.targetObjectId);
-      if (targetId && valueTargetId && targetId === valueTargetId) {
-        return true;
-      }
-      if (targetObjectId && valueObjectId && targetObjectId === valueObjectId) {
-        return true;
-      }
       return !valueTargetId && !valueObjectId && target.status === "accepted";
     }) || null
   );
@@ -11393,9 +11405,15 @@ function describeLiveEditWritebackOutcome(writeback) {
   }
   const status = cleanString(writeback.status);
   const changedFileCount = Number(writeback.changedFileCount) || 0;
+  const sourceDiscovery =
+    writeback.sourceDiscovery &&
+    typeof writeback.sourceDiscovery === "object" &&
+    !Array.isArray(writeback.sourceDiscovery)
+      ? writeback.sourceDiscovery
+      : null;
   const candidateCount =
     Number(writeback.sourceDiscoveryCandidateCount) ||
-    Number(writeback.sourceDiscovery?.candidateCount) ||
+    Number(sourceDiscovery?.candidateCount) ||
     0;
   if (writeback.inFlight) {
     return {
@@ -11424,6 +11442,13 @@ function describeLiveEditWritebackOutcome(writeback) {
       label: "Source candidates",
       detail: `Accepted Live Edit found ${candidateCount} likely source candidate${candidateCount === 1 ? "" : "s"} for Codex review before production mutation.`,
       tone: "warning",
+      candidates: summarizeLiveEditSourceCandidates(sourceDiscovery),
+      nextAction: compactDisplayText(
+        sourceDiscovery?.nextAction ||
+          writeback.nextAction ||
+          "Review a candidate, then run the patch task or retarget with a stronger source hint.",
+        150,
+      ),
     };
   }
   if (status === "source-search-empty") {
@@ -11432,6 +11457,12 @@ function describeLiveEditWritebackOutcome(writeback) {
       detail:
         "Accepted Live Edit searched local files but did not find a strong source candidate yet.",
       tone: "warning",
+      nextAction: compactDisplayText(
+        sourceDiscovery?.nextAction ||
+          writeback.nextAction ||
+          "Retarget a visible source-backed element or add a concrete source hint before applying a production patch.",
+        150,
+      ),
     };
   }
   if (status === "task-written") {
@@ -11459,6 +11490,86 @@ function describeLiveEditWritebackOutcome(writeback) {
     };
   }
   return null;
+}
+
+function summarizeLiveEditSourceCandidates(sourceDiscovery, limit = 2) {
+  const candidates = Array.isArray(sourceDiscovery?.candidates)
+    ? sourceDiscovery.candidates
+    : [];
+  return candidates
+    .map((candidate) => {
+      if (!candidate || typeof candidate !== "object") {
+        return null;
+      }
+      const path = compactLiveEditSourcePath(
+        candidate.path || candidate.file || "",
+        52,
+      );
+      if (!path) {
+        return null;
+      }
+      const kind = compactDisplayText(
+        candidate.kind || candidate.confidence || "",
+        26,
+      );
+      const matchCount = Number(candidate.matchCount) || 0;
+      const firstMatch = Array.isArray(candidate.matches)
+        ? candidate.matches.find((match) => match && typeof match === "object")
+        : null;
+      const matchType = compactDisplayText(firstMatch?.searchType || "", 28);
+      const detail = [
+        kind,
+        matchCount ? `${matchCount} match${matchCount === 1 ? "" : "es"}` : "",
+        matchType,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+      return {
+        label: path,
+        detail,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, Math.max(0, limit));
+}
+
+function compactLiveEditSourcePath(value, maxLength = 52) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+  if (text.includes("/")) {
+    return `...${text.slice(Math.max(0, text.length - maxLength + 3))}`;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
+function renderLiveEditOutcomeMarkup(outcome) {
+  if (!outcome) {
+    return "";
+  }
+  const candidates = Array.isArray(outcome.candidates)
+    ? outcome.candidates.slice(0, 2)
+    : [];
+  return `<span class="workbench-live-edit-outcome" data-tone="${escapeHtml(outcome.tone)}">
+    <strong>${escapeHtml(outcome.label)}</strong>
+    <small>${escapeHtml(outcome.detail)}</small>
+    ${
+      candidates.length
+        ? `<span class="workbench-live-edit-source-list" aria-label="Source candidates">${candidates
+            .map(
+              (candidate) =>
+                `<span class="workbench-live-edit-source-candidate"><b title="${escapeHtml(candidate.label)}">${escapeHtml(candidate.label)}</b>${candidate.detail ? `<i>${escapeHtml(candidate.detail)}</i>` : ""}</span>`,
+            )
+            .join("")}</span>`
+        : ""
+    }
+    ${
+      outcome.nextAction
+        ? `<em>${escapeHtml(`Next: ${compactDisplayText(outcome.nextAction, 132)}`)}</em>`
+        : ""
+    }
+  </span>`;
 }
 
 function setLiveEditActionIntent(actionId) {
@@ -34660,15 +34771,32 @@ async function runSelfTest() {
         variantLabel: "Clarity",
         sourceDiscovered: true,
         sourceDiscoveryCandidateCount: 2,
+        sourceDiscovery: {
+          candidateCount: 2,
+          nextAction: "Review candidates, then add explicit source hints.",
+          candidates: [
+            {
+              path: "src/SelfTest.jsx",
+              kind: "component",
+              matchCount: 2,
+              matches: [{ searchType: "selector" }],
+            },
+          ],
+        },
         updatedAt: new Date().toISOString(),
       },
     };
     renderWorkbenchOutput();
-    const liveEditOutcomeRendered = Boolean(
-      dom.workbenchOutputSurface
-        .querySelector(".workbench-live-edit-outcome")
-        ?.textContent.includes("Source candidates"),
+    const directLiveEditOutcome = describeLiveEditWritebackOutcome(
+      state.serverStatus.liveEditWriteback,
     );
+    const liveEditOutcomeText =
+      dom.workbenchOutputSurface.querySelector(".workbench-live-edit-outcome")
+        ?.textContent || "";
+    const liveEditOutcomeRendered =
+      liveEditOutcomeText.includes("Source candidates") &&
+      liveEditOutcomeText.includes("src/SelfTest.jsx") &&
+      liveEditOutcomeText.includes("explicit source hints");
     state.serverStatus = {
       ...state.serverStatus,
       liveEditWriteback: previousLiveEditWritebackForOutcome,
@@ -35202,6 +35330,10 @@ async function runSelfTest() {
           ),
           liveEditOutputRendered,
           liveEditOutcomeRendered,
+          liveEditOutcomeText: compactDisplayText(liveEditOutcomeText, 160),
+          directLiveEditOutcomeLabel: directLiveEditOutcome?.label || "",
+          directLiveEditOutcomeCandidate:
+            directLiveEditOutcome?.candidates?.[0]?.label || "",
           outputPickStaysOnOutput,
           outputPickFocusSelected,
           outputSurfacePickHighlighted,
@@ -36504,6 +36636,15 @@ async function runSelfTest() {
           kind: "canvax-live-edit-source-discovery-result",
           status: "candidates-found",
           candidateCount: 2,
+          nextAction: "Review candidates, then add explicit source hints.",
+          candidates: [
+            {
+              path: "src/SelfTest.jsx",
+              kind: "component",
+              matchCount: 2,
+              matches: [{ searchType: "selector" }],
+            },
+          ],
         },
         updatedAt: new Date().toISOString(),
       },
@@ -36535,6 +36676,11 @@ async function runSelfTest() {
           liveEditSourceDiscoveryCheckpoint.patchExecution?.sourceDiscovered ===
             true &&
           liveEditSourceDiscoveryOutcome?.label === "Source candidates" &&
+          liveEditSourceDiscoveryOutcome?.candidates?.[0]?.label ===
+            "src/SelfTest.jsx" &&
+          liveEditSourceDiscoveryOutcome?.nextAction.includes(
+            "explicit source hints",
+          ) &&
           liveEditSourceDiscoveryAgentLog.some(
             (item) =>
               item.kind === "Live Edit" &&
