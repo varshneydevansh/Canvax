@@ -22458,15 +22458,30 @@ function renderBrushPreview() {
   dom.canvas.classList.toggle("preview-cursor", canShowPreview);
 
   if (!canShowPreview) {
+    dom.brushPreview.dataset.liveEdit = "false";
+    dom.brushPreview.dataset.zoomed = "false";
     return;
   }
 
+  const frame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
   const visualZoom = Number.isFinite(state.zoom) ? state.zoom : 1;
+  const isZoomed = Math.abs(visualZoom - 1) > 0.04;
+  const isLiveEditMarking =
+    state.workspaceMode === "simple" &&
+    Boolean(liveTarget) &&
+    liveEditTargetUsesCanvasSurface(liveTarget, frame);
   const size = Math.max(8, state.size * visualZoom);
+  dom.brushPreview.dataset.liveEdit = String(isLiveEditMarking);
+  dom.brushPreview.dataset.zoomed = String(isZoomed);
+  dom.brushPreview.dataset.tool = state.tool;
+  dom.brushPreview.style.setProperty("--brush-color", state.color);
   dom.brushPreview.style.width = `${size}px`;
   dom.brushPreview.style.height = `${size}px`;
   dom.brushPreview.style.transform = `translate(${state.brushPreview.x}px, ${state.brushPreview.y}px) translate(-50%, -50%)`;
-  dom.brushPreviewText.textContent = `${state.size} px`;
+  dom.brushPreviewText.textContent = isLiveEditMarking
+    ? `mark ${state.size}px`
+    : `${state.size}px`;
 
   if (state.tool === "erase") {
     dom.brushPreview.style.background = "rgba(255, 255, 255, 0.08)";
@@ -34803,6 +34818,10 @@ async function runSelfTest() {
     const brushPreviewTracksScrolledCanvas =
       Math.abs(state.brushPreview.x - (30 + dom.deviceShell.scrollLeft)) < 1 &&
       Math.abs(state.brushPreview.y - (40 + dom.deviceShell.scrollTop)) < 1;
+    const zoomedBrushReticleVisible =
+      dom.brushPreview.dataset.zoomed === "true" &&
+      !dom.brushPreview.hidden &&
+      (dom.brushPreviewText.textContent || "").includes(String(state.size));
     state.zoom = previousCanvasPrecisionState.zoom;
     state.tool = previousCanvasPrecisionState.tool;
     state.brushPreview = previousCanvasPrecisionState.brushPreview;
@@ -34866,8 +34885,9 @@ async function runSelfTest() {
           canvasZoomStaysSharp &&
           canvasPointerMapsAtZoom &&
           brushPreviewTracksScrolledCanvas &&
+          zoomedBrushReticleVisible &&
           !document.querySelector("#codex-scratchpad-dock"),
-        "Workbench composer, canvas reply, context import, visible Live Edit commands, review controls, voice intent lane, crisp zoomed sketch cursor mapping, edit surface switch, and compact agent log render",
+        "Workbench composer, canvas reply, context import, visible Live Edit commands, review controls, voice intent lane, crisp zoomed sketch cursor mapping, visible zoom reticle, edit surface switch, and compact agent log render",
       ),
     );
     const previousVoiceFallbackState = {
