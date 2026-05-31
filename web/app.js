@@ -1328,25 +1328,24 @@ function bindEvents() {
   dom.workbenchComposerInput.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
+      if (currentWorkbenchLiveEditTarget()) {
+        runWorkbenchComposerMake();
+        return;
+      }
       addManualVoiceNote("workbench-composer");
     }
   });
   dom.workbenchComposerTalk.addEventListener("click", () => {
-    if (state.voice.status === "listening") {
-      stopVoiceDictation();
-    } else {
-      startVoiceDictation();
-    }
+    handleWorkbenchComposerTalk();
   });
   dom.workbenchComposerNote.addEventListener("click", () => {
-    addManualVoiceNote("workbench-composer");
+    handleWorkbenchComposerNote();
   });
   dom.workbenchComposerPin.addEventListener("click", () => {
-    pinComposerInstructionToMap();
+    handleWorkbenchComposerPin();
   });
   dom.workbenchComposerMake.addEventListener("click", () => {
-    commitManualVoiceDraft("workbench-composer");
-    void generateCurrentScreen();
+    runWorkbenchComposerMake();
   });
   dom.workbenchComposerReply.addEventListener("click", () => {
     commitManualVoiceDraft("workbench-composer");
@@ -1360,8 +1359,7 @@ function bindEvents() {
     });
   });
   dom.workbenchComposerApply.addEventListener("click", () => {
-    commitManualVoiceDraft("workbench-composer");
-    void applyFocusPadToCodex();
+    void runWorkbenchComposerApply();
   });
   let ignoreNextAgentLogToggleClick = false;
   let ignoreNextAgentLogToggleClickTimer = 0;
@@ -6087,19 +6085,19 @@ function handleWorkbenchRailAction(action) {
     return;
   }
   if (action === "voice") {
-    if (state.voice.status === "listening") {
-      stopVoiceDictation();
-    } else {
-      startVoiceDictation();
-    }
+    handleWorkbenchComposerTalk();
     return;
   }
   if (action === "pin-note") {
-    pinComposerInstructionToMap({ promptIfEmpty: true });
+    if (currentWorkbenchLiveEditTarget()) {
+      handleWorkbenchComposerPin();
+    } else {
+      pinComposerInstructionToMap({ promptIfEmpty: true });
+    }
     return;
   }
   if (action === "generate") {
-    void generateCurrentScreen();
+    runWorkbenchComposerMake();
     return;
   }
   if (action === "build-real") {
@@ -6126,8 +6124,160 @@ function handleWorkbenchRailAction(action) {
     return;
   }
   if (action === "apply") {
-    void applyFocusPadToCodex();
+    void runWorkbenchComposerApply();
   }
+}
+
+function currentWorkbenchLiveEditTarget(frame = currentFrame()) {
+  return normalizeLiveEditTarget(frame?.liveEditTarget);
+}
+
+function workbenchComposerMode(frame = currentFrame()) {
+  const liveTarget = currentWorkbenchLiveEditTarget(frame);
+  const liveEdit = Boolean(liveTarget);
+  const variants = currentLiveEditVariants(frame);
+  return {
+    liveEdit,
+    liveTarget,
+    makeLabel: liveEdit ? (variants.length ? "Regenerate" : "Go") : "Make",
+    makeTitle: liveEdit
+      ? "Create or refresh three variants for the picked Live Edit target"
+      : "Commit the instruction and generate a local screen",
+    applyLabel: liveEdit ? "Accept" : "Apply",
+    applyTitle: liveEdit
+      ? "Accept this picked target or selected variant into the Canvax handoff"
+      : "Commit the instruction and write the latest checkpoint for Codex",
+    noteTitle: liveEdit
+      ? "Attach this instruction to the picked Live Edit target"
+      : "Add this instruction as a frame voice note",
+    pinTitle: liveEdit
+      ? "Place this instruction as a comment pin on the picked target"
+      : "Pin this instruction as a visible Map note",
+    talkTitle: liveEdit
+      ? "Dictate directly into the picked Live Edit target"
+      : "Dictate or paste design intent for this frame",
+  };
+}
+
+function mergeLiveEditInstructionText(existingText, draftText) {
+  const existing = cleanString(existingText);
+  const draft = cleanString(draftText);
+  if (!draft) {
+    return existing;
+  }
+  if (!existing) {
+    return draft;
+  }
+  return existing.includes(draft) ? existing : `${existing} ${draft}`;
+}
+
+function syncComposerDraftToLiveEditTarget() {
+  const frame = currentFrame();
+  const liveTarget = currentWorkbenchLiveEditTarget(frame);
+  if (!frame || !liveTarget) {
+    return false;
+  }
+  const draft = cleanString(
+    state.voice?.manualDraft || dom.workbenchComposerInput?.value,
+  );
+  const targetNote = cleanString(
+    dom.workbenchLiveEditNote?.value ||
+      liveTarget.note ||
+      state.liveEditDraftNote,
+  );
+  const nextNote = mergeLiveEditInstructionText(targetNote, draft);
+  if (!nextNote) {
+    return false;
+  }
+  if (dom.workbenchLiveEditNote) {
+    dom.workbenchLiveEditNote.value = nextNote;
+  }
+  updateLiveEditTargetNote(nextNote);
+  if (draft) {
+    state.voice.manualDraft = "";
+    syncManualVoiceDraftControls();
+    addVoiceSegment(draft, {
+      provider: "workbench-live-edit-composer",
+      scope: "frame",
+      liveEditTarget: frame.liveEditTarget,
+    });
+  }
+  renderLiveEditControls({
+    frame,
+    target: currentWorkbenchTarget(),
+    targetUrl: resolveWorkbenchTargetUrl(currentWorkbenchTarget()),
+  });
+  renderCanvas();
+  renderWorkbenchOutput();
+  return true;
+}
+
+function handleWorkbenchComposerTalk() {
+  const liveTarget = currentWorkbenchLiveEditTarget();
+  if (liveTarget) {
+    if (
+      state.voice.status === "listening" &&
+      state.voice.provider === "workbench-live-edit-voice"
+    ) {
+      stopVoiceDictation();
+      return;
+    }
+    if (state.voice.status === "listening") {
+      stopVoiceDictation();
+    }
+    startLiveEditDictation();
+    return;
+  }
+  if (state.voice.status === "listening") {
+    stopVoiceDictation();
+  } else {
+    startVoiceDictation();
+  }
+}
+
+function handleWorkbenchComposerNote() {
+  if (currentWorkbenchLiveEditTarget()) {
+    if (syncComposerDraftToLiveEditTarget()) {
+      renderStatus("Live Edit target note captured. Press Go to create variants.");
+    } else {
+      renderStatus("Type what should change on the picked target first.");
+      dom.workbenchComposerInput?.focus();
+    }
+    return;
+  }
+  addManualVoiceNote("workbench-composer");
+}
+
+function handleWorkbenchComposerPin() {
+  if (currentWorkbenchLiveEditTarget()) {
+    if (!syncComposerDraftToLiveEditTarget()) {
+      renderStatus("Type a target comment before pinning it.");
+      dom.workbenchComposerInput?.focus();
+      return;
+    }
+    beginLiveEditCommentPinPlacement();
+    return;
+  }
+  pinComposerInstructionToMap();
+}
+
+function runWorkbenchComposerMake() {
+  if (currentWorkbenchLiveEditTarget()) {
+    syncComposerDraftToLiveEditTarget();
+    return createLiveEditVariants();
+  }
+  commitManualVoiceDraft("workbench-composer");
+  return generateCurrentScreen();
+}
+
+async function runWorkbenchComposerApply() {
+  if (currentWorkbenchLiveEditTarget()) {
+    syncComposerDraftToLiveEditTarget();
+    await acceptLiveEditTarget();
+    return;
+  }
+  commitManualVoiceDraft("workbench-composer");
+  await applyFocusPadToCodex();
 }
 
 function updateBrushSize(nextSize) {
@@ -6427,6 +6577,7 @@ function renderFocusPad() {
   const actionMode = currentActionMode();
   const relevantSegments = voiceSegmentsForCurrentScope();
   const supportsVoice = supportsBrowserVoiceRecognition();
+  const composerMode = workbenchComposerMode(frame);
   dom.focusViewportSelect.value = frame.viewport;
   dom.focusActionModeSelect.value = actionMode.id;
   dom.focusFrameChip.textContent = `${frameIndex + 1}. ${frame.title}`;
@@ -6471,6 +6622,7 @@ function renderFocusPad() {
   );
   dom.workbenchComposerTalk.textContent =
     state.voice.status === "listening" ? "Stop" : "Talk";
+  dom.workbenchComposerTalk.title = composerMode.talkTitle;
   dom.workbenchComposerTalk.classList.toggle(
     "active",
     state.voice.status === "listening",
@@ -6479,7 +6631,12 @@ function renderFocusPad() {
     "aria-pressed",
     String(state.voice.status === "listening"),
   );
-  dom.workbenchComposerMake.disabled = Boolean(state.generationInFlight);
+  dom.workbenchComposerNote.title = composerMode.noteTitle;
+  dom.workbenchComposerPin.title = composerMode.pinTitle;
+  dom.workbenchComposerMake.disabled =
+    !composerMode.liveEdit && Boolean(state.generationInFlight);
+  dom.workbenchComposerMake.textContent = composerMode.makeLabel;
+  dom.workbenchComposerMake.title = composerMode.makeTitle;
   dom.workbenchComposerReply.disabled = Boolean(
     state.canvasReplyInFlight || state.generationInFlight,
   );
@@ -6487,6 +6644,8 @@ function renderFocusPad() {
     ? "Replying..."
     : "Reply";
   dom.workbenchComposerApply.disabled = Boolean(state.focusApplyInFlight);
+  dom.workbenchComposerApply.textContent = composerMode.applyLabel;
+  dom.workbenchComposerApply.title = composerMode.applyTitle;
   renderWorkbenchPromptChips();
 
   if (state.buildRealInFlight) {
@@ -6502,6 +6661,9 @@ function renderFocusPad() {
     dom.focusStatus.textContent = `Listening for ${voiceScopeLabel("frame", frame)}. Keep drawing while you speak.`;
   } else if (state.voice.error) {
     dom.focusStatus.textContent = state.voice.error;
+  } else if (composerMode.liveEdit) {
+    dom.focusStatus.textContent =
+      "Editing the picked target. Type intent, mark the surface, press Go for variants, then Accept.";
   } else if (state.focusLastAppliedText) {
     dom.focusStatus.textContent = state.focusLastAppliedText;
   } else if (state.autoRewrite) {
@@ -35579,11 +35741,18 @@ async function runSelfTest() {
         canvasReplyTargetForFrame(frameForCanvasReply),
       ),
     });
+    renderFocusPad();
     const composerDraftFeedsLiveEditIntent =
       dom.workbenchLiveEditNote?.value.includes("calmer") &&
       currentLiveEditInstructionText(
         frameForCanvasReply.liveEditTarget,
       ).includes("calmer");
+    const composerLiveEditPrimaryActions =
+      dom.workbenchComposerMake.textContent === "Go" &&
+      dom.workbenchComposerApply.textContent === "Accept" &&
+      dom.workbenchComposerMake.title.includes("picked Live Edit target") &&
+      dom.workbenchComposerApply.title.includes("Accept this picked target") &&
+      dom.focusStatus.textContent.includes("Editing the picked target");
     const liveEditActionChipSelected =
       setLiveEditActionIntent("delight")?.id === "delight" &&
       dom.workbenchLiveEditAction.textContent.includes("Delight") &&
@@ -35728,7 +35897,7 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditTarget.status = previousLiveEditTargetStatus;
     }
     renderWorkbenchOutput();
-    const createdLiveEditVariants = createLiveEditVariants();
+    const createdLiveEditVariants = runWorkbenchComposerMake();
     const firstLiveEditVariantTitle =
       dom.workbenchOutputSurface.querySelector(
         ".workbench-live-edit-variant-swap strong",
@@ -36278,6 +36447,7 @@ async function runSelfTest() {
           liveSurfacePickerExplained &&
           canvasSurfaceTargetHighlighted &&
           composerDraftFeedsLiveEditIntent &&
+          composerLiveEditPrimaryActions &&
           liveEditVariantsHotSwap &&
           liveEditDiscardButtonLabel &&
           liveEditDiscarded &&
@@ -36307,6 +36477,7 @@ async function runSelfTest() {
           liveSurfacePickerExplained,
           canvasSurfaceTargetHighlighted,
           composerDraftFeedsLiveEditIntent,
+          composerLiveEditPrimaryActions,
           sameCanvasLiveEditPicked,
           sameCanvasLiveEditDrawModeArmed,
           sameCanvasLiveEditMarkCount: sameCanvasLiveEditMarks.length,
