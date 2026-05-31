@@ -133,6 +133,7 @@ await validateLiveEditSourceHintPatchDryRun();
 await validateLiveEditUnhintedSourceSearchDryRun();
 await validateLiveEditSourceDiscoveryDryRun();
 await validateLiveEditPreviewManifestBindingDryRun();
+await validateLiveEditCodexOutputManifestDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
@@ -1686,6 +1687,114 @@ async function validateLiveEditPreviewManifestBindingDryRun() {
         // Ignore a missing regression manifest.
       }
     }
+  }
+}
+
+async function validateLiveEditCodexOutputManifestDryRun() {
+  const frameId = "frame-live-edit-codex-output";
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    targetId: "codex-output-hero-cta",
+    targetNodeId: "codex-output-hero-cta",
+    targetLabel: "Codex Output Hero CTA",
+    targetType: "preview-dom-element",
+    targetSelector: '[data-testid="codex-output-hero-cta"]',
+    targetText: "Reserve suite",
+    targetHref: "/workspace/artifacts/preview/codex-output-live-edit/index.html",
+    targetPath: "artifacts/preview/codex-output-live-edit/index.html",
+    sourceFrameId: frameId,
+    bounds: { x: 0.22, y: 0.6, w: 0.24, h: 0.08 },
+    status: "accepted",
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "codex-output-live-edit-clarity",
+    index: 3,
+    label: "Clarity",
+    role: "clarity-accessibility",
+    summary: "Clarify the selected CTA in the Codex output binding.",
+    target: liveEditTarget,
+  };
+  const originalSnapshot = {
+    kind: "canvax-live-edit-original-snapshot",
+    target: liveEditTarget,
+    normalizedBounds: liveEditTarget.bounds,
+    restoreInstruction:
+      "Discard restores this exact selected target without stale variant state.",
+  };
+  const liveEditRequest = {
+    kind: "canvax-live-edit-request",
+    status: "accepted",
+    target: liveEditTarget,
+    acceptedVariant,
+    originalSnapshot,
+  };
+  const liveEditBinding = {
+    kind: "canvax-live-edit-manifest-binding",
+    status: "accepted",
+    target: liveEditTarget,
+    acceptedVariant,
+    originalSnapshot,
+    request: liveEditRequest,
+    sourceBinding: {
+      kind: "canvax-live-edit-source-binding",
+      status: "source-bound",
+      targetSourceFile: "src/Hero.jsx",
+      targetTaskId: "task-codex-output-hero-cta",
+    },
+    writeback: {
+      kind: "canvax-live-edit-writeback",
+      status: "patched",
+      changedFileCount: 2,
+    },
+  };
+  try {
+    const payload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/write-codex-output.mjs",
+          "--source",
+          "canvax-live-edit-regression",
+          "--type",
+          "implementation-patch",
+          "--label",
+          "Codex output Live Edit preview",
+          "--frame",
+          frameId,
+          "--live-edit-binding",
+          JSON.stringify(liveEditBinding),
+          "--dry-run",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const target = payload.manifest?.targets?.[0];
+    const passed = Boolean(
+      payload.dryRun === true &&
+        target?.previewPath === liveEditTarget.targetPath &&
+        target?.url === liveEditTarget.targetHref &&
+        target.liveEditBinding?.kind === "canvax-live-edit-manifest-binding" &&
+        target.liveEditBinding.acceptedVariant?.label === "Clarity" &&
+        target.liveEditBinding.writeback?.status === "patched" &&
+        target.liveEditTarget?.targetSelector ===
+          '[data-testid="codex-output-hero-cta"]' &&
+        target.acceptedLiveEditVariant?.role === "clarity-accessibility" &&
+        target.liveEditOriginalSnapshot?.normalizedBounds?.w === 0.24 &&
+        target.liveEditRequest?.kind === "canvax-live-edit-request",
+    );
+    results.push({
+      name: "Live Edit Codex output manifest preserves accept metadata",
+      passed,
+      detail: passed
+        ? `${target.liveEditBinding.writeback.status} for ${target.liveEditTarget.targetId}`
+        : "Codex output manifest did not preserve rich Live Edit accept metadata",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit Codex output manifest preserves accept metadata",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 

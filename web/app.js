@@ -10954,7 +10954,22 @@ function acceptedLocalLiveEditSummary(frame) {
   const binding = acceptedLocalLiveEditBinding(frame);
   const target = normalizeLiveEditTarget(binding?.target);
   if (!target) {
-    return null;
+    const writeback = acceptedLocalLiveEditWritebackForFrame(frame);
+    if (!writeback) {
+      return null;
+    }
+    const label =
+      cleanString(writeback.targetLabel) || "the selected sketch target";
+    const variantLabel = cleanString(writeback.variantLabel);
+    return {
+      targetId: cleanString(writeback.targetId),
+      variantLabel,
+      message: variantLabel
+        ? `${variantLabel} is accepted on ${label}.`
+        : `${label} is accepted locally on the scratchpad.`,
+      detail:
+        "This Live Edit is bound to the sketch/canvas object. Press Make, Build, or attach a preview to create a generated Output Focus surface.",
+    };
   }
   const variant = normalizeLiveEditVariant(binding.acceptedVariant);
   const label = target.targetLabel || liveEditTargetMediumLabel(target, frame);
@@ -11016,6 +11031,20 @@ function acceptedLocalLiveEditBinding(frame) {
       sourceRank,
     });
   };
+  const localWriteback = acceptedLocalLiveEditWritebackForFrame(frame);
+  if (localWriteback && frame.liveEditTarget) {
+    pushCandidate(
+      {
+        target: frame.liveEditTarget,
+        acceptedVariant: frame.acceptedLiveEditVariant,
+        request: frame.liveEditRequest,
+        status: "accepted",
+        acceptedAt: localWriteback.updatedAt,
+        updatedAt: localWriteback.updatedAt,
+      },
+      70,
+    );
+  }
 
   pushCandidate(
     {
@@ -11078,6 +11107,49 @@ function acceptedLocalLiveEditBinding(frame) {
       return timeDelta || left.sourceRank - right.sourceRank;
     })
     .at(-1);
+}
+
+function acceptedLocalLiveEditWritebackForFrame(frame) {
+  const writeback = state.serverStatus?.liveEditWriteback;
+  if (!frame || !writeback || typeof writeback !== "object") {
+    return null;
+  }
+  const status = cleanString(writeback.status);
+  if (status !== "local-bound" && !writeback.skipped) {
+    return null;
+  }
+  const writebackFrameId = cleanString(
+    writeback.sourceFrameId || writeback.frameId,
+  );
+  if (writebackFrameId) {
+    return writebackFrameId === cleanString(frame.id) ? writeback : null;
+  }
+  const writebackTargetId = cleanString(writeback.targetId);
+  if (!writebackTargetId) {
+    return null;
+  }
+  const frameTargetIds = new Set(
+    [
+      frame.liveEditTarget,
+      frame.acceptedLiveEditVariant?.target,
+      frame.liveEditRequest?.target,
+      ...normalizeLiveEditRegionBindings(frame.liveEditRegionBindings).map(
+        (binding) => binding.target,
+      ),
+      ...(Array.isArray(frame.elements) ? frame.elements : []).map(
+        (element) => normalizeElementLiveEditBinding(element?.liveEdit)?.target,
+      ),
+    ]
+      .map((target) => normalizeLiveEditTarget(target))
+      .flatMap((target) => [
+        target?.targetId,
+        target?.targetObjectId,
+        target?.id,
+      ])
+      .map((value) => cleanString(value))
+      .filter(Boolean),
+  );
+  return frameTargetIds.has(writebackTargetId) ? writeback : null;
 }
 
 function liveEditTargetOutlineLabel(liveTarget) {
@@ -14221,8 +14293,11 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         status: "local-bound",
         skipped: true,
         reason,
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
         targetId: liveTarget.targetId,
         targetLabel: liveTarget.targetLabel,
+        targetObjectId: liveTarget.targetObjectId,
         variantLabel: label,
         updatedAt: new Date().toISOString(),
       },
@@ -14251,6 +14326,9 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
       inFlight: true,
       targetId: liveTarget.targetId,
       targetLabel: liveTarget.targetLabel,
+      targetObjectId: liveTarget.targetObjectId,
+      sourceFrameId: frame.id,
+      sourceFrameTitle: frame.title,
       variantLabel: label,
       updatedAt: new Date().toISOString(),
     },
@@ -14323,6 +14401,9 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         status: writebackStatus,
         targetId: liveTarget.targetId,
         targetLabel: liveTarget.targetLabel,
+        targetObjectId: liveTarget.targetObjectId,
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
         variantLabel: label,
         previewPath: rewriteResult?.previewPath || "",
         patchTaskPath: rewriteResult?.patchTaskPath || "",
@@ -14368,6 +14449,9 @@ async function executeAcceptedLiveEditWriteback(frame, exportResult = null) {
         executed: false,
         targetId: liveTarget.targetId,
         targetLabel: liveTarget.targetLabel,
+        targetObjectId: liveTarget.targetObjectId,
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
         variantLabel: label,
         error:
           error instanceof Error

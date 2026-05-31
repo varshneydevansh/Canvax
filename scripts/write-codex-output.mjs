@@ -40,6 +40,35 @@ const notes =
     : "");
 const targetType = readOption(args, "--type") || "implementation-preview";
 const frameIds = readMultiOption(args, "--frame");
+const liveEditBinding = normalizeJsonObject(
+  readJsonOption(args, "--live-edit-binding"),
+);
+const liveEditTarget =
+  normalizeJsonObject(readJsonOption(args, "--live-edit-target")) ||
+  normalizeLiveEditTargetFromBinding(liveEditBinding);
+const acceptedLiveEditVariant =
+  normalizeJsonObject(readJsonOption(args, "--accepted-live-edit-variant")) ||
+  normalizeJsonObject(liveEditBinding?.acceptedVariant);
+const liveEditOriginalSnapshot =
+  normalizeJsonObject(readJsonOption(args, "--live-edit-original-snapshot")) ||
+  normalizeJsonObject(liveEditBinding?.originalSnapshot);
+const liveEditRequest =
+  normalizeJsonObject(readJsonOption(args, "--live-edit-request")) ||
+  normalizeJsonObject(liveEditBinding?.request);
+const liveEditPins =
+  readJsonOption(args, "--live-edit-pins") ||
+  normalizeJsonValue(liveEditBinding?.pins);
+const liveEditWriteback =
+  normalizeJsonObject(readJsonOption(args, "--live-edit-writeback")) ||
+  normalizeJsonObject(liveEditBinding?.writeback);
+const effectiveUrl =
+  url ||
+  cleanString(liveEditTarget?.targetHref) ||
+  cleanString(liveEditBinding?.target?.targetHref);
+const effectivePreviewPath =
+  previewPath ||
+  cleanString(liveEditTarget?.targetPath) ||
+  cleanString(liveEditBinding?.target?.targetPath);
 const activeProject = await resolveActiveProject(args);
 const manualChanges = readMultiOption(args, "--change").map((entry, index) =>
   attachProject(buildChange(entry, index), activeProject),
@@ -59,8 +88,8 @@ const artifacts = readMultiOption(args, "--artifact").map((entry, index) =>
 );
 
 if (
-  !url &&
-  !previewPath &&
+  !effectiveUrl &&
+  !effectivePreviewPath &&
   !changes.length &&
   !artifacts.length &&
   !notes &&
@@ -77,17 +106,24 @@ const existingTargets = existingManifestMatchesProject(existing, activeProject)
   ? existing.targets.filter((target) => target?.id !== "primary")
   : [];
 const primaryTarget =
-  url || previewPath
+  effectiveUrl || effectivePreviewPath
     ? attachProject(
         {
-        id: "primary",
-        label,
-        source,
-        type: targetType,
-        url,
-        previewPath,
-        description,
-        frameIds,
+          id: "primary",
+          label,
+          source,
+          type: targetType,
+          url: effectiveUrl,
+          previewPath: effectivePreviewPath,
+          description,
+          frameIds,
+          ...(liveEditBinding ? { liveEditBinding } : {}),
+          ...(liveEditTarget ? { liveEditTarget } : {}),
+          ...(acceptedLiveEditVariant ? { acceptedLiveEditVariant } : {}),
+          ...(liveEditOriginalSnapshot ? { liveEditOriginalSnapshot } : {}),
+          ...(liveEditPins ? { liveEditPins } : {}),
+          ...(liveEditWriteback ? { liveEditWriteback } : {}),
+          ...(liveEditRequest ? { liveEditRequest } : {}),
         },
         activeProject,
       )
@@ -98,7 +134,7 @@ const manifest = {
   updatedAt: new Date().toISOString(),
   source,
   project: activeProject,
-  previewUrl: url || "",
+  previewUrl: effectiveUrl || "",
   notes,
   targets: primaryTarget
     ? [primaryTarget, ...existingTargets]
@@ -138,7 +174,7 @@ const result = {
   source,
   changeCount: changes.length,
   artifactCount: artifacts.length,
-  target: primaryTarget ? url || previewPath : "",
+  target: primaryTarget ? effectiveUrl || effectivePreviewPath : "",
   manifest,
 };
 
@@ -154,7 +190,7 @@ if (wantsJson) {
     console.log(`Project output manifest: ${projectManifestPaths.jsonPath}`);
   }
   if (primaryTarget) {
-    console.log(`Primary target: ${url || previewPath}`);
+    console.log(`Primary target: ${effectiveUrl || effectivePreviewPath}`);
   }
   console.log(`Changed files: ${changes.length}`);
   if (artifacts.length) {
@@ -175,6 +211,62 @@ function readMultiOption(inputArgs, flag) {
     }
   }
   return values.filter(Boolean);
+}
+
+function readJsonOption(inputArgs, flag) {
+  const raw = readOption(inputArgs, flag);
+  if (!raw) {
+    return null;
+  }
+  try {
+    return normalizeJsonValue(JSON.parse(raw));
+  } catch (error) {
+    console.error(
+      `${flag} must be valid JSON: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    process.exit(1);
+  }
+}
+
+function normalizeLiveEditTargetFromBinding(value) {
+  return normalizeJsonObject(value?.target || value?.liveEditTarget);
+}
+
+function normalizeJsonObject(value) {
+  const normalized = normalizeJsonValue(value);
+  return normalized && typeof normalized === "object" && !Array.isArray(normalized)
+    ? normalized
+    : null;
+}
+
+function normalizeJsonValue(value, depth = 0) {
+  if (depth > 7 || value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return cleanString(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const entries = value
+      .map((item) => normalizeJsonValue(item, depth + 1))
+      .filter((item) => item !== null && item !== "");
+    return entries.length ? entries : null;
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value)
+    .map(([key, item]) => [
+      cleanString(key),
+      normalizeJsonValue(item, depth + 1),
+    ])
+    .filter(([key, item]) => key && item !== null && item !== "");
+  return entries.length ? Object.fromEntries(entries) : null;
 }
 
 function buildChange(entry, index) {
@@ -418,6 +510,13 @@ Options:
   --notes <value>           Manifest-level notes
   --type <value>            Target type label
   --frame <id>              Associate the target with a frame id, repeatable
+  --live-edit-binding <json> Attach accepted Live Edit binding metadata
+  --live-edit-target <json>  Attach normalized Live Edit target metadata
+  --accepted-live-edit-variant <json> Attach accepted Live Edit variant metadata
+  --live-edit-original-snapshot <json> Attach original target restore snapshot
+  --live-edit-request <json> Attach frame-bound Live Edit request metadata
+  --live-edit-pins <json>    Attach target-bound Live Edit pins
+  --live-edit-writeback <json> Attach post-accept Live Edit writeback status
   --project-id <id>         Override active Canvax project binding
   --project-title <value>   Title for --project-id
   --from-git-status         Build changed-file entries from git status automatically

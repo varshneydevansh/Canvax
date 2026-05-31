@@ -1106,6 +1106,7 @@ function buildPatchHistoryEntry(plan, changedIds) {
 }
 
 async function publishCodexOutput(result, task) {
+  const liveEditMetadata = buildPublishedLiveEditMetadata(result, task);
   const changeArgs = result.changedFiles.flatMap((file) => [
     "--change",
     `${file.path}::Applied Canvax patch task::${result.frameId}`,
@@ -1129,6 +1130,30 @@ async function publishCodexOutput(result, task) {
       "--artifact",
       `${result.taskPath}::Source Codex patch task::${result.frameId}`,
       ...(task.previewPath ? ["--preview-path", task.previewPath] : []),
+      ...(liveEditMetadata.binding
+        ? ["--live-edit-binding", JSON.stringify(liveEditMetadata.binding)]
+        : []),
+      ...(liveEditMetadata.target
+        ? ["--live-edit-target", JSON.stringify(liveEditMetadata.target)]
+        : []),
+      ...(liveEditMetadata.acceptedVariant
+        ? [
+            "--accepted-live-edit-variant",
+            JSON.stringify(liveEditMetadata.acceptedVariant),
+          ]
+        : []),
+      ...(liveEditMetadata.originalSnapshot
+        ? [
+            "--live-edit-original-snapshot",
+            JSON.stringify(liveEditMetadata.originalSnapshot),
+          ]
+        : []),
+      ...(liveEditMetadata.request
+        ? ["--live-edit-request", JSON.stringify(liveEditMetadata.request)]
+        : []),
+      ...(liveEditMetadata.writeback
+        ? ["--live-edit-writeback", JSON.stringify(liveEditMetadata.writeback)]
+        : []),
       ...changeArgs,
       "--json",
     ],
@@ -1142,6 +1167,84 @@ async function publishCodexOutput(result, task) {
     fail(stderr || "write-codex-output failed");
   }
   return JSON.parse(stdout);
+}
+
+function buildPublishedLiveEditMetadata(result, task) {
+  const liveEdit =
+    task.liveEdit && typeof task.liveEdit === "object" ? task.liveEdit : {};
+  const trigger =
+    task.trigger && typeof task.trigger === "object" ? task.trigger : {};
+  const request =
+    liveEdit.liveEditRequest ||
+    liveEdit.request ||
+    trigger.request ||
+    null;
+  const target =
+    liveEdit.target ||
+    trigger.target ||
+    request?.target ||
+    null;
+  if (!target) {
+    return {};
+  }
+  const acceptedVariant =
+    liveEdit.variant ||
+    trigger.variant ||
+    request?.acceptedVariant ||
+    request?.activeVariant ||
+    null;
+  const originalSnapshot =
+    liveEdit.originalSnapshot ||
+    task.liveEditOriginalSnapshot ||
+    trigger.originalSnapshot ||
+    request?.originalSnapshot ||
+    null;
+  const pins =
+    (Array.isArray(liveEdit.pins) && liveEdit.pins) ||
+    (Array.isArray(trigger.pins) && trigger.pins) ||
+    (Array.isArray(request?.pins) && request.pins) ||
+    [];
+  const writeback = {
+    kind: "canvax-live-edit-writeback",
+    status: result.status,
+    executed: true,
+    skipped: false,
+    targetId: cleanString(target.targetId),
+    targetLabel: cleanString(target.targetLabel),
+    variantLabel: cleanString(acceptedVariant?.label),
+    patchResultPath: toProjectRelative(latestJsonPath),
+    manifestPath: "artifacts/canvax/codex-output.json",
+    changedFileCount: result.changedFiles.length,
+    patchApplied: result.status === "patched",
+    sourceHintExpansion: result.sourceHintExpansion,
+    sourceDiscovery: result.sourceDiscovery,
+    sourceDiscovered: result.sourceDiscovered,
+    sourceDiscoveryCandidateCount: result.sourceDiscoveryCandidateCount,
+    projectLinkExpansion: result.projectLinkExpansion,
+    updatedAt: result.createdAt,
+  };
+  const binding = {
+    kind: "canvax-live-edit-manifest-binding",
+    status: "accepted",
+    target,
+    actionIntent: liveEdit.actionIntent || request?.actionIntent || null,
+    acceptedVariant,
+    originalSnapshot,
+    pins,
+    request,
+    sourceBinding: task.sourceDiscovery || null,
+    writeback,
+    acceptedAt: cleanString(target.acceptedAt) || cleanString(request?.acceptedAt),
+    updatedAt: result.createdAt,
+  };
+  return {
+    binding,
+    target,
+    acceptedVariant,
+    originalSnapshot,
+    request,
+    writeback,
+  };
 }
 
 function changed(file, summary, targetIds) {
