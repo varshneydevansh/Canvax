@@ -11729,7 +11729,7 @@ function setLiveEditActionIntent(actionId) {
       frame,
       liveTarget: frame.liveEditTarget,
       variants: resetVariants ? [] : frame.liveEditVariants,
-      note: cleanString(dom.workbenchLiveEditNote?.value || frame.liveEditTarget?.note),
+      note: currentLiveEditInstructionText(frame.liveEditTarget),
       status: resetVariants ? "picked" : frame.liveEditRequest.status || "variant-ready",
       acceptedVariant: frame.acceptedLiveEditVariant,
     });
@@ -11959,7 +11959,10 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
     : "pick first";
   if (document.activeElement !== dom.workbenchLiveEditNote) {
     dom.workbenchLiveEditNote.value =
-      liveTarget?.note || state.liveEditDraftNote || "";
+      liveTarget?.note ||
+      state.liveEditDraftNote ||
+      state.voice?.manualDraft ||
+      "";
   }
   dom.workbenchLiveEditNote.disabled = !canPick && !liveTarget;
   dom.workbenchLiveEditNote.placeholder = liveTarget
@@ -13038,7 +13041,7 @@ function createLiveEditTargetFromCanvasElement(element, frame = currentFrame()) 
     targetSource: "canvax-canvas",
     surface: targetType,
     bounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
+    note: currentLiveEditInstructionText(),
     status: "picked",
     pickedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -13094,7 +13097,7 @@ function createLiveEditTargetFromCanvasRegionBounds(
     targetSource: "canvax-canvas",
     surface: "canvas-region",
     bounds: normalizedBounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
+    note: currentLiveEditInstructionText(),
     instruction:
       "Treat this as a direct Live Edit selection on an arbitrary Canvax canvas region. Apply text intent, comment pins, correction strokes, and the selected variant to the picked bounds while preserving surrounding sketch context.",
     status: "picked",
@@ -13149,7 +13152,7 @@ function createLiveEditTargetFromAssetCandidate(candidate) {
     surface: "image/composition region",
     bounds,
     note:
-      cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote) ||
+      currentLiveEditInstructionText() ||
       normalizedCandidate.liveEdit?.note ||
       `Asset candidate: ${compactDisplayText(
         normalizedCandidate.prompt || normalizedCandidate.placement || "",
@@ -13352,7 +13355,7 @@ function createLiveEditTargetFromSpatialObject(object) {
   );
   const sourceHint = spatialObjectLiveEditSourceHint(object);
   const note =
-    cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote) ||
+    currentLiveEditInstructionText() ||
     object.liveEdit?.note ||
     meta.liveEdit?.note ||
     meta.prompt ||
@@ -13728,7 +13731,7 @@ function createLiveEditTargetFromOutputBounds(
     targetVersionTag: target.versionTag || "",
     surface: targetSurface,
     bounds: normalizedBounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
+    note: currentLiveEditInstructionText(),
     instruction:
       "Treat this as a drag-selected Live Edit region. Apply the user's text, voice, pins, and strokes to these exact bounds while preserving the surrounding artifact context.",
     status: "picked",
@@ -13774,7 +13777,7 @@ function createLiveEditTargetFromPoint(target, frame, point, event = null) {
         ? "same-canvas-reply"
         : "generated-output",
     bounds,
-    note: cleanString(dom.workbenchLiveEditNote?.value || state.liveEditDraftNote),
+    note: currentLiveEditInstructionText(),
     status: "picked",
     pickedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -14349,6 +14352,15 @@ function updateLiveEditTargetNote(value) {
   scheduleLivePreviewSync();
 }
 
+function currentLiveEditInstructionText(liveTarget = null) {
+  return cleanString(
+    dom.workbenchLiveEditNote?.value ||
+      liveTarget?.note ||
+      state.liveEditDraftNote ||
+      state.voice?.manualDraft,
+  );
+}
+
 function appendLiveEditVoiceIntent(
   text,
   { provider = "workbench-live-edit-voice" } = {},
@@ -14360,7 +14372,7 @@ function appendLiveEditVoiceIntent(
     return false;
   }
   const existingNote = cleanString(
-    dom.workbenchLiveEditNote?.value || liveTarget.note,
+    currentLiveEditInstructionText(liveTarget),
   );
   const nextNote = [existingNote, content].filter(Boolean).join(" ");
   if (dom.workbenchLiveEditNote) {
@@ -14430,7 +14442,7 @@ function beginLiveEditCommentPinPlacement() {
     renderStatus("Pick a live edit target before adding a comment pin");
     return false;
   }
-  const text = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  const text = currentLiveEditInstructionText(liveTarget);
   if (!text) {
     renderStatus("Type the comment before pinning it to this target");
     dom.workbenchLiveEditNote?.focus();
@@ -14498,7 +14510,7 @@ function addLiveEditCommentPin(point = null, options = {}) {
     return null;
   }
   const text = cleanString(
-    options.text || dom.workbenchLiveEditNote?.value || liveTarget.note,
+    options.text || currentLiveEditInstructionText(liveTarget),
   );
   if (!text) {
     renderStatus("Type the comment before pinning it to this target");
@@ -14997,7 +15009,7 @@ function finishLiveEditMapStroke(event) {
       frame,
       liveTarget: frame.liveEditTarget,
       variants: frame.liveEditVariants,
-      note: cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note),
+      note: currentLiveEditInstructionText(liveTarget),
       status: frame.liveEditRequest.status || "variant-ready",
       acceptedVariant: frame.acceptedLiveEditVariant,
     });
@@ -15019,7 +15031,7 @@ async function acceptLiveEditTarget() {
     renderStatus("Pick a live edit target first");
     return;
   }
-  const note = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  const note = currentLiveEditInstructionText(liveTarget);
   const variants = currentLiveEditVariants(frame);
   const variantIndex = currentLiveEditVariantIndex(frame);
   const selectedVariant = variants[variantIndex] || null;
@@ -17009,7 +17021,7 @@ function cycleLiveEditVariant(direction = 1) {
       frame,
       liveTarget: frame.liveEditTarget,
       variants,
-      note: cleanString(dom.workbenchLiveEditNote?.value || frame.liveEditTarget?.note),
+      note: currentLiveEditInstructionText(frame.liveEditTarget),
       status: "variant-ready",
     });
   }
@@ -17032,7 +17044,7 @@ function createLiveEditVariants() {
     renderStatus("Pick a live edit target before creating targeted variants");
     return [];
   }
-  const note = cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note);
+  const note = currentLiveEditInstructionText(liveTarget);
   frame.liveEditTarget = {
     ...liveTarget,
     note,
@@ -17360,7 +17372,7 @@ function applyLiveEditTargetBoundsDrag(drag, bounds, options = {}) {
       frame,
       liveTarget: frame.liveEditTarget,
       variants: frame.liveEditVariants,
-      note: cleanString(dom.workbenchLiveEditNote?.value || liveTarget.note),
+      note: currentLiveEditInstructionText(liveTarget),
       status: "picked",
     });
   }
@@ -25115,6 +25127,7 @@ function onDeviceShellWheel(event) {
     const zoomRatio = state.zoom / previousZoom;
     shell.scrollLeft = anchorX * zoomRatio - (event.clientX - rect.left);
     shell.scrollTop = anchorY * zoomRatio - (event.clientY - rect.top);
+    updateBrushPreviewPositionAtClientPoint(event.clientX, event.clientY);
     markScrollPerformanceActive();
     return;
   }
@@ -25235,18 +25248,45 @@ function pointFromEvent(event) {
 }
 
 function updateBrushPreviewPosition(event) {
+  updateBrushPreviewPositionAtClientPoint(event.clientX, event.clientY);
+}
+
+function updateBrushPreviewPositionAtClientPoint(clientX, clientY) {
   if (!toolUsesBrushPreview(state.tool)) {
     state.brushPreview.visible = false;
     renderBrushPreview();
-    return;
+    return false;
   }
-  const rect = dom.deviceShell.getBoundingClientRect();
-  state.brushPreview.x =
-    event.clientX - rect.left + dom.deviceShell.scrollLeft;
-  state.brushPreview.y =
-    event.clientY - rect.top + dom.deviceShell.scrollTop;
+  const shell = dom.deviceShell;
+  const rect = shell.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return false;
+  }
+  const fallbackClientX =
+    Number.isFinite(state.brushPreview.clientX)
+      ? state.brushPreview.clientX
+      : rect.left + rect.width / 2;
+  const fallbackClientY =
+    Number.isFinite(state.brushPreview.clientY)
+      ? state.brushPreview.clientY
+      : rect.top + rect.height / 2;
+  const x = clamp(
+    Number.isFinite(clientX) ? clientX : fallbackClientX,
+    rect.left,
+    rect.right,
+  );
+  const y = clamp(
+    Number.isFinite(clientY) ? clientY : fallbackClientY,
+    rect.top,
+    rect.bottom,
+  );
+  state.brushPreview.clientX = x;
+  state.brushPreview.clientY = y;
+  state.brushPreview.x = x - rect.left + shell.scrollLeft;
+  state.brushPreview.y = y - rect.top + shell.scrollTop;
   state.brushPreview.visible = true;
   renderBrushPreview();
+  return true;
 }
 
 function trySetPointerCapture(pointerId) {
@@ -35146,6 +35186,27 @@ async function runSelfTest() {
       dom.brushPreview.dataset.zoomed === "true" &&
       !dom.brushPreview.hidden &&
       (dom.brushPreviewText.textContent || "").includes(String(state.size));
+    state.brushPreview.visible = false;
+    renderBrushPreview();
+    let pinchZoomPrevented = false;
+    onDeviceShellWheel({
+      target: dom.canvas,
+      ctrlKey: true,
+      metaKey: false,
+      deltaY: -40,
+      clientX: shellPrecisionRect.left + 82,
+      clientY: shellPrecisionRect.top + 68,
+      preventDefault() {
+        pinchZoomPrevented = true;
+      },
+    });
+    const pinchZoomBrushReticleVisible =
+      pinchZoomPrevented &&
+      state.zoom > 2 &&
+      !dom.brushPreview.hidden &&
+      state.brushPreview.visible &&
+      Math.abs(state.brushPreview.x - (82 + dom.deviceShell.scrollLeft)) < 1 &&
+      Math.abs(state.brushPreview.y - (68 + dom.deviceShell.scrollTop)) < 1;
     state.zoom = previousCanvasPrecisionState.zoom;
     state.tool = previousCanvasPrecisionState.tool;
     state.brushPreview = previousCanvasPrecisionState.brushPreview;
@@ -35210,8 +35271,9 @@ async function runSelfTest() {
           canvasPointerMapsAtZoom &&
           brushPreviewTracksScrolledCanvas &&
           zoomedBrushReticleVisible &&
+          pinchZoomBrushReticleVisible &&
           !document.querySelector("#codex-scratchpad-dock"),
-        "Workbench composer, canvas reply, context import, visible Live Edit commands, review controls, voice intent lane, crisp zoomed sketch cursor mapping, visible zoom reticle, edit surface switch, and compact agent log render",
+        "Workbench composer, canvas reply, context import, visible Live Edit commands, review controls, voice intent lane, crisp zoomed sketch cursor mapping, visible zoom reticle, trackpad zoom reticle anchor, edit surface switch, and compact agent log render",
       ),
     );
     const previousVoiceFallbackState = {
@@ -35502,6 +35564,26 @@ async function runSelfTest() {
       frameForCanvasReply,
       frameForCanvasReply.liveEditTarget,
     );
+    state.voice.manualDraft = "Composer says make this target calmer";
+    state.liveEditDraftNote = "";
+    if (frameForCanvasReply.liveEditTarget) {
+      frameForCanvasReply.liveEditTarget.note = "";
+    }
+    if (dom.workbenchLiveEditNote) {
+      dom.workbenchLiveEditNote.value = "";
+    }
+    renderLiveEditControls({
+      frame: frameForCanvasReply,
+      target: canvasReplyTargetForFrame(frameForCanvasReply),
+      targetUrl: resolveWorkbenchTargetUrl(
+        canvasReplyTargetForFrame(frameForCanvasReply),
+      ),
+    });
+    const composerDraftFeedsLiveEditIntent =
+      dom.workbenchLiveEditNote?.value.includes("calmer") &&
+      currentLiveEditInstructionText(
+        frameForCanvasReply.liveEditTarget,
+      ).includes("calmer");
     const liveEditActionChipSelected =
       setLiveEditActionIntent("delight")?.id === "delight" &&
       dom.workbenchLiveEditAction.textContent.includes("Delight") &&
@@ -36195,6 +36277,7 @@ async function runSelfTest() {
           outputSurfacePickHighlighted &&
           liveSurfacePickerExplained &&
           canvasSurfaceTargetHighlighted &&
+          composerDraftFeedsLiveEditIntent &&
           liveEditVariantsHotSwap &&
           liveEditDiscardButtonLabel &&
           liveEditDiscarded &&
@@ -36223,6 +36306,7 @@ async function runSelfTest() {
           outputSurfacePickHighlighted,
           liveSurfacePickerExplained,
           canvasSurfaceTargetHighlighted,
+          composerDraftFeedsLiveEditIntent,
           sameCanvasLiveEditPicked,
           sameCanvasLiveEditDrawModeArmed,
           sameCanvasLiveEditMarkCount: sameCanvasLiveEditMarks.length,
