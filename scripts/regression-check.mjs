@@ -133,6 +133,7 @@ await validateLiveEditSourceHintPatchDryRun();
 await validateLiveEditUnhintedSourceSearchDryRun();
 await validateLiveEditSourceDiscoveryDryRun();
 await validateLiveEditPreviewManifestBindingDryRun();
+await validateLocalLiveEditPreviewManifestDryRun();
 await validateLiveEditCodexOutputManifestDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
@@ -1792,6 +1793,97 @@ async function validateLiveEditCodexOutputManifestDryRun() {
   } catch (error) {
     results.push({
       name: "Live Edit Codex output manifest preserves accept metadata",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLocalLiveEditPreviewManifestDryRun() {
+  const frameId = "frame-local-live-edit-manifest";
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    targetId: "local-sketch-hero-region",
+    targetLabel: "Sketch hero region",
+    targetType: "canvas-region",
+    targetSource: "canvax-canvas",
+    sourceFrameId: frameId,
+    bounds: { x: 0.12, y: 0.18, w: 0.44, h: 0.2 },
+    status: "accepted",
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "local-sketch-hero-clarity",
+    index: 3,
+    label: "Clarity",
+    role: "clarity-accessibility",
+    target: liveEditTarget,
+  };
+  const liveEditBinding = {
+    kind: "canvax-live-edit-manifest-binding",
+    status: "accepted",
+    target: liveEditTarget,
+    acceptedVariant,
+    originalSnapshot: {
+      kind: "canvax-live-edit-original-snapshot",
+      target: liveEditTarget,
+      normalizedBounds: liveEditTarget.bounds,
+    },
+    request: {
+      kind: "canvax-live-edit-request",
+      status: "accepted",
+      target: liveEditTarget,
+      acceptedVariant,
+    },
+    writeback: {
+      kind: "canvax-live-edit-writeback",
+      status: "local-bound",
+      skipped: true,
+    },
+  };
+  try {
+    const payload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/write-preview-manifest.mjs",
+          "--source",
+          "canvax-local-live-edit-regression",
+          "--type",
+          "canvas-live-edit-binding",
+          "--label",
+          "Accepted sketch Live Edit",
+          "--frame",
+          frameId,
+          "--live-edit-binding",
+          JSON.stringify(liveEditBinding),
+          "--dry-run",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const target = payload.manifest?.targets?.[0];
+    const passed = Boolean(
+      payload.dryRun === true &&
+        target?.id === "primary" &&
+        target.url === "" &&
+        target.previewPath === "" &&
+        target.frameIds?.includes(frameId) &&
+        target.liveEditBinding?.status === "accepted" &&
+        target.liveEditBinding?.target?.targetType === "canvas-region" &&
+        target.liveEditBinding?.writeback?.status === "local-bound" &&
+        target.acceptedLiveEditVariant?.label === "Clarity" &&
+        target.liveEditRequest?.kind === "canvax-live-edit-request",
+    );
+    results.push({
+      name: "Local Live Edit preview manifest preserves accept binding",
+      passed,
+      detail: passed
+        ? `${target.liveEditBinding.writeback.status} for ${target.liveEditBinding.target.targetId}`
+        : "local Live Edit accept was not preserved as a manifest binding",
+    });
+  } catch (error) {
+    results.push({
+      name: "Local Live Edit preview manifest preserves accept binding",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

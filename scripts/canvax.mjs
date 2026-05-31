@@ -8039,7 +8039,13 @@ function mergeManifestSources(manualManifest, codexManifest) {
   );
   const notes = normalizeManifestNotes(manual.notes, codex.notes);
   const primaryTarget =
-    targets.find((target) => target.id === "primary") || targets[0] || null;
+    targets.find(
+      (target) => target.id === "primary" && previewTargetHasRenderableOutput(target),
+    ) ||
+    targets.find((target) => previewTargetHasRenderableOutput(target)) ||
+    targets.find((target) => target.id === "primary") ||
+    targets[0] ||
+    null;
 
   return normalizePreviewManifest({
     version: 1,
@@ -8063,7 +8069,13 @@ function buildPreviewOutputDigest(manifest, workspaceFollowMeta = null) {
   const artifacts = normalizePreviewArtifacts(normalized.artifacts || []);
   const changes = normalizePreviewChanges(normalized.changes || []);
   const primaryTarget =
-    targets.find((target) => target.id === "primary") || targets[0] || null;
+    targets.find(
+      (target) => target.id === "primary" && previewTargetHasRenderableOutput(target),
+    ) ||
+    targets.find((target) => previewTargetHasRenderableOutput(target)) ||
+    targets.find((target) => target.id === "primary") ||
+    targets[0] ||
+    null;
   const refinementSummary =
     cleanString(primaryTarget?.refinement?.summary) ||
     cleanString(
@@ -8557,7 +8569,13 @@ function normalizePreviewManifest(value, existingManifest = null) {
     previewTargetKey,
   );
   const primaryTarget =
-    targets.find((target) => target.id === "primary") || targets[0] || null;
+    targets.find(
+      (target) => target.id === "primary" && previewTargetHasRenderableOutput(target),
+    ) ||
+    targets.find((target) => previewTargetHasRenderableOutput(target)) ||
+    targets.find((target) => target.id === "primary") ||
+    targets[0] ||
+    null;
 
   return {
     version: Number(next.version) || Number(fallback.version) || 1,
@@ -8620,6 +8638,10 @@ function previewTargetKey(target, index = 0) {
     cleanString(target?.url) ||
     `target-${index}`
   );
+}
+
+function previewTargetHasRenderableOutput(target) {
+  return Boolean(cleanString(target?.url) || cleanString(target?.previewPath));
 }
 
 function previewArtifactKey(artifact, index = 0) {
@@ -8709,7 +8731,31 @@ function normalizePreviewTarget(entry, index = 0) {
     cleanString(entry.path) ||
     cleanString(entry.htmlPath) ||
     "";
-  if (!url && !previewPath) {
+  const liveEditTarget = normalizeManifestJsonObject(entry.liveEditTarget);
+  const acceptedLiveEditVariant = normalizeManifestJsonObject(
+    entry.acceptedLiveEditVariant,
+  );
+  const liveEditOriginalSnapshot = normalizeManifestJsonObject(
+    entry.liveEditOriginalSnapshot,
+  );
+  const liveEditPins = normalizeManifestJsonObject(entry.liveEditPins);
+  const liveEditActionIntent = normalizeManifestJsonObject(
+    entry.liveEditActionIntent,
+  );
+  const liveEditBinding = normalizeManifestJsonObject(entry.liveEditBinding);
+  const liveEditSourceDiscovery = normalizeManifestJsonObject(
+    entry.liveEditSourceDiscovery,
+  );
+  const liveEditWriteback = normalizeManifestJsonObject(entry.liveEditWriteback);
+  const liveEditRequest = normalizeManifestJsonObject(entry.liveEditRequest);
+  const hasLiveEditBinding = Boolean(
+    liveEditBinding ||
+      liveEditTarget ||
+      acceptedLiveEditVariant ||
+      liveEditRequest ||
+      liveEditWriteback,
+  );
+  if (!url && !previewPath && !hasLiveEditBinding) {
     return null;
   }
 
@@ -8747,21 +8793,15 @@ function normalizePreviewTarget(entry, index = 0) {
     project: normalizeManifestProject(entry.project),
     projectId: manifestProjectId(entry),
     refinement: normalizeMaterializeRefinement(entry.refinement),
-    liveEditTarget: normalizeManifestJsonObject(entry.liveEditTarget),
-    acceptedLiveEditVariant: normalizeManifestJsonObject(
-      entry.acceptedLiveEditVariant,
-    ),
-    liveEditOriginalSnapshot: normalizeManifestJsonObject(
-      entry.liveEditOriginalSnapshot,
-    ),
-    liveEditPins: normalizeManifestJsonObject(entry.liveEditPins),
-    liveEditActionIntent: normalizeManifestJsonObject(entry.liveEditActionIntent),
-    liveEditBinding: normalizeManifestJsonObject(entry.liveEditBinding),
-    liveEditSourceDiscovery: normalizeManifestJsonObject(
-      entry.liveEditSourceDiscovery,
-    ),
-    liveEditWriteback: normalizeManifestJsonObject(entry.liveEditWriteback),
-    liveEditRequest: normalizeManifestJsonObject(entry.liveEditRequest),
+    liveEditTarget,
+    acceptedLiveEditVariant,
+    liveEditOriginalSnapshot,
+    liveEditPins,
+    liveEditActionIntent,
+    liveEditBinding,
+    liveEditSourceDiscovery,
+    liveEditWriteback,
+    liveEditRequest,
   };
 }
 
@@ -8946,7 +8986,31 @@ function buildPreviewTargetFromPayload(payload) {
     cleanString(source.path) ||
     cleanString(source.htmlPath) ||
     "";
-  if (!url && !previewPath) {
+  const liveEditTarget = normalizeManifestJsonObject(source.liveEditTarget);
+  const acceptedLiveEditVariant = normalizeManifestJsonObject(
+    source.acceptedLiveEditVariant,
+  );
+  const liveEditOriginalSnapshot = normalizeManifestJsonObject(
+    source.liveEditOriginalSnapshot,
+  );
+  const liveEditPins = normalizeManifestJsonObject(source.liveEditPins);
+  const liveEditActionIntent = normalizeManifestJsonObject(
+    source.liveEditActionIntent,
+  );
+  const liveEditBinding = normalizeManifestJsonObject(source.liveEditBinding);
+  const liveEditSourceDiscovery = normalizeManifestJsonObject(
+    source.liveEditSourceDiscovery,
+  );
+  const liveEditWriteback = normalizeManifestJsonObject(source.liveEditWriteback);
+  const liveEditRequest = normalizeManifestJsonObject(source.liveEditRequest);
+  const hasLiveEditBinding = Boolean(
+    liveEditBinding ||
+      liveEditTarget ||
+      acceptedLiveEditVariant ||
+      liveEditRequest ||
+      liveEditWriteback,
+  );
+  if (!url && !previewPath && !hasLiveEditBinding) {
     return null;
   }
 
@@ -8978,21 +9042,15 @@ function buildPreviewTargetFromPayload(payload) {
     targetSourceHint: normalizeManifestJsonObject(source.targetSourceHint),
     normalizedBounds: normalizeManifestJsonObject(source.normalizedBounds),
     refinement: normalizeMaterializeRefinement(source.refinement),
-    liveEditTarget: normalizeManifestJsonObject(source.liveEditTarget),
-    acceptedLiveEditVariant: normalizeManifestJsonObject(
-      source.acceptedLiveEditVariant,
-    ),
-    liveEditOriginalSnapshot: normalizeManifestJsonObject(
-      source.liveEditOriginalSnapshot,
-    ),
-    liveEditPins: normalizeManifestJsonObject(source.liveEditPins),
-    liveEditActionIntent: normalizeManifestJsonObject(source.liveEditActionIntent),
-    liveEditBinding: normalizeManifestJsonObject(source.liveEditBinding),
-    liveEditSourceDiscovery: normalizeManifestJsonObject(
-      source.liveEditSourceDiscovery,
-    ),
-    liveEditWriteback: normalizeManifestJsonObject(source.liveEditWriteback),
-    liveEditRequest: normalizeManifestJsonObject(source.liveEditRequest),
+    liveEditTarget,
+    acceptedLiveEditVariant,
+    liveEditOriginalSnapshot,
+    liveEditPins,
+    liveEditActionIntent,
+    liveEditBinding,
+    liveEditSourceDiscovery,
+    liveEditWriteback,
+    liveEditRequest,
   };
 }
 

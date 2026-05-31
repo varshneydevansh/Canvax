@@ -11728,8 +11728,12 @@ function previewManifestFromServerOrPreserved(
   { frameId = state.activeFrameId } = {},
 ) {
   if (previewManifestHasRenderableTarget(manifest, frameId)) {
+    const mergedManifest = mergePreservedPreviewManifestWithLocalBindings(
+      manifest,
+      state.serverStatus.previewManifest,
+    );
     previewManifestPreservation = null;
-    return manifest;
+    return mergedManifest;
   }
   if (
     previewManifestPreservation &&
@@ -11739,7 +11743,10 @@ function previewManifestFromServerOrPreserved(
       previewManifestPreservation.frameId || frameId,
     )
   ) {
-    return structuredClone(previewManifestPreservation.manifest);
+    return mergePreservedPreviewManifestWithLocalBindings(
+      structuredClone(previewManifestPreservation.manifest),
+      state.serverStatus.previewManifest || manifest,
+    );
   }
   if (previewManifestPreservation?.expiresAt < Date.now()) {
     previewManifestPreservation = null;
@@ -11750,7 +11757,8 @@ function previewManifestFromServerOrPreserved(
 function restorePreservedPreviewManifestIfOutputMissing(
   { frameId = state.activeFrameId } = {},
 ) {
-  if (previewManifestHasRenderableTarget(state.serverStatus.previewManifest, frameId)) {
+  const currentManifest = state.serverStatus.previewManifest;
+  if (previewManifestHasRenderableTarget(currentManifest, frameId)) {
     return false;
   }
   const preserved = previewManifestFromServerOrPreserved(null, { frameId });
@@ -11759,9 +11767,37 @@ function restorePreservedPreviewManifestIfOutputMissing(
   }
   state.serverStatus = {
     ...state.serverStatus,
-    previewManifest: preserved,
+    previewManifest: mergePreservedPreviewManifestWithLocalBindings(
+      preserved,
+      currentManifest,
+    ),
   };
   return true;
+}
+
+function mergePreservedPreviewManifestWithLocalBindings(preserved, current) {
+  if (!preserved || !current) {
+    return preserved || current || null;
+  }
+  const preservedTargets = collectManifestTargets(preserved);
+  const preservedKeys = new Set(
+    preservedTargets.map((target) => target.id || target.url || target.previewPath),
+  );
+  const localTargets = collectManifestTargets(current).filter((target) => {
+    if (manifestTargetHasRenderableOutput(target) || !target.liveEditBinding) {
+      return false;
+    }
+    const key = target.id || target.url || target.previewPath;
+    return key && !preservedKeys.has(key);
+  });
+  if (!localTargets.length) {
+    return preserved;
+  }
+  return {
+    ...structuredClone(preserved),
+    updatedAt: cleanString(current.updatedAt) || cleanString(preserved.updatedAt),
+    targets: [...preservedTargets, ...localTargets],
+  };
 }
 
 function currentWorkbenchTarget() {
@@ -14255,11 +14291,21 @@ async function acceptLiveEditTarget() {
   await saveLiveEditTargetToPreviewManifest(frame, frame.liveEditTarget, {
     writebackResult,
   });
+  const localBindingEnsured = ensureLiveEditTargetInPreviewManifest(
+    frame,
+    frame.liveEditTarget,
+    { writebackResult },
+  );
   if (writebackResult?.skipped || localLiveEditAccept) {
     const restoredOutput = restorePreservedPreviewManifestIfOutputMissing({
       frameId: frame.id,
     });
-    if (restoredOutput) {
+    const restoredBindingEnsured = ensureLiveEditTargetInPreviewManifest(
+      frame,
+      frame.liveEditTarget,
+      { writebackResult },
+    );
+    if (restoredOutput || localBindingEnsured || restoredBindingEnsured) {
       renderWorkbenchOutput();
       renderServerStatus();
     }
@@ -14927,13 +14973,12 @@ function buildLiveEditManifestBinding(
   };
 }
 
-async function saveLiveEditTargetToPreviewManifest(
+function buildLiveEditPreviewManifestTargetPayload(
   frame,
-  liveTarget,
+  target,
   { writebackResult = null } = {},
 ) {
-  const target = normalizeLiveEditTarget(liveTarget);
-  if (!frame || !target || (!target.targetHref && !target.targetPath)) {
+  if (!frame || !target) {
     return null;
   }
   const pinText = normalizeLiveEditPins(frame.liveEditPins)
@@ -14954,60 +14999,73 @@ async function saveLiveEditTargetToPreviewManifest(
     liveEditRequest,
     writebackResult,
   });
-  const liveEditOriginalSnapshot = liveEditBinding.originalSnapshot;
-  const liveEditPins = liveEditBinding.pins;
+  return {
+    id: target.targetId || `live-edit-target-${frame.id}`,
+    label: target.targetLabel || `${frame.title} live edit target`,
+    source: target.targetSource || "canvax-live-edit",
+    type: target.targetType || "live-edit-target",
+    url: target.targetHref,
+    previewPath: target.targetPath,
+    targetSelector: target.targetSelector,
+    targetObjectId: target.targetObjectId,
+    targetNodeId: target.targetNodeId,
+    targetSourceFile: target.targetSourceFile,
+    targetSourcePath: target.targetSourcePath,
+    targetSourceSymbol: target.targetSourceSymbol,
+    targetSourceComponent: target.targetSourceComponent,
+    targetSourceLine: target.targetSourceLine,
+    targetTaskFile: target.targetTaskFile,
+    targetTaskId: target.targetTaskId,
+    targetSourceHint: target.targetSourceHint,
+    normalizedBounds: target.bounds,
+    frameIds: [frame.id],
+    sourceFrameId: frame.id,
+    sourceFrameTitle: frame.title,
+    sourceFrameUpdatedAt: frame.updatedAt,
+    description:
+      variantNote ||
+      "Accepted Canvax live edit target awaiting source rewrite.",
+    changeSummary: [variantNote, operationText].filter(Boolean).join(" "),
+    liveEditTarget: target,
+    acceptedLiveEditVariant: acceptedVariant,
+    liveEditOriginalSnapshot: liveEditBinding.originalSnapshot,
+    liveEditPins: liveEditBinding.pins,
+    liveEditActionIntent: currentLiveEditActionIntent(frame),
+    liveEditBinding,
+    liveEditSourceDiscovery: liveEditBinding.sourceBinding,
+    liveEditWriteback: liveEditBinding.writeback,
+    liveEditRequest,
+    versionTag: acceptedVariant
+      ? `${target.targetVersionTag || target.updatedAt || frame.updatedAt}:${acceptedVariant.id}`
+      : target.targetVersionTag || target.updatedAt,
+    notes: `Live edit target accepted for ${frame.title}: ${[
+      variantNote,
+      operationText,
+      target.note || target.instruction,
+      pinText ? `Pins: ${pinText}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ")}`,
+  };
+}
+
+async function saveLiveEditTargetToPreviewManifest(
+  frame,
+  liveTarget,
+  { writebackResult = null } = {},
+) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  if (!frame || !target) {
+    return null;
+  }
+  const payload = buildLiveEditPreviewManifestTargetPayload(frame, target, {
+    writebackResult,
+  });
   try {
     const response = await fetch("/api/save-preview-manifest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: target.targetId || `live-edit-target-${frame.id}`,
-        label: target.targetLabel || `${frame.title} live edit target`,
-        source: target.targetSource || "canvax-live-edit",
-        type: target.targetType || "live-edit-target",
-        url: target.targetHref,
-        previewPath: target.targetPath,
-        targetSelector: target.targetSelector,
-        targetObjectId: target.targetObjectId,
-        targetNodeId: target.targetNodeId,
-        targetSourceFile: target.targetSourceFile,
-        targetSourcePath: target.targetSourcePath,
-        targetSourceSymbol: target.targetSourceSymbol,
-        targetSourceComponent: target.targetSourceComponent,
-        targetSourceLine: target.targetSourceLine,
-        targetTaskFile: target.targetTaskFile,
-        targetTaskId: target.targetTaskId,
-        targetSourceHint: target.targetSourceHint,
-        normalizedBounds: target.bounds,
-        frameIds: [frame.id],
-        sourceFrameId: frame.id,
-        sourceFrameTitle: frame.title,
-        sourceFrameUpdatedAt: frame.updatedAt,
-        description:
-          variantNote ||
-          "Accepted Canvax live edit target awaiting source rewrite.",
-        changeSummary: [variantNote, operationText].filter(Boolean).join(" "),
-        liveEditTarget: target,
-        acceptedLiveEditVariant: acceptedVariant,
-        liveEditOriginalSnapshot,
-        liveEditPins,
-        liveEditActionIntent: currentLiveEditActionIntent(frame),
-        liveEditBinding,
-        liveEditSourceDiscovery: liveEditBinding.sourceBinding,
-        liveEditWriteback: liveEditBinding.writeback,
-        liveEditRequest,
-        versionTag: acceptedVariant
-          ? `${target.targetVersionTag || target.updatedAt || frame.updatedAt}:${acceptedVariant.id}`
-          : target.targetVersionTag || target.updatedAt,
-        notes: `Live edit target accepted for ${frame.title}: ${[
-          variantNote,
-          operationText,
-          target.note || target.instruction,
-          pinText ? `Pins: ${pinText}` : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}`,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await response.json();
     if (!response.ok) {
@@ -15020,6 +15078,44 @@ async function saveLiveEditTargetToPreviewManifest(
     console.warn("Live edit preview manifest save failed", error);
     return null;
   }
+}
+
+function ensureLiveEditTargetInPreviewManifest(
+  frame,
+  liveTarget,
+  { writebackResult = null } = {},
+) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const payload = buildLiveEditPreviewManifestTargetPayload(frame, target, {
+    writebackResult,
+  });
+  const nextTarget = normalizeManifestTarget(payload);
+  if (!nextTarget) {
+    return false;
+  }
+  const manifest = state.serverStatus.previewManifest || {
+    kind: "canvax-preview-manifest",
+    version: 1,
+    source: "canvax-live-edit",
+    targets: [],
+  };
+  const targets = collectManifestTargets(manifest);
+  const alreadyPresent = targets.some(
+    (entry) =>
+      entry.id === nextTarget.id &&
+      entry.liveEditBinding?.status === nextTarget.liveEditBinding?.status &&
+      entry.liveEditBinding?.writeback?.status ===
+        nextTarget.liveEditBinding?.writeback?.status,
+  );
+  if (alreadyPresent) {
+    return false;
+  }
+  state.serverStatus.previewManifest = {
+    ...manifest,
+    updatedAt: new Date().toISOString(),
+    targets: [nextTarget, ...targets.filter((entry) => entry.id !== nextTarget.id)],
+  };
+  return true;
 }
 
 function restoreLiveEditOriginalSnapshot(frame, snapshot) {
@@ -32531,18 +32627,37 @@ function frameOutputBadgeCompactLabel(label) {
 
 function resolveManifestTargetEntry(manifest, preferredFrameId = "") {
   const targets = collectManifestTargets(manifest);
-  const frameTarget = preferredFrameId
-    ? targets.find((target) => target.frameIds.includes(preferredFrameId))
-    : null;
-  if (frameTarget) {
-    return frameTarget;
+  const frameTargets = preferredFrameId
+    ? targets.filter((target) => target.frameIds.includes(preferredFrameId))
+    : [];
+  const frameRenderableTarget = frameTargets.find((target) =>
+    manifestTargetHasRenderableOutput(target),
+  );
+  if (frameRenderableTarget) {
+    return frameRenderableTarget;
   }
   const primaryTarget =
-    targets.find((target) => target.id === "primary") || targets[0] || null;
+    targets.find(
+      (target) =>
+        target.id === "primary" && manifestTargetHasRenderableOutput(target),
+    ) || targets.find((target) => manifestTargetHasRenderableOutput(target));
   if (primaryTarget) {
     return primaryTarget;
   }
+  const frameTarget = frameTargets[0] || null;
+  if (frameTarget) {
+    return frameTarget;
+  }
+  const fallbackTarget =
+    targets.find((target) => target.id === "primary") || targets[0] || null;
+  if (fallbackTarget) {
+    return fallbackTarget;
+  }
   return derivePreviewTargetFromArtifacts(manifest, preferredFrameId);
+}
+
+function manifestTargetHasRenderableOutput(target) {
+  return Boolean(resolveWorkbenchTargetUrl(target));
 }
 
 function collectManifestTargets(manifest) {
@@ -32698,7 +32813,31 @@ function normalizeManifestTarget(value, index = 0) {
         : typeof value.htmlPath === "string"
           ? value.htmlPath.trim()
           : "";
-  if (!resolvedUrl && !previewPath) {
+  const liveEditTarget = normalizeManifestJsonObject(value.liveEditTarget);
+  const acceptedLiveEditVariant = normalizeManifestJsonObject(
+    value.acceptedLiveEditVariant,
+  );
+  const liveEditOriginalSnapshot = normalizeManifestJsonObject(
+    value.liveEditOriginalSnapshot,
+  );
+  const liveEditPins = normalizeManifestJsonObject(value.liveEditPins) || [];
+  const liveEditActionIntent = normalizeManifestJsonObject(
+    value.liveEditActionIntent,
+  );
+  const liveEditBinding = normalizeManifestJsonObject(value.liveEditBinding);
+  const liveEditSourceDiscovery = normalizeManifestJsonObject(
+    value.liveEditSourceDiscovery,
+  );
+  const liveEditWriteback = normalizeManifestJsonObject(value.liveEditWriteback);
+  const liveEditRequest = normalizeManifestJsonObject(value.liveEditRequest);
+  const hasLiveEditBinding = Boolean(
+    liveEditBinding ||
+      liveEditTarget ||
+      acceptedLiveEditVariant ||
+      liveEditRequest ||
+      liveEditWriteback,
+  );
+  if (!resolvedUrl && !previewPath && !hasLiveEditBinding) {
     return null;
   }
 
@@ -32780,21 +32919,15 @@ function normalizeManifestTarget(value, index = 0) {
     targetTaskId:
       typeof value.targetTaskId === "string" ? value.targetTaskId.trim() : "",
     targetSourceHint: normalizeManifestJsonObject(value.targetSourceHint),
-    liveEditTarget: normalizeManifestJsonObject(value.liveEditTarget),
-    acceptedLiveEditVariant: normalizeManifestJsonObject(
-      value.acceptedLiveEditVariant,
-    ),
-    liveEditOriginalSnapshot: normalizeManifestJsonObject(
-      value.liveEditOriginalSnapshot,
-    ),
-    liveEditPins: normalizeManifestJsonObject(value.liveEditPins) || [],
-    liveEditActionIntent: normalizeManifestJsonObject(value.liveEditActionIntent),
-    liveEditBinding: normalizeManifestJsonObject(value.liveEditBinding),
-    liveEditSourceDiscovery: normalizeManifestJsonObject(
-      value.liveEditSourceDiscovery,
-    ),
-    liveEditWriteback: normalizeManifestJsonObject(value.liveEditWriteback),
-    liveEditRequest: normalizeManifestJsonObject(value.liveEditRequest),
+    liveEditTarget,
+    acceptedLiveEditVariant,
+    liveEditOriginalSnapshot,
+    liveEditPins,
+    liveEditActionIntent,
+    liveEditBinding,
+    liveEditSourceDiscovery,
+    liveEditWriteback,
+    liveEditRequest,
   };
 }
 
@@ -32973,13 +33106,17 @@ function findFrameSpecificTarget(manifest, frameId) {
   if (!frameId) {
     return null;
   }
-  const explicitTarget = collectManifestTargets(manifest).find((target) => {
+  const matchingTargets = collectManifestTargets(manifest).filter((target) => {
     const frameIds = Array.isArray(target.frameIds) ? target.frameIds : [];
     return (
       frameIds.includes(frameId) ||
       cleanString(target.sourceFrameId) === cleanString(frameId)
     );
   });
+  const explicitTarget =
+    matchingTargets.find((target) => manifestTargetHasRenderableOutput(target)) ||
+    matchingTargets[0] ||
+    null;
   if (explicitTarget) {
     return explicitTarget;
   }
@@ -33010,6 +33147,29 @@ function describeFrameOutputStatus(
     (includeGlobal ? resolveManifestTargetEntry(manifest, frame.id) : null);
   if (!target) {
     return null;
+  }
+  const targetUrl = resolveWorkbenchTargetUrl(target);
+  const liveEditBinding =
+    target.liveEditBinding && typeof target.liveEditBinding === "object"
+      ? target.liveEditBinding
+      : null;
+  if (!targetUrl && liveEditBinding) {
+    const acceptedVariant =
+      liveEditBinding.acceptedVariant || target.acceptedLiveEditVariant || null;
+    const liveTarget = liveEditBinding.target || target.liveEditTarget || null;
+    const variantLabel = cleanString(acceptedVariant?.label);
+    const targetLabel =
+      cleanString(liveTarget?.targetLabel) ||
+      cleanString(target.label) ||
+      "the selected sketch target";
+    return {
+      label: "Accepted on sketch",
+      tone: "active",
+      detail: variantLabel
+        ? `${variantLabel} is accepted on ${targetLabel}. Press Make, Build, or attach a preview to create a generated Output Focus surface.`
+        : `${targetLabel} is accepted on the sketch. Press Make, Build, or attach a preview to create a generated Output Focus surface.`,
+      target,
+    };
   }
 
   const detail =
@@ -34707,16 +34867,28 @@ async function runSelfTest() {
     await new Promise((resolve) => window.setTimeout(resolve, 50));
     const outputTargetAfterCanvasAccept = currentWorkbenchTarget();
     const canvasRegionAcceptPreservedOutput =
-      outputTargetAfterCanvasAccept?.id === "selftest-preserved-output" &&
+      outputTargetAfterCanvasAccept?.id !== canvasRegionDirectTarget?.targetId &&
       Boolean(resolveWorkbenchTargetUrl(outputTargetAfterCanvasAccept));
     const canvasRegionBinding =
       normalizeLiveEditRegionBindings(frameForCanvasReply.liveEditRegionBindings)
         .at(-1) || null;
+    const canvasRegionManifestTargets = collectManifestTargets(
+      state.serverStatus.previewManifest,
+    );
+    const canvasRegionManifestBinding = canvasRegionManifestTargets.find(
+      (target) => target.id === canvasRegionDirectTarget?.targetId,
+    );
+    const canvasRegionLocalManifestBound =
+      canvasRegionManifestBinding?.liveEditBinding?.status === "accepted" &&
+      canvasRegionManifestBinding?.liveEditBinding?.target?.targetType ===
+        "canvas-region" &&
+      !resolveWorkbenchTargetUrl(canvasRegionManifestBinding);
     const canvasRegionDirectPickAccepted =
       canvasRegionDirectTarget?.targetType === "canvas-region" &&
       canvasRegionDirectTarget?.targetSource === "canvax-canvas" &&
       canvasRegionVariants.length === 3 &&
       canvasRegionAcceptPreservedOutput &&
+      canvasRegionLocalManifestBound &&
       canvasRegionBinding?.target?.targetId === canvasRegionDirectTarget.targetId &&
       canvasRegionBinding?.request?.status === "accepted" &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest?.target
@@ -35025,7 +35197,21 @@ async function runSelfTest() {
           canvasObjectDirectPicked,
           canvasRegionDragPicked,
           canvasRegionDirectPickAccepted,
+          canvasRegionDirectTargetId: canvasRegionDirectTarget?.targetId || "",
+          canvasRegionManifestTargetIds: canvasRegionManifestTargets.map(
+            (target) => target.id,
+          ).slice(0, 12),
+          canvasRegionManifestTargetCount: canvasRegionManifestTargets.length,
+          canvasRegionManifestLocalBindingTargetIds: canvasRegionManifestTargets
+            .filter((target) => !resolveWorkbenchTargetUrl(target))
+            .map((target) => target.id)
+            .slice(0, 12),
+          canvasRegionManifestLocalBindingTargetCount:
+            canvasRegionManifestTargets.filter(
+              (target) => !resolveWorkbenchTargetUrl(target),
+            ).length,
           canvasRegionAcceptPreservedOutput,
+          canvasRegionLocalManifestBound,
           canvasObjectTargetAdjusted,
           canvasObjectDiscardRestored,
           canvasTemporaryMarkSaved,

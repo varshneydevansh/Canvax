@@ -2251,16 +2251,31 @@ function resolvePreviewTargetEntry(
   preferredFrameId = "",
 ) {
   const targets = collectManifestTargets(manifest);
-  const frameTarget = preferredFrameId
-    ? targets.find((target) => target.frameIds.includes(preferredFrameId))
-    : null;
+  const frameTargets = preferredFrameId
+    ? targets.filter((target) => target.frameIds.includes(preferredFrameId))
+    : [];
+  const frameRenderableTarget = frameTargets.find((target) =>
+    manifestTargetHasRenderableOutput(target),
+  );
+  if (frameRenderableTarget) {
+    return frameRenderableTarget;
+  }
+  const primaryTarget =
+    targets.find(
+      (target) =>
+        target.id === "primary" && manifestTargetHasRenderableOutput(target),
+    ) || targets.find((target) => manifestTargetHasRenderableOutput(target));
+  if (primaryTarget) {
+    return primaryTarget;
+  }
+  const frameTarget = frameTargets[0] || null;
   if (frameTarget) {
     return frameTarget;
   }
-  const primaryTarget =
+  const fallbackTarget =
     targets.find((target) => target.id === "primary") || targets[0] || null;
-  if (primaryTarget) {
-    return primaryTarget;
+  if (fallbackTarget) {
+    return fallbackTarget;
   }
 
   const artifactTarget = derivePreviewTargetFromArtifacts(
@@ -2292,6 +2307,10 @@ function resolvePreviewTargetEntry(
         refinement: normalizeRefinementData(null),
       }
     : null;
+}
+
+function manifestTargetHasRenderableOutput(target) {
+  return Boolean(target?.resolvedUrl || target?.url || target?.previewPath);
 }
 
 function collectManifestTargets(manifest) {
@@ -2442,7 +2461,31 @@ function normalizeManifestTarget(value, index = 0) {
         : typeof value.htmlPath === "string"
           ? value.htmlPath.trim()
           : "";
-  if (!url && !previewPath) {
+  const liveEditTarget = normalizeManifestJsonObject(value.liveEditTarget);
+  const acceptedLiveEditVariant = normalizeManifestJsonObject(
+    value.acceptedLiveEditVariant,
+  );
+  const liveEditOriginalSnapshot = normalizeManifestJsonObject(
+    value.liveEditOriginalSnapshot,
+  );
+  const liveEditPins = normalizeManifestJsonObject(value.liveEditPins) || [];
+  const liveEditActionIntent = normalizeManifestJsonObject(
+    value.liveEditActionIntent,
+  );
+  const liveEditBinding = normalizeManifestJsonObject(value.liveEditBinding);
+  const liveEditSourceDiscovery = normalizeManifestJsonObject(
+    value.liveEditSourceDiscovery,
+  );
+  const liveEditWriteback = normalizeManifestJsonObject(value.liveEditWriteback);
+  const liveEditRequest = normalizeManifestJsonObject(value.liveEditRequest);
+  const hasLiveEditBinding = Boolean(
+    liveEditBinding ||
+      liveEditTarget ||
+      acceptedLiveEditVariant ||
+      liveEditRequest ||
+      liveEditWriteback,
+  );
+  if (!url && !previewPath && !hasLiveEditBinding) {
     return null;
   }
 
@@ -2492,7 +2535,75 @@ function normalizeManifestTarget(value, index = 0) {
     changeSummary:
       typeof value.changeSummary === "string" ? value.changeSummary.trim() : "",
     refinement: normalizeRefinementData(value.refinement),
+    targetSelector:
+      typeof value.targetSelector === "string" ? value.targetSelector.trim() : "",
+    targetObjectId:
+      typeof value.targetObjectId === "string" ? value.targetObjectId.trim() : "",
+    targetNodeId:
+      typeof value.targetNodeId === "string" ? value.targetNodeId.trim() : "",
+    normalizedBounds: normalizeManifestJsonObject(value.normalizedBounds),
+    targetSourceFile:
+      typeof value.targetSourceFile === "string"
+        ? value.targetSourceFile.trim()
+        : "",
+    targetSourcePath:
+      typeof value.targetSourcePath === "string"
+        ? value.targetSourcePath.trim()
+        : "",
+    targetSourceSymbol:
+      typeof value.targetSourceSymbol === "string"
+        ? value.targetSourceSymbol.trim()
+        : "",
+    targetSourceComponent:
+      typeof value.targetSourceComponent === "string"
+        ? value.targetSourceComponent.trim()
+        : "",
+    targetSourceLine:
+      typeof value.targetSourceLine === "string"
+        ? value.targetSourceLine.trim()
+        : "",
+    targetTaskFile:
+      typeof value.targetTaskFile === "string" ? value.targetTaskFile.trim() : "",
+    targetTaskId:
+      typeof value.targetTaskId === "string" ? value.targetTaskId.trim() : "",
+    targetSourceHint: normalizeManifestJsonObject(value.targetSourceHint),
+    liveEditTarget,
+    acceptedLiveEditVariant,
+    liveEditOriginalSnapshot,
+    liveEditPins,
+    liveEditActionIntent,
+    liveEditBinding,
+    liveEditSourceDiscovery,
+    liveEditWriteback,
+    liveEditRequest,
   };
+}
+
+function normalizeManifestJsonObject(value, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeManifestJsonObject(item, depth + 1))
+      .filter((item) => item !== null && item !== "");
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value)
+    .map(([key, item]) => [
+      typeof key === "string" ? key.trim() : "",
+      normalizeManifestJsonObject(item, depth + 1),
+    ])
+    .filter(([key, item]) => key && item !== null && item !== "");
+  return entries.length ? Object.fromEntries(entries) : null;
 }
 
 function normalizeManifestArtifact(value, index = 0) {
@@ -2661,13 +2772,17 @@ function findFrameSpecificTarget(manifest, frameId) {
   if (!frameId) {
     return null;
   }
-  const explicitTarget = collectManifestTargets(manifest).find((target) => {
+  const matchingTargets = collectManifestTargets(manifest).filter((target) => {
     const frameIds = Array.isArray(target.frameIds) ? target.frameIds : [];
     return (
       frameIds.includes(frameId) ||
       cleanString(target.sourceFrameId) === cleanString(frameId)
     );
   });
+  const explicitTarget =
+    matchingTargets.find((target) => manifestTargetHasRenderableOutput(target)) ||
+    matchingTargets[0] ||
+    null;
   if (explicitTarget) {
     return explicitTarget;
   }
@@ -2701,6 +2816,27 @@ function describeFrameOutputStatus(
       : null);
   if (!target) {
     return null;
+  }
+  const liveEditBinding =
+    target.liveEditBinding && typeof target.liveEditBinding === "object"
+      ? target.liveEditBinding
+      : null;
+  if (!manifestTargetHasRenderableOutput(target) && liveEditBinding) {
+    const acceptedVariant =
+      liveEditBinding.acceptedVariant || target.acceptedLiveEditVariant || null;
+    const liveTarget = liveEditBinding.target || target.liveEditTarget || null;
+    const variantLabel = cleanString(acceptedVariant?.label);
+    const targetLabel =
+      cleanString(liveTarget?.targetLabel) ||
+      cleanString(target.label) ||
+      "the selected sketch target";
+    return {
+      label: "Accepted on sketch",
+      tone: "active",
+      detail: variantLabel
+        ? `${variantLabel} is accepted on ${targetLabel}. Create or attach a generated output to preview it here.`
+        : `${targetLabel} is accepted on the sketch. Create or attach a generated output to preview it here.`,
+    };
   }
 
   const freshness = describeManifestFreshness(target, frame);
