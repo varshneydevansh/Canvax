@@ -710,7 +710,8 @@ function renderImplementationPreview() {
     collectManifestArtifacts(manifest),
     frame?.id || state.selectedFrameId,
   );
-  const targetUrl = target?.resolvedUrl || target?.url || "";
+  const targetUrl =
+    target?.resolvedUrl || target?.url || workspaceHrefForPath(target?.previewPath);
   dom.openTargetLink.hidden = !targetUrl;
   dom.openTargetLink.href = targetUrl || "#";
 
@@ -1163,7 +1164,8 @@ function buildImplementationTargetUrl(
   frameId,
   outputDigest,
 ) {
-  const sourceUrl = target?.resolvedUrl || target?.url || "";
+  const sourceUrl =
+    target?.resolvedUrl || target?.url || workspaceHrefForPath(target?.previewPath);
   if (!sourceUrl) {
     return "";
   }
@@ -1990,9 +1992,14 @@ async function runPreviewSelfTest() {
         "preview target summary renders",
       ),
     );
+    const targetNeedsUrl = Boolean(
+      target &&
+        (target.resolvedUrl || target.url || target.previewPath) &&
+        manifestTargetHasRenderableOutput(target),
+    );
     results.push(
       assert(
-        !target ||
+        !targetNeedsUrl ||
           Boolean(
             buildImplementationTargetUrl(
               target,
@@ -2002,7 +2009,7 @@ async function runPreviewSelfTest() {
               payload?.outputDigest || null,
             ),
           ),
-        "preview target URL resolves when a target exists",
+        "preview target URL resolves when a renderable target exists",
       ),
     );
     results.push(
@@ -2251,16 +2258,31 @@ function resolvePreviewTargetEntry(
   preferredFrameId = "",
 ) {
   const targets = collectManifestTargets(manifest);
-  const frameTarget = preferredFrameId
-    ? targets.find((target) => target.frameIds.includes(preferredFrameId))
-    : null;
+  const frameTargets = preferredFrameId
+    ? targets.filter((target) => target.frameIds.includes(preferredFrameId))
+    : [];
+  const frameRenderableTarget = frameTargets.find((target) =>
+    manifestTargetHasRenderableOutput(target),
+  );
+  if (frameRenderableTarget) {
+    return frameRenderableTarget;
+  }
+  const primaryTarget =
+    targets.find(
+      (target) =>
+        target.id === "primary" && manifestTargetHasRenderableOutput(target),
+    ) || targets.find((target) => manifestTargetHasRenderableOutput(target));
+  if (primaryTarget) {
+    return primaryTarget;
+  }
+  const frameTarget = frameTargets[0] || null;
   if (frameTarget) {
     return frameTarget;
   }
-  const primaryTarget =
+  const fallbackTarget =
     targets.find((target) => target.id === "primary") || targets[0] || null;
-  if (primaryTarget) {
-    return primaryTarget;
+  if (fallbackTarget) {
+    return fallbackTarget;
   }
 
   const artifactTarget = derivePreviewTargetFromArtifacts(
@@ -2292,6 +2314,10 @@ function resolvePreviewTargetEntry(
         refinement: normalizeRefinementData(null),
       }
     : null;
+}
+
+function manifestTargetHasRenderableOutput(target) {
+  return Boolean(target?.resolvedUrl || target?.url || target?.previewPath);
 }
 
 function collectManifestTargets(manifest) {
@@ -2442,7 +2468,37 @@ function normalizeManifestTarget(value, index = 0) {
         : typeof value.htmlPath === "string"
           ? value.htmlPath.trim()
           : "";
-  if (!url && !previewPath) {
+  const liveEditTarget = normalizeManifestJsonObject(value.liveEditTarget);
+  const acceptedLiveEditVariant = normalizeManifestJsonObject(
+    value.acceptedLiveEditVariant,
+  );
+  const liveEditOriginalSnapshot = normalizeManifestJsonObject(
+    value.liveEditOriginalSnapshot,
+  );
+  const liveEditPins = normalizeManifestJsonObject(value.liveEditPins) || [];
+  const liveEditActionIntent = normalizeManifestJsonObject(
+    value.liveEditActionIntent,
+  );
+  const liveEditBinding = normalizeManifestJsonObject(value.liveEditBinding);
+  const liveEditSourceDiscovery = normalizeManifestJsonObject(
+    value.liveEditSourceDiscovery,
+  );
+  const liveEditWriteback = normalizeManifestJsonObject(value.liveEditWriteback);
+  const liveEditRequest = normalizeManifestJsonObject(value.liveEditRequest);
+  const liveEditWorkflowStage = normalizeManifestJsonObject(
+    value.liveEditWorkflowStage ||
+      liveEditBinding?.workflowStage ||
+      liveEditRequest?.workflowStage,
+  );
+  const hasLiveEditBinding = Boolean(
+    liveEditBinding ||
+      liveEditTarget ||
+      acceptedLiveEditVariant ||
+      liveEditRequest ||
+      liveEditWorkflowStage ||
+      liveEditWriteback,
+  );
+  if (!url && !previewPath && !hasLiveEditBinding) {
     return null;
   }
 
@@ -2492,7 +2548,76 @@ function normalizeManifestTarget(value, index = 0) {
     changeSummary:
       typeof value.changeSummary === "string" ? value.changeSummary.trim() : "",
     refinement: normalizeRefinementData(value.refinement),
+    targetSelector:
+      typeof value.targetSelector === "string" ? value.targetSelector.trim() : "",
+    targetObjectId:
+      typeof value.targetObjectId === "string" ? value.targetObjectId.trim() : "",
+    targetNodeId:
+      typeof value.targetNodeId === "string" ? value.targetNodeId.trim() : "",
+    normalizedBounds: normalizeManifestJsonObject(value.normalizedBounds),
+    targetSourceFile:
+      typeof value.targetSourceFile === "string"
+        ? value.targetSourceFile.trim()
+        : "",
+    targetSourcePath:
+      typeof value.targetSourcePath === "string"
+        ? value.targetSourcePath.trim()
+        : "",
+    targetSourceSymbol:
+      typeof value.targetSourceSymbol === "string"
+        ? value.targetSourceSymbol.trim()
+        : "",
+    targetSourceComponent:
+      typeof value.targetSourceComponent === "string"
+        ? value.targetSourceComponent.trim()
+        : "",
+    targetSourceLine:
+      typeof value.targetSourceLine === "string"
+        ? value.targetSourceLine.trim()
+        : "",
+    targetTaskFile:
+      typeof value.targetTaskFile === "string" ? value.targetTaskFile.trim() : "",
+    targetTaskId:
+      typeof value.targetTaskId === "string" ? value.targetTaskId.trim() : "",
+    targetSourceHint: normalizeManifestJsonObject(value.targetSourceHint),
+    liveEditTarget,
+    acceptedLiveEditVariant,
+    liveEditOriginalSnapshot,
+    liveEditPins,
+    liveEditActionIntent,
+    liveEditBinding,
+    liveEditSourceDiscovery,
+    liveEditWriteback,
+    liveEditRequest,
+    liveEditWorkflowStage,
   };
+}
+
+function normalizeManifestJsonObject(value, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeManifestJsonObject(item, depth + 1))
+      .filter((item) => item !== null && item !== "");
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value)
+    .map(([key, item]) => [
+      typeof key === "string" ? key.trim() : "",
+      normalizeManifestJsonObject(item, depth + 1),
+    ])
+    .filter(([key, item]) => key && item !== null && item !== "");
+  return entries.length ? Object.fromEntries(entries) : null;
 }
 
 function normalizeManifestArtifact(value, index = 0) {
@@ -2661,13 +2786,17 @@ function findFrameSpecificTarget(manifest, frameId) {
   if (!frameId) {
     return null;
   }
-  const explicitTarget = collectManifestTargets(manifest).find((target) => {
+  const matchingTargets = collectManifestTargets(manifest).filter((target) => {
     const frameIds = Array.isArray(target.frameIds) ? target.frameIds : [];
     return (
       frameIds.includes(frameId) ||
       cleanString(target.sourceFrameId) === cleanString(frameId)
     );
   });
+  const explicitTarget =
+    matchingTargets.find((target) => manifestTargetHasRenderableOutput(target)) ||
+    matchingTargets[0] ||
+    null;
   if (explicitTarget) {
     return explicitTarget;
   }
@@ -2701,6 +2830,27 @@ function describeFrameOutputStatus(
       : null);
   if (!target) {
     return null;
+  }
+  const liveEditBinding =
+    target.liveEditBinding && typeof target.liveEditBinding === "object"
+      ? target.liveEditBinding
+      : null;
+  if (!manifestTargetHasRenderableOutput(target) && liveEditBinding) {
+    const acceptedVariant =
+      liveEditBinding.acceptedVariant || target.acceptedLiveEditVariant || null;
+    const liveTarget = liveEditBinding.target || target.liveEditTarget || null;
+    const variantLabel = cleanString(acceptedVariant?.label);
+    const targetLabel =
+      cleanString(liveTarget?.targetLabel) ||
+      cleanString(target.label) ||
+      "the selected sketch target";
+    return {
+      label: "Accepted on sketch",
+      tone: "active",
+      detail: variantLabel
+        ? `${variantLabel} is accepted on ${targetLabel}. Create or attach a generated output to preview it here.`
+        : `${targetLabel} is accepted on the sketch. Create or attach a generated output to preview it here.`,
+    };
   }
 
   const freshness = describeManifestFreshness(target, frame);
@@ -2760,6 +2910,11 @@ function frameHasMeaningfulHandoff(frame) {
     return false;
   }
   return Boolean(
+    (Array.isArray(frame.elements) && frame.elements.length) ||
+    Boolean(frame.liveEditTarget) ||
+    Boolean(frame.liveEditRequest) ||
+    (Array.isArray(frame.liveEditRegionBindings) &&
+      frame.liveEditRegionBindings.length) ||
     Number(frame.captureCount) > 0 ||
     cleanString(frame.objective) ||
     cleanString(frame.layout) ||
@@ -2771,6 +2926,150 @@ function frameHasMeaningfulHandoff(frame) {
     cleanString(frame.thumbnailUrl) ||
     cleanString(frame.liveThumbnailDataUrl),
   );
+}
+
+function frameLiveEditTargetIdentity(value) {
+  const target = value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : null;
+  if (!target) {
+    return "";
+  }
+  const bounds = target.bounds || target.normalizedBounds || target.region || null;
+  const boundsKey = bounds && typeof bounds === "object"
+    ? `${bounds.x || 0}:${bounds.y || 0}:${bounds.w || bounds.width || 0}:${bounds.h || bounds.height || 0}`
+    : "";
+  return [
+    target.targetId,
+    target.id,
+    target.targetObjectId,
+    target.targetNodeId,
+    target.targetSelector || target.selector,
+    target.targetPath || target.previewPath,
+    target.targetHref || target.url || target.href,
+    target.sourceFrameId,
+    boundsKey,
+  ]
+    .map((entry) => cleanString(entry))
+    .filter(Boolean)
+    .join("|");
+}
+
+function normalizeFrameLiveEditBinding(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const target =
+    value.target && typeof value.target === "object"
+      ? value.target
+      : value.liveEditTarget && typeof value.liveEditTarget === "object"
+        ? value.liveEditTarget
+        : null;
+  if (!target) {
+    return null;
+  }
+  const acceptedVariant =
+    value.acceptedVariant && typeof value.acceptedVariant === "object"
+      ? value.acceptedVariant
+      : value.variant && typeof value.variant === "object"
+        ? value.variant
+        : null;
+  const status = cleanString(value.status || target.status);
+  const acceptedAt = cleanString(
+    value.acceptedAt || acceptedVariant?.acceptedAt || target.acceptedAt,
+  );
+  if (status !== "accepted" && !acceptedAt) {
+    return null;
+  }
+  return {
+    status: "accepted",
+    target,
+    acceptedVariant,
+    request:
+      value.request && typeof value.request === "object"
+        ? value.request
+        : value.liveEditRequest && typeof value.liveEditRequest === "object"
+          ? value.liveEditRequest
+          : null,
+    note: cleanString(value.note || target.note),
+    acceptedAt,
+    updatedAt: cleanString(value.updatedAt || target.updatedAt),
+  };
+}
+
+function frameLiveEditBoundsLabel(bounds) {
+  const normalized = bounds && typeof bounds === "object" ? bounds : null;
+  if (!normalized) {
+    return "the selected bounds";
+  }
+  const x = Number(normalized.x) || 0;
+  const y = Number(normalized.y) || 0;
+  const w = Number(normalized.w || normalized.width) || 0;
+  const h = Number(normalized.h || normalized.height) || 0;
+  const pct = (value) => `${Math.round(value * 100)}%`;
+  return `${pct(x)}, ${pct(y)} / ${pct(w)}x${pct(h)}`;
+}
+
+function buildAcceptedLiveEditPreviewQueueItems(frame, skippedIdentities = new Set()) {
+  if (!frame) {
+    return [];
+  }
+  const seen = new Set(skippedIdentities);
+  const bindings = [];
+  const pushBinding = (value) => {
+    const binding = normalizeFrameLiveEditBinding(value);
+    if (!binding) {
+      return;
+    }
+    const identity = frameLiveEditTargetIdentity(binding.target);
+    if (!identity || seen.has(identity)) {
+      return;
+    }
+    seen.add(identity);
+    bindings.push(binding);
+  };
+  (Array.isArray(frame.liveEditRegionBindings)
+    ? frame.liveEditRegionBindings
+    : []
+  ).forEach(pushBinding);
+  (Array.isArray(frame.elements) ? frame.elements : []).forEach((element) =>
+    pushBinding(element?.liveEdit),
+  );
+  return bindings.map((binding, index) => {
+    const target = binding.target;
+    const variant = binding.acceptedVariant;
+    const targetId =
+      cleanString(target.targetId || target.targetObjectId || target.id) ||
+      `target-${index + 1}`;
+    const label =
+      cleanString(target.targetLabel || target.targetType) || "picked target";
+    const variantLabel = cleanString(variant?.label) || "accepted variant";
+    const variantRole = cleanString(variant?.role) || "live edit";
+    const request =
+      binding.request || {
+        kind: "canvax-live-edit-request",
+        status: "accepted",
+        target,
+        sourceFrameId: frame.id,
+        sourceFrameTitle: frame.title,
+        note: binding.note,
+        acceptedVariant: variant,
+        acceptedAt: binding.acceptedAt,
+      };
+    return {
+      id: `${frame.id}-accepted-live-edit-${targetId.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 72)}`,
+      frameId: frame.id,
+      title: frame.title,
+      label: "Accepted Live Edit",
+      tone: "active",
+      reason: "accepted-live-edit-binding",
+      priority: 0,
+      updatedAt: binding.updatedAt || frame.updatedAt,
+      detail: `${label} is accepted at ${frameLiveEditBoundsLabel(target.bounds || target.normalizedBounds || target.region)}. Use ${variantLabel} (${variantRole}) as a first-class rewrite target.`,
+      liveEditRequest: request,
+      liveEditBinding: binding,
+    };
+  });
 }
 
 function itemHasFrameBinding(item, frameId) {
@@ -2792,9 +3091,9 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
   const hasAnyTargets = targets.length > 0;
 
   return normalizedFrames
-    .map((frame, index) => {
+    .flatMap((frame, index) => {
       if (!frameHasMeaningfulHandoff(frame)) {
-        return null;
+        return [];
       }
 
       const specificTarget = findFrameSpecificTarget(manifest, frame.id);
@@ -2807,6 +3106,36 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
       const freshness = specificTarget
         ? describeManifestFreshness(specificTarget, frame)
         : null;
+      const activeLiveEditTarget = frame.liveEditRequest?.target || frame.liveEditTarget;
+      const activeLiveEditIdentity = frameLiveEditTargetIdentity(activeLiveEditTarget);
+      const acceptedLiveEditItems = buildAcceptedLiveEditPreviewQueueItems(
+        frame,
+        activeLiveEditIdentity ? new Set([activeLiveEditIdentity]) : new Set(),
+      );
+
+      if (activeLiveEditTarget || frame.liveEditRequest) {
+        return [
+          {
+            id: `${frame.id}-live-edit`,
+            index: index + 1,
+            frameId: frame.id,
+            title: frame.title,
+            label: "Live edit target",
+            tone: "active",
+            reason: "live-edit-target",
+            priority: 0,
+            updatedAt: frame.updatedAt,
+            detail:
+              "Apply the next rewrite to the picked Live Edit target on this frame.",
+            liveEditRequest: frame.liveEditRequest || null,
+          },
+          ...acceptedLiveEditItems,
+        ];
+      }
+
+      if (acceptedLiveEditItems.length) {
+        return acceptedLiveEditItems;
+      }
 
       if (specificTarget && freshness?.stale) {
         return {
@@ -2869,7 +3198,7 @@ function buildRewriteQueue(frames, manifest, activeFrameId = "") {
         };
       }
 
-      return null;
+      return [];
     })
     .filter(Boolean)
     .sort((left, right) => {

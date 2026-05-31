@@ -20,6 +20,24 @@ When the Codex app has the in-app browser available, `/canvax` is the preferred 
 
 The copy for the skill directory lives in [docs/SKILL_LISTING.md](docs/SKILL_LISTING.md).
 
+## Screenshots
+
+Live Edit keeps the selected region small and explicit while variants preview in the same Workbench surface.
+
+![Canvax Live Edit workbench](docs/assets/screenshots/canvax-live-edit.png)
+
+The Workbench is the default designer surface for sketching, notes, voice handoff, Make, Reply, Live Edit, and Apply.
+
+![Canvax Workbench](docs/assets/screenshots/canvax-workbench.png)
+
+The Codex sidecar route keeps the scratchpad compact when the in-app browser is narrow.
+
+![Canvax Codex sidecar](docs/assets/screenshots/canvax-sidecar.png)
+
+Advanced mode keeps the spatial map, generated references, manifests, and handoff controls available for deeper project work.
+
+![Canvax Advanced Map](docs/assets/screenshots/canvax-advanced-map.png)
+
 ## System Snapshot
 
 ```text
@@ -61,6 +79,8 @@ Today the reliable path is local and no-API by default:
 - Advanced keeps project switching, the spatial Map, design kits, manifests, export inspection, and debugging tools available when needed.
 - Canvax writes live exports, checkpoints, task packs, image prompt packs, and Codex output manifests under `exports/` and `artifacts/`.
 - Codex reads those files, changes real workspace files or local artifacts, then publishes output manifests back so the board and Preview remain attached.
+
+Direct ChatGPT/Codex image generation and raw Codex microphone access are host capabilities, not something this localhost board can claim by itself. Canvax currently exports image host tasks, image prompt packs, voice/transcript notes, and structured live-edit requests. When the Codex app exposes first-party bridges for Images or realtime voice, those exported contracts are the integration point.
 
 The full capability inventory belongs in [docs/FEATURES.md](docs/FEATURES.md). Day-to-day operation belongs in [docs/USAGE.md](docs/USAGE.md).
 

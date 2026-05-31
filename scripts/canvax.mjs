@@ -908,6 +908,13 @@ async function runServer(port) {
 
       if (
         request.method === "POST" &&
+        url.pathname === "/api/execute-patch-task"
+      ) {
+        return handleExecutePatchTask(request, response);
+      }
+
+      if (
+        request.method === "POST" &&
         url.pathname === "/api/run-design-review"
       ) {
         return handleRunDesignReview(request, response);
@@ -1864,6 +1871,71 @@ async function handleExecuteRewriteRequest(request, response) {
         error instanceof Error
           ? error.message
           : "Rewrite request execution failed.",
+    });
+  }
+}
+
+async function handleExecutePatchTask(request, response) {
+  const payload = await readJson(request);
+  const taskPath = cleanString(payload?.taskPath);
+  const noPublish = Boolean(payload?.noPublish);
+  if (!taskPath) {
+    return writeJson(response, 400, {
+      executed: false,
+      error: "Patch task path is required.",
+    });
+  }
+
+  const resolvedTaskPath = taskPath.startsWith("/")
+    ? resolve(taskPath)
+    : resolve(projectRoot, taskPath);
+  if (!isAllowedWorkspacePath(resolvedTaskPath)) {
+    return writeJson(response, 400, {
+      executed: false,
+      error: "Patch task must be inside the Canvax workspace.",
+    });
+  }
+
+  const args = [
+    "scripts/execute-patch-task.mjs",
+    "--task",
+    toWorkspaceRelativePath(resolvedTaskPath),
+    "--json",
+  ];
+  if (noPublish) {
+    args.push("--no-publish");
+  }
+
+  try {
+    const { stdout } = await runCommand(process.execPath, args, {
+      cwd: projectRoot,
+    });
+    const result = JSON.parse(stdout);
+    await appendFile(
+      sessionEventsPath,
+      `${JSON.stringify({
+        type: "patch-task-executed",
+        at: new Date().toISOString(),
+        frameId: cleanString(result.frameId),
+        taskPath: cleanString(result.taskPath),
+        resultPath: cleanString(result.resultPath),
+        manifestPath: cleanString(result.manifestPath),
+        changedFileCount: Number(result.changedFileCount) || 0,
+        published: Boolean(result.published),
+      })}\n`,
+    );
+
+    return writeJson(response, 200, {
+      executed: true,
+      ...result,
+    });
+  } catch (error) {
+    return writeJson(response, 500, {
+      executed: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Patch task execution failed.",
     });
   }
 }
@@ -3366,8 +3438,12 @@ async function handlePublishWorkspaceOutput(request, response) {
   const clear = Boolean(payload?.clear);
   const existingCodexManifest = await readOptionalJson(codexOutputManifestPath);
   const manualPreviewManifest = await readOptionalJson(previewManifestPath);
+
+  const isDifferentProject = project && existingCodexManifest?.project && existingCodexManifest.project.id !== project.id;
+  const activeCodexManifest = isDifferentProject ? null : existingCodexManifest;
+
   const existingManifest = normalizePreviewManifest(
-    existingCodexManifest || {},
+    activeCodexManifest || {},
   );
   const liveProjectStub = {
     project,
@@ -6008,16 +6084,16 @@ function buildMaterializedPreviewDocument(payload, options = {}) {
         <div class="note-layer">
           ${noteMarkup}
         </div>
-        <div class="toolbar" aria-label="Optional review overlays">
-          <span class="toolbar-kicker">Review overlays</span>
+        <div class="toolbar" aria-label="Optional reference overlays">
+          <span class="toolbar-kicker">Compare</span>
           ${
             sketchSrc
-              ? '<button type="button" data-action="toggle-blueprint" data-on-label="Hide sketch overlay" data-off-label="Show sketch overlay" aria-pressed="false" title="Optional review overlay: compare the generated output against the original Canvax sketch. This is not product UI.">Show sketch overlay</button>'
+              ? '<button type="button" data-action="toggle-blueprint" data-on-label="Hide sketch" data-off-label="Show sketch" aria-pressed="false" title="Compare this generated output against the original Canvax sketch. This is not product UI.">Show sketch</button>'
               : ""
           }
           ${
             noteMarkup
-              ? '<button type="button" data-action="toggle-notes" data-on-label="Hide note overlay" data-off-label="Show note overlay" aria-pressed="false" title="Optional review overlay: show free labels and interpretation notes captured from the sketch. These notes guide Codex but are not product UI.">Show note overlay</button>'
+              ? '<button type="button" data-action="toggle-notes" data-on-label="Hide notes" data-off-label="Show notes" aria-pressed="false" title="Show labels and interpretation notes captured from the sketch. These notes guide Codex but are not product UI.">Show notes</button>'
               : ""
           }
         </div>
@@ -7963,7 +8039,13 @@ function mergeManifestSources(manualManifest, codexManifest) {
   );
   const notes = normalizeManifestNotes(manual.notes, codex.notes);
   const primaryTarget =
-    targets.find((target) => target.id === "primary") || targets[0] || null;
+    targets.find(
+      (target) => target.id === "primary" && previewTargetHasRenderableOutput(target),
+    ) ||
+    targets.find((target) => previewTargetHasRenderableOutput(target)) ||
+    targets.find((target) => target.id === "primary") ||
+    targets[0] ||
+    null;
 
   return normalizePreviewManifest({
     version: 1,
@@ -7987,7 +8069,13 @@ function buildPreviewOutputDigest(manifest, workspaceFollowMeta = null) {
   const artifacts = normalizePreviewArtifacts(normalized.artifacts || []);
   const changes = normalizePreviewChanges(normalized.changes || []);
   const primaryTarget =
-    targets.find((target) => target.id === "primary") || targets[0] || null;
+    targets.find(
+      (target) => target.id === "primary" && previewTargetHasRenderableOutput(target),
+    ) ||
+    targets.find((target) => previewTargetHasRenderableOutput(target)) ||
+    targets.find((target) => target.id === "primary") ||
+    targets[0] ||
+    null;
   const refinementSummary =
     cleanString(primaryTarget?.refinement?.summary) ||
     cleanString(
@@ -8014,6 +8102,20 @@ function buildPreviewOutputDigest(manifest, workspaceFollowMeta = null) {
             regionCount: Array.isArray(target.refinement.changedRegions)
               ? target.refinement.changedRegions.length
               : 0,
+          }
+        : null,
+      liveEdit: target.liveEditBinding
+        ? {
+            status: cleanString(target.liveEditBinding.status),
+            acceptedVariantId: cleanString(
+              target.liveEditBinding.acceptedVariant?.id,
+            ),
+            sourceBindingStatus: cleanString(
+              target.liveEditBinding.sourceBinding?.status,
+            ),
+            writebackStatus: cleanString(
+              target.liveEditBinding.writeback?.status,
+            ),
           }
         : null,
     })),
@@ -8467,7 +8569,13 @@ function normalizePreviewManifest(value, existingManifest = null) {
     previewTargetKey,
   );
   const primaryTarget =
-    targets.find((target) => target.id === "primary") || targets[0] || null;
+    targets.find(
+      (target) => target.id === "primary" && previewTargetHasRenderableOutput(target),
+    ) ||
+    targets.find((target) => previewTargetHasRenderableOutput(target)) ||
+    targets.find((target) => target.id === "primary") ||
+    targets[0] ||
+    null;
 
   return {
     version: Number(next.version) || Number(fallback.version) || 1,
@@ -8530,6 +8638,10 @@ function previewTargetKey(target, index = 0) {
     cleanString(target?.url) ||
     `target-${index}`
   );
+}
+
+function previewTargetHasRenderableOutput(target) {
+  return Boolean(cleanString(target?.url) || cleanString(target?.previewPath));
 }
 
 function previewArtifactKey(artifact, index = 0) {
@@ -8604,6 +8716,7 @@ function normalizePreviewTarget(entry, index = 0) {
           project: null,
           projectId: "",
           refinement: normalizeMaterializeRefinement(null),
+          liveEditBinding: null,
         }
       : null;
   }
@@ -8618,7 +8731,31 @@ function normalizePreviewTarget(entry, index = 0) {
     cleanString(entry.path) ||
     cleanString(entry.htmlPath) ||
     "";
-  if (!url && !previewPath) {
+  const liveEditTarget = normalizeManifestJsonObject(entry.liveEditTarget);
+  const acceptedLiveEditVariant = normalizeManifestJsonObject(
+    entry.acceptedLiveEditVariant,
+  );
+  const liveEditOriginalSnapshot = normalizeManifestJsonObject(
+    entry.liveEditOriginalSnapshot,
+  );
+  const liveEditPins = normalizeManifestJsonObject(entry.liveEditPins);
+  const liveEditActionIntent = normalizeManifestJsonObject(
+    entry.liveEditActionIntent,
+  );
+  const liveEditBinding = normalizeManifestJsonObject(entry.liveEditBinding);
+  const liveEditSourceDiscovery = normalizeManifestJsonObject(
+    entry.liveEditSourceDiscovery,
+  );
+  const liveEditWriteback = normalizeManifestJsonObject(entry.liveEditWriteback);
+  const liveEditRequest = normalizeManifestJsonObject(entry.liveEditRequest);
+  const hasLiveEditBinding = Boolean(
+    liveEditBinding ||
+      liveEditTarget ||
+      acceptedLiveEditVariant ||
+      liveEditRequest ||
+      liveEditWriteback,
+  );
+  if (!url && !previewPath && !hasLiveEditBinding) {
     return null;
   }
 
@@ -8641,10 +8778,58 @@ function normalizePreviewTarget(entry, index = 0) {
     sourceFrameTitle: cleanString(entry.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(entry.sourceFrameUpdatedAt),
     changeSummary: cleanString(entry.changeSummary),
+    targetSelector: cleanString(entry.targetSelector),
+    targetObjectId: cleanString(entry.targetObjectId),
+    targetNodeId: cleanString(entry.targetNodeId),
+    targetSourceFile: cleanString(entry.targetSourceFile),
+    targetSourcePath: cleanString(entry.targetSourcePath),
+    targetSourceSymbol: cleanString(entry.targetSourceSymbol),
+    targetSourceComponent: cleanString(entry.targetSourceComponent),
+    targetSourceLine: cleanString(entry.targetSourceLine),
+    targetTaskFile: cleanString(entry.targetTaskFile),
+    targetTaskId: cleanString(entry.targetTaskId),
+    targetSourceHint: normalizeManifestJsonObject(entry.targetSourceHint),
+    normalizedBounds: normalizeManifestJsonObject(entry.normalizedBounds),
     project: normalizeManifestProject(entry.project),
     projectId: manifestProjectId(entry),
     refinement: normalizeMaterializeRefinement(entry.refinement),
+    liveEditTarget,
+    acceptedLiveEditVariant,
+    liveEditOriginalSnapshot,
+    liveEditPins,
+    liveEditActionIntent,
+    liveEditBinding,
+    liveEditSourceDiscovery,
+    liveEditWriteback,
+    liveEditRequest,
   };
+}
+
+function normalizeManifestJsonObject(value, depth = 0) {
+  if (depth > 5 || value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string") {
+    return cleanString(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeManifestJsonObject(item, depth + 1))
+      .filter((item) => item !== null && item !== "");
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+  const entries = Object.entries(value)
+    .map(([key, item]) => [
+      cleanString(key),
+      normalizeManifestJsonObject(item, depth + 1),
+    ])
+    .filter(([key, item]) => key && item !== null && item !== "");
+  return entries.length ? Object.fromEntries(entries) : null;
 }
 
 function normalizePreviewArtifacts(values) {
@@ -8801,7 +8986,31 @@ function buildPreviewTargetFromPayload(payload) {
     cleanString(source.path) ||
     cleanString(source.htmlPath) ||
     "";
-  if (!url && !previewPath) {
+  const liveEditTarget = normalizeManifestJsonObject(source.liveEditTarget);
+  const acceptedLiveEditVariant = normalizeManifestJsonObject(
+    source.acceptedLiveEditVariant,
+  );
+  const liveEditOriginalSnapshot = normalizeManifestJsonObject(
+    source.liveEditOriginalSnapshot,
+  );
+  const liveEditPins = normalizeManifestJsonObject(source.liveEditPins);
+  const liveEditActionIntent = normalizeManifestJsonObject(
+    source.liveEditActionIntent,
+  );
+  const liveEditBinding = normalizeManifestJsonObject(source.liveEditBinding);
+  const liveEditSourceDiscovery = normalizeManifestJsonObject(
+    source.liveEditSourceDiscovery,
+  );
+  const liveEditWriteback = normalizeManifestJsonObject(source.liveEditWriteback);
+  const liveEditRequest = normalizeManifestJsonObject(source.liveEditRequest);
+  const hasLiveEditBinding = Boolean(
+    liveEditBinding ||
+      liveEditTarget ||
+      acceptedLiveEditVariant ||
+      liveEditRequest ||
+      liveEditWriteback,
+  );
+  if (!url && !previewPath && !hasLiveEditBinding) {
     return null;
   }
 
@@ -8820,7 +9029,28 @@ function buildPreviewTargetFromPayload(payload) {
     sourceFrameTitle: cleanString(source.sourceFrameTitle),
     sourceFrameUpdatedAt: cleanString(source.sourceFrameUpdatedAt),
     changeSummary: cleanString(source.changeSummary),
+    targetSelector: cleanString(source.targetSelector),
+    targetObjectId: cleanString(source.targetObjectId),
+    targetNodeId: cleanString(source.targetNodeId),
+    targetSourceFile: cleanString(source.targetSourceFile),
+    targetSourcePath: cleanString(source.targetSourcePath),
+    targetSourceSymbol: cleanString(source.targetSourceSymbol),
+    targetSourceComponent: cleanString(source.targetSourceComponent),
+    targetSourceLine: cleanString(source.targetSourceLine),
+    targetTaskFile: cleanString(source.targetTaskFile),
+    targetTaskId: cleanString(source.targetTaskId),
+    targetSourceHint: normalizeManifestJsonObject(source.targetSourceHint),
+    normalizedBounds: normalizeManifestJsonObject(source.normalizedBounds),
     refinement: normalizeMaterializeRefinement(source.refinement),
+    liveEditTarget,
+    acceptedLiveEditVariant,
+    liveEditOriginalSnapshot,
+    liveEditPins,
+    liveEditActionIntent,
+    liveEditBinding,
+    liveEditSourceDiscovery,
+    liveEditWriteback,
+    liveEditRequest,
   };
 }
 

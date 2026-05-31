@@ -1,6 +1,6 @@
 # Canvax Stitch Gap Roadmap
 
-Updated: May 20, 2026
+Updated: May 29, 2026
 
 This document compares the current Canvax repo against the Stitch-style design workflow and records what is done, what is missing, and what should improve next. For a stricter requirement-by-requirement audit with evidence and remaining gaps, see `docs/CANVAX_PARITY_AUDIT.md`. For the short designer workflow and screenshot review path, see `docs/DESIGNER_WALKTHROUGH.md`.
 
@@ -78,6 +78,55 @@ Sources:
 - OpenAI ChatGPT Images 2.0 announcement: https://openai.com/index/introducing-chatgpt-images-2-0/
 - Open Design site: https://open-design.ai/
 - Open Design repository: https://github.com/nexu-io/open-design
+- Impeccable: https://impeccable.style/
+- Impeccable live edit docs: https://impeccable.style/docs/live/
+- Impeccable clarify docs: https://impeccable.style/docs/clarify/
+- Impeccable live iteration tutorial: https://impeccable.style/tutorials/iterate-live/
+
+### Impeccable-Style Live Edit Reference
+
+Impeccable is a useful reference for the direct-manipulation loop, not a brand
+or UI skin to copy. The workflow lesson is:
+
+```text
+point at target -> outline it -> draw/type/speak intent -> generate variants
+-> preview variants in place -> accept writes back -> discard restores cleanly
+```
+
+Canvax has to generalize that loop beyond DOM editing. The same `Live Edit` /
+`Pick` mode must work for generated output cards, Codex implementation previews,
+canvas objects, image regions, book/page layout regions, posters, storyboard or
+comic panels, and returned image assets.
+
+First shipped slice:
+
+- Workbench exposes `Pick target` from the main command row, scratchpad composer,
+  designer rail, tray output card, and Output focus surface.
+- A selected generated output region gets a visible outline and a compact
+  bottom picker bar with pick/action/variant state, target-bound `Talk`, text
+  note, comment pin, `Go`, `Accept`, and `Close`.
+- Split focus now treats the sketch canvas and output canvas as separate edit
+  surfaces: canvas Pick stays on the scratch/correction layer, while output-pane
+  Pick stays on the preview surface even for same-canvas replies.
+- Same-origin preview DOM element picking captures selectors, tags, text, and
+  element bounds so the picked target can bind to the real rendered component.
+- Comment pins can be placed by clicking inside the selected target and dragged
+  later to refine the exact normalized point that Codex should treat as intent.
+- Selecting a canvas object or image region can also become a frame-bound live
+  edit target.
+- The target is exported through frame data, composition data, task packs,
+  rewrite requests, revision graph, checkpoints, and output edit bindings.
+- Comment pins and output correction strokes are exported with the target, and
+  strokes now carry heuristic semantics for component-improvement circles,
+  closed focus loops, directional strokes, scratches, underlines, multi-stroke
+  crosses, and repeated underlines.
+- Accept writes the accepted target into the checkpoint and preview-manifest
+  path where relevant. Escape or Close discards an unaccepted pick without
+  leaving live edit state behind.
+
+Still open:
+
+- Source write-back for arbitrary project-linked app targets after Accept.
 
 ### Open Design Reference
 
@@ -645,6 +694,7 @@ Needed:
 - Infinite canvas with pan/zoom. **Initial Workbench Map drag-pan with momentum/coast, Shift-drag lasso selection, selected-set dragging/resizing, multi-selection alignment/distribution, system clipboard copy/paste for selected spatial objects, selection-created group regions, group contents selection/fitting, front/back layer ordering, cursor-centered pinch/ctrl-wheel zoom, minimap click-to-pan, Fit map recovery, edge expansion when cards/objects are dragged into the left/top boundary, persistent trailing workspace room, a floating `Add to canvas` creation dock with viewport-centered placement, movable/resizable labeled group regions that can move contained cards/objects with exported containment, and manual note/reference, asset-candidate, output-preview, output-file, and code-change spatial objects are shipped; generated output cards now infer frame binding from artifact paths, hide outputs bound only to deleted frames, collapse repeated outputs to the latest useful per-frame/per-kind card, sit inside the output shelf lane with an inline legend explaining that they are references not frames, and can be promoted into editable `Output edit` frames. Richer nested editing remains open.**
 - Prototype Play mode. **Preview frame-link playback plus selected-element hotspot playback shipped.**
 - Multiple generated variants visible side by side. **Deterministic variants now appear as connected editable Flow frames plus selectable/resizable/movable `variant-branch` Map objects, expose in-place `Use variant` actions in Map, and export as explicit editable spatial branch/object records with semantic recipes, branch prompts, design moves, style knobs, and custom properties. Hosted AI-generated variants remain a future host bridge.**
+- Impeccable-style direct target editing. **Initial Workbench `Live Edit` / `Pick target` slice shipped: generated outputs, same-canvas reply regions, same-origin preview DOM elements, directly clicked sketch-canvas objects/image regions, arbitrary blank `canvas-region` targets, drag-selected sketch/output rectangles, generated asset candidate cards, and spatial Map objects can become frame-bound live edit targets, the chosen bounds are outlined, Split focus labels scratchpad and output surfaces so the user can choose where to mark, output-pane Pick stays on the preview surface even when a same-canvas reply exists, the bottom picker bar captures action/note/comment/draw/variant state, target-bound `Talk`, and first-class action chips that steer the variant direction, comment pins can be placed directly on output/canvas/Map targets, `Draw` keeps same-canvas reply edits on the sketch canvas and otherwise arms output marks, canvas strokes, or Map-object correction strokes depending on the picked target, `Go` creates targeted variants that hot-swap in the same surface, and each variant now carries visible, machine-readable surface operations for structure, visual taste, and clarity/accessibility across UI, book/page, image, storyboard, asset-candidate, Map-object, canvas-region, and canvas-object targets. `Go` also creates a frame-bound `canvax-live-edit-request` with target selector/object id, normalized bounds, source frame, active design kit, active action chip, transcript/text note, target voice intents, pins, strokes, current output binding, variants, operations, and a `liveEditOriginalSnapshot` restore anchor. The hot-swapped surface renders an `Original locked` affordance, `Accept` persists the snapshot into live/task/rewrite/checkpoint/preview-manifest and patch-task handoffs where relevant, writes canvas/image-object bindings back onto source elements, writes blank canvas-region bindings into `liveEditRegionBindings`, writes generated-asset-candidate bindings back onto the candidate/output slot, writes spatial Map-object bindings back onto the Map object export/context, and `Escape`/`Close` clears temporary variants plus the snapshot so the original target is restored without stale picker state. Comment pins, target-bound voice, and heuristic stroke semantics, including component circles and multi-stroke groups, export with the target. Same-origin DOM picks now also preserve explicit source/task hints such as `data-canvax-source-file`, `data-canvax-source-symbol`, and `data-canvax-task-id`; accepted picks thread those hints into rewrite/patch tasks; `execute-patch` can update local source-hinted component/CSS files plus append hinted task notes; unhinted accepted picks now emit `sourceDiscovery: needs-source-search` and `sourceSearchHints` with selector/node/text/label/note queries for Codex project search; and output-backed Accept saves a post-writeback checkpoint with rewrite/patch status. Automatic arbitrary unlinked source patching remains open.**
 - Voice-driven critique/refinement lane. **Initial local `Voice intent queue`
   shipped in Workbench and voice exports. It categorizes recent spoken notes into
   placement, scale, visual style, flow, asset, copy, or general intent cards so

@@ -281,6 +281,12 @@ Behavior:
 - exposes `?host=codex-sidecar` as a local host-embedded Workbench surface for Codex-style right panels. It reuses the same board state and exports, hides the brief tray/chrome, keeps the canvas visible, and docks the voice/text composer plus tool rail inside a narrow viewport.
 - shows a compact, dismissible `Agent log` in the lower-left Workbench surface. Its sheet opens upward from the toggle instead of covering the bottom canvas controls, summarizes the latest Make/Apply/Review/rewrite/output/checkpoint/voice events, and closes from the toggle, the close control, outside click, or Escape. The same activity exports through `workbench.agentLog` in the live handoff and through `implementationContext.workbench.agentLog` in Build-with-Codex requests.
 - provides `Sketch`, `Split`, `Output`, and `Map` focus modes so the user can either draw on the sketch, inspect sketch and output together, make generated output the primary correction surface, or arrange the project spatially
+- promotes direct target editing as `Live Edit` in the command row, composer, floating rail, output footer, Output focus, and Map selection inspector, so the workflow is visible before a target is picked
+- keeps the Live Edit dock visible in Workbench with `Pick`, action chip, pre-target rewrite note, variant counter, target-bound `Talk`, `+ Comment`, `Draw`, `Go`, `Accept`, and `Discard` / `Close` states, making point-and-mark editing the default loop instead of a hidden secondary mode
+- lets Live Edit variants visually materialize inside picked canvas objects/regions and spatial Map cards with Structure/Taste/Clarity treatments, and adds an in-canvas controller for scratchpad targets so non-DOM targets hot-swap and cycle in place instead of only showing a detached description
+- changes the dock exit to `Discard` while a temporary pick or variant set is active, and clears draft note/picker state plus target-bound temporary marks on Escape or Discard so the restored original target does not keep stale edit residue
+- keeps region picking and drawing responsive by updating only the active overlay during output target drags, batching scratch/output canvas repaints into animation frames, and simplifying heavy blur/shadow effects during active pointer interaction
+- hides the experimental floating sketch/color toolbar and onboarding card in normal Workbench/Advanced use, leaving the bottom rail as the only sketch-control layer so the `Sketch`/`Split`/`Output`/`Map` and `Scratch`/`Output` controls remain readable and clickable
 - exposes the Flow graph as a Workbench `Map` with background drag-pan plus momentum/coast, scroll/pinch or `Ctrl`/`Cmd` wheel zoom, zoom controls, a minimap navigator for click-to-pan orientation, `Fit map` recovery, draggable frame/variant cards, and link handles
 - accepts direct file/image drops onto `Map`, placing the reference card at the drop point instead of forcing designers through a side-panel picker
 - accepts direct text paste/drop onto `Map`, turning raw ideas, copied notes, prompt fragments, transcript snippets, URLs, or critique into movable spatial notes
@@ -317,12 +323,12 @@ Behavior:
 - lets designers lock important Map objects so reference images, generated outputs, and notes can stay selectable/copyable but protected from accidental move, resize, grouping, reordering, duplication, or deletion; locked state exports on each `spatialWorkspace.objects[]` record and in copied context Markdown
 - exports the current or last rendered Map viewport as `spatialWorkspace.viewport`, including zoom, scroll offset, visible bounds, and normalized center, so Codex can understand which part of a large board the designer is looking at
 - saves pen/marker correction marks drawn over the generated output as frame-level handoff data
-- provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Pin, Make, Image, and Apply when `Open scratchpad` is active
+- provides a bottom floating designer rail for select, pen, rect, arrow, erase, brush `-` / `+`, undo, redo, voice, Pin, Import, and Image when `Open scratchpad` is active; Make/Reply/Live Edit/Apply stay in the composer so primary commands do not duplicate across two docks
 - provides a bottom command composer for typed/pasted dictation, Talk, Note, Pin, Make, and Apply while sketching in focused canvas mode; `Pin` turns the current instruction into a visible Map note and voice-context entry
 - mirrors the quick refinement chips above the focused composer, so common Stitch-like prompts such as font, drama, mobile variant, spacing, and image candidates are available while the canvas-first scratchpad is open
 - makes rail/slider size controls context-sensitive: they resize the selected element in Select mode, otherwise they change the active brush/eraser size
 - treats erase as an ink-layer operation, so erasing sketch strokes does not wipe the paper/grid base and does not become black geometry in prompt packs or materialized output
-- `Open scratchpad` collapses the context tray so the canvas becomes the primary design surface while a compact frame/surface/action/focus summary stays visible; `Show brief` brings the context tray back
+- `Open scratchpad` collapses the context tray so the canvas becomes the primary design surface with only a small `Show brief` control; existing browser sessions migrate back to this scratchpad-first default so stale Map/output/brief states do not reopen over the canvas
 - `Apply to Codex` freezes the frame, writes the live export, saves a Workbench checkpoint, and runs the local no-API rewrite executor when an output can be refreshed
 - `Live rewrite` is an opt-in mode that runs the same local no-API rewrite executor after autosnap/freeze saves the latest handoff
 - if a new autosnap/freeze happens while Live rewrite is already refreshing output, Canvax queues the newest handoff and runs it as soon as the in-flight rewrite finishes
@@ -797,7 +803,7 @@ Behavior:
 - uses a semantic hero renderer for hero-like website frames, so the output is no longer just a literal absolute-positioned wireframe
 - reads loose strokes, arrows, ovals, image slots, and free labels as semantic source material when the sketch is not a clean box wireframe
 - infers brand, nav, headline, body copy, CTAs, proof chips, preview card, and edit/refinement note from labels and frame notes
-- keeps original sketch and free-note overlays hidden by default in generated outputs; `Show sketch overlay` and `Show note overlay` are explicit optional review overlays, not generated product UI
+- keeps original sketch and free-note overlays hidden by default in generated outputs; `Show sketch` and `Show notes` are explicit compare overlays, not generated product UI
 - writes back into the same Preview loop as Materialize
 - reuses the same per-frame target so Preview stays attached across refreshes
 

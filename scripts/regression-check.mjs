@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -129,6 +129,12 @@ await validateVisualSnapshotReviewDryRun();
 await validateDesignJuryReviewDryRun();
 await validateDesignKitLibraryPackageDryRun();
 await validateProjectLinkDryRun();
+await validateLiveEditSourceHintPatchDryRun();
+await validateLiveEditUnhintedSourceSearchDryRun();
+await validateLiveEditSourceDiscoveryDryRun();
+await validateLiveEditPreviewManifestBindingDryRun();
+await validateLocalLiveEditPreviewManifestDryRun();
+await validateLiveEditCodexOutputManifestDryRun();
 await validateArtifactReviewDryRun();
 await validateDesignTokenEnforcementDryRun();
 await validateProductionPortProofDryRun();
@@ -1073,6 +1079,856 @@ async function validateProjectLinkDryRun() {
   } catch (error) {
     results.push({
       name: "project link dry-run and saved manifest are valid",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLiveEditSourceHintPatchDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "source-hint-fixture");
+  const componentPath = resolve(fixtureRoot, "src", "SourceHintHero.jsx");
+  const cssPath = resolve(fixtureRoot, "src", "source-hint.css");
+  const taskNotePath = resolve(fixtureRoot, "TASKS.md");
+  const patchTaskPath = resolve(fixtureRoot, "codex-patch-task.json");
+  const patchTaskRelativePath = ".canvax/source-hint-fixture/codex-patch-task.json";
+  try {
+    await mkdir(dirname(componentPath), { recursive: true });
+    await writeFile(
+      componentPath,
+      'export function SourceHintHero(){return <section data-canvax-node-id="hint-cta" className="source-hint-card"><button>Book</button></section>}',
+    );
+    await writeFile(
+      cssPath,
+      ".source-hint-card{display:grid;gap:12px;transition:transform .2s ease}",
+    );
+    await writeFile(
+      taskNotePath,
+      "# Source Hint Tasks\n\n- [ ] task-source-hint-live-edit: Apply the accepted Live Edit to the hinted CTA.\n",
+    );
+    await writeFile(
+      patchTaskPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-codex-patch-task",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          frameId: "frame-source-hint",
+          frameTitle: "Source hint Live Edit fixture",
+          trigger: {
+            kind: "canvax-live-edit-accepted-variant",
+            id: "source-hint-live-edit",
+            note:
+              "Move the hinted CTA slightly right and tighten spacing from the accepted Live Edit.",
+          },
+          affectedRegions: [
+            {
+              source: "live-edit-accepted-variant",
+              note:
+                "Move the hinted CTA slightly right and tighten spacing from the accepted Live Edit.",
+              componentTargetIds: ["hint-cta"],
+            },
+          ],
+          componentTargets: [
+            {
+              id: "hint-cta",
+              type: "button",
+              label: "Hinted CTA",
+              selector: '[data-canvax-node-id="hint-cta"]',
+              sourceFile: ".canvax/source-hint-fixture/src/SourceHintHero.jsx",
+              sourceComponent: "SourceHintHero",
+              taskFile: ".canvax/source-hint-fixture/TASKS.md",
+              taskId: "task-source-hint-live-edit",
+            },
+          ],
+          suggestedFiles: [
+            {
+              path: ".canvax/source-hint-fixture/src/SourceHintHero.jsx",
+              role: "picked target source",
+              source: "accepted-live-edit-target",
+            },
+            {
+              path: ".canvax/source-hint-fixture/src/source-hint.css",
+              role: "component source hint",
+              source: "component-target-source-hint",
+            },
+            {
+              path: ".canvax/source-hint-fixture/TASKS.md",
+              role: "picked target task",
+              source: "accepted-live-edit-task",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const patchResult = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-patch-task.mjs",
+          "--task",
+          patchTaskRelativePath,
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const rawComponent = await readFile(componentPath, "utf8");
+    const rawCss = await readFile(cssPath, "utf8");
+    const rawTaskNote = await readFile(taskNotePath, "utf8");
+    const passed = Boolean(
+      patchResult?.ok === true &&
+        patchResult.sourceHintExpansion?.addedFiles?.some((file) =>
+          file.endsWith("src/SourceHintHero.jsx"),
+        ) &&
+        patchResult.sourceHintExpansion?.addedFiles?.some((file) =>
+          file.endsWith("TASKS.md"),
+        ) &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("src/SourceHintHero.jsx"),
+        ) &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("src/source-hint.css"),
+        ) &&
+        patchResult.changedFiles?.some((file) =>
+          file.path.endsWith("TASKS.md"),
+        ) &&
+        rawComponent.includes('data-canvax-patch-state="applied"') &&
+        rawComponent.includes('style={{ transform: "translate(5%, -3%)" }}') &&
+        rawCss.includes("canvax-applied-patch-highlight") &&
+        rawTaskNote.includes(
+          "- [x] task-source-hint-live-edit: Apply the accepted Live Edit to the hinted CTA.",
+        ) &&
+        rawTaskNote.includes("Canvax Live Edit accepted:") &&
+        rawTaskNote.includes("canvax-live-edit:source-hint-live-edit"),
+    );
+    results.push({
+      name: "Live Edit source-hinted patch task targets local source files",
+      passed,
+      detail: passed
+        ? `${patchResult.changedFileCount} source-hinted files patched`
+        : "source-hinted patch result did not update expected files",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit source-hinted patch task targets local source files",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLiveEditUnhintedSourceSearchDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "unhinted-source-fixture");
+  const requestPath = resolve(fixtureRoot, "canvax-rewrite-request.json");
+  const taskPackPath = resolve(fixtureRoot, "canvax-task-pack.json");
+  const previewTweakPath = resolve(fixtureRoot, "canvax-preview-tweak.json");
+  const frameId = "frame-unhinted-live-edit";
+  const now = new Date().toISOString();
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    id: "live-edit-unhinted-hero-cta",
+    sourceFrameId: frameId,
+    sourceFrameTitle: "Unhinted preview pick",
+    targetId: "hero-cta",
+    targetNodeId: "hero-cta",
+    targetLabel: "Hero CTA - Reserve suite",
+    targetType: "preview-dom-element",
+    targetSource: "canvax-unhinted-fixture",
+    targetSelector: '[data-testid="hero-cta"]',
+    targetTag: "button",
+    targetText: "Reserve suite",
+    targetHref: "/workspace/artifacts/preview/unhinted/index.html",
+    targetPath: "artifacts/preview/unhinted/index.html",
+    surface: "generated-output",
+    bounds: { x: 0.28, y: 0.62, w: 0.18, h: 0.08 },
+    note: "Make the Reserve suite button clearer and calmer.",
+    status: "accepted",
+    acceptedAt: now,
+  };
+  const originalSnapshot = {
+    kind: "canvax-live-edit-original-snapshot",
+    target: { ...liveEditTarget, status: "picked", acceptedAt: "" },
+    normalizedBounds: liveEditTarget.bounds,
+    outputTarget: {
+      id: "hero-preview",
+      label: "Hotel hero preview",
+      type: "generated-screen-preview",
+      source: "canvax-regression",
+      path: "artifacts/preview/unhinted/index.html",
+      href: "/workspace/artifacts/preview/unhinted/index.html",
+      sourceFrameId: frameId,
+      sourceFrameTitle: "Unhinted preview pick",
+    },
+    targetLabel: "Hero CTA - Reserve suite",
+    targetText: "Reserve suite",
+    surface: "generated-output",
+    restoreInstruction:
+      "Close or Escape removes temporary variants and leaves the original target/output binding unchanged.",
+    capturedAt: now,
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "live-edit-unhinted-clarity",
+    index: 3,
+    role: "clarity-accessibility",
+    label: "Clarity",
+    title: "Clarify the reservation CTA",
+    body: "Improve the picked button copy, spacing, and contrast without changing surrounding layout.",
+    summary: "Direct clarity pass for the Reserve suite CTA.",
+    target: liveEditTarget,
+    originalSnapshot,
+    acceptedAt: now,
+  };
+  const frame = {
+    id: frameId,
+    title: "Unhinted preview pick",
+    viewport: "desktop",
+    viewportWidth: 1440,
+    viewportHeight: 1024,
+    updatedAt: now,
+    liveEditTarget,
+    liveEditVariants: [acceptedVariant],
+    liveEditVariantIndex: 0,
+    acceptedLiveEditVariant: acceptedVariant,
+    liveEditOriginalSnapshot: originalSnapshot,
+    liveEditPins: [
+      {
+        id: "pin-unhinted-cta",
+        kind: "canvax-live-edit-comment-pin",
+        text: "This is the button to clarify.",
+        point: { x: 0.34, y: 0.66 },
+        targetId: "hero-cta",
+        targetLabel: "Hero CTA - Reserve suite",
+        createdAt: now,
+      },
+    ],
+    composition: {
+      viewport: { width: 1440, height: 1024, label: "Desktop" },
+      elements: [],
+      liveEditCanvasMarks: [],
+    },
+  };
+  try {
+    await mkdir(fixtureRoot, { recursive: true });
+    await writeFile(
+      requestPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-rewrite-request",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          activeFrameId: frameId,
+          activeFrameTitle: frame.title,
+          rewriteQueue: [
+            {
+              frameId,
+              priority: 1,
+              label: "Unhinted Live Edit source search",
+              reason: "accepted-live-edit",
+            },
+          ],
+          frames: [frame],
+          outputManifest: {
+            kind: "canvax-codex-output",
+            targets: [],
+            artifacts: [],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeFile(
+      taskPackPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-task-pack",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          activeFrameId: frameId,
+          frames: [frame],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    await writeFile(previewTweakPath, "{}\n");
+    const rewriteResult = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-rewrite-request.mjs",
+          "--request",
+          ".canvax/unhinted-source-fixture/canvax-rewrite-request.json",
+          "--task-pack",
+          ".canvax/unhinted-source-fixture/canvax-task-pack.json",
+          "--preview-tweak",
+          ".canvax/unhinted-source-fixture/canvax-preview-tweak.json",
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const patchTask = JSON.parse(
+      await readFile(resolve(projectRoot, rewriteResult.patchTaskPath), "utf8"),
+    );
+    const context = JSON.parse(
+      await readFile(resolve(projectRoot, rewriteResult.contextPath), "utf8"),
+    );
+    const queries = (patchTask.sourceSearchHints || []).map((hint) => hint.query);
+    const passed = Boolean(
+      rewriteResult.ok === true &&
+        patchTask.sourceDiscovery?.status === "needs-source-search" &&
+        patchTask.sourceSearchHints?.some(
+          (hint) =>
+            hint.kind === "unhinted-live-edit-source-search" &&
+            hint.searchType === "selector" &&
+            hint.query.includes("data-testid"),
+        ) &&
+        queries.some((query) => query.includes("Reserve suite")) &&
+        patchTask.affectedRegions?.some(
+          (region) =>
+            region.source === "live-edit-accepted-variant" &&
+            region.liveEditOriginalSnapshot?.targetLabel?.includes("Hero CTA") &&
+            region.sourceSearchHints?.length >= 2,
+        ) &&
+        patchTask.liveEditOriginalSnapshot?.outputTarget?.path ===
+          "artifacts/preview/unhinted/index.html" &&
+        context.codexPatchTask?.sourceDiscovery?.status === "needs-source-search",
+    );
+    results.push({
+      name: "Live Edit unhinted picks emit source-search hints",
+      passed,
+      detail: passed
+        ? `${patchTask.sourceSearchHints.length} search hints for ${liveEditTarget.targetId}`
+        : "unhinted Live Edit patch task did not include expected source-search hints",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit unhinted picks emit source-search hints",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLiveEditSourceDiscoveryDryRun() {
+  const fixtureRoot = resolve(projectRoot, ".canvax", "source-discovery-fixture");
+  const sourcePath = resolve(fixtureRoot, "src", "HotelCta.jsx");
+  const patchTaskPath = resolve(fixtureRoot, "codex-patch-task.json");
+  const resultRoot = ".canvax/source-discovery-fixture/result";
+  const targetId = "source-discovery-live-edit-cta";
+  try {
+    await mkdir(dirname(sourcePath), { recursive: true });
+    await writeFile(
+      sourcePath,
+      `export function HotelCta(){return <button data-testid="${targetId}" data-canvax-node-id="${targetId}">Reserve suite source discovery target</button>}`,
+    );
+    await writeFile(
+      patchTaskPath,
+      `${JSON.stringify(
+        {
+          kind: "canvax-codex-patch-task",
+          schemaVersion: 1,
+          requiresOpenAiApiKey: false,
+          frameId: "frame-source-discovery",
+          frameTitle: "Source discovery Live Edit fixture",
+          trigger: {
+            kind: "canvax-live-edit-accepted-variant",
+            id: "source-discovery-live-edit",
+            note:
+              "Clarify the source discovery CTA from the accepted Live Edit.",
+          },
+          liveEdit: {
+            target: {
+              targetId,
+              targetNodeId: targetId,
+              targetLabel: "Source discovery CTA",
+              targetType: "preview-dom-element",
+              targetSelector: `[data-testid="${targetId}"]`,
+              targetText: "Reserve suite source discovery target",
+            },
+          },
+          componentTargets: [
+            {
+              id: targetId,
+              type: "button",
+              label: "Source discovery CTA",
+              selector: `[data-testid="${targetId}"]`,
+            },
+          ],
+          affectedRegions: [
+            {
+              source: "live-edit-accepted-variant",
+              note:
+                "Clarify the source discovery CTA from the accepted Live Edit.",
+              componentTargetIds: [targetId],
+            },
+          ],
+          suggestedFiles: [],
+          sourceDiscovery: {
+            kind: "canvax-live-edit-source-discovery",
+            status: "needs-source-search",
+            targetId,
+            targetType: "preview-dom-element",
+          },
+          sourceSearchHints: [
+            {
+              kind: "unhinted-live-edit-source-search",
+              searchType: "selector",
+              query: `[data-testid="${targetId}"]`,
+              confidence: "high",
+              targetId,
+            },
+            {
+              kind: "unhinted-live-edit-source-search",
+              searchType: "node-id",
+              query: targetId,
+              confidence: "high",
+              targetId,
+            },
+            {
+              kind: "unhinted-live-edit-source-search",
+              searchType: "visible-text",
+              query: "Reserve suite source discovery target",
+              confidence: "medium",
+              targetId,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const payload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/execute-patch-task.mjs",
+          "--task",
+          ".canvax/source-discovery-fixture/codex-patch-task.json",
+          "--result-root",
+          resultRoot,
+          "--no-publish",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const result = JSON.parse(
+      await readFile(resolve(projectRoot, resultRoot, "result.json"), "utf8"),
+    );
+    const candidates = payload.sourceDiscovery?.candidates || [];
+    const passed = Boolean(
+      payload?.ok === true &&
+        payload.status === "source-discovered" &&
+        payload.changedFileCount === 0 &&
+        payload.sourceDiscovered === true &&
+        payload.sourceDiscoveryCandidateCount >= 1 &&
+        payload.sourceDiscovery?.kind ===
+          "canvax-live-edit-source-discovery-result" &&
+        payload.sourceDiscovery?.status === "candidates-found" &&
+        candidates.some(
+          (candidate) =>
+            candidate.path.endsWith("src/HotelCta.jsx") &&
+            candidate.matches?.some((match) => match.searchType === "selector"),
+        ) &&
+        result.status === "source-discovered" &&
+        result.sourceDiscovered === true &&
+        result.sourceDiscoveryCandidateCount >= 1 &&
+        result.sourceDiscovery?.candidateCount >= 1 &&
+        result.sourceDiscovery?.nextAction?.includes("explicit source hints"),
+    );
+    results.push({
+      name: "Live Edit source discovery finds unhinted local targets",
+      passed,
+      detail: passed
+        ? `${payload.sourceDiscovery.candidateCount} candidates from ${payload.sourceDiscovery.hintCount} hints`
+        : "source discovery did not identify the fixture target",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit source discovery finds unhinted local targets",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLiveEditPreviewManifestBindingDryRun() {
+  let previousManifestRaw = null;
+  try {
+    previousManifestRaw = await readFile(previewManifestPath, "utf8");
+  } catch {
+    previousManifestRaw = null;
+  }
+  const frameId = "frame-live-edit-manifest";
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    targetId: "manifest-hero-cta",
+    targetNodeId: "manifest-hero-cta",
+    targetLabel: "Manifest Hero CTA",
+    targetType: "preview-dom-element",
+    targetSelector: '[data-testid="manifest-hero-cta"]',
+    targetText: "Reserve suite",
+    targetPath: "artifacts/preview/manifest-live-edit/index.html",
+    sourceFrameId: frameId,
+    bounds: { x: 0.24, y: 0.58, w: 0.2, h: 0.08 },
+    status: "accepted",
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "manifest-live-edit-clarity",
+    index: 3,
+    label: "Clarity",
+    role: "clarity-accessibility",
+    summary: "Clarify the selected CTA without redesigning the page.",
+    target: liveEditTarget,
+  };
+  const originalSnapshot = {
+    kind: "canvax-live-edit-original-snapshot",
+    target: liveEditTarget,
+    normalizedBounds: liveEditTarget.bounds,
+    restoreInstruction:
+      "Discard restores this exact selected target without stale variant state.",
+  };
+  const workflowStage = {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey: "accepted",
+    label: "Accepted target",
+    surface: "output",
+    surfaceLabel: "generated output",
+    primaryAction: "Apply",
+    nextAction: "Apply to the bound output, manifest, checkpoint, or source task.",
+    complete: true,
+  };
+  const liveEditRequest = {
+    kind: "canvax-live-edit-request",
+    status: "accepted",
+    target: liveEditTarget,
+    acceptedVariant,
+    originalSnapshot,
+    workflowStage,
+  };
+  const liveEditBinding = {
+    kind: "canvax-live-edit-manifest-binding",
+    status: "accepted",
+    target: liveEditTarget,
+    workflowStage,
+    acceptedVariant,
+    originalSnapshot,
+    request: liveEditRequest,
+    sourceBinding: {
+      kind: "canvax-live-edit-source-binding",
+      status: "needs-source-search",
+      sourceSearchHints: [
+        {
+          kind: "live-edit-manifest-source-search-seed",
+          searchType: "selector",
+          query: liveEditTarget.targetSelector,
+        },
+      ],
+    },
+    writeback: {
+      kind: "canvax-live-edit-writeback",
+      status: "task-written",
+      patchTaskPath: "artifacts/preview/manifest-live-edit/codex-patch-task.json",
+    },
+  };
+  try {
+    await runCommand("node", [
+      "scripts/write-preview-manifest.mjs",
+      "--preview-path",
+      liveEditTarget.targetPath,
+      "--label",
+      "Manifest Live Edit preview",
+      "--source",
+      "canvax-live-edit-regression",
+      "--type",
+      "preview-dom-element",
+      "--frame",
+      frameId,
+      "--live-edit-binding",
+      JSON.stringify(liveEditBinding),
+      "--live-edit-target",
+      JSON.stringify(liveEditTarget),
+      "--accepted-live-edit-variant",
+      JSON.stringify(acceptedVariant),
+      "--live-edit-original-snapshot",
+      JSON.stringify(originalSnapshot),
+      "--live-edit-request",
+      JSON.stringify(liveEditRequest),
+    ]);
+    const manifest = JSON.parse(await readFile(previewManifestPath, "utf8"));
+    const target = manifest.targets?.[0];
+    const passed = Boolean(
+      target?.liveEditBinding?.kind === "canvax-live-edit-manifest-binding" &&
+        target.liveEditBinding.acceptedVariant?.label === "Clarity" &&
+        target.liveEditBinding.originalSnapshot?.restoreInstruction?.includes(
+          "Discard restores",
+        ) &&
+        target.liveEditBinding.sourceBinding?.status ===
+          "needs-source-search" &&
+        target.liveEditBinding.writeback?.patchTaskPath?.endsWith(
+          "codex-patch-task.json",
+        ) &&
+        target.liveEditTarget?.targetSelector ===
+          '[data-testid="manifest-hero-cta"]' &&
+        target.acceptedLiveEditVariant?.role === "clarity-accessibility" &&
+        target.liveEditOriginalSnapshot?.normalizedBounds?.w === 0.2 &&
+        target.liveEditWorkflowStage?.stageKey === "accepted" &&
+        target.liveEditBinding.workflowStage?.surface === "output" &&
+        target.liveEditRequest?.workflowStage?.label === "Accepted target" &&
+        target.liveEditRequest?.kind === "canvax-live-edit-request",
+    );
+    results.push({
+      name: "Live Edit preview manifest binding preserves accept metadata",
+      passed,
+      detail: passed
+        ? `${target.liveEditBinding.sourceBinding.status} for ${target.liveEditTarget.targetId}`
+        : "manifest did not preserve rich Live Edit accept metadata",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit preview manifest binding preserves accept metadata",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    if (previousManifestRaw !== null) {
+      await writeFile(previewManifestPath, previousManifestRaw);
+    } else {
+      try {
+        await unlink(previewManifestPath);
+      } catch {
+        // Ignore a missing regression manifest.
+      }
+    }
+  }
+}
+
+async function validateLiveEditCodexOutputManifestDryRun() {
+  const frameId = "frame-live-edit-codex-output";
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    targetId: "codex-output-hero-cta",
+    targetNodeId: "codex-output-hero-cta",
+    targetLabel: "Codex Output Hero CTA",
+    targetType: "preview-dom-element",
+    targetSelector: '[data-testid="codex-output-hero-cta"]',
+    targetText: "Reserve suite",
+    targetHref: "/workspace/artifacts/preview/codex-output-live-edit/index.html",
+    targetPath: "artifacts/preview/codex-output-live-edit/index.html",
+    sourceFrameId: frameId,
+    bounds: { x: 0.22, y: 0.6, w: 0.24, h: 0.08 },
+    status: "accepted",
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "codex-output-live-edit-clarity",
+    index: 3,
+    label: "Clarity",
+    role: "clarity-accessibility",
+    summary: "Clarify the selected CTA in the Codex output binding.",
+    target: liveEditTarget,
+  };
+  const originalSnapshot = {
+    kind: "canvax-live-edit-original-snapshot",
+    target: liveEditTarget,
+    normalizedBounds: liveEditTarget.bounds,
+    restoreInstruction:
+      "Discard restores this exact selected target without stale variant state.",
+  };
+  const workflowStage = {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey: "accepted",
+    label: "Accepted target",
+    surface: "output",
+    surfaceLabel: "generated output",
+    primaryAction: "Apply",
+    nextAction: "Apply to the bound output, manifest, checkpoint, or source task.",
+    complete: true,
+  };
+  const liveEditRequest = {
+    kind: "canvax-live-edit-request",
+    status: "accepted",
+    target: liveEditTarget,
+    acceptedVariant,
+    originalSnapshot,
+    workflowStage,
+  };
+  const liveEditBinding = {
+    kind: "canvax-live-edit-manifest-binding",
+    status: "accepted",
+    target: liveEditTarget,
+    workflowStage,
+    acceptedVariant,
+    originalSnapshot,
+    request: liveEditRequest,
+    sourceBinding: {
+      kind: "canvax-live-edit-source-binding",
+      status: "source-bound",
+      targetSourceFile: "src/Hero.jsx",
+      targetTaskId: "task-codex-output-hero-cta",
+    },
+    writeback: {
+      kind: "canvax-live-edit-writeback",
+      status: "patched",
+      changedFileCount: 2,
+    },
+  };
+  try {
+    const payload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/write-codex-output.mjs",
+          "--source",
+          "canvax-live-edit-regression",
+          "--type",
+          "implementation-patch",
+          "--label",
+          "Codex output Live Edit preview",
+          "--frame",
+          frameId,
+          "--live-edit-binding",
+          JSON.stringify(liveEditBinding),
+          "--dry-run",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const target = payload.manifest?.targets?.[0];
+    const passed = Boolean(
+      payload.dryRun === true &&
+        target?.previewPath === liveEditTarget.targetPath &&
+        target?.url === liveEditTarget.targetHref &&
+        target.liveEditBinding?.kind === "canvax-live-edit-manifest-binding" &&
+        target.liveEditBinding.acceptedVariant?.label === "Clarity" &&
+        target.liveEditBinding.writeback?.status === "patched" &&
+        target.liveEditTarget?.targetSelector ===
+          '[data-testid="codex-output-hero-cta"]' &&
+        target.acceptedLiveEditVariant?.role === "clarity-accessibility" &&
+        target.liveEditOriginalSnapshot?.normalizedBounds?.w === 0.24 &&
+        target.liveEditWorkflowStage?.stageKey === "accepted" &&
+        target.liveEditBinding.workflowStage?.surface === "output" &&
+        target.liveEditRequest?.workflowStage?.label === "Accepted target" &&
+        target.liveEditRequest?.kind === "canvax-live-edit-request",
+    );
+    results.push({
+      name: "Live Edit Codex output manifest preserves accept metadata",
+      passed,
+      detail: passed
+        ? `${target.liveEditBinding.writeback.status} for ${target.liveEditTarget.targetId}`
+        : "Codex output manifest did not preserve rich Live Edit accept metadata",
+    });
+  } catch (error) {
+    results.push({
+      name: "Live Edit Codex output manifest preserves accept metadata",
+      passed: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function validateLocalLiveEditPreviewManifestDryRun() {
+  const frameId = "frame-local-live-edit-manifest";
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    targetId: "local-sketch-hero-region",
+    targetLabel: "Sketch hero region",
+    targetType: "canvas-region",
+    targetSource: "canvax-canvas",
+    sourceFrameId: frameId,
+    bounds: { x: 0.12, y: 0.18, w: 0.44, h: 0.2 },
+    status: "accepted",
+  };
+  const acceptedVariant = {
+    kind: "canvax-live-edit-variant",
+    id: "local-sketch-hero-clarity",
+    index: 3,
+    label: "Clarity",
+    role: "clarity-accessibility",
+    target: liveEditTarget,
+  };
+  const workflowStage = {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey: "accepted",
+    label: "Accepted target",
+    surface: "canvas",
+    surfaceLabel: "sketch pad",
+    primaryAction: "Apply",
+    nextAction: "Apply to the bound output, manifest, checkpoint, or source task.",
+    complete: true,
+  };
+  const liveEditBinding = {
+    kind: "canvax-live-edit-manifest-binding",
+    status: "accepted",
+    target: liveEditTarget,
+    workflowStage,
+    acceptedVariant,
+    originalSnapshot: {
+      kind: "canvax-live-edit-original-snapshot",
+      target: liveEditTarget,
+      normalizedBounds: liveEditTarget.bounds,
+    },
+    request: {
+      kind: "canvax-live-edit-request",
+      status: "accepted",
+      target: liveEditTarget,
+      acceptedVariant,
+      workflowStage,
+    },
+    writeback: {
+      kind: "canvax-live-edit-writeback",
+      status: "local-bound",
+      skipped: true,
+    },
+  };
+  try {
+    const payload = JSON.parse(
+      (
+        await runCommand("node", [
+          "scripts/write-preview-manifest.mjs",
+          "--source",
+          "canvax-local-live-edit-regression",
+          "--type",
+          "canvas-live-edit-binding",
+          "--label",
+          "Accepted sketch Live Edit",
+          "--frame",
+          frameId,
+          "--live-edit-binding",
+          JSON.stringify(liveEditBinding),
+          "--dry-run",
+          "--json",
+        ])
+      ).stdout,
+    );
+    const target = payload.manifest?.targets?.[0];
+    const passed = Boolean(
+      payload.dryRun === true &&
+        target?.id === "primary" &&
+        target.url === "" &&
+        target.previewPath === "" &&
+        target.frameIds?.includes(frameId) &&
+        target.liveEditBinding?.status === "accepted" &&
+        target.liveEditBinding?.target?.targetType === "canvas-region" &&
+        target.liveEditBinding?.writeback?.status === "local-bound" &&
+        target.acceptedLiveEditVariant?.label === "Clarity" &&
+        target.liveEditWorkflowStage?.surface === "canvas" &&
+        target.liveEditBinding?.workflowStage?.stageKey === "accepted" &&
+        target.liveEditRequest?.workflowStage?.surfaceLabel === "sketch pad" &&
+        target.liveEditRequest?.kind === "canvax-live-edit-request",
+    );
+    results.push({
+      name: "Local Live Edit preview manifest preserves accept binding",
+      passed,
+      detail: passed
+        ? `${target.liveEditBinding.writeback.status} for ${target.liveEditBinding.target.targetId}`
+        : "local Live Edit accept was not preserved as a manifest binding",
+    });
+  } catch (error) {
+    results.push({
+      name: "Local Live Edit preview manifest preserves accept binding",
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });

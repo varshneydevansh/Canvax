@@ -83,7 +83,7 @@ Then use the full loop when you need more control:
 6. Press `Make` for a local generated surface.
 7. Press `Build` when you want a Codex-readable real implementation request and local starter output.
 8. Press `Apply` when the generated output should refresh from your latest sketch, voice note, and correction marks.
-9. Use `Open scratchpad` when the tray feels too busy; use `Show brief` to bring it back.
+9. Use `Open sketch pad` when the tray feels too busy; use `Show brief` to bring it back.
 
 ## Output Correction Loop
 
@@ -94,7 +94,7 @@ generated output exists
 switch to Split or Output focus
         |
         v
-draw arrows / notes / correction marks over output
+choose Sketch pad or Generated output, then draw arrows / notes / correction marks
         |
         v
 Apply to Codex
@@ -102,6 +102,20 @@ Apply to Codex
         v
 local rewrite preview updates
 ```
+
+## Live Edit In Plain Words
+
+- `Pick target`: click or drag the exact area to change.
+- `Sketch pad / Generated output`: appears only while picking; it chooses where the next pick happens.
+- Yellow outline: the picked area for Live Edit, not a new design object.
+- On scratchpad or generated output, drag the yellow outline border to move the picked area. Drag a corner dot to resize it before `Go` or `Accept`.
+- Yellow target pill: a small label for the picked area. It should never paint over or become part of the scratchpad.
+- `Go`: preview three different directions in place.
+- Variant controller: after `Go`, a small control appears on the picked scratchpad or output target so you can cycle `1/3`, `2/3`, `3/3`, then Accept or Discard right where you are looking.
+- `Accept`: keep the chosen direction with the current screen and save it for Codex.
+- `Discard` or `Escape`: remove the picked target, temporary variants, and any target-bound marks drawn during that Live Edit pass. If you moved or resized a scratchpad target before accepting, it returns to its original position.
+- `Undo`, `Erase`, or `Clear marks`: remove normal sketch/output strokes that were not part of an active Live Edit pass.
+- Action chips: `Freeform` follows your note, `Layout` changes placement, `Typeset` improves type, `Colorize` changes color, and `Clarify` / `Bolder` / `Quieter` / `Animate` steer the mood.
 
 When `Live rewrite` is enabled, autosnap/freeze can run the local rewrite executor automatically. If another autosnap/freeze happens while a rewrite is already running, Canvax queues the newest handoff and runs it after the current rewrite finishes.
 
@@ -209,7 +223,7 @@ Use those screenshots to review:
 - first-view complexity
 - clipped labels
 - overlapping controls
-- whether `Open scratchpad` meaning is clear
+- whether `Open sketch pad` meaning is clear
 - whether Workbench and Advanced feel like the same product
 - whether generated output references look like references, not extra sketch frames
 - whether the Advanced command deck remains solid while inspecting long frame/map content

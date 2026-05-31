@@ -60,7 +60,9 @@ record(
   "synthetic rough frame includes sketch, labels, voice, and corrections",
   frame.composition.elements.length >= 6 &&
     taskPack.voice.segmentCount === 1 &&
-    rewriteRequest.frames[0].outputAnnotations.length === 1,
+    rewriteRequest.frames[0].outputAnnotations.length === 1 &&
+    rewriteRequest.frames[0].acceptedLiveEditVariant?.label === "Clarity" &&
+    rewriteRequest.frames[0].liveEditPins?.[0]?.targetId === "primary-cta",
 );
 record(
   "image prompt and asset packs stay no-API",
@@ -448,6 +450,7 @@ record(
   rewriteResult.ok === true &&
     rewriteResult.frameId === frameId &&
     rewriteResult.previewTweakIncluded === true &&
+    rewriteResult.acceptedLiveEditIncluded === true &&
     rewriteResult.affectedRegionCount >= 1 &&
     rewriteResult.componentTargetCount >= 1 &&
     rewriteResult.previewPath.includes(`/frames/${frameId}/`),
@@ -483,6 +486,20 @@ record(
     ),
 );
 record(
+  "rewrite context carries accepted Live Edit source intent",
+  parsedRewriteContext.acceptedLiveEdit?.kind ===
+    "canvax-accepted-live-edit" &&
+    parsedRewriteContext.acceptedLiveEdit?.target?.targetId ===
+      "primary-cta" &&
+    parsedRewriteContext.acceptedLiveEdit?.variant?.label === "Clarity" &&
+    parsedRewriteContext.affectedRegions?.some(
+      (region) =>
+        region.source === "live-edit-accepted-variant" &&
+        region.liveEditVariant?.role === "clarity-accessibility" &&
+        region.componentTargetIds?.includes("primary-cta"),
+    ),
+);
+record(
   "rewrite context includes Preview region tweak request",
   parsedRewriteContext.previewTweak?.kind ===
     "canvax-preview-tweak-request" &&
@@ -496,10 +513,17 @@ record(
     ),
 );
 record(
-  "rewrite emits Codex patch task for Preview tweak targets",
+  "rewrite emits Codex patch task for accepted Live Edit targets",
   parsedPatchTask.kind === "canvax-codex-patch-task" &&
     parsedPatchTask.requiresOpenAiApiKey === false &&
-    parsedPatchTask.trigger?.id === previewTweak.id &&
+    parsedPatchTask.trigger?.kind === "canvax-live-edit-accepted-variant" &&
+    parsedPatchTask.trigger?.variant?.label === "Clarity" &&
+    parsedPatchTask.liveEdit?.target?.targetId === "primary-cta" &&
+    parsedPatchTask.affectedRegions?.some(
+      (region) =>
+        region.source === "live-edit-accepted-variant" &&
+        region.liveEditPins?.[0]?.text?.includes("move upward"),
+    ) &&
     parsedPatchTask.componentTargets?.some((target) =>
       target.selector?.includes("data-canvax-node-id"),
     ) &&
@@ -554,9 +578,10 @@ record(
     rawPatchedComponent.includes('"id": "primary-cta"') &&
     rawPatchedComponent.includes('"patchState": "applied"') &&
     rawPatchedComponent.includes('"patchReason": "move-up"') &&
+    rawPatchedComponent.includes("Accepted Live Edit variant 3") &&
     rawPatchedHtml.includes('data-canvax-node-id="primary-cta"') &&
     rawPatchedHtml.includes('data-canvax-patch-state="applied"') &&
-    rawPatchedHtml.includes('style="left:10%;top:53%;'),
+    rawPatchedHtml.includes('style="left:10%;top:51%;'),
 );
 record(
   "rewrite executor preserves build visual direction",
@@ -634,6 +659,72 @@ if (failed.length) {
 }
 
 function buildFrame() {
+  const liveEditTarget = {
+    kind: "canvax-live-edit-target",
+    id: "e2e-live-edit-target-primary-cta",
+    sourceFrameId: frameId,
+    sourceFrameTitle: "Rough hero sketch",
+    targetId: "primary-cta",
+    targetLabel: "Primary CTA",
+    targetType: "preview-dom-element",
+    targetSource: "canvax-e2e-workflow-check",
+    surface: "generated-output",
+    bounds: { x: 0.1, y: 0.6, w: 0.16, h: 0.07 },
+    note: "Make the CTA clearer, move it upward, and preserve the hero layout.",
+    status: "accepted",
+    pickedAt: now(),
+    acceptedAt: now(),
+    acceptedVariantId: "e2e-live-edit-variant-clarity",
+    acceptedVariantLabel: "Clarity",
+    acceptedVariantRole: "clarity-accessibility",
+    updatedAt: now(),
+  };
+  const liveEditVariants = [
+    {
+      kind: "canvax-live-edit-variant",
+      id: "e2e-live-edit-variant-structure",
+      index: 1,
+      role: "structure-layout",
+      label: "Structure",
+      title: "Recompose the CTA cluster",
+      body: "Improve CTA hierarchy and spacing while keeping the hero intact.",
+      summary: "Structure-first variant for the primary CTA.",
+      target: liveEditTarget,
+      designMoves: ["tighten CTA-to-headline spacing"],
+      createdAt: now(),
+    },
+    {
+      kind: "canvax-live-edit-variant",
+      id: "e2e-live-edit-variant-taste",
+      index: 2,
+      role: "visual-taste",
+      label: "Taste",
+      title: "Make the CTA feel more intentional",
+      body: "Push color, typography, and affordance quality without changing the flow.",
+      summary: "Visual/taste variant for the primary CTA.",
+      target: liveEditTarget,
+      designMoves: ["raise CTA contrast"],
+      createdAt: now(),
+    },
+    {
+      kind: "canvax-live-edit-variant",
+      id: "e2e-live-edit-variant-clarity",
+      index: 3,
+      role: "clarity-accessibility",
+      label: "Clarity",
+      title: "Clarify the CTA action",
+      body: "Move the CTA upward, clarify the action copy, and keep the selected target binding intact.",
+      summary: "Clarity pass: move the primary CTA upward and make the action easier to understand.",
+      target: liveEditTarget,
+      designMoves: [
+        "move the selected CTA upward",
+        "tighten spacing between headline and CTA",
+        "preserve surrounding hero layout",
+      ],
+      createdAt: now(),
+      acceptedAt: now(),
+    },
+  ];
   const elements = [
     element("rect", "hero-frame", "Hero section frame", 0.05, 0.08, 0.9, 0.78, "#10192a"),
     element("label", "headline", "Make sketching feel like building", 0.1, 0.2, 0.34, 0.13, "#ff5d3a"),
@@ -671,10 +762,45 @@ function buildFrame() {
         bounds: { x: 0.16, y: 0.58, w: 0.22, h: 0.16 },
       },
     ],
+    liveEditTarget,
+    liveEditPins: [
+      {
+        id: "e2e-live-edit-pin-cta",
+        kind: "canvax-live-edit-comment-pin",
+        text: "Make this CTA read faster and move upward.",
+        point: { x: 0.17, y: 0.63 },
+        targetId: "primary-cta",
+        targetLabel: "Primary CTA",
+        createdAt: now(),
+        updatedAt: now(),
+      },
+    ],
+    liveEditVariants,
+    liveEditVariantIndex: 2,
+    acceptedLiveEditVariant: liveEditVariants[2],
     composition: {
       viewport: { width: 1440, height: 1024, label: "Desktop" },
       elementCount: elements.length,
       elements,
+      liveEditCanvasMarks: [
+        {
+          id: "e2e-live-edit-arrow",
+          type: "arrow",
+          points: [
+            { x: 0.18, y: 0.72 },
+            { x: 0.18, y: 0.61 },
+          ],
+          bounds: { x: 0.16, y: 0.58, w: 0.08, h: 0.18 },
+          normalizedBounds: { x: 0.16, y: 0.58, w: 0.08, h: 0.18 },
+          semantics: {
+            intent: "move-or-flow",
+            label: "Arrow/drag: move or follow this direction upward",
+            confidence: 0.72,
+            rule: "canvas-arrow",
+            vector: { x: 0, y: -0.11 },
+          },
+        },
+      ],
     },
   };
 }
