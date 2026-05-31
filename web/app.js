@@ -4189,6 +4189,18 @@ function normalizeLiveEditOriginalSnapshot(value) {
     ),
   };
   const hasOutputTarget = Object.values(outputTarget).some(Boolean);
+  const sourceElements = normalizeLiveEditSnapshotElements(
+    value.sourceElements ||
+      value.sourceElementSnapshots ||
+      value.sourceElement ||
+      value.canvasElements,
+  );
+  const sourceElementId = cleanString(
+    value.sourceElementId ||
+      value.canvasElementId ||
+      sourceElements[0]?.id ||
+      target?.targetId,
+  );
   if (!target && !normalizedBounds && !hasOutputTarget) {
     return null;
   }
@@ -4203,11 +4215,40 @@ function normalizeLiveEditOriginalSnapshot(value) {
       180,
     ),
     surface: cleanString(value.surface || target?.surface),
+    sourceElementId,
+    sourceElements,
     restoreInstruction:
       cleanString(value.restoreInstruction) ||
-      "Close or Escape removes temporary variants and leaves the original target/output binding unchanged.",
+      (sourceElements.length
+        ? "Close or Escape restores the original canvas object geometry and removes temporary variants."
+        : "Close or Escape removes temporary variants and leaves the original target/output binding unchanged."),
     capturedAt: cleanString(value.capturedAt) || new Date().toISOString(),
   };
+}
+
+function normalizeLiveEditSnapshotElements(value) {
+  const entries = Array.isArray(value) ? value : value ? [value] : [];
+  const seen = new Set();
+  return entries
+    .map((element, index) => {
+      if (!element || typeof element !== "object" || Array.isArray(element)) {
+        return null;
+      }
+      const clone = structuredClone(element);
+      clone.id =
+        typeof clone.id === "string" && clone.id.trim()
+          ? clone.id.trim()
+          : `source-element-${index + 1}`;
+      return clone;
+    })
+    .filter((element) => {
+      if (!element?.id || seen.has(element.id)) {
+        return false;
+      }
+      seen.add(element.id);
+      return true;
+    })
+    .slice(0, 12);
 }
 
 function normalizeLiveEditRequestBinding(value) {
@@ -11803,6 +11844,7 @@ function buildLiveEditOriginalSnapshot(frame, liveTarget) {
   if (!frame || !target) {
     return null;
   }
+  const sourceElements = liveEditOriginalSourceElements(frame, target);
   return normalizeLiveEditOriginalSnapshot({
     target,
     normalizedBounds: target.bounds,
@@ -11810,10 +11852,37 @@ function buildLiveEditOriginalSnapshot(frame, liveTarget) {
     targetLabel: target.targetLabel,
     targetText: target.targetText,
     surface: target.surface,
+    sourceElementId: sourceElements[0]?.id || "",
+    sourceElements,
     restoreInstruction:
-      "Close or Escape removes temporary variants, clears the picker state, and leaves this original target/output binding unchanged.",
+      sourceElements.length
+        ? "Close or Escape restores this canvas object geometry, removes temporary variants, and clears the picker state."
+        : "Close or Escape removes temporary variants, clears the picker state, and leaves this original target/output binding unchanged.",
     capturedAt: new Date().toISOString(),
   });
+}
+
+function liveEditOriginalSourceElements(frame, liveTarget) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const sourceElement = liveEditTargetCanvasElement(frame, target);
+  if (!frame || !sourceElement) {
+    return [];
+  }
+  const sourceIds = new Set([sourceElement.id]);
+  const attachedLabels = (frame.elements || []).filter((element) => {
+    if (
+      element.type === "label" &&
+      element.attachedTo &&
+      sourceIds.has(element.attachedTo)
+    ) {
+      sourceIds.add(element.id);
+      return true;
+    }
+    return false;
+  });
+  return [sourceElement, ...attachedLabels].map((element) =>
+    structuredClone(element),
+  );
 }
 
 function liveEditTargetCanvasElement(frame, liveTarget) {
@@ -14741,14 +14810,52 @@ async function saveLiveEditTargetToPreviewManifest(
   }
 }
 
+function restoreLiveEditOriginalSnapshot(frame, snapshot) {
+  const original = normalizeLiveEditOriginalSnapshot(snapshot);
+  const sourceElements = normalizeLiveEditSnapshotElements(
+    original?.sourceElements,
+  );
+  if (!frame || !sourceElements.length) {
+    return false;
+  }
+  const sourceIds = new Set(sourceElements.map((element) => element.id));
+  let restored = false;
+  sourceElements.forEach((sourceElement) => {
+    const index = (frame.elements || []).findIndex(
+      (element) => element.id === sourceElement.id,
+    );
+    if (index >= 0) {
+      frame.elements[index] = structuredClone(sourceElement);
+    } else {
+      frame.elements.push(structuredClone(sourceElement));
+    }
+    restored = true;
+  });
+  const selectedIds = selectionIds().filter((id) => sourceIds.has(id));
+  if (selectedIds.length) {
+    setSelectedElements(
+      selectedIds,
+      sourceIds.has(state.selectedElementId)
+        ? state.selectedElementId
+        : selectedIds[0],
+    );
+  }
+  return restored;
+}
+
 function closeLiveEditTarget() {
   const frame = currentFrame();
   const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
-  const hadOriginalSnapshot = Boolean(
-    normalizeLiveEditOriginalSnapshot(frame?.liveEditOriginalSnapshot),
+  const originalSnapshot = normalizeLiveEditOriginalSnapshot(
+    frame?.liveEditOriginalSnapshot,
   );
+  const hadOriginalSnapshot = Boolean(originalSnapshot);
   const hadTemporaryVariants = currentLiveEditVariants(frame).length > 0;
   if (frame && liveTarget?.status !== "accepted") {
+    const restoredOriginal = restoreLiveEditOriginalSnapshot(
+      frame,
+      originalSnapshot,
+    );
     frame.liveEditTarget = null;
     frame.liveEditPins = [];
     frame.liveEditVariants = [];
@@ -14757,6 +14864,9 @@ function closeLiveEditTarget() {
     frame.liveEditRequest = null;
     frame.liveEditOriginalSnapshot = null;
     frame.updatedAt = new Date().toISOString();
+    if (restoredOriginal) {
+      renderSelectionActions();
+    }
   }
   state.liveEditPickActive = false;
   state.liveEditPickSurface = "";
@@ -16013,6 +16123,9 @@ function beginCanvasLiveEditTargetDrag(event) {
   if (!frame || !point || !bounds) {
     return false;
   }
+  frame.liveEditOriginalSnapshot =
+    normalizeLiveEditOriginalSnapshot(frame.liveEditOriginalSnapshot) ||
+    buildLiveEditOriginalSnapshot(frame, adjust.liveTarget);
   frame.liveEditTarget = adjust.liveTarget;
   const element = liveEditTargetCanvasElement(frame, adjust.liveTarget);
   event.preventDefault();
@@ -33841,6 +33954,10 @@ async function runSelfTest() {
       composite: "source-over",
       groupId: "",
     };
+    const currentCanvasLiveEditRect = () =>
+      frameForCanvasReply.elements.find(
+        (element) => element.id === canvasLiveEditRect.id,
+      );
     frameForCanvasReply.canvasReply = null;
     frameForCanvasReply.backgroundImage = "";
     frameForCanvasReply.elements = [canvasLiveEditRect, canvasLiveEditArrow];
@@ -33948,6 +34065,56 @@ async function runSelfTest() {
     frameForCanvasReply.acceptedLiveEditVariant = null;
     frameForCanvasReply.liveEditRequest = null;
     frameForCanvasReply.liveEditOriginalSnapshot = null;
+    const canvasObjectOriginalBounds = getElementBounds(
+      currentCanvasLiveEditRect(),
+      frameForCanvasReply,
+    );
+    setSelectedElements([], null);
+    setLiveEditPickMode(true);
+    dispatchPointerTap([220, 190]);
+    const discardTargetBeforeAdjust = normalizeLiveEditTarget(
+      frameForCanvasReply.liveEditTarget,
+    );
+    const discardAdjustStart = denormalizeLiveEditBounds(
+      discardTargetBeforeAdjust?.bounds,
+      frameForCanvasReply,
+    );
+    if (discardAdjustStart) {
+      dispatchPointerSequence(
+        [
+          discardAdjustStart.left + discardAdjustStart.width / 2,
+          discardAdjustStart.top + 1,
+        ],
+        [
+          discardAdjustStart.left + discardAdjustStart.width / 2 + 72,
+          discardAdjustStart.top + 48,
+        ],
+      );
+    }
+    const discardSnapshot = normalizeLiveEditOriginalSnapshot(
+      frameForCanvasReply.liveEditOriginalSnapshot,
+    );
+    const canvasObjectMovedBeforeDiscard = getElementBounds(
+      currentCanvasLiveEditRect(),
+      frameForCanvasReply,
+    );
+    closeLiveEditTarget();
+    const canvasObjectAfterDiscard = getElementBounds(
+      currentCanvasLiveEditRect(),
+      frameForCanvasReply,
+    );
+    const canvasObjectDiscardRestored =
+      discardTargetBeforeAdjust?.targetId === canvasLiveEditRect.id &&
+      discardSnapshot?.sourceElements?.some(
+        (element) => element.id === canvasLiveEditRect.id,
+      ) &&
+      canvasObjectMovedBeforeDiscard?.left >
+        canvasObjectOriginalBounds.left + 40 &&
+      !frameForCanvasReply.liveEditTarget &&
+      Math.abs(canvasObjectAfterDiscard.left - canvasObjectOriginalBounds.left) <
+        0.5 &&
+      Math.abs(canvasObjectAfterDiscard.top - canvasObjectOriginalBounds.top) <
+        0.5;
     setSelectedElements([], null);
     setLiveEditPickMode(true);
     dispatchPointerTap([220, 190]);
@@ -33979,7 +34146,7 @@ async function runSelfTest() {
       frameForCanvasReply.liveEditTarget,
     );
     const adjustedCanvasObjectBounds = getElementBounds(
-      canvasLiveEditRect,
+      currentCanvasLiveEditRect(),
       frameForCanvasReply,
     );
     const canvasObjectTargetAdjusted =
@@ -33998,7 +34165,10 @@ async function runSelfTest() {
     const canvasObjectVariants = createLiveEditVariants();
     cycleLiveEditVariant(2);
     renderCanvas();
-    const canvasLiveEditBounds = getElementBounds(canvasLiveEditRect, frameForCanvasReply);
+    const canvasLiveEditBounds = getElementBounds(
+      currentCanvasLiveEditRect(),
+      frameForCanvasReply,
+    );
     const canvasObjectOverlayRendered = canvasRegionHasGoldPixel(
       dom.canvas,
       canvasLiveEditBounds,
@@ -34029,6 +34199,7 @@ async function runSelfTest() {
       canvasObjectElement?.liveEdit?.acceptedVariant?.label === "Clarity" &&
       canvasObjectElement?.liveEdit?.request?.status === "accepted" &&
       canvasObjectTargetAdjusted &&
+      canvasObjectDiscardRestored &&
       state.serverStatus.liveEditWriteback?.status === "local-bound" &&
       canvasObjectLocalOutcome?.label === "Accepted locally" &&
       canvasObjectLocalOutcomeRendered &&
@@ -34100,6 +34271,7 @@ async function runSelfTest() {
           canvasRegionDirectPickAccepted,
           canvasRegionAcceptPreservedOutput,
           canvasObjectTargetAdjusted,
+          canvasObjectDiscardRestored,
           adjustedCanvasObjectLeft: adjustedCanvasObjectBounds?.left ?? null,
           canvasObjectVariantCount: canvasObjectVariants.length,
           canvasLiveEditDrawModeArmed,

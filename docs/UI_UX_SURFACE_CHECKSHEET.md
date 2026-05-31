@@ -28,6 +28,7 @@ This checklist keeps Canvax understandable for designers. The product rule is si
 
 - Picked targets render as a thin outline with a small label, not as a filled shape that covers the design.
 - Target outlines are direct manipulation controls: drag the outline border to move and drag corner dots to resize. Pins should remain attached to the same relative point inside the target.
+- If a scratchpad canvas-object target is moved or resized before `Accept`, `Discard` or `Escape` must restore that object's original geometry.
 - Canvas pill labels must clamp their radius; a label like `Clarity target` must never expand into a large yellow canvas object.
 - Comment pins stay inside or near the selected target and are draggable where supported.
 - Variants may preview in place on output, map, or object surfaces, but the sketch pad must remain editable and readable.
