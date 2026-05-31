@@ -710,7 +710,8 @@ function renderImplementationPreview() {
     collectManifestArtifacts(manifest),
     frame?.id || state.selectedFrameId,
   );
-  const targetUrl = target?.resolvedUrl || target?.url || "";
+  const targetUrl =
+    target?.resolvedUrl || target?.url || workspaceHrefForPath(target?.previewPath);
   dom.openTargetLink.hidden = !targetUrl;
   dom.openTargetLink.href = targetUrl || "#";
 
@@ -1163,7 +1164,8 @@ function buildImplementationTargetUrl(
   frameId,
   outputDigest,
 ) {
-  const sourceUrl = target?.resolvedUrl || target?.url || "";
+  const sourceUrl =
+    target?.resolvedUrl || target?.url || workspaceHrefForPath(target?.previewPath);
   if (!sourceUrl) {
     return "";
   }
@@ -1990,9 +1992,14 @@ async function runPreviewSelfTest() {
         "preview target summary renders",
       ),
     );
+    const targetNeedsUrl = Boolean(
+      target &&
+        (target.resolvedUrl || target.url || target.previewPath) &&
+        manifestTargetHasRenderableOutput(target),
+    );
     results.push(
       assert(
-        !target ||
+        !targetNeedsUrl ||
           Boolean(
             buildImplementationTargetUrl(
               target,
@@ -2002,7 +2009,7 @@ async function runPreviewSelfTest() {
               payload?.outputDigest || null,
             ),
           ),
-        "preview target URL resolves when a target exists",
+        "preview target URL resolves when a renderable target exists",
       ),
     );
     results.push(
@@ -2478,11 +2485,17 @@ function normalizeManifestTarget(value, index = 0) {
   );
   const liveEditWriteback = normalizeManifestJsonObject(value.liveEditWriteback);
   const liveEditRequest = normalizeManifestJsonObject(value.liveEditRequest);
+  const liveEditWorkflowStage = normalizeManifestJsonObject(
+    value.liveEditWorkflowStage ||
+      liveEditBinding?.workflowStage ||
+      liveEditRequest?.workflowStage,
+  );
   const hasLiveEditBinding = Boolean(
     liveEditBinding ||
       liveEditTarget ||
       acceptedLiveEditVariant ||
       liveEditRequest ||
+      liveEditWorkflowStage ||
       liveEditWriteback,
   );
   if (!url && !previewPath && !hasLiveEditBinding) {
@@ -2576,6 +2589,7 @@ function normalizeManifestTarget(value, index = 0) {
     liveEditSourceDiscovery,
     liveEditWriteback,
     liveEditRequest,
+    liveEditWorkflowStage,
   };
 }
 

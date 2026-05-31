@@ -44,6 +44,10 @@ const liveEditOriginalSnapshot = readJsonOption(
 const liveEditRequest =
   readJsonOption(args, "--live-edit-request") ||
   normalizeJsonObject(liveEditBinding?.request);
+const liveEditWorkflowStage =
+  readJsonOption(args, "--live-edit-workflow-stage") ||
+  normalizeJsonObject(liveEditBinding?.workflowStage) ||
+  normalizeJsonObject(liveEditRequest?.workflowStage);
 const liveEditWriteback = normalizeJsonObject(liveEditBinding?.writeback);
 const wantsJson = args.includes("--json");
 const wantsDryRun = args.includes("--dry-run");
@@ -60,6 +64,7 @@ const hasLiveEditMetadata = Boolean(
     liveEditTarget ||
     acceptedLiveEditVariant ||
     liveEditOriginalSnapshot ||
+    liveEditWorkflowStage ||
     liveEditRequest,
 );
 const changes = readMultiOption(args, "--change").map((entry, index) =>
@@ -102,6 +107,7 @@ const primaryTarget =
         ...(liveEditTarget ? { liveEditTarget } : {}),
         ...(acceptedLiveEditVariant ? { acceptedLiveEditVariant } : {}),
         ...(liveEditOriginalSnapshot ? { liveEditOriginalSnapshot } : {}),
+        ...(liveEditWorkflowStage ? { liveEditWorkflowStage } : {}),
         ...(liveEditRequest ? { liveEditRequest } : {}),
         ...(liveEditWriteback ? { liveEditWriteback } : {}),
       }

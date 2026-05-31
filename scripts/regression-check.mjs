@@ -1591,17 +1591,29 @@ async function validateLiveEditPreviewManifestBindingDryRun() {
     restoreInstruction:
       "Discard restores this exact selected target without stale variant state.",
   };
+  const workflowStage = {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey: "accepted",
+    label: "Accepted target",
+    surface: "output",
+    surfaceLabel: "generated output",
+    primaryAction: "Apply",
+    nextAction: "Apply to the bound output, manifest, checkpoint, or source task.",
+    complete: true,
+  };
   const liveEditRequest = {
     kind: "canvax-live-edit-request",
     status: "accepted",
     target: liveEditTarget,
     acceptedVariant,
     originalSnapshot,
+    workflowStage,
   };
   const liveEditBinding = {
     kind: "canvax-live-edit-manifest-binding",
     status: "accepted",
     target: liveEditTarget,
+    workflowStage,
     acceptedVariant,
     originalSnapshot,
     request: liveEditRequest,
@@ -1663,6 +1675,9 @@ async function validateLiveEditPreviewManifestBindingDryRun() {
           '[data-testid="manifest-hero-cta"]' &&
         target.acceptedLiveEditVariant?.role === "clarity-accessibility" &&
         target.liveEditOriginalSnapshot?.normalizedBounds?.w === 0.2 &&
+        target.liveEditWorkflowStage?.stageKey === "accepted" &&
+        target.liveEditBinding.workflowStage?.surface === "output" &&
+        target.liveEditRequest?.workflowStage?.label === "Accepted target" &&
         target.liveEditRequest?.kind === "canvax-live-edit-request",
     );
     results.push({
@@ -1723,17 +1738,29 @@ async function validateLiveEditCodexOutputManifestDryRun() {
     restoreInstruction:
       "Discard restores this exact selected target without stale variant state.",
   };
+  const workflowStage = {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey: "accepted",
+    label: "Accepted target",
+    surface: "output",
+    surfaceLabel: "generated output",
+    primaryAction: "Apply",
+    nextAction: "Apply to the bound output, manifest, checkpoint, or source task.",
+    complete: true,
+  };
   const liveEditRequest = {
     kind: "canvax-live-edit-request",
     status: "accepted",
     target: liveEditTarget,
     acceptedVariant,
     originalSnapshot,
+    workflowStage,
   };
   const liveEditBinding = {
     kind: "canvax-live-edit-manifest-binding",
     status: "accepted",
     target: liveEditTarget,
+    workflowStage,
     acceptedVariant,
     originalSnapshot,
     request: liveEditRequest,
@@ -1781,6 +1808,9 @@ async function validateLiveEditCodexOutputManifestDryRun() {
           '[data-testid="codex-output-hero-cta"]' &&
         target.acceptedLiveEditVariant?.role === "clarity-accessibility" &&
         target.liveEditOriginalSnapshot?.normalizedBounds?.w === 0.24 &&
+        target.liveEditWorkflowStage?.stageKey === "accepted" &&
+        target.liveEditBinding.workflowStage?.surface === "output" &&
+        target.liveEditRequest?.workflowStage?.label === "Accepted target" &&
         target.liveEditRequest?.kind === "canvax-live-edit-request",
     );
     results.push({
@@ -1819,10 +1849,21 @@ async function validateLocalLiveEditPreviewManifestDryRun() {
     role: "clarity-accessibility",
     target: liveEditTarget,
   };
+  const workflowStage = {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey: "accepted",
+    label: "Accepted target",
+    surface: "canvas",
+    surfaceLabel: "sketch pad",
+    primaryAction: "Apply",
+    nextAction: "Apply to the bound output, manifest, checkpoint, or source task.",
+    complete: true,
+  };
   const liveEditBinding = {
     kind: "canvax-live-edit-manifest-binding",
     status: "accepted",
     target: liveEditTarget,
+    workflowStage,
     acceptedVariant,
     originalSnapshot: {
       kind: "canvax-live-edit-original-snapshot",
@@ -1834,6 +1875,7 @@ async function validateLocalLiveEditPreviewManifestDryRun() {
       status: "accepted",
       target: liveEditTarget,
       acceptedVariant,
+      workflowStage,
     },
     writeback: {
       kind: "canvax-live-edit-writeback",
@@ -1872,6 +1914,9 @@ async function validateLocalLiveEditPreviewManifestDryRun() {
         target.liveEditBinding?.target?.targetType === "canvas-region" &&
         target.liveEditBinding?.writeback?.status === "local-bound" &&
         target.acceptedLiveEditVariant?.label === "Clarity" &&
+        target.liveEditWorkflowStage?.surface === "canvas" &&
+        target.liveEditBinding?.workflowStage?.stageKey === "accepted" &&
+        target.liveEditRequest?.workflowStage?.surfaceLabel === "sketch pad" &&
         target.liveEditRequest?.kind === "canvax-live-edit-request",
     );
     results.push({

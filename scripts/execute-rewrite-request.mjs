@@ -1196,6 +1196,12 @@ function buildAcceptedLiveEditContext(selected) {
     surfaceOperations: normalizeLiveEditSurfaceOperations(
       liveEditRequest?.surfaceOperations || variant?.surfaceOperations,
     ),
+    workflowStage: normalizeLiveEditWorkflowStage(
+      liveEditRequest?.workflowStage ||
+        outputEditBinding?.workflowStage ||
+        requestFrame.liveEditWorkflowStage ||
+        taskFrame.liveEditWorkflowStage,
+    ),
   };
   context.patchNote = buildAcceptedLiveEditPatchNote(context);
   return context;
@@ -1249,6 +1255,16 @@ function buildAcceptedLiveEditPatchNote(context) {
         )
         .join("; ")}.`
     : "";
+  const workflowStage = normalizeLiveEditWorkflowStage(context.workflowStage);
+  const workflowText = workflowStage
+    ? `Workflow stage: ${workflowStage.label || workflowStage.stageKey}${
+        workflowStage.surfaceLabel ? ` on ${workflowStage.surfaceLabel}` : ""
+      }${
+        workflowStage.nextAction
+          ? `; next ${workflowStage.nextAction}`
+          : ""
+      }.`
+    : "";
   const voiceText = Array.isArray(context.voiceIntents) && context.voiceIntents.length
     ? `Target voice: ${context.voiceIntents
         .map((intent) => intent.text)
@@ -1286,6 +1302,7 @@ function buildAcceptedLiveEditPatchNote(context) {
     designMoves.length ? `Design moves: ${designMoves.join("; ")}.` : "",
     actionText,
     operationText,
+    workflowText,
     pins.length
       ? `Comment pins: ${pins.map((pin) => pin.text).filter(Boolean).join("; ")}.`
       : "",
@@ -1656,6 +1673,38 @@ function normalizeLiveEditSurfaceOperations(value) {
     : [];
 }
 
+function normalizeLiveEditWorkflowStage(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const label = cleanString(value.label || value.stageKey || value.key);
+  const stageKey = cleanString(value.stageKey || value.key || label).toLowerCase();
+  if (!label && !stageKey) {
+    return null;
+  }
+  return {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey,
+    label,
+    detail: cleanString(value.detail),
+    surface: cleanString(value.surface),
+    surfaceLabel: cleanString(value.surfaceLabel),
+    primaryAction: cleanString(value.primaryAction),
+    nextAction: cleanString(value.nextAction),
+    complete: Boolean(value.complete),
+    steps: Array.isArray(value.steps)
+      ? value.steps
+          .map((step) => ({
+            key: cleanString(step?.key),
+            label: cleanString(step?.label),
+            state: cleanString(step?.state),
+          }))
+          .filter((step) => step.key || step.label || step.state)
+          .slice(0, 6)
+      : [],
+  };
+}
+
 function normalizeLiveEditVariants(value) {
   return Array.isArray(value)
     ? value
@@ -1782,6 +1831,9 @@ function normalizeAcceptedLiveEditRequest(value, fallbackTarget = null) {
     acceptedVariant,
     surfaceOperations: normalizeLiveEditSurfaceOperations(
       value.surfaceOperations || activeVariant?.surfaceOperations,
+    ),
+    workflowStage: normalizeLiveEditWorkflowStage(
+      value.workflowStage || value.liveEditWorkflowStage,
     ),
     createdAt: cleanString(value.createdAt),
     updatedAt: cleanString(value.updatedAt),

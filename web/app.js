@@ -4298,6 +4298,11 @@ function normalizeLiveEditRequestBinding(value) {
     branchLabel: cleanString(value.branchLabel || value.label),
     liveEditTarget: target,
     liveEditVariant: variant,
+    workflowStage: normalizeLiveEditWorkflowStage(
+      value.workflowStage ||
+        value.liveEditWorkflowStage ||
+        value.liveEditRequest?.workflowStage,
+    ),
     instruction: cleanString(value.instruction),
   };
 }
@@ -4418,6 +4423,117 @@ function normalizeLiveEditRequestDesignKit(value) {
   };
 }
 
+function normalizeLiveEditWorkflowStep(step, index = 0) {
+  if (!step || typeof step !== "object" || Array.isArray(step)) {
+    return null;
+  }
+  const key =
+    cleanString(step.key) ||
+    ["pick", "intent", "go", "accept"][index] ||
+    `step-${index + 1}`;
+  const rawState = cleanString(step.state).toLowerCase();
+  const state = ["done", "active", "idle"].includes(rawState)
+    ? rawState
+    : "idle";
+  return {
+    key,
+    label: cleanString(step.label) || key,
+    state,
+  };
+}
+
+function liveEditWorkflowStageKey(value, status = "") {
+  const raw = cleanString(value).toLowerCase();
+  const rawStatus = cleanString(status).toLowerCase();
+  if (rawStatus === "discarded" || raw.includes("discard")) {
+    return "discarded";
+  }
+  if (rawStatus === "accepted" || raw.includes("accepted")) {
+    return "accepted";
+  }
+  if (rawStatus === "variant-ready" || raw.includes("variant")) {
+    return "choose-variant";
+  }
+  if (raw.includes("go") || raw.includes("ready")) {
+    return "ready-go";
+  }
+  if (raw.includes("intent") || raw.includes("note")) {
+    return "add-intent";
+  }
+  if (raw.includes("pick") || raw.includes("target")) {
+    return "pick-target";
+  }
+  return raw || "idle";
+}
+
+function liveEditWorkflowStageLabel(stageKey) {
+  const labels = {
+    discarded: "Discarded target",
+    accepted: "Accepted target",
+    "choose-variant": "Choose variant",
+    "ready-go": "Ready for Go",
+    "add-intent": "Add intent",
+    "pick-target": "Pick target",
+    idle: "Live Edit path",
+  };
+  return labels[stageKey] || labels.idle;
+}
+
+function liveEditWorkflowPrimaryAction(stageKey) {
+  const actions = {
+    discarded: "Pick",
+    accepted: "Apply",
+    "choose-variant": "Accept",
+    "ready-go": "Go",
+    "add-intent": "Add intent",
+    "pick-target": "Pick",
+    idle: "Pick",
+  };
+  return actions[stageKey] || actions.idle;
+}
+
+function liveEditWorkflowNextAction(stageKey) {
+  const actions = {
+    discarded: "Pick a new target or restore the previous target state.",
+    accepted: "Apply to the bound output, manifest, checkpoint, or source task.",
+    "choose-variant": "Cycle variants, then Accept or Discard on the same surface.",
+    "ready-go": "Press Go to create three materially different variants.",
+    "add-intent": "Type, talk, pin a comment, or draw correction marks.",
+    "pick-target": "Pick a canvas object, generated output, image region, or map object.",
+    idle: "Pick a target to start direct editing.",
+  };
+  return actions[stageKey] || actions.idle;
+}
+
+function normalizeLiveEditWorkflowStage(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const stageKey = liveEditWorkflowStageKey(
+    value.stageKey || value.key || value.label,
+    value.status,
+  );
+  const steps = Array.isArray(value.steps)
+    ? value.steps
+        .map((step, index) => normalizeLiveEditWorkflowStep(step, index))
+        .filter(Boolean)
+    : [];
+  return {
+    kind: "canvax-live-edit-workflow-stage",
+    stageKey,
+    label: cleanString(value.label) || liveEditWorkflowStageLabel(stageKey),
+    detail: cleanString(value.detail),
+    surface: cleanString(value.surface),
+    surfaceLabel: cleanString(value.surfaceLabel),
+    primaryAction:
+      cleanString(value.primaryAction) || liveEditWorkflowPrimaryAction(stageKey),
+    nextAction:
+      cleanString(value.nextAction) || liveEditWorkflowNextAction(stageKey),
+    complete: Boolean(value.complete) || stageKey === "accepted",
+    steps,
+  };
+}
+
 function normalizeLiveEditRequest(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -4443,6 +4559,9 @@ function normalizeLiveEditRequest(value) {
     value.actionIntent || activeVariant?.actionIntent,
   );
   const status = cleanString(value.status);
+  const workflowStage = normalizeLiveEditWorkflowStage(
+    value.workflowStage || value.liveEditWorkflowStage,
+  );
   return {
     kind: "canvax-live-edit-request",
     id:
@@ -4505,6 +4624,7 @@ function normalizeLiveEditRequest(value) {
         target.acceptedVariantRole,
     ),
     surfaceOperations,
+    workflowStage,
     createdAt: cleanString(value.createdAt) || new Date().toISOString(),
     updatedAt: cleanString(value.updatedAt) || new Date().toISOString(),
     acceptedAt: cleanString(value.acceptedAt || target.acceptedAt),
@@ -4748,6 +4868,13 @@ function frameOutputEditBinding(frame) {
     normalizeLiveEditVariant(frame?.acceptedLiveEditVariant) ||
     normalizeLiveEditVariant(localAcceptedLiveEdit?.acceptedVariant) ||
     currentLiveEditVariant(frame);
+  const workflowStage =
+    liveEditTarget || liveEditRequest
+      ? liveEditWorkflowStageForExport(frame, liveEditTarget, {
+          request: liveEditRequest,
+          status: liveEditRequest?.status || liveEditTarget?.status,
+        })
+      : null;
   if (canvasReply) {
     const sourceFrameId = cleanString(canvasReply.sourceFrameId || frame?.id);
     const href =
@@ -4769,6 +4896,7 @@ function frameOutputEditBinding(frame) {
       liveEditTarget,
       liveEditVariant,
       liveEditRequest,
+      workflowStage,
       instruction:
         liveEditVariant
           ? "This frame has an accepted or active in-surface live edit variant. Apply that chosen variant to the picked target first, then preserve the surrounding output."
@@ -4794,6 +4922,7 @@ function frameOutputEditBinding(frame) {
       liveEditTarget,
       liveEditVariant,
       liveEditRequest,
+      workflowStage,
       instruction:
         liveEditVariant
           ? "This frame is a live edit branch with an active chosen variant. Apply that variant to the picked artifact target and keep the target binding intact."
@@ -4829,6 +4958,7 @@ function frameOutputEditBinding(frame) {
     liveEditTarget,
     liveEditVariant,
     liveEditRequest,
+    workflowStage,
     instruction:
       liveEditVariant
         ? "This frame is an editable live edit branch with a chosen in-surface variant. Apply that variant to the referenced generated output."
@@ -12125,6 +12255,69 @@ function describeLiveEditStageSummary(frame, liveTarget) {
   };
 }
 
+function liveEditTargetSurfaceForExport(frame, liveTarget, options = {}) {
+  const target = normalizeLiveEditTarget(liveTarget);
+  const preferredSurface = normalizeLiveEditPickSurface(
+    options.preferredSurface || state.liveEditPickSurface,
+  );
+  if (!target) {
+    return preferredSurface || (state.workbenchFocus === "output" ? "output" : "canvas");
+  }
+  if (liveEditTargetIsSpatialMapObject(target)) {
+    return "map";
+  }
+  if (liveEditTargetUsesCanvasSurface(target, frame)) {
+    return "canvas";
+  }
+  const surface = cleanString(target.surface).toLowerCase();
+  if (
+    surface.includes("canvas") ||
+    surface.includes("scratch") ||
+    surface.includes("asset") ||
+    surface.includes("image")
+  ) {
+    return "canvas";
+  }
+  if (
+    surface.includes("output") ||
+    surface.includes("preview") ||
+    surface.includes("dom") ||
+    target.targetHref ||
+    target.targetPath ||
+    target.targetSelector ||
+    target.targetNodeId ||
+    target.targetType === "preview-dom-element"
+  ) {
+    return "output";
+  }
+  return preferredSurface || "canvas";
+}
+
+function liveEditWorkflowStageForExport(frame, liveTarget, options = {}) {
+  const target = normalizeLiveEditTarget(liveTarget || frame?.liveEditTarget);
+  const request = normalizeLiveEditRequest(options.request || frame?.liveEditRequest);
+  const status = cleanString(
+    options.status || request?.status || target?.status || "",
+  );
+  const summary = describeLiveEditStageSummary(frame, target);
+  const stageKey = liveEditWorkflowStageKey(
+    options.stageKey || summary?.label,
+    status,
+  );
+  const surface = liveEditTargetSurfaceForExport(frame, target, options);
+  return normalizeLiveEditWorkflowStage({
+    stageKey,
+    label: liveEditWorkflowStageLabel(stageKey),
+    detail: summary?.detail || "",
+    surface,
+    surfaceLabel: designerLiveEditSurfaceLabel(surface),
+    primaryAction: liveEditWorkflowPrimaryAction(stageKey),
+    nextAction: liveEditWorkflowNextAction(stageKey),
+    complete: stageKey === "accepted",
+    steps: summary?.steps || [],
+  });
+}
+
 function renderLiveEditStageSummary(summary) {
   if (!dom.workbenchLiveEditStage) {
     return;
@@ -15592,10 +15785,15 @@ function buildLiveEditManifestBinding(
     note,
     pins,
   });
+  const workflowStage = liveEditWorkflowStageForExport(frame, target, {
+    request: liveEditRequest,
+    status: liveEditRequest?.status || target?.status || "accepted",
+  });
   return {
     kind: "canvax-live-edit-manifest-binding",
     status: liveEditRequest?.status || target?.status || "accepted",
     target,
+    workflowStage,
     actionIntent: currentLiveEditActionIntent(frame),
     acceptedVariant,
     originalSnapshot,
@@ -15667,6 +15865,7 @@ function buildLiveEditPreviewManifestTargetPayload(
     liveEditPins: liveEditBinding.pins,
     liveEditActionIntent: currentLiveEditActionIntent(frame),
     liveEditBinding,
+    liveEditWorkflowStage: liveEditBinding.workflowStage,
     liveEditSourceDiscovery: liveEditBinding.sourceBinding,
     liveEditWriteback: liveEditBinding.writeback,
     liveEditRequest,
@@ -16571,6 +16770,9 @@ function buildFrameBoundLiveEditRequest({
   const requestId =
     normalizeLiveEditRequest(frame.liveEditRequest)?.id ||
     `live-edit-request-${frame.id}-${target.targetId || target.id || "target"}`;
+  const workflowStage = liveEditWorkflowStageForExport(frame, target, {
+    status,
+  });
   return normalizeLiveEditRequest({
     id: requestId,
     status,
@@ -16605,6 +16807,7 @@ function buildFrameBoundLiveEditRequest({
     acceptedVariantRole:
       status === "accepted" ? activeVariant?.role || target.acceptedVariantRole : "",
     surfaceOperations: activeVariant?.surfaceOperations,
+    workflowStage,
     createdAt:
       normalizeLiveEditRequest(frame.liveEditRequest)?.createdAt ||
       new Date().toISOString(),
@@ -19518,6 +19721,17 @@ function buildWorkbenchExport(options = {}) {
     workbenchFocusModes[0];
   const viewMode = viewModes.find((entry) => entry.id === state.viewMode);
   const actionMode = currentActionMode();
+  const activeFrame = currentFrame();
+  const liveTarget = normalizeLiveEditTarget(activeFrame?.liveEditTarget);
+  const liveEditRequest = normalizeLiveEditRequest(activeFrame?.liveEditRequest);
+  const liveEditVariants = currentLiveEditVariants(activeFrame);
+  const liveEditWorkflowStage =
+    liveTarget || liveEditRequest || state.liveEditPickActive
+      ? liveEditWorkflowStageForExport(activeFrame, liveTarget, {
+          request: liveEditRequest,
+          status: liveEditRequest?.status || liveTarget?.status,
+        })
+      : null;
   return {
     kind: "canvax-workbench-state",
     hostSurface: hostSurfaceMode || "full-board",
@@ -19540,6 +19754,18 @@ function buildWorkbenchExport(options = {}) {
     actionMode: actionMode.id,
     actionModeLabel: actionMode.label,
     actionModeDescription: actionMode.description,
+    liveEdit: {
+      active: Boolean(state.liveEditPickActive || liveTarget || liveEditRequest),
+      picking: Boolean(state.liveEditPickActive),
+      pickSurface: normalizeLiveEditPickSurface(state.liveEditPickSurface),
+      targetSurface: liveEditWorkflowStage?.surface || "",
+      targetId: liveTarget?.targetId || "",
+      targetLabel: liveTarget?.targetLabel || "",
+      targetType: liveTarget?.targetType || "",
+      variantCount: liveEditVariants.length,
+      variantIndex: currentLiveEditVariantIndex(activeFrame),
+      workflowStage: liveEditWorkflowStage,
+    },
     trayCollapsed: Boolean(state.workbenchTrayCollapsed),
     agentLogOpen: Boolean(state.workbenchAgentLogOpen),
     agentLog: buildWorkbenchAgentLogExport({ limit: options.agentLogLimit }),
@@ -29038,6 +29264,14 @@ async function buildExportPackage(frameSelection = state.frames) {
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditWorkflowStage:
+        frame.liveEditTarget || frame.liveEditRequest
+          ? liveEditWorkflowStageForExport(frame, frame.liveEditTarget, {
+              request: frame.liveEditRequest,
+              status:
+                frame.liveEditRequest?.status || frame.liveEditTarget?.status,
+            })
+          : null,
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       liveEditRegionBindings: normalizeLiveEditRegionBindings(
         frame.liveEditRegionBindings,
@@ -29188,6 +29422,15 @@ function buildRewriteRequest(
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditWorkflowStage:
+        frame.liveEditWorkflowStage ||
+        (frame.liveEditTarget || frame.liveEditRequest
+          ? liveEditWorkflowStageForExport(frame, frame.liveEditTarget, {
+              request: frame.liveEditRequest,
+              status:
+                frame.liveEditRequest?.status || frame.liveEditTarget?.status,
+            })
+          : null),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       liveEditRegionBindings: normalizeLiveEditRegionBindings(
         frame.liveEditRegionBindings,
@@ -29249,6 +29492,15 @@ function buildOutputRevisionGraph(frames, manifest, rewriteQueue = []) {
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditWorkflowStage:
+        frame.liveEditWorkflowStage ||
+        (frame.liveEditTarget || frame.liveEditRequest
+          ? liveEditWorkflowStageForExport(frame, frame.liveEditTarget, {
+              request: frame.liveEditRequest,
+              status:
+                frame.liveEditRequest?.status || frame.liveEditTarget?.status,
+            })
+          : null),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       liveEditRegionBindings: normalizeLiveEditRegionBindings(
         frame.liveEditRegionBindings,
@@ -29302,6 +29554,11 @@ function summarizeOutputTarget(target) {
     liveEditBinding?.sourceBinding || target.liveEditSourceDiscovery || null;
   const writeback =
     liveEditBinding?.writeback || target.liveEditWriteback || null;
+  const liveEditWorkflowStage =
+    liveEditBinding?.workflowStage ||
+    target.liveEditWorkflowStage ||
+    target.liveEditRequest?.workflowStage ||
+    null;
   return {
     id: target.id || "",
     label: target.label || "",
@@ -29316,6 +29573,8 @@ function summarizeOutputTarget(target) {
     refinementSummary: target.refinement?.summary || target.changeSummary || "",
     liveEditStatus:
       liveEditBinding?.status || target.liveEditRequest?.status || "",
+    liveEditWorkflowStage,
+    liveEditWorkflowStageLabel: liveEditWorkflowStage?.label || "",
     liveEditVariantLabel:
       acceptedVariant?.label || target.liveEditTarget?.acceptedVariantLabel || "",
     liveEditSourceBindingStatus: sourceBinding?.status || "",
@@ -30335,6 +30594,15 @@ function buildTaskPack(
       acceptedLiveEditVariant: normalizeLiveEditVariant(
         frame.acceptedLiveEditVariant,
       ),
+      liveEditWorkflowStage:
+        frame.liveEditWorkflowStage ||
+        (frame.liveEditTarget || frame.liveEditRequest
+          ? liveEditWorkflowStageForExport(frame, frame.liveEditTarget, {
+              request: frame.liveEditRequest,
+              status:
+                frame.liveEditRequest?.status || frame.liveEditTarget?.status,
+            })
+          : null),
       liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
       outputEditBinding:
         frame.outputEditBinding || frameOutputEditBinding(frame),
@@ -30720,6 +30988,13 @@ function buildFrameComposition(frame) {
     acceptedLiveEditVariant: normalizeLiveEditVariant(
       frame.acceptedLiveEditVariant,
     ),
+    liveEditWorkflowStage:
+      frame.liveEditTarget || frame.liveEditRequest
+        ? liveEditWorkflowStageForExport(frame, frame.liveEditTarget, {
+            request: frame.liveEditRequest,
+            status: frame.liveEditRequest?.status || frame.liveEditTarget?.status,
+          })
+        : null,
     liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
     liveEditOriginalSnapshot: normalizeLiveEditOriginalSnapshot(
       frame.liveEditOriginalSnapshot,
@@ -30920,6 +31195,12 @@ function appendLiveEditRequestMarkdown(lines, request, indent = "  ") {
   lines.push(
     `${indent}- Live edit request: ${liveRequest.status}; target ${liveRequest.targetType || liveRequest.target.targetType || "artifact"} ${liveRequest.targetSelector || liveRequest.targetObjectId || liveRequest.target.targetId || ""} at ${liveRequest.normalizedBounds.x}, ${liveRequest.normalizedBounds.y}, ${liveRequest.normalizedBounds.w}, ${liveRequest.normalizedBounds.h}`,
   );
+  if (liveRequest.workflowStage) {
+    const stage = liveRequest.workflowStage;
+    lines.push(
+      `${indent}- Live edit workflow: ${stage.label || stage.stageKey}${stage.surfaceLabel ? ` on ${stage.surfaceLabel}` : ""}; next ${stage.nextAction || stage.primaryAction || "continue"}`,
+    );
+  }
   if (liveRequest.note) {
     lines.push(`${indent}- Live edit request note: ${liveRequest.note}`);
   }
@@ -31061,6 +31342,11 @@ function buildRewriteRequestMarkdown(request) {
       lines.push(
         `  - Output edit target: ${frame.outputEditBinding.target || frame.outputEditBinding.href || frame.outputEditBinding.objectId}`,
       );
+      if (frame.outputEditBinding.workflowStage) {
+        lines.push(
+          `  - Live edit workflow: ${frame.outputEditBinding.workflowStage.label || frame.outputEditBinding.workflowStage.stageKey}; next ${frame.outputEditBinding.workflowStage.nextAction || frame.outputEditBinding.workflowStage.primaryAction || "continue"}`,
+        );
+      }
     }
     if (frame.liveEditTarget) {
       lines.push(
@@ -31373,6 +31659,11 @@ function appendImplementationContextMarkdown(lines, context) {
     lines.push(
       `- Output edit target: ${context.frameRole.outputEditBinding.target || context.frameRole.outputEditBinding.href || context.frameRole.outputEditBinding.objectId}`,
     );
+    if (context.frameRole.outputEditBinding.workflowStage) {
+      lines.push(
+        `- Live edit workflow: ${context.frameRole.outputEditBinding.workflowStage.label || context.frameRole.outputEditBinding.workflowStage.stageKey}; next ${context.frameRole.outputEditBinding.workflowStage.nextAction || context.frameRole.outputEditBinding.workflowStage.primaryAction || "continue"}`,
+      );
+    }
   }
   if (context.designKit?.sources?.length) {
     lines.push("", "### Design Kit", "");
@@ -31471,6 +31762,9 @@ function buildBuildRealRequestMarkdown(request) {
     `- Variants: ${frame.variants || "No variant notes"}`,
     request.outputEditBinding
       ? `- Output edit target: ${request.outputEditBinding.target || request.outputEditBinding.href || request.outputEditBinding.objectId}`
+      : "",
+    request.outputEditBinding?.workflowStage
+      ? `- Live edit workflow: ${request.outputEditBinding.workflowStage.label || request.outputEditBinding.workflowStage.stageKey}; next ${request.outputEditBinding.workflowStage.nextAction || request.outputEditBinding.workflowStage.primaryAction || "continue"}`
       : "",
     "",
     "## Composition Elements",
@@ -32442,6 +32736,13 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
     (sum, entry) => sum + entry.captures.length,
     0,
   );
+  const liveEditWorkflowStage =
+    frame?.liveEditTarget || frame?.liveEditRequest
+      ? liveEditWorkflowStageForExport(frame, frame.liveEditTarget, {
+          request: frame.liveEditRequest,
+          status: frame.liveEditRequest?.status || frame.liveEditTarget?.status,
+        })
+      : null;
 
   return {
     schemaVersion: HANDOFF_SCHEMA_VERSION,
@@ -32464,6 +32765,7 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
     activeFrameTitle: frame?.title || "",
     frameId: activeFrameId,
     frameTitle: frame?.title || "",
+    liveEditWorkflowStage,
     entryFrameId,
     connections: state.connections.map((connection) => ({
       ...structuredClone(connection),
@@ -32506,6 +32808,10 @@ function buildCheckpointPayload(reason, exportResult = null, options = {}) {
           description: target.description || "",
           liveEditRequest:
             target.liveEditRequest || normalizeLiveEditRequest(frame?.liveEditRequest),
+          liveEditWorkflowStage:
+            target.liveEditWorkflowStage ||
+            target.liveEditBinding?.workflowStage ||
+            liveEditWorkflowStage,
         }
       : null,
     outputDigest: state.serverStatus.outputDigest || null,
@@ -33403,6 +33709,17 @@ function buildLivePreviewPayload() {
           assets: frame.assets,
           mobile: frame.mobile,
           canvasReply: frame.canvasReply,
+          liveEditTarget: normalizeLiveEditTarget(frame.liveEditTarget),
+          liveEditWorkflowStage:
+            frame.liveEditTarget || frame.liveEditRequest
+              ? liveEditWorkflowStageForExport(frame, frame.liveEditTarget, {
+                  request: frame.liveEditRequest,
+                  status:
+                    frame.liveEditRequest?.status ||
+                    frame.liveEditTarget?.status,
+                })
+              : null,
+          liveEditRequest: normalizeLiveEditRequest(frame.liveEditRequest),
           outputEditBinding: frameOutputEditBinding(frame),
           updatedAt: frame.updatedAt,
           captureCount: frame.captures.length,
@@ -33692,11 +34009,17 @@ function normalizeManifestTarget(value, index = 0) {
   );
   const liveEditWriteback = normalizeManifestJsonObject(value.liveEditWriteback);
   const liveEditRequest = normalizeManifestJsonObject(value.liveEditRequest);
+  const liveEditWorkflowStage = normalizeLiveEditWorkflowStage(
+    value.liveEditWorkflowStage ||
+      liveEditBinding?.workflowStage ||
+      liveEditRequest?.workflowStage,
+  );
   const hasLiveEditBinding = Boolean(
     liveEditBinding ||
       liveEditTarget ||
       acceptedLiveEditVariant ||
       liveEditRequest ||
+      liveEditWorkflowStage ||
       liveEditWriteback,
   );
   if (!resolvedUrl && !previewPath && !hasLiveEditBinding) {
@@ -33790,6 +34113,7 @@ function normalizeManifestTarget(value, index = 0) {
     liveEditSourceDiscovery,
     liveEditWriteback,
     liveEditRequest,
+    liveEditWorkflowStage,
   };
 }
 
@@ -35379,6 +35703,14 @@ async function runSelfTest() {
       liveEditActionChipSelected &&
       liveEditActionIntentExported &&
       firstLiveEditOperationChipCount >= 4;
+    const liveEditWorkflowStageExported =
+      createdLiveEditRequest?.workflowStage?.stageKey === "choose-variant" &&
+      createdLiveEditRequest.workflowStage?.surface === "canvas" &&
+      createdLiveEditRequest.workflowStage?.steps?.some(
+        (step) => step.key === "accept" && step.state === "active",
+      ) &&
+      createdLiveEditRequest.currentOutputBinding?.workflowStage?.stageKey ===
+        "choose-variant";
     const liveEditRequestMaterial =
       createdLiveEditRequest?.status === "variant-ready" &&
       createdLiveEditRequest.target?.targetId === "self-test-canvas-reply" &&
@@ -35395,6 +35727,7 @@ async function runSelfTest() {
       createdLiveEditRequest.variantCount === 3 &&
       liveEditOriginalSnapshotCaptured &&
       createdLiveEditRequest.surfaceOperations.length >= 4 &&
+      liveEditWorkflowStageExported &&
       createdLiveEditRequest.currentOutputBinding?.objectId ===
         "self-test-canvas-reply";
     const liveEditSurfaceVariantController =
@@ -35919,6 +36252,8 @@ async function runSelfTest() {
           ),
           liveEditVoiceIntentCaptured,
           liveEditVoiceTargetId: liveEditVoiceSegment?.liveEditTargetId || "",
+          liveEditWorkflowStageExported,
+          liveEditWorkflowStage: createdLiveEditRequest?.workflowStage || null,
           liveEditRequestMaterial,
           firstLiveEditOperationChipCount,
           secondLiveEditOperationChipCount,
@@ -39552,6 +39887,16 @@ function assertSpatialObjectsFromOutputManifest() {
         liveEditVariantIndex: editableOutputFrame.liveEditVariantIndex,
         acceptedLiveEditVariant:
           editableOutputFrame.acceptedLiveEditVariant,
+        liveEditWorkflowStage: liveEditWorkflowStageForExport(
+          editableOutputFrame,
+          editableOutputFrame.liveEditTarget,
+          {
+            request: editableOutputFrame.liveEditRequest,
+            status:
+              editableOutputFrame.liveEditRequest?.status ||
+              editableOutputFrame.liveEditTarget?.status,
+          },
+        ),
         liveEditRequest: editableOutputFrame.liveEditRequest,
         updatedAt: editableOutputFrame.updatedAt,
         captureCount: editableOutputFrame.captures.length,
@@ -39602,6 +39947,10 @@ function assertSpatialObjectsFromOutputManifest() {
     editableOutputTaskPack?.frames?.[0]?.liveEditVariants?.length === 3 &&
     editableOutputTaskPack?.frames?.[0]?.liveEditRequest?.status ===
       "accepted" &&
+    editableOutputTaskPack?.frames?.[0]?.liveEditWorkflowStage?.stageKey ===
+      "accepted" &&
+    editableOutputTaskPack?.frames?.[0]?.outputEditBinding?.workflowStage
+      ?.stageKey === "accepted" &&
     editableOutputTaskPack?.frames?.[0]?.liveEditRequest?.surfaceOperations
       ?.length >= 4 &&
     editableOutputTaskPack?.frames?.[0]?.acceptedLiveEditVariant?.label ===
@@ -39625,6 +39974,10 @@ function assertSpatialObjectsFromOutputManifest() {
       "" &&
     editableOutputRewriteRequest?.frames?.[0]?.liveEditRequest
       ?.currentOutputBinding?.objectId === generatedTargetObject.id &&
+    editableOutputRewriteRequest?.frames?.[0]?.liveEditRequest?.workflowStage
+      ?.stageKey === "accepted" &&
+    editableOutputRewriteRequest?.frames?.[0]?.outputEditBinding?.workflowStage
+      ?.stageKey === "accepted" &&
     editableOutputRewriteRequest?.frames?.[0]?.liveEditVariants?.[2]?.label ===
       "Clarity" &&
     editableOutputRewriteRequest?.frames?.[0]?.acceptedLiveEditVariant
@@ -39636,11 +39989,15 @@ function assertSpatialObjectsFromOutputManifest() {
     editableOutputRewriteRequest?.revisionGraph?.frames?.[0]
       ?.liveEditRequest?.surfaceOperations?.length >= 4 &&
     editableOutputRewriteRequest?.revisionGraph?.frames?.[0]
+      ?.liveEditWorkflowStage?.stageKey === "accepted" &&
+    editableOutputRewriteRequest?.revisionGraph?.frames?.[0]
       ?.acceptedLiveEditVariant?.label === "Clarity" &&
     editableOutputLiveQueue[0]?.reason === "live-edit-target" &&
     editableOutputLiveQueue[0]?.detail.includes("selected variant 3") &&
     editableOutputBuildRequest?.outputEditBinding?.objectId ===
       generatedTargetObject.id &&
+    editableOutputBuildRequest?.outputEditBinding?.workflowStage?.stageKey ===
+      "accepted" &&
     editableOutputBuildRequest?.outputEditBinding?.liveEditVariant?.label ===
       "Clarity" &&
     editableOutputBuildRequest?.outputContract?.outputEditBinding?.target ===
@@ -39742,6 +40099,11 @@ function assertSpatialObjectsFromOutputManifest() {
       generatedPromptPreserved,
       editableOutputActionVisible,
       outputEditBindingInRequests,
+      editableOutputWorkflowStage:
+        editableOutputTaskPack?.frames?.[0]?.liveEditWorkflowStage || null,
+      editableOutputBindingWorkflowStage:
+        editableOutputTaskPack?.frames?.[0]?.outputEditBinding?.workflowStage ||
+        null,
       editableOutputFrameCreated,
       editableOutputBranchExported,
       inspectorText: dom.mapObjectTypeDetails.textContent,

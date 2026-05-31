@@ -55,6 +55,10 @@ const liveEditOriginalSnapshot =
 const liveEditRequest =
   normalizeJsonObject(readJsonOption(args, "--live-edit-request")) ||
   normalizeJsonObject(liveEditBinding?.request);
+const liveEditWorkflowStage =
+  normalizeJsonObject(readJsonOption(args, "--live-edit-workflow-stage")) ||
+  normalizeJsonObject(liveEditBinding?.workflowStage) ||
+  normalizeJsonObject(liveEditRequest?.workflowStage);
 const liveEditPins =
   readJsonOption(args, "--live-edit-pins") ||
   normalizeJsonValue(liveEditBinding?.pins);
@@ -122,6 +126,7 @@ const primaryTarget =
           ...(acceptedLiveEditVariant ? { acceptedLiveEditVariant } : {}),
           ...(liveEditOriginalSnapshot ? { liveEditOriginalSnapshot } : {}),
           ...(liveEditPins ? { liveEditPins } : {}),
+          ...(liveEditWorkflowStage ? { liveEditWorkflowStage } : {}),
           ...(liveEditWriteback ? { liveEditWriteback } : {}),
           ...(liveEditRequest ? { liveEditRequest } : {}),
         },
