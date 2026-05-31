@@ -1100,7 +1100,10 @@ async function validateLiveEditSourceHintPatchDryRun() {
       cssPath,
       ".source-hint-card{display:grid;gap:12px;transition:transform .2s ease}",
     );
-    await writeFile(taskNotePath, "# Source Hint Tasks\n");
+    await writeFile(
+      taskNotePath,
+      "# Source Hint Tasks\n\n- [ ] task-source-hint-live-edit: Apply the accepted Live Edit to the hinted CTA.\n",
+    );
     await writeFile(
       patchTaskPath,
       `${JSON.stringify(
@@ -1192,6 +1195,10 @@ async function validateLiveEditSourceHintPatchDryRun() {
         rawComponent.includes('data-canvax-patch-state="applied"') &&
         rawComponent.includes('style={{ transform: "translate(5%, -3%)" }}') &&
         rawCss.includes("canvax-applied-patch-highlight") &&
+        rawTaskNote.includes(
+          "- [x] task-source-hint-live-edit: Apply the accepted Live Edit to the hinted CTA.",
+        ) &&
+        rawTaskNote.includes("Canvax Live Edit accepted:") &&
         rawTaskNote.includes("canvax-live-edit:source-hint-live-edit"),
     );
     results.push({

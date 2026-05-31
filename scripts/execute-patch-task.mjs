@@ -902,6 +902,23 @@ async function patchTaskNote(file, plan) {
   if (raw.includes(marker)) {
     return skipped(file, "Live Edit task note already exists.");
   }
+  const targetTaskIds = liveEditTargetTaskIds(plan);
+  const taskTargetPatch = patchExistingTaskTarget(raw, {
+    marker,
+    motion: plan.motion.reason,
+    note: plan.patchNote,
+    taskIds: targetTaskIds,
+  });
+  if (taskTargetPatch.changed) {
+    if (!wantsDryRun) {
+      await writeFile(absolutePath, taskTargetPatch.raw, "utf8");
+    }
+    return changed(
+      file,
+      `Marked Live Edit task target ${taskTargetPatch.taskId}.`,
+      plan.targetIds,
+    );
+  }
   const nextRaw = `${raw.trimEnd()}
 
 ## Canvax Live Edit
@@ -916,6 +933,53 @@ async function patchTaskNote(file, plan) {
     await writeFile(absolutePath, nextRaw, "utf8");
   }
   return changed(file, "Appended Live Edit task note.", plan.targetIds);
+}
+
+function liveEditTargetTaskIds(plan) {
+  const ids = [];
+  const add = (value) => {
+    const id = cleanString(value);
+    if (id && !ids.includes(id)) {
+      ids.push(id);
+    }
+  };
+  add(plan.task.liveEdit?.target?.targetTaskId);
+  add(plan.task.trigger?.target?.targetTaskId);
+  add(plan.task.trigger?.request?.target?.targetTaskId);
+  if (Array.isArray(plan.task.componentTargets)) {
+    plan.task.componentTargets.forEach((component) => add(component.taskId));
+  }
+  return ids;
+}
+
+function patchExistingTaskTarget(raw, { marker, motion, note, taskIds }) {
+  const ids = Array.isArray(taskIds) ? taskIds.filter(Boolean) : [];
+  if (!ids.length) {
+    return { changed: false, raw, taskId: "" };
+  }
+  const lines = raw.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const taskId = ids.find((id) => line.includes(id));
+    if (!taskId || !/^\s*[-*]\s+\[[ xX]\]/.test(line)) {
+      continue;
+    }
+    const indent = line.match(/^\s*/)?.[0] || "";
+    const childIndent = `${indent}  `;
+    const checkedLine = line.replace(/(\[[ xX]\])/, "[x]");
+    const details = [
+      `${childIndent}- Canvax Live Edit accepted: ${note || "Accepted direct edit."}`,
+      `${childIndent}  Motion: ${motion || "metadata-only"}`,
+      `${childIndent}  <!-- ${marker} -->`,
+    ];
+    lines.splice(index, 1, checkedLine, ...details);
+    return {
+      changed: true,
+      raw: `${lines.join("\n").trimEnd()}\n`,
+      taskId,
+    };
+  }
+  return { changed: false, raw, taskId: "" };
 }
 
 function patchNodeModel(node, plan) {
