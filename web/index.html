@@ -699,6 +699,11 @@
                                     aria-label="Live Edit action chips"
                                 ></div>
                                 <div
+                                    id="workbench-live-edit-stage"
+                                    class="workbench-live-edit-stage"
+                                    hidden
+                                ></div>
+                                <div
                                     id="workbench-live-edit-binding"
                                     class="workbench-live-edit-binding"
                                     hidden
@@ -2719,9 +2724,9 @@
                 </div>
                 <div class="help-intro">
                     <p class="help-summary">
-                        Canvax has one job: let you point, sketch, speak, and
-                        accept changes without translating everything into a
-                        long prompt.
+                        Use Canvax like a design desk: sketch the idea, say the
+                        intent, make an output, then point at the exact part you
+                        want changed.
                     </p>
                     <div class="help-status-grid" aria-label="Current Canvax state">
                         <span><strong>Mode</strong><b id="help-current-mode">Workbench</b></span>
@@ -2764,49 +2769,44 @@
                 </div>
                 <div class="help-grid">
                     <section class="help-card">
-                        <h3>Surfaces</h3>
+                        <h3>Choose A Surface</h3>
                         <ul class="help-list">
-                            <li><strong>Sketch</strong> is the sketch pad. Draw, paste images, place notes, and rough out ideas here.</li>
-                            <li><strong>Split</strong> shows sketch and generated output together for comparison.</li>
-                            <li><strong>Output</strong> focuses the generated result so you can mark corrections directly on it.</li>
-                            <li><strong>Map</strong> is the project table: frames, references, generated outputs, files, and checkpoints.</li>
+                            <li><strong>Sketch</strong> is where rough ideas, notes, pins, imported images, and layout marks start.</li>
+                            <li><strong>Split</strong> keeps the sketch and output visible together when you are comparing or correcting.</li>
+                            <li><strong>Output</strong> is the generated result at a larger size. Mark corrections directly there.</li>
+                            <li><strong>Map</strong> organizes frames, generated outputs, files, references, and variants.</li>
                         </ul>
                     </section>
                     <section class="help-card">
-                        <h3>Live Edit</h3>
+                        <h3>Live Edit Loop</h3>
                         <ul class="help-list">
-                            <li><strong>Live Edit button</strong> opens target picking. It is the entry point, not the editing area itself.</li>
-                            <li><strong>Amber Live Edit dock</strong> is the active target editor. Amber means the pick is temporary until you Accept or Discard.</li>
-                            <li><strong>Pick target</strong> means click or drag the exact thing you want changed.</li>
-                            <li><strong>Change target</strong> switches to Select and lets you pick or drag a better region. On scratchpad or generated output, drag the outline border to move it or drag a corner dot to resize before you press Go.</li>
-                            <li><strong>Sketch pad / Generated output</strong> only appears while picking. It chooses which visible surface receives the next pick.</li>
-                            <li><strong>Go</strong> creates variants for the selected target. Use the small controller on the outlined output to cycle, accept, or discard without leaving the canvas.</li>
-                            <li><strong>Accept</strong> keeps the chosen one. <strong>Discard</strong> removes the temporary target and restores the original.</li>
-                            <li><strong>Accepted locally</strong> means the target is saved with the sketch. Press <strong>Make</strong> or <strong>Build</strong> when you want it to become a generated Output focus surface.</li>
+                            <li><strong>Pick</strong> chooses the exact object, output element, image area, or drawn region.</li>
+                            <li><strong>Intent</strong> is your note, voice, pin, or correction stroke for that target.</li>
+                            <li><strong>Go</strong> creates three in-place variants for the selected target.</li>
+                            <li><strong>Accept</strong> keeps the chosen variant. <strong>Discard</strong> removes the temporary pick and restores the original.</li>
                         </ul>
                     </section>
                     <section class="help-card">
-                        <h3>Live Edit Actions</h3>
+                        <h3>Target Controls</h3>
                         <ul class="help-list">
-                            <li><strong>Freeform</strong> follows your note as written.</li>
-                            <li><strong>Layout</strong> changes placement, spacing, and structure.</li>
-                            <li><strong>Typeset</strong> improves hierarchy, copy rhythm, and readability.</li>
-                            <li><strong>Colorize</strong> changes palette and contrast.</li>
-                            <li><strong>Clarify</strong>, <strong>Bolder</strong>, <strong>Quieter</strong>, and <strong>Animate</strong> steer the mood of the variants.</li>
+                            <li><strong>Yellow outline</strong> is the active target. It is a selection box, not a design object.</li>
+                            <li><strong>Change target</strong> lets you pick again. Drag the outline to move it, or drag a corner to resize it.</li>
+                            <li><strong>Freeform</strong> is the default action. Use Layout, Typeset, Colorize, Clarify, Bolder, Quieter, or Animate only when you want to steer the variant type.</li>
+                            <li><strong>Escape</strong> or <strong>Discard</strong> clears the temporary pick and variants.</li>
                         </ul>
                     </section>
                     <section class="help-card">
-                        <h3>Picked Target</h3>
+                        <h3>Main Buttons</h3>
                         <ul class="help-list">
-                            <li>The yellow outline is only the selected area for Live Edit. It is not a new design element.</li>
-                            <li>Before Accept, drag the outline border to move the picked scratchpad or output area. Drag a corner dot to resize it.</li>
-                            <li>Use <strong>Discard</strong> or press <strong>Escape</strong> to remove the target and temporary variants. Scratchpad targets you moved or resized before Accept return to their original geometry.</li>
-                            <li>If a yellow mark was drawn with the pen or marker, use <strong>Undo</strong>, <strong>Erase</strong>, or <strong>Clear marks</strong>.</li>
-                            <li><strong>Accept</strong> keeps the chosen version with the current screen and saves it for Codex.</li>
+                            <li><strong>Talk</strong> adds spoken or pasted intent to the current frame or picked target.</li>
+                            <li><strong>Pin</strong> places a comment at a specific point.</li>
+                            <li><strong>Make</strong> generates or refreshes a local output from the sketch and intent.</li>
+                            <li><strong>Apply</strong> saves the current sketch, notes, target, and output context for Codex.</li>
+                            <li><strong>Build</strong> creates a local implementation starter when you want code, not only a visual output.</li>
                         </ul>
                     </section>
                     <section class="help-card">
-                        <h3>What Marks Mean</h3>
+                        <h3>Correction Marks</h3>
                         <ul class="help-list">
                             <li><strong>Circle</strong> asks Canvax to improve that component or region.</li>
                             <li><strong>Arrow</strong> means move, direction, or flow.</li>
@@ -2818,9 +2818,9 @@
                     <section class="help-card">
                         <h3>Zoom and Scroll</h3>
                         <ul class="help-list">
-                            <li>Scroll inside the sketch, output, or map surface to move around large work.</li>
+                            <li>Scroll inside Sketch, Output, or Map to move around large work.</li>
                             <li>Use <strong>Cmd/Ctrl + wheel</strong> over the surface you want to zoom.</li>
-                            <li>The zoom label says <strong>Sketch</strong> or <strong>Output</strong> so you know which surface the buttons affect.</li>
+                            <li>The zoom label says <strong>Sketch</strong> or <strong>Output</strong>; the buttons affect that surface.</li>
                             <li><strong>Reset</strong> returns the active surface to 100%.</li>
                         </ul>
                     </section>
@@ -2836,11 +2836,12 @@
                         </div>
                     </section>
                     <section class="help-card help-card-wide">
-                        <h3>Keep It Simple</h3>
+                        <h3>When Something Feels Wrong</h3>
                         <ul class="help-list">
-                            <li>If the target outline is wrong, press <strong>Change target</strong> or <strong>Discard</strong>.</li>
-                            <li>If a view feels cramped, use <strong>Show brief</strong> only when you need project controls.</li>
-                            <li>Use <strong>Apply</strong> when the sketch, notes, and target represent the next thing Codex should implement.</li>
+                            <li>If the yellow outline is wrong, use <strong>Change target</strong>, <strong>Discard</strong>, or <strong>Escape</strong>.</li>
+                            <li>If a mark was drawn by mistake, use <strong>Undo</strong> or <strong>Erase</strong>.</li>
+                            <li>If the output is empty, press <strong>Make</strong> first. Accepted sketch-only targets become output after Make or Build.</li>
+                            <li>If the page feels crowded, hide the brief and work from Sketch, Split, Output, or Map.</li>
                         </ul>
                     </section>
                 </div>

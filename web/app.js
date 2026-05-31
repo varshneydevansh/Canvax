@@ -626,6 +626,9 @@ const dom = {
   workbenchLiveEditActionOptions: document.querySelector(
     "#workbench-live-edit-action-options",
   ),
+  workbenchLiveEditStage: document.querySelector(
+    "#workbench-live-edit-stage",
+  ),
   workbenchLiveEditBinding: document.querySelector(
     "#workbench-live-edit-binding",
   ),
@@ -11804,6 +11807,9 @@ function renderLiveEditControls({ frame, target, targetUrl }) {
   dom.workbenchLiveEditAction.title = actionIntent.description;
   dom.workbenchLiveEditAction.setAttribute("aria-label", `Live Edit action: ${actionIntent.label}`);
   renderLiveEditActionOptions(frame);
+  renderLiveEditStageSummary(
+    describeLiveEditStageSummary(frame, liveTarget),
+  );
   renderLiveEditBindingSummary(
     describeLiveEditTargetBinding(frame, liveTarget, target),
   );
@@ -12034,6 +12040,113 @@ function renderLiveEditBindingSummary(summary) {
         ? `<em>${escapeHtml(`Next: ${compactDisplayText(summary.nextAction, 120)}`)}</em>`
         : ""
     }
+  `;
+}
+
+function describeLiveEditStageSummary(frame, liveTarget) {
+  if (!frame) {
+    return null;
+  }
+  const target = normalizeLiveEditTarget(liveTarget);
+  const strokes = target ? liveEditRequestStrokes(frame, target) : [];
+  const hasIntent = Boolean(
+    target &&
+      (cleanString(target.note || state.liveEditDraftNote) ||
+        liveEditTargetVoiceIntents(frame, target).length ||
+        liveEditTargetPins(frame, target).length ||
+        strokes.length),
+  );
+  const variants = currentLiveEditVariants(frame);
+  const accepted = Boolean(
+    target?.status === "accepted" || frame.acceptedLiveEditVariant,
+  );
+  const hasVariants = Boolean(variants.length || frame.acceptedLiveEditVariant);
+  const pickActive = state.liveEditPickActive && !target;
+  const steps = [
+    {
+      key: "pick",
+      label: "Pick",
+      state: target ? "done" : pickActive ? "active" : "idle",
+    },
+    {
+      key: "intent",
+      label: "Intent",
+      state: hasIntent ? "done" : target ? "active" : "idle",
+    },
+    {
+      key: "go",
+      label: "Go",
+      state: hasVariants
+        ? "done"
+        : target && hasIntent
+          ? "active"
+          : "idle",
+    },
+    {
+      key: "accept",
+      label: "Accept",
+      state: accepted ? "done" : variants.length ? "active" : "idle",
+    },
+  ];
+  if (accepted) {
+    return {
+      label: "Accepted target",
+      detail: "Accepted is bound to this canvas or output surface.",
+      steps,
+    };
+  }
+  if (variants.length) {
+    return {
+      label: "Choose variant",
+      detail: "Cycle variants, then Accept or discard cleanly.",
+      steps,
+    };
+  }
+  if (target && hasIntent) {
+    return {
+      label: "Ready for Go",
+      detail: "Go creates three variants on this same surface.",
+      steps,
+    };
+  }
+  if (target) {
+    return {
+      label: "Add intent",
+      detail: "Type, talk, comment, or draw what should change.",
+      steps,
+    };
+  }
+  return {
+    label: pickActive ? "Click a target" : "Live Edit path",
+    detail: pickActive
+      ? "Click a sketch object, output element, or drag a region."
+      : "Pick a target to start direct editing.",
+    steps,
+  };
+}
+
+function renderLiveEditStageSummary(summary) {
+  if (!dom.workbenchLiveEditStage) {
+    return;
+  }
+  if (!summary) {
+    dom.workbenchLiveEditStage.hidden = true;
+    dom.workbenchLiveEditStage.innerHTML = "";
+    return;
+  }
+  const steps = Array.isArray(summary.steps) ? summary.steps : [];
+  dom.workbenchLiveEditStage.hidden = false;
+  dom.workbenchLiveEditStage.innerHTML = `
+    <strong>${escapeHtml(summary.label || "Live Edit path")}</strong>
+    <div aria-label="Live Edit workflow progress">
+      ${steps
+        .map(
+          (step, index) =>
+            `<span data-state="${escapeHtml(step.state || "idle")}"><b>${index + 1}</b>${escapeHtml(step.label)}</span>`,
+        )
+        .join("")}
+    </div>
+    <em>${escapeHtml(summary.detail || "")}</em>
   `;
 }
 
@@ -22348,7 +22461,8 @@ function renderBrushPreview() {
     return;
   }
 
-  const size = Math.max(8, state.size);
+  const visualZoom = Number.isFinite(state.zoom) ? state.zoom : 1;
+  const size = Math.max(8, state.size * visualZoom);
   dom.brushPreview.style.width = `${size}px`;
   dom.brushPreview.style.height = `${size}px`;
   dom.brushPreview.style.transform = `translate(${state.brushPreview.x}px, ${state.brushPreview.y}px) translate(-50%, -50%)`;
@@ -22608,16 +22722,28 @@ function currentUndoRedoState() {
   };
 }
 
+function canvasRenderScale() {
+  const dpr = window.devicePixelRatio || 1;
+  const zoom = Number.isFinite(state.zoom) ? state.zoom : 1;
+  return Math.max(1, Math.min(3, Math.max(dpr, dpr * Math.max(1, zoom))));
+}
+
 function syncCanvasSize() {
   const frame = currentFrame();
   const viewport = viewportPresets[frame.viewport];
+  const renderScale = canvasRenderScale();
+  const nextWidth = Math.max(1, Math.round(viewport.width * renderScale));
+  const nextHeight = Math.max(1, Math.round(viewport.height * renderScale));
   if (
-    dom.canvas.width !== viewport.width ||
-    dom.canvas.height !== viewport.height
+    dom.canvas.width !== nextWidth ||
+    dom.canvas.height !== nextHeight
   ) {
-    dom.canvas.width = viewport.width;
-    dom.canvas.height = viewport.height;
+    dom.canvas.width = nextWidth;
+    dom.canvas.height = nextHeight;
   }
+  dom.canvas.dataset.logicalWidth = String(viewport.width);
+  dom.canvas.dataset.logicalHeight = String(viewport.height);
+  dom.canvas.dataset.renderScale = String(renderScale);
 }
 
 function renderCanvas() {
@@ -22641,11 +22767,13 @@ function renderCanvas() {
   const canvasReplyTarget = canvasReplyTargetForFrame(frame);
   const canvasReplyVisible = renderCanvasReplyUnderlay(frame, canvasReplyTarget);
   const ctx = dom.canvas.getContext("2d");
+  const renderScale = Number(dom.canvas.dataset.renderScale) || 1;
+  ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
   drawScene(
     ctx,
     frame,
-    dom.canvas.width,
-    dom.canvas.height,
+    viewport.width,
+    viewport.height,
     1,
     state.draftElement,
     { transparentBase: canvasReplyVisible, showLiveEditOverlay: true },
@@ -23046,8 +23174,12 @@ function canvasLiveEditVariantControlAtPoint(point, frame = currentFrame()) {
     frame,
     liveTarget,
     bounds,
-    dom.canvas.width,
-    dom.canvas.height,
+    Number(dom.canvas.dataset.logicalWidth) ||
+      viewportPresets[frame?.viewport]?.width ||
+      dom.canvas.width,
+    Number(dom.canvas.dataset.logicalHeight) ||
+      viewportPresets[frame?.viewport]?.height ||
+      dom.canvas.height,
     1,
   );
   if (!point || !layout || !pointInBounds(layout.bounds, point)) {
@@ -24845,8 +24977,16 @@ function onLabelEditorKeyDown(event) {
 
 function pointFromEvent(event) {
   const rect = dom.canvas.getBoundingClientRect();
-  const scaleX = dom.canvas.width / rect.width;
-  const scaleY = dom.canvas.height / rect.height;
+  const logicalWidth =
+    Number(dom.canvas.dataset.logicalWidth) ||
+    viewportPresets[currentFrame().viewport]?.width ||
+    dom.canvas.width;
+  const logicalHeight =
+    Number(dom.canvas.dataset.logicalHeight) ||
+    viewportPresets[currentFrame().viewport]?.height ||
+    dom.canvas.height;
+  const scaleX = logicalWidth / rect.width;
+  const scaleY = logicalHeight / rect.height;
   return {
     x: (event.clientX - rect.left) * scaleX,
     y: (event.clientY - rect.top) * scaleY,
@@ -24860,8 +25000,10 @@ function updateBrushPreviewPosition(event) {
     return;
   }
   const rect = dom.deviceShell.getBoundingClientRect();
-  state.brushPreview.x = event.clientX - rect.left;
-  state.brushPreview.y = event.clientY - rect.top;
+  state.brushPreview.x =
+    event.clientX - rect.left + dom.deviceShell.scrollLeft;
+  state.brushPreview.y =
+    event.clientY - rect.top + dom.deviceShell.scrollTop;
   state.brushPreview.visible = true;
   renderBrushPreview();
 }
@@ -26496,7 +26638,9 @@ function describeHelpNextAction({
 }) {
   if (state.liveEditPickActive) {
     const surface =
-      liveEditTargetSurfaceChoice(currentFrame()) === "output"
+      (state.liveEditPickSurface === "output" ||
+        liveEditTargetSurfaceChoice(liveTarget, currentWorkbenchTarget()) ===
+          "output")
         ? "the generated output"
         : "the sketch pad";
     return {
@@ -34621,6 +34765,51 @@ async function runSelfTest() {
         "Designer start actions route to sketch and map focus",
       ),
     );
+    const previousCanvasPrecisionState = {
+      zoom: state.zoom,
+      tool: state.tool,
+      brushPreview: structuredClone(state.brushPreview),
+      scrollLeft: dom.deviceShell.scrollLeft,
+      scrollTop: dom.deviceShell.scrollTop,
+    };
+    state.tool = "pen";
+    state.zoom = 2;
+    renderCanvas();
+    const canvasPrecisionRect = dom.canvas.getBoundingClientRect();
+    const canvasLogicalWidth = Number(dom.canvas.dataset.logicalWidth) || 0;
+    const canvasLogicalHeight = Number(dom.canvas.dataset.logicalHeight) || 0;
+    const canvasRenderScaleValue =
+      Number(dom.canvas.dataset.renderScale) || 1;
+    const canvasPointAtZoom = pointFromEvent({
+      clientX: canvasPrecisionRect.left + canvasPrecisionRect.width * 0.5,
+      clientY: canvasPrecisionRect.top + canvasPrecisionRect.height * 0.5,
+    });
+    const canvasZoomStaysSharp =
+      canvasRenderScaleValue > 1 &&
+      dom.canvas.width ===
+        Math.round(canvasLogicalWidth * canvasRenderScaleValue) &&
+      dom.canvas.height ===
+        Math.round(canvasLogicalHeight * canvasRenderScaleValue);
+    const canvasPointerMapsAtZoom =
+      Math.abs(canvasPointAtZoom.x - canvasLogicalWidth / 2) < 1 &&
+      Math.abs(canvasPointAtZoom.y - canvasLogicalHeight / 2) < 1;
+    const shellPrecisionRect = dom.deviceShell.getBoundingClientRect();
+    dom.deviceShell.scrollLeft = 44;
+    dom.deviceShell.scrollTop = 36;
+    updateBrushPreviewPosition({
+      clientX: shellPrecisionRect.left + 30,
+      clientY: shellPrecisionRect.top + 40,
+    });
+    const brushPreviewTracksScrolledCanvas =
+      Math.abs(state.brushPreview.x - (30 + dom.deviceShell.scrollLeft)) < 1 &&
+      Math.abs(state.brushPreview.y - (40 + dom.deviceShell.scrollTop)) < 1;
+    state.zoom = previousCanvasPrecisionState.zoom;
+    state.tool = previousCanvasPrecisionState.tool;
+    state.brushPreview = previousCanvasPrecisionState.brushPreview;
+    dom.deviceShell.scrollLeft = previousCanvasPrecisionState.scrollLeft;
+    dom.deviceShell.scrollTop = previousCanvasPrecisionState.scrollTop;
+    renderBrushPreview();
+    renderCanvas();
     results.push(
       assert(
         Boolean(dom.workbenchComposerInput) &&
@@ -34641,6 +34830,7 @@ async function runSelfTest() {
           Boolean(dom.workbenchLiveEditPick) &&
           Boolean(dom.workbenchLiveEditAction) &&
           Boolean(dom.workbenchLiveEditActionOptions) &&
+          Boolean(dom.workbenchLiveEditStage) &&
           Boolean(dom.workbenchLiveEditBinding) &&
           Boolean(dom.workbenchLiveEditCapture) &&
           Boolean(dom.workbenchLiveEditNote) &&
@@ -34660,6 +34850,12 @@ async function runSelfTest() {
           Boolean(dom.helpCurrentLiveEditDetail) &&
           !dom.workbenchLiveEditBar.hidden &&
           dom.workbenchLiveEditTitle.textContent.includes("Live Edit ready") &&
+          !dom.workbenchLiveEditStage.hidden &&
+          dom.workbenchLiveEditStage.textContent.includes("Live Edit path") &&
+          dom.workbenchLiveEditStage.textContent.includes("Pick") &&
+          dom.workbenchLiveEditStage.textContent.includes("Intent") &&
+          dom.workbenchLiveEditStage.textContent.includes("Go") &&
+          dom.workbenchLiveEditStage.textContent.includes("Accept") &&
           dom.workbenchLiveEditBinding.textContent.includes("No binding yet") &&
           dom.workbenchLiveEditPick.textContent.includes("Pick") &&
           !dom.workbenchLiveEditNote.disabled &&
@@ -34667,8 +34863,11 @@ async function runSelfTest() {
           dom.workbenchComposerPick.textContent.includes("Live Edit") &&
           dom.focusLivePick.classList.contains("live-edit-command") &&
           dom.workbenchComposerPick.classList.contains("live-edit-command") &&
+          canvasZoomStaysSharp &&
+          canvasPointerMapsAtZoom &&
+          brushPreviewTracksScrolledCanvas &&
           !document.querySelector("#codex-scratchpad-dock"),
-        "Workbench composer, canvas reply, context import, visible Live Edit commands, review controls, voice intent lane, edit surface switch, and compact agent log render",
+        "Workbench composer, canvas reply, context import, visible Live Edit commands, review controls, voice intent lane, crisp zoomed sketch cursor mapping, edit surface switch, and compact agent log render",
       ),
     );
     const previousVoiceFallbackState = {
@@ -35019,6 +35218,14 @@ async function runSelfTest() {
       liveEditCaptureText.includes("Voice") &&
       liveEditCaptureText.includes("Comments") &&
       liveEditCaptureText.includes("Marks");
+    const liveEditStageText = dom.workbenchLiveEditStage?.textContent || "";
+    const liveEditStageShowsProgress =
+      !dom.workbenchLiveEditStage?.hidden &&
+      liveEditStageText.includes("Ready for Go") &&
+      liveEditStageText.includes("Pick") &&
+      liveEditStageText.includes("Intent") &&
+      liveEditStageText.includes("Go") &&
+      liveEditStageText.includes("Accept");
     renderWorkbenchOutput();
     const liveEditOutputRendered =
       dom.workbenchOutputSurface.classList.contains("has-live-edit-target") &&
@@ -35040,6 +35247,7 @@ async function runSelfTest() {
       Boolean(movedLiveEditPin?.draggedAt) &&
       movedLiveEditPin?.text.includes("generated CTA") &&
       liveEditCaptureShown &&
+      liveEditStageShowsProgress &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditTarget?.targetId ===
         "self-test-canvas-reply";
     const previousLiveEditWritebackForOutcome = structuredClone(
@@ -35205,6 +35413,12 @@ async function runSelfTest() {
       dom.workbenchOutputSurface
         .querySelector(".workbench-live-edit-variant-controller")
         ?.textContent.includes("Taste");
+    const liveEditStageAfterVariantsText =
+      dom.workbenchLiveEditStage?.textContent || "";
+    const liveEditStageChoosesVariant =
+      !dom.workbenchLiveEditStage?.hidden &&
+      liveEditStageAfterVariantsText.includes("Choose variant") &&
+      liveEditStageAfterVariantsText.includes("Accept");
     const liveEditVariantsHotSwap =
       createdLiveEditVariants.length === 3 &&
       currentLiveEditVariants(frameForCanvasReply).length === 3 &&
@@ -35220,6 +35434,7 @@ async function runSelfTest() {
           liveEditSurfaceVariantControllerRendered &&
           liveEditSurfaceVariantControllerUpdated &&
           secondLiveEditOperationChipCount >= 4 &&
+          liveEditStageChoosesVariant &&
       dom.workbenchLiveEditCounter.textContent.includes("2 / 3 variants") &&
       frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant?.label ===
         "Taste";
@@ -35664,7 +35879,14 @@ async function runSelfTest() {
           movedPinDragged: Boolean(movedLiveEditPin?.draggedAt),
           liveEditCaptureShown,
           liveEditCaptureText: compactDisplayText(liveEditCaptureText, 160),
+          liveEditStageShowsProgress,
+          liveEditStageText: compactDisplayText(liveEditStageText, 160),
           liveEditVariantsHotSwap,
+          liveEditStageChoosesVariant,
+          liveEditStageAfterVariantsText: compactDisplayText(
+            liveEditStageAfterVariantsText,
+            160,
+          ),
           liveEditVariantOperationsMaterial,
           liveEditActionChipSelected: Boolean(liveEditActionChipSelected),
           liveEditActionIntentExported,
