@@ -10741,6 +10741,18 @@ function renderWorkbenchOutput() {
   const target = currentWorkbenchTarget();
   const annotationCount = frame.outputAnnotations?.length || 0;
   const localLiveEditSummary = acceptedLocalLiveEditSummary(frame);
+  const acceptedLocalLiveEditStatus = localLiveEditSummary
+    ? {
+        label: "Accepted on sketch",
+        tone: "active",
+        detail: localLiveEditSummary.detail,
+        target: null,
+      }
+    : null;
+  const describedOutputStatus = describeFrameOutputStatus(frame, {
+    includeGlobal: true,
+    manifest,
+  });
   const status =
     frame.canvasReply && target?.canvasReply
       ? {
@@ -10751,18 +10763,9 @@ function renderWorkbenchOutput() {
             : "Generated output is mounted under this canvas. Draw directly over it to refine.",
           target,
         }
-      : describeFrameOutputStatus(frame, {
-          includeGlobal: true,
-          manifest,
-        }) ||
-        (localLiveEditSummary
-          ? {
-              label: "Accepted on sketch",
-              tone: "active",
-              detail: localLiveEditSummary.detail,
-              target: null,
-            }
-          : null);
+      : !target && acceptedLocalLiveEditStatus
+        ? acceptedLocalLiveEditStatus
+        : describedOutputStatus || acceptedLocalLiveEditStatus;
   const targetUrl = resolveWorkbenchTargetUrl(target);
   const targetLabel = target
     ? designerOutputTargetLabelFromItem(target, frame.title)
@@ -10829,13 +10832,27 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
   const stageClass = compact ? "" : " workbench-output-stage-surface";
   if (!target || !targetUrl) {
     const acceptedLocalLiveEdit = acceptedLocalLiveEditSummary(frame);
-    const nextClassName = `workbench-output-surface${stageClass} empty-state`;
+    const nextClassName = [
+      `workbench-output-surface${stageClass}`,
+      "empty-state",
+      acceptedLocalLiveEdit ? "has-local-live-edit" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     const nextSignature = JSON.stringify([
       acceptedLocalLiveEdit ? "accepted-local-live-edit" : "empty",
       compact,
       annotationCount,
       acceptedLocalLiveEdit?.targetId || "",
       acceptedLocalLiveEdit?.variantLabel || "",
+      acceptedLocalLiveEdit?.mediumLabel || "",
+      acceptedLocalLiveEdit?.target?.bounds || null,
+      acceptedLocalLiveEdit?.pins?.map((pin) => [
+        pin.id,
+        pin.point?.x,
+        pin.point?.y,
+        pin.text,
+      ]) || [],
     ]);
     if (
       surface.dataset.renderSignature !== nextSignature ||
@@ -10844,10 +10861,7 @@ function renderWorkbenchOutputSurface(surface, metaNode, context) {
       surface.dataset.renderSignature = nextSignature;
       surface.className = nextClassName;
       surface.innerHTML = acceptedLocalLiveEdit
-        ? `
-      <span class="workbench-output-mark">Accepted on sketch</span>
-      <p>${escapeHtml(acceptedLocalLiveEdit.message)}</p>
-    `
+        ? renderAcceptedLocalLiveEditSurface(acceptedLocalLiveEdit, { compact })
         : `
       <span class="workbench-output-mark">Make real</span>
       <p>${
@@ -11021,9 +11035,20 @@ function acceptedLocalLiveEditSummary(frame) {
   const variant = normalizeLiveEditVariant(binding.acceptedVariant);
   const label = target.targetLabel || liveEditTargetMediumLabel(target, frame);
   const variantLabel = variant?.label || target.acceptedVariantLabel || "";
+  const pins = normalizeLiveEditPins(
+    binding.pins || binding.request?.pins || frame?.liveEditPins,
+  ).filter(
+    (pin) =>
+      !target.targetId || !pin.targetId || pin.targetId === target.targetId,
+  );
   return {
+    target,
     targetId: target.targetId,
+    targetLabel: label,
+    mediumLabel: liveEditTargetMediumLabel(target, frame),
     variantLabel,
+    variant,
+    pins,
     message: variantLabel
       ? `${variantLabel} is accepted on ${label}.`
       : `${label} is accepted locally on the scratchpad.`,
@@ -11073,6 +11098,12 @@ function acceptedLocalLiveEditBinding(frame) {
       },
       acceptedVariant: variant,
       request: normalizeLiveEditRequest(value.request || value.liveEditRequest),
+      pins: normalizeLiveEditPins(
+        value.pins ||
+          value.liveEditPins ||
+          value.request?.pins ||
+          value.liveEditRequest?.pins,
+      ),
       acceptedAt,
       updatedAt: cleanString(value.updatedAt || target.updatedAt),
       sourceRank,
@@ -11154,6 +11185,66 @@ function acceptedLocalLiveEditBinding(frame) {
       return timeDelta || left.sourceRank - right.sourceRank;
     })
     .at(-1);
+}
+
+function renderAcceptedLocalLiveEditSurface(summary, { compact = false } = {}) {
+  const target = normalizeLiveEditTarget(summary?.target);
+  const bounds = target?.bounds || { x: 0.28, y: 0.24, w: 0.38, h: 0.28 };
+  const targetStyle = liveEditLocalPreviewBoundsStyle(bounds);
+  const pins = normalizeLiveEditPins(summary?.pins).slice(0, compact ? 3 : 6);
+  const targetLabel =
+    compactDisplayText(summary?.targetLabel || target?.targetLabel, 80) ||
+    "Accepted target";
+  const mediumLabel =
+    compactDisplayText(summary?.mediumLabel, 48) || "artifact region";
+  const variantLabel = compactDisplayText(summary?.variantLabel, 48);
+  const title = variantLabel
+    ? `${variantLabel} accepted`
+    : "Target accepted";
+  const detail = compact
+    ? "Bound locally. Make or Build materializes it."
+    : "Bound locally. Make or Build materializes this accepted target into Output focus.";
+  return `
+    <div class="workbench-output-local-edit" data-target-medium="${escapeHtml(mediumLabel)}">
+      <div class="workbench-output-local-edit-copy">
+        <span class="workbench-output-mark">Accepted on sketch</span>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(summary?.message || `${targetLabel} is accepted locally.`)}</p>
+      </div>
+      <div class="workbench-output-local-edit-map" aria-label="${escapeHtml(`Accepted Live Edit target: ${targetLabel}`)}">
+        <span class="workbench-output-local-edit-grid" aria-hidden="true"></span>
+        <span class="workbench-output-local-edit-target" style="${targetStyle}">
+          <b>${escapeHtml(targetLabel)}</b>
+        </span>
+        ${pins
+          .map(
+            (pin, index) =>
+              `<span class="workbench-output-local-edit-pin" style="left:${(pin.point.x * 100).toFixed(3)}%; top:${(pin.point.y * 100).toFixed(3)}%;" title="${escapeHtml(pin.text)}">${index + 1}</span>`,
+          )
+          .join("")}
+      </div>
+      <div class="workbench-output-local-edit-status">
+        <span>${escapeHtml(mediumLabel)}</span>
+        <span>${escapeHtml(
+          pins.length ? `${pins.length} pin${pins.length === 1 ? "" : "s"}` : "No pins",
+        )}</span>
+        <span>${escapeHtml(detail)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function liveEditLocalPreviewBoundsStyle(bounds) {
+  const x = clamp(Number(bounds?.x) || 0, 0, 0.98);
+  const y = clamp(Number(bounds?.y) || 0, 0, 0.98);
+  const w = clamp(Number(bounds?.w) || 0.18, 0.04, 1 - x);
+  const h = clamp(Number(bounds?.h) || 0.14, 0.04, 1 - y);
+  return [
+    `left:${(x * 100).toFixed(3)}%`,
+    `top:${(y * 100).toFixed(3)}%`,
+    `width:${(w * 100).toFixed(3)}%`,
+    `height:${(h * 100).toFixed(3)}%`,
+  ].join(";");
 }
 
 function acceptedLocalLiveEditWritebackForFrame(frame) {
@@ -34913,12 +35004,28 @@ async function runSelfTest() {
     frameForCanvasReply.canvasReply = null;
     state.serverStatus.previewManifest = null;
     renderWorkbenchOutput();
-    const sameCanvasAcceptedFallbackRendered =
-      dom.workbenchOutputBadge.textContent === "Accepted on sketch" &&
-      dom.workbenchOutputSurface.textContent.includes("Accepted on sketch") &&
+    const sameCanvasLocalMirror = dom.workbenchOutputSurface.querySelector(
+      ".workbench-output-local-edit",
+    );
+    const sameCanvasAcceptedBadge =
+      dom.workbenchOutputBadge.textContent === "Accepted on sketch";
+    const sameCanvasAcceptedCopyRendered =
+      dom.workbenchOutputSurface.textContent.includes("Accepted on sketch");
+    const sameCanvasAcceptedTargetRendered = Boolean(
+      sameCanvasLocalMirror?.querySelector(".workbench-output-local-edit-target"),
+    );
+    const sameCanvasAcceptedLocalPinRendered = Boolean(
+      sameCanvasLocalMirror?.querySelector(".workbench-output-local-edit-pin"),
+    );
+    const sameCanvasAcceptedMetaRendered =
       dom.workbenchOutputMeta.textContent.includes(
         "Output Focus will show a generated surface",
       );
+    const sameCanvasAcceptedFallbackRendered =
+      sameCanvasAcceptedBadge &&
+      sameCanvasAcceptedCopyRendered &&
+      sameCanvasAcceptedTargetRendered &&
+      sameCanvasAcceptedMetaRendered;
     frameForCanvasReply.canvasReply =
       acceptedSameCanvasFallbackState.canvasReply;
     frameForCanvasReply.liveEditTarget =
@@ -35016,6 +35123,12 @@ async function runSelfTest() {
           outputResizedW: outputResizedLiveTarget?.bounds?.w ?? null,
           liveEditDomSelectorCaptured,
           sameCanvasAcceptedFallbackRendered,
+          sameCanvasLocalMirror: Boolean(sameCanvasLocalMirror),
+          sameCanvasAcceptedBadge,
+          sameCanvasAcceptedCopyRendered,
+          sameCanvasAcceptedTargetRendered,
+          sameCanvasAcceptedLocalPinRendered,
+          sameCanvasAcceptedMetaRendered,
         }),
       ),
     );
@@ -35390,10 +35503,19 @@ async function runSelfTest() {
     frameForCanvasReply.liveEditRequest = null;
     state.serverStatus.previewManifest = null;
     renderWorkbenchOutput();
+    const canvasObjectLocalMirror = dom.workbenchOutputSurface.querySelector(
+      ".workbench-output-local-edit",
+    );
     const canvasObjectAcceptedOutputFallback =
       dom.workbenchOutputBadge.textContent === "Accepted on sketch" &&
       dom.workbenchOutputSurface.textContent.includes("Accepted on sketch") &&
-      dom.workbenchOutputSurface.textContent.includes("Clarity is accepted");
+      dom.workbenchOutputSurface.textContent.includes("Clarity is accepted") &&
+      Boolean(
+        canvasObjectLocalMirror?.querySelector(
+          ".workbench-output-local-edit-target",
+        ),
+      ) &&
+      canvasObjectLocalMirror?.textContent.includes("canvas object");
     const canvasObjectAcceptedBindingFallback =
       frameOutputEditBinding(frameForCanvasReply)?.liveEditRequest?.status ===
         "accepted" &&
@@ -35561,6 +35683,7 @@ async function runSelfTest() {
             frameOutputEditBinding(frameForCanvasReply)?.liveEditVariant
               ?.label || "",
           acceptedOutputFallback: canvasObjectAcceptedOutputFallback,
+          canvasObjectLocalMirror: Boolean(canvasObjectLocalMirror),
           acceptedBindingFallback: canvasObjectAcceptedBindingFallback,
           acceptedBindingQueueCount: acceptedBindingQueueItems.length,
           canvasRegionAcceptedRewriteQueued,

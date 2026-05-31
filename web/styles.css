@@ -3864,6 +3864,148 @@ body[data-workspace-mode="simple"] .workbench-output-stage-surface {
     color: rgba(255, 255, 255, 0.72);
 }
 
+.workbench-output-surface.has-local-live-edit {
+    align-content: stretch;
+    color: #f8f4ec;
+    background:
+        linear-gradient(135deg, rgba(245, 185, 56, 0.13), transparent 42%),
+        rgba(22, 22, 24, 0.86);
+}
+
+.workbench-output-local-edit {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(12rem, 1fr);
+    grid-template-areas:
+        "copy map"
+        "status map";
+    gap: 0.75rem;
+    align-items: stretch;
+    min-height: min(18rem, 42dvh);
+}
+
+.workbench-output-local-edit-copy {
+    grid-area: copy;
+    display: grid;
+    align-content: start;
+    gap: 0.42rem;
+    min-width: 0;
+}
+
+.workbench-output-local-edit-copy strong {
+    overflow-wrap: anywhere;
+    color: #fffaf0;
+    font-family: var(--font-display);
+    font-size: clamp(1rem, 1.4vw, 1.42rem);
+    line-height: 1.02;
+}
+
+.workbench-output-local-edit-copy p {
+    margin: 0;
+    max-width: 34ch;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.86rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.workbench-output-local-edit-map {
+    position: relative;
+    grid-area: map;
+    min-height: 12rem;
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 0.0625rem solid rgba(245, 185, 56, 0.34);
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(238, 232, 219, 0.92)),
+        #f3ead8;
+    box-shadow:
+        inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.54),
+        0 0.75rem 1.65rem rgba(0, 0, 0, 0.22);
+}
+
+.workbench-output-local-edit-grid {
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    background-image:
+        linear-gradient(rgba(24, 17, 14, 0.08) 0.0625rem, transparent 0.0625rem),
+        linear-gradient(90deg, rgba(24, 17, 14, 0.08) 0.0625rem, transparent 0.0625rem),
+        linear-gradient(90deg, rgba(255, 93, 58, 0.18) 0.0625rem, transparent 0.0625rem);
+    background-size: 3rem 3rem, 3rem 3rem, 8rem 100%;
+}
+
+.workbench-output-local-edit-target {
+    position: absolute;
+    min-width: 2.8rem;
+    min-height: 2rem;
+    border: 0.125rem solid #f5b938;
+    border-radius: 0.75rem;
+    background:
+        linear-gradient(135deg, rgba(245, 185, 56, 0.18), transparent),
+        rgba(255, 255, 255, 0.32);
+    box-shadow:
+        0 0 0 0.18rem rgba(24, 17, 14, 0.28),
+        0 0 0 0.34rem rgba(245, 185, 56, 0.22);
+}
+
+.workbench-output-local-edit-target b {
+    position: absolute;
+    left: 0.42rem;
+    top: -0.72rem;
+    max-width: min(16rem, calc(100% + 7rem));
+    overflow: hidden;
+    padding: 0.18rem 0.46rem;
+    border-radius: 999px;
+    color: #18110e;
+    background: #f5b938;
+    box-shadow: 0 0.42rem 0.9rem rgba(0, 0, 0, 0.2);
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.workbench-output-local-edit-pin {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 999px;
+    border: 0.125rem solid rgba(24, 17, 14, 0.92);
+    color: #18110e;
+    background: #f5b938;
+    box-shadow:
+        0 0.38rem 0.85rem rgba(0, 0, 0, 0.26),
+        0 0 0 0.18rem rgba(245, 185, 56, 0.24);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    font-weight: 900;
+    transform: translate(-50%, -50%);
+}
+
+.workbench-output-local-edit-status {
+    grid-area: status;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.34rem;
+    align-content: start;
+    align-items: center;
+}
+
+.workbench-output-local-edit-status span {
+    min-height: 1.55rem;
+    padding: 0.28rem 0.5rem;
+    border-radius: 999px;
+    border: 0.0625rem solid rgba(255, 255, 255, 0.13);
+    color: rgba(255, 255, 255, 0.74);
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
 body[data-workspace-mode="simple"] .workbench-output-surface.empty-state {
     gap: 0.38rem;
     padding: 0.68rem;
@@ -3878,6 +4020,24 @@ body[data-workspace-mode="simple"] .workbench-output-surface.empty-state {
 
 body[data-workspace-mode="simple"] .workbench-output-surface.empty-state p {
     line-height: 1.32;
+}
+
+body[data-workspace-mode="simple"] .workbench-output-local-edit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+        "copy"
+        "map"
+        "status";
+    min-height: 0;
+}
+
+body[data-workspace-mode="simple"] .workbench-output-local-edit-map {
+    min-height: 9.5rem;
+}
+
+body[data-workspace-mode="simple"] .workbench-output-local-edit-copy p {
+    max-width: 40ch;
+    font-size: 0.78rem;
 }
 
 body[data-workspace-mode="simple"] .workbench-output-head h3 {
