@@ -862,6 +862,10 @@ const dom = {
   helpCurrentSurface: document.querySelector("#help-current-surface"),
   helpCurrentOutput: document.querySelector("#help-current-output"),
   helpCurrentLiveEdit: document.querySelector("#help-current-live-edit"),
+  helpCurrentNextAction: document.querySelector("#help-current-next-action"),
+  helpCurrentLiveEditDetail: document.querySelector(
+    "#help-current-live-edit-detail",
+  ),
   helpCheckSketch: document.querySelector("#help-check-sketch"),
   helpCheckIntent: document.querySelector("#help-check-intent"),
   helpCheckOutput: document.querySelector("#help-check-output"),
@@ -26007,6 +26011,7 @@ function renderHelpOverlayState() {
   const target = currentWorkbenchTarget();
   const targetUrl = resolveWorkbenchTargetUrl(target);
   const liveTarget = normalizeLiveEditTarget(frame?.liveEditTarget);
+  const acceptedLocalLiveEdit = acceptedLocalLiveEditSummary(frame);
   const variants = currentLiveEditVariants(frame);
   const frameVoiceSegments = (state.voice?.segments || []).filter(
     (segment) => segment.frameId === frame?.id,
@@ -26025,10 +26030,12 @@ function renderHelpOverlayState() {
       cleanString(liveTarget?.note),
   );
   const hasOutput = Boolean(target && targetUrl);
+  const hasLiveEditTarget = Boolean(liveTarget || acceptedLocalLiveEdit?.target);
   const hasApplied = Boolean(
     frame?.captures?.length ||
       frame?.acceptedLiveEditVariant ||
       frame?.liveEditRequest?.status === "accepted" ||
+      acceptedLocalLiveEdit ||
       state.saveNotice,
   );
   if (dom.helpCurrentMode) {
@@ -26057,21 +26064,120 @@ function renderHelpOverlayState() {
   if (dom.helpCurrentOutput) {
     dom.helpCurrentOutput.textContent = hasOutput
       ? compactDisplayText(target.label || target.title || "Output attached", 34)
+      : acceptedLocalLiveEdit
+        ? "Accepted target only"
       : "Not generated";
   }
   if (dom.helpCurrentLiveEdit) {
     dom.helpCurrentLiveEdit.textContent = liveTarget
-      ? compactDisplayText(liveTarget.targetLabel || "Target selected", 34)
-      : state.liveEditPickActive
-        ? "Picking target"
-        : "No target";
+      ? compactDisplayText(
+          liveTarget.status === "accepted"
+            ? `Accepted: ${liveTarget.targetLabel || "target"}`
+            : liveTarget.targetLabel || "Target selected",
+          34,
+        )
+      : acceptedLocalLiveEdit
+        ? "Accepted locally"
+        : state.liveEditPickActive
+          ? "Picking target"
+          : "No target";
+  }
+  if (dom.helpCurrentNextAction || dom.helpCurrentLiveEditDetail) {
+    const helpState = describeHelpNextAction({
+      acceptedLocalLiveEdit,
+      hasIntent,
+      hasOutput,
+      hasSketch,
+      liveTarget,
+      variants,
+    });
+    if (dom.helpCurrentNextAction) {
+      dom.helpCurrentNextAction.textContent = helpState.action;
+    }
+    if (dom.helpCurrentLiveEditDetail) {
+      dom.helpCurrentLiveEditDetail.textContent = helpState.detail;
+    }
   }
   setHelpCheckState(dom.helpCheckSketch, hasSketch);
   setHelpCheckState(dom.helpCheckIntent, hasIntent);
   setHelpCheckState(dom.helpCheckOutput, hasOutput);
-  setHelpCheckState(dom.helpCheckTarget, Boolean(liveTarget));
+  setHelpCheckState(dom.helpCheckTarget, hasLiveEditTarget);
   setHelpCheckState(dom.helpCheckVariants, variants.length > 0);
   setHelpCheckState(dom.helpCheckApply, hasApplied);
+}
+
+function describeHelpNextAction({
+  acceptedLocalLiveEdit,
+  hasIntent,
+  hasOutput,
+  hasSketch,
+  liveTarget,
+  variants,
+}) {
+  if (state.liveEditPickActive) {
+    const surface =
+      liveEditTargetSurfaceChoice(currentFrame()) === "output"
+        ? "the generated output"
+        : "the sketch pad";
+    return {
+      action: `Click or drag the exact region on ${surface}.`,
+      detail: "The yellow outline is only the target for this Live Edit pass.",
+    };
+  }
+  if (variants.length) {
+    return {
+      action: "Cycle the three variants, then Accept the one that fits or Discard.",
+      detail:
+        "Variants are temporary until accepted; Discard or Escape restores the original.",
+    };
+  }
+  if (liveTarget?.status === "accepted" || acceptedLocalLiveEdit) {
+    return hasOutput
+      ? {
+          action: "Review the accepted target in Output focus, then Apply when it is ready for Codex.",
+          detail:
+            "Accepted Live Edit is bound to the generated surface and saved for the next rewrite.",
+        }
+      : {
+          action:
+            "Press Make or Build to materialize this accepted target into Output focus.",
+          detail:
+            "Accepted locally means the target is saved with the sketch even before a generated output exists.",
+        };
+  }
+  if (liveTarget) {
+    return {
+      action: "Add a note, pin, spoken intent, or correction stroke, then press Go.",
+      detail:
+        "Go makes three variants in the same surface instead of opening a separate page.",
+    };
+  }
+  if (hasOutput) {
+    return {
+      action: "Use Live Edit to pick the exact output region you want changed.",
+      detail:
+        "Pick on Output for generated UI, image, page, poster, or preview corrections.",
+    };
+  }
+  if (hasSketch && hasIntent) {
+    return {
+      action: "Press Make to generate a local output from this sketch and intent.",
+      detail:
+        "Output focus appears after Make; then you can Live Edit exact regions.",
+    };
+  }
+  if (hasSketch) {
+    return {
+      action: "Add a short note or Talk so Canvax knows what the sketch should become.",
+      detail:
+        "A few words are enough: layout, mood, image direction, copy, or behavior.",
+    };
+  }
+  return {
+    action: "Start by drawing the part you want Canvax to read.",
+    detail:
+      "Sketch can be a UI, book spread, poster, image region, storyboard panel, or raw note.",
+  };
 }
 
 function openPreviewWindow(options = {}) {
@@ -34168,6 +34274,8 @@ async function runSelfTest() {
           Boolean(dom.workbenchAgentLogToggle) &&
           Boolean(dom.workbenchAgentLogClose) &&
           Boolean(dom.workbenchLiveSurfaceButtons) &&
+          Boolean(dom.helpCurrentNextAction) &&
+          Boolean(dom.helpCurrentLiveEditDetail) &&
           !dom.workbenchLiveEditBar.hidden &&
           dom.workbenchLiveEditTitle.textContent.includes("Live Edit ready") &&
           dom.workbenchLiveEditPick.textContent.includes("Pick") &&
@@ -35021,11 +35129,20 @@ async function runSelfTest() {
       dom.workbenchOutputMeta.textContent.includes(
         "Output Focus will show a generated surface",
       );
+    renderHelpOverlayState();
+    const sameCanvasAcceptedHelpExplained =
+      dom.helpCurrentOutput?.textContent === "Accepted target only" &&
+      dom.helpCurrentLiveEdit?.textContent.includes("Accepted") &&
+      dom.helpCurrentNextAction?.textContent.includes("Make or Build") &&
+      dom.helpCurrentLiveEditDetail?.textContent.includes("Accepted locally") &&
+      dom.helpCheckTarget?.dataset.state === "done" &&
+      dom.helpCheckOutput?.dataset.state === "todo";
     const sameCanvasAcceptedFallbackRendered =
       sameCanvasAcceptedBadge &&
       sameCanvasAcceptedCopyRendered &&
       sameCanvasAcceptedTargetRendered &&
-      sameCanvasAcceptedMetaRendered;
+      sameCanvasAcceptedMetaRendered &&
+      sameCanvasAcceptedHelpExplained;
     frameForCanvasReply.canvasReply =
       acceptedSameCanvasFallbackState.canvasReply;
     frameForCanvasReply.liveEditTarget =
@@ -35129,6 +35246,7 @@ async function runSelfTest() {
           sameCanvasAcceptedTargetRendered,
           sameCanvasAcceptedLocalPinRendered,
           sameCanvasAcceptedMetaRendered,
+          sameCanvasAcceptedHelpExplained,
         }),
       ),
     );

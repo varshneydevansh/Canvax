@@ -8190,6 +8190,43 @@ body[data-workspace-mode="advanced"] .design-kit-sources li {
     line-height: 1.48;
 }
 
+.help-next-step {
+    display: grid;
+    gap: 0.32rem;
+    padding: 0.9rem 1rem;
+    border-radius: 1rem;
+    border: 0.0625rem solid rgba(245, 185, 56, 0.42);
+    background:
+        linear-gradient(135deg, rgba(245, 185, 56, 0.2), transparent 56%),
+        rgba(255, 255, 255, 0.76);
+    box-shadow: inset 0 0 0 0.0625rem rgba(255, 255, 255, 0.44);
+}
+
+.help-next-step strong {
+    color: rgba(26, 23, 20, 0.56);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.help-next-step p {
+    margin: 0;
+    color: #18110e;
+    font-family: var(--font-display);
+    font-size: clamp(1rem, 1.8vw, 1.36rem);
+    font-weight: 900;
+    line-height: 1.08;
+}
+
+.help-next-step small {
+    color: rgba(26, 23, 20, 0.68);
+    font-size: 0.84rem;
+    font-weight: 750;
+    line-height: 1.32;
+}
+
 .help-status-grid,
 .help-workflow {
     display: grid;
